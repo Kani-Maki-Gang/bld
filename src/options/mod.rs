@@ -1,5 +1,5 @@
+use crate::definitions::{AUTHOR, VERSION};
 use clap::{App, ArgMatches};
-use crate::definitions::{VERSION, AUTHOR};
 
 pub fn cli(commands: Vec<App<'static, 'static>>) -> ArgMatches<'static> {
     App::new("Bld")

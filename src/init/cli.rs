@@ -1,5 +1,5 @@
+use crate::definitions::{AUTHOR, VERSION};
 use clap::{App, SubCommand};
-use crate::definitions::{VERSION, AUTHOR};
 
 pub fn command() -> App<'static, 'static> {
     SubCommand::with_name("init")

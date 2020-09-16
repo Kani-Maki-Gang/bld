@@ -1,15 +1,8 @@
+use crate::definitions::{DEFAULT_PIPELINE_CONTENT, TOOL_DEFAULT_PIPELINE, TOOL_DIR};
 use std::fs;
 use std::io::{self, Error, ErrorKind};
-use std::path::Path;
 use std::path::Component::Normal;
-
-static DEFAULT_PIPELINE: &str = r"name: Default Pipeline
-runs-on: machine
-steps: 
-- name: echo 
-  exec:
-  - sh: echo 'hello world'
-";
+use std::path::Path;
 
 fn build_dir_exists() -> io::Result<bool> {
     let curr_dir = std::env::current_dir()?;
@@ -19,7 +12,7 @@ fn build_dir_exists() -> io::Result<bool> {
         if path.is_dir() {
             let component = path.components().last();
             if let Some(Normal(name)) = component {
-                if name == ".build" {
+                if name == TOOL_DIR {
                     return Ok(true);
                 }
             }
@@ -30,16 +23,18 @@ fn build_dir_exists() -> io::Result<bool> {
 
 fn create_build_dir() -> io::Result<()> {
     let mut path = std::env::current_dir()?;
-    path.push(".build");
+    path.push(TOOL_DIR);
     fs::create_dir(path)?;
-    println!("[-] .build directory initialized");
+    println!("<bld> {} directory initialized", TOOL_DIR);
     Ok(())
 }
 
 fn create_default_yaml() -> io::Result<()> {
-    let path = Path::new("./.build/default.yaml");
-    fs::write(path, DEFAULT_PIPELINE)?;
-    println!("[-] default yaml file created");
+    let mut path = Path::new("./").to_path_buf();
+    path.push(TOOL_DIR);
+    path.push(format!("{}.yaml", TOOL_DEFAULT_PIPELINE));
+    fs::write(path, DEFAULT_PIPELINE_CONTENT)?;
+    println!("<bld> {} yaml file created", TOOL_DEFAULT_PIPELINE);
     Ok(())
 }
 
@@ -47,9 +42,9 @@ pub fn exec() -> io::Result<()> {
     let build_dir_exists = build_dir_exists()?;
     if !build_dir_exists {
         return create_build_dir().and_then(|_| create_default_yaml());
-    } 
+    }
 
-    let message = ".build dir already exists in the current directory";
+    let message = format!("{} dir already exists in the current directory", TOOL_DIR);
     let error = Error::new(ErrorKind::Other, message);
     Err(error)
 }

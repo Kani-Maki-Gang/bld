@@ -1,24 +1,22 @@
 mod definitions;
+mod init;
 mod options;
 mod os;
 mod run;
-mod init;
 
-fn main() {
-    let commands = vec![
-        init::command(),
-        run::command(),
-    ];
+#[tokio::main]
+async fn main() {
+    let commands = vec![init::command(), run::command()];
 
     let matches = options::cli(commands);
 
     let result = match matches.subcommand() {
-        ("init", Some(_)) => init::exec(), 
-        ("run", Some(matches)) => run::exec(matches),
-        _ => Ok(())
+        ("init", Some(_)) => init::exec(),
+        ("run", Some(matches)) => run::exec(matches).await,
+        _ => Ok(()),
     };
 
     if let Err(e) = result {
-        eprintln!("{}", e.to_string());
+        eprintln!("<bld | error> {}", e.to_string());
     }
 }

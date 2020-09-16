@@ -1,5 +1,5 @@
+use crate::definitions::{AUTHOR, VERSION};
 use clap::{App, Arg, SubCommand};
-use crate::definitions::{VERSION, AUTHOR};
 
 pub fn command() -> App<'static, 'static> {
     let pipeline = Arg::with_name("pipeline")
