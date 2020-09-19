@@ -1,5 +1,5 @@
 use crate::os::{self, OSname};
-use futures_util::{StreamExt};
+use futures_util::{StreamExt, AsyncWriteExt};
 use shiplift::{
     ContainerOptions, Docker,
     tty::TtyChunk,
@@ -69,6 +69,7 @@ impl Container {
     }
 
     pub async fn sh(&mut self, _working_dir: &str, input: &str) -> io::Result<String> {
+        let mut output = String::new();
         let options = shiplift::ExecContainerOptions::builder()
             .cmd(vec![
                 "bash",
@@ -84,13 +85,24 @@ impl Container {
             .containers()
             .get(&self.container_id);
 
-        while let Some(result) = container.exec(&options).next().await {
-            return match result {
-                Ok(TtyChunk::StdOut(bytes)) => Ok(String::from_utf8(bytes).unwrap()),
-                Ok(TtyChunk::StdErr(bytes)) => Ok(String::from_utf8(bytes).unwrap()),
-                Ok(TtyChunk::StdIn(_)) => unreachable!(),
-                Err(e) => Err(Error::new(ErrorKind::Other, e.to_string()))
-            }; 
+        let mut exec_iter = container.exec(&options);
+        loop {
+            let chunk = match exec_iter.next().await {
+                Some(result) => {
+                    match result {
+                        Ok(TtyChunk::StdOut(bytes)) => String::from_utf8(bytes).unwrap(),
+                        Ok(TtyChunk::StdErr(bytes)) => String::from_utf8(bytes).unwrap(),
+                        Ok(TtyChunk::StdIn(_)) => unreachable!(),
+                        Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
+                    }
+                },
+                None => break,
+            };
+
+            print!("{}", &chunk);
+            output.push_str(&format!("\r\n{}", chunk));
+
+            std::thread::sleep(std::time::Duration::from_millis(100));
         }
 
         Ok(String::new())
