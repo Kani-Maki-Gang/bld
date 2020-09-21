@@ -1,11 +1,9 @@
 use crate::os::{self, OSname};
-use futures_util::{StreamExt, AsyncWriteExt};
-use shiplift::{
-    ContainerOptions, Docker,
-    tty::TtyChunk,
-};
+use futures_util::{StreamExt};
+use shiplift::{ContainerOptions, Docker, tty::TtyChunk};
 use std::fmt::{self, Display, Formatter};
 use std::io::{self, Error, ErrorKind};
+use std::path::{self, Path};
 use std::process::Command;
 
 #[derive(Clone, Debug)]
@@ -16,7 +14,7 @@ impl Machine {
         Ok(Self)
     }
 
-    pub fn sh(&self, working_dir: &str, input: &str) -> io::Result<String> {
+    pub fn sh(&self, working_dir: &Option<String>, input: &str) -> io::Result<()> {
         let os_name = os::name();
 
         let (shell, mut args) = match os_name {
@@ -27,15 +25,20 @@ impl Machine {
         };
         args.push(input);
 
-        let process = Command::new(shell)
-            .args(&args)
-            .current_dir(working_dir)
-            .output()?;
+        let mut command= Command::new(shell);
+        command.args(&args);
+
+        if let Some(dir) = working_dir {
+            command.current_dir(dir);
+        }
+
+        let process = command.output()?;
 
         let mut output = String::from_utf8_lossy(&process.stderr).to_string();
         output.push_str(&format!("\r\n{}", String::from_utf8_lossy(&process.stdout)));
+        println!("{}", &output);
 
-        Ok(output)
+        Ok(())
     }
 }
 
@@ -68,14 +71,18 @@ impl Container {
         })
     }
 
-    pub async fn sh(&mut self, _working_dir: &str, input: &str) -> io::Result<String> {
-        let mut output = String::new();
+    pub async fn sh(&mut self, working_dir: &Option<String>, input: &str) -> io::Result<String> {
+        let mut cmd = vec!["bash", "-c"];
+
+        if let Some(dir) = working_dir {
+            cmd.push("cd");
+            cmd.push(&dir);
+        }
+
+        cmd.push(input);
+
         let options = shiplift::ExecContainerOptions::builder()
-            .cmd(vec![
-                "bash",
-                "-c",
-                input
-            ]) 
+            .cmd(cmd) 
             .attach_stdout(true)
             .attach_stderr(true)
             .build();
@@ -87,20 +94,18 @@ impl Container {
 
         let mut exec_iter = container.exec(&options);
         loop {
-            let chunk = match exec_iter.next().await {
+            match exec_iter.next().await {
                 Some(result) => {
-                    match result {
+                    let chunk = match result {
                         Ok(TtyChunk::StdOut(bytes)) => String::from_utf8(bytes).unwrap(),
                         Ok(TtyChunk::StdErr(bytes)) => String::from_utf8(bytes).unwrap(),
                         Ok(TtyChunk::StdIn(_)) => unreachable!(),
                         Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
-                    }
+                    };
+                    print!("{}", &chunk);
                 },
                 None => break,
             };
-
-            print!("{}", &chunk);
-            output.push_str(&format!("\r\n{}", chunk));
 
             std::thread::sleep(std::time::Duration::from_millis(100));
         }

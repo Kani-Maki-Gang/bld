@@ -5,15 +5,17 @@ use yaml_rust::Yaml;
 #[derive(Debug)]
 pub struct BuildStep {
     pub name: Option<String>,
-    pub working_dir: String,
+    pub working_dir: Option<String>,
+    pub call_pipeline: Option<String>,
     pub shell_commands: Vec<String>,
 }
 
 impl BuildStep {
-    pub fn new(name: Option<String>, working_dir: String, shell_commands: Vec<String>) -> Self {
+    pub fn new(name: Option<String>, working_dir: Option<String>, call_pipeline: Option<String>, shell_commands: Vec<String>) -> Self {
         Self {
             name,
             working_dir,
+            call_pipeline,
             shell_commands,
         }
     }
@@ -47,11 +49,8 @@ impl Pipeline {
     fn steps(yaml: &Yaml) -> Vec<BuildStep> {
         let mut steps = Vec::<BuildStep>::new();
         let working_dir = match &yaml["working_dir"].as_str() {
-            Some(wd) => wd.to_string(),
-            None => match std::env::current_dir() {
-                Ok(wd) => wd.display().to_string(),
-                Err(_) => String::new(),
-            },
+            Some(wd) => Some(wd.to_string()),
+            None => None,
         };
 
         if let Some(entries) = &yaml["steps"].as_vec() {
@@ -62,22 +61,30 @@ impl Pipeline {
                 };
 
                 let working_dir = match &entry["working_dir"].as_str() {
-                    Some(wd) => wd.to_string(),
-                    None => String::from(&working_dir),
+                    Some(wd) => Some(wd.to_string()),
+                    None => working_dir.clone(),
                 };
 
-                if let Some(commands) = entry["exec"].as_vec() {
-                    let commands = commands
-                        .iter()
-                        .map(|c| match c["sh"].as_str() {
-                            Some(command) => command.to_string(),
-                            None => String::new(),
-                        })
-                        .filter(|c| !c.is_empty())
-                        .collect::<Vec<String>>();
+                let call_pipeline = match entry["call"].as_str() {
+                    Some(pipeline) => Some(pipeline.to_string()),
+                    None => None,
+                };
 
-                    steps.push(BuildStep::new(name, working_dir, commands));
-                }
+                let commands = match entry["exec"].as_vec() {
+                    Some(commands) => {
+                        commands
+                            .iter()
+                            .map(|c| match c["sh"].as_str() {
+                                Some(command) => command.to_string(),
+                                None => String::new(),
+                            })
+                            .filter(|c| !c.is_empty())
+                            .collect::<Vec<String>>()
+                    }
+                    None => Vec::<String>::new(),
+                };
+
+                steps.push(BuildStep::new(name, working_dir, call_pipeline, commands));
             }
         }
 

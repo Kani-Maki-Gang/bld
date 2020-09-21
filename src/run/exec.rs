@@ -1,16 +1,14 @@
+use std::future::Future;
+use std::pin::Pin;
 use crate::definitions::{TOOL_DEFAULT_PIPELINE, TOOL_DIR};
 use crate::run::{Pipeline, RunPlatform};
+use futures_util::future::FutureExt;
 use clap::ArgMatches;
 use std::fs;
 use std::io::{self, Error, ErrorKind};
 use yaml_rust::YamlLoader;
 
-async fn load(matches: &ArgMatches<'_>) -> io::Result<Pipeline> {
-    let pipeline = match matches.value_of("pipeline") {
-        Some(name) => name.to_string(),
-        None => TOOL_DEFAULT_PIPELINE.to_string(),
-    };
-
+async fn load_yaml(pipeline: &str) -> io::Result<Pipeline> {
     let mut path = std::env::current_dir()?;
     path.push(TOOL_DIR);
     path.push(format!("{}.yaml", pipeline));
@@ -30,6 +28,13 @@ async fn load(matches: &ArgMatches<'_>) -> io::Result<Pipeline> {
     }
 }
 
+fn load(matches: &ArgMatches<'_>) -> io::Result<String> {
+    match matches.value_of("pipeline") {
+        Some(name) => Ok(name.to_string()),
+        None => Ok(TOOL_DEFAULT_PIPELINE.to_string()),
+    }
+}
+
 fn info(pipeline: Pipeline) -> io::Result<Pipeline> {
     if let Some(name) = &pipeline.name {
         println!("<bld> Pipeline: {}", name);
@@ -46,8 +51,13 @@ async fn steps(pipeline: Pipeline) -> io::Result<()> {
             println!("<bld> Step: {}", name);
         }
 
+        if let Some(call) = &step.call_pipeline {
+            let call = call.clone();
+            invoke(call).await.await?;
+        }
+
         for command in step.shell_commands.iter() {
-            let output = match &pipeline.runs_on {
+            match &pipeline.runs_on {
                 RunPlatform::Docker(container) => {
                     let mut container = container.clone();
                     let result = container.sh(&step.working_dir, &command).await;
@@ -55,12 +65,9 @@ async fn steps(pipeline: Pipeline) -> io::Result<()> {
                         container.dispose().await?;
                         return Err(e);
                     }
-                    result.unwrap()
                 }
                 RunPlatform::Local(machine) => machine.sh(&step.working_dir, &command)?,
-            };
-
-            println!("{}", output);
+            }
         }
     }
 
@@ -71,7 +78,14 @@ async fn steps(pipeline: Pipeline) -> io::Result<()> {
     Ok(())
 }
 
+async fn invoke(pipeline: String) -> Pin<Box<dyn Future<Output = io::Result<()>>>> {
+    Box::pin(async move {
+        let pipeline = load_yaml(&pipeline).await.and_then(info)?;
+        steps(pipeline).await
+    })
+}
+
 pub async fn exec(matches: &ArgMatches<'_>) -> io::Result<()> {
-    let pipeline = load(&matches).await.and_then(info)?;
-    steps(pipeline).await
+    let pipeline = load(&matches)?;
+    invoke(pipeline).await.await
 }
