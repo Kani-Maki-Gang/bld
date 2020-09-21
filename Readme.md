@@ -2,22 +2,19 @@
 A simple CI/CD tool build on rust
 
 # Usage
-Command to create the .bld directory and a default pipeline.
 ```bash
+# Command to create the .bld directory and a default pipeline.
 bld init 
-```
 
-Command to run the default pipeline.
-```bash
+# Command to run the default pipeline.
 bld run
+
+# Command to run a specific pipeline.
+# pipeline_name should be a yaml file in the .bld directory.
+bld run -p pipeline_name 
 ```
 
-Command to run a specific pipeline.
-```bash
-bld run -p pipeline_name // pipeline_name should be .yaml file in the .bld directory.
-```
-
-# Pipeline example
+# Pipeline examples
 #### Default pipeline
 ```yaml
 name: Default Pipeline
@@ -30,20 +27,40 @@ steps:
 
 #### Build a dotnet core project
 ```yaml
-name: BurstChat API Pipeline
+name: dotnet core project ipeline
 runs-on: mcr.microsoft.com/dotnet/core/sdk:3.1
-steps:- name: Fetch repository
+steps:
+- name: fetch repository
   exec:
-  - sh: git clone https://github.com/super-cool-project.git  
-- name: Build project
+  - sh: git clone https://github.com/project/project.git  
+- name: build project
+  working-dir: project
   exec:  
-  - sh: dotnet build super-cool-project/SuperCoolProject.csproj -c release
-  - sh: cp -r burstchat/src/BurstChat.Api/bin/release/netcoreapp3.1/linux-x64/* output
+  - sh: dotnet build -c release
+  - sh: cp -r bin/release/netcoreapp3.1/linux-x64/* /output
+```
+
+#### Build a node project
+```yaml
+name: node project pipeline
+runs-on: node:12.18.3
+steps:
+- name: Fetch repository
+  exec:
+  - sh: git clone https://github.com/project/project.git
+- name: install dependencies 
+  working-dir: project
+  exec:
+  - sh: npm install
+- name: build project 
+  working-dir: project 
+  exec:
+  - sh: npm build 
 ```
 
 # What to do next
-1. Automatic download of image if missing
-2. Parallel runs of pipelines
-3. Daemon and logging
-4. Support for referencing ssh keys.
-5. Distributed mode
+- [ ] Automatic download of image if missing
+- [ ] Parallel runs of pipelines
+- [ ] Daemon and logging
+- [ ] Support for referencing ssh keys.
+- [ ] Distributed mode
