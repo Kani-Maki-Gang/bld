@@ -1,11 +1,10 @@
-use crate::definitions::{AUTHOR, VERSION};
+use crate::definitions::VERSION;
 use clap::{App, ArgMatches};
 
 pub fn cli(commands: Vec<App<'static, 'static>>) -> ArgMatches<'static> {
     App::new("Bld")
         .version(VERSION)
-        .author(AUTHOR)
-        .about("A distributed build tool")
+        .about("A distributed CI/CD")
         .subcommands(commands)
         .get_matches()
 }

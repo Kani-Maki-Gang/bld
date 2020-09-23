@@ -59,7 +59,7 @@ steps:
 ```
 
 # What to do next
-- [ ] Automatic download of image if missing
+- [X] Automatic download of image if missing
 - [ ] Parallel runs of pipelines
 - [ ] Daemon and logging
 - [ ] Support for referencing ssh keys.

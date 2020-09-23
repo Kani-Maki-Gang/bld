@@ -1,4 +1,4 @@
-use crate::definitions::{AUTHOR, VERSION};
+use crate::definitions::VERSION;
 use clap::{App, Arg, SubCommand};
 
 pub fn command() -> App<'static, 'static> {
@@ -11,6 +11,5 @@ pub fn command() -> App<'static, 'static> {
     SubCommand::with_name("run")
         .about("Executes a build pipeline")
         .version(VERSION)
-        .author(AUTHOR)
         .arg(pipeline)
 }

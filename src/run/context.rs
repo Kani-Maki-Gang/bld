@@ -1,6 +1,6 @@
 use crate::os::{self, OSname};
 use futures_util::StreamExt;
-use shiplift::{tty::TtyChunk, ContainerOptions, ExecContainerOptions, Docker};
+use shiplift::{tty::TtyChunk, ContainerOptions, ExecContainerOptions, ImageListOptions, PullOptions, Docker};
 use std::fmt::{self, Display, Formatter};
 use std::io::{self, Error, ErrorKind};
 use std::thread::sleep;
@@ -51,7 +51,7 @@ pub struct Container {
 }
 
 impl Container {
-    pub async fn new(image: &str) -> io::Result<Self> {
+    fn docker() -> io::Result<Docker> {
         let uri = match "tcp://127.0.0.1:2375".parse() {
             Ok(uri) => uri,
             Err(_) => {
@@ -61,19 +61,56 @@ impl Container {
                 ))
             }
         };
-        let docker = Docker::host(uri);
+        Ok(Docker::host(uri))
+    }
+
+    async fn pull(client: &Docker, image: &str) -> io::Result<()> {
+        let options = ImageListOptions::builder().filter_name(image).build();
+        let images = match client.images().list(&options).await {
+            Ok(img) => img,
+            Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
+        };
+
+        if images.len() == 0 {
+            println!("<bld> Download image: {}", image);
+            let options = PullOptions::builder().image(image).build();
+            let mut pull_iter = client.images().pull(&options);
+            while let Some(progress) = pull_iter.next().await {
+                match progress {
+                    Ok(info) => println!("{}", info.to_string()),
+                    Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
+                }
+                sleep(Duration::from_millis(100));
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn create(client: &Docker, image: &str) -> io::Result<String> {
+        Container::pull(client, image).await?;
+
         let options = ContainerOptions::builder(&image).tty(true).build();
-        let info = match docker.containers().create(&options).await {
+        let info = match client.containers().create(&options).await {
             Ok(info) => info,
             Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
         };
-        if let Err(e) = docker.containers().get(&info.id).start().await {
+
+        if let Err(e) = client.containers().get(&info.id).start().await {
             return Err(Error::new(ErrorKind::Other, e.to_string()));
         }
+
+        Ok(info.id)
+    }
+
+    pub async fn new(image: &str) -> io::Result<Self> {
+        let client = Container::docker()?;
+        let container_id = Container::create(&client, image).await?;
+
         Ok(Self {
             image: image.to_string(),
-            client: docker,
-            container_id: info.id,
+            client,
+            container_id,
         })
     }
 
@@ -94,19 +131,14 @@ impl Container {
         let container = self.client.containers().get(&self.container_id);
 
         let mut exec_iter = container.exec(&options);
-        loop {
-            match exec_iter.next().await {
-                Some(result) => {
-                    let chunk = match result {
-                        Ok(TtyChunk::StdOut(bytes)) => String::from_utf8(bytes).unwrap(),
-                        Ok(TtyChunk::StdErr(bytes)) => String::from_utf8(bytes).unwrap(),
-                        Ok(TtyChunk::StdIn(_)) => unreachable!(),
-                        Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
-                    };
-                    print!("{}", &chunk);
-                },
-                None => break,
+        while let Some(result) = exec_iter.next().await {
+            let chunk = match result {
+                Ok(TtyChunk::StdOut(bytes)) => String::from_utf8(bytes).unwrap(),
+                Ok(TtyChunk::StdErr(bytes)) => String::from_utf8(bytes).unwrap(),
+                Ok(TtyChunk::StdIn(_)) => unreachable!(),
+                Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
             };
+            print!("{}", &chunk);
             sleep(Duration::from_millis(100));
         }
 
