@@ -2,7 +2,7 @@ use crate::definitions::{
     DEFAULT_PIPELINE_CONTENT, TOOL_DEFAULT_PIPELINE, TOOL_DIR, 
     TOOL_DEFAULT_CONFIG, DEFAULT_CONFIG_CONTENT
 };
-use crate::term::{print_info, print_error};
+use crate::term::print_info;
 use std::fs;
 use std::io::{self, Error, ErrorKind};
 use std::path::Component::Normal;

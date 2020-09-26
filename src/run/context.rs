@@ -61,7 +61,7 @@ impl Container {
         };
         let port = match &config.port {
             Some(port) => port,
-            None => "2375"
+            None => &(2375 as i64)
         };
         Ok(format!("tcp://{}:{}", host, port))
     }
@@ -87,7 +87,7 @@ impl Container {
         };
 
         if images.len() == 0 {
-            print_info(&format!("Download image: {}", image));
+            print_info(&format!("Download image: {}", image))?;
 
             let options = PullOptions::builder().image(image).build();
             let mut pull_iter = client.images().pull(&options);
