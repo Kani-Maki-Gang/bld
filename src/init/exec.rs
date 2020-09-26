@@ -1,4 +1,8 @@
-use crate::definitions::{DEFAULT_PIPELINE_CONTENT, TOOL_DEFAULT_PIPELINE, TOOL_DIR};
+use crate::definitions::{
+    DEFAULT_PIPELINE_CONTENT, TOOL_DEFAULT_PIPELINE, TOOL_DIR, 
+    TOOL_DEFAULT_CONFIG, DEFAULT_CONFIG_CONTENT
+};
+use crate::term::{print_info, print_error};
 use std::fs;
 use std::io::{self, Error, ErrorKind};
 use std::path::Component::Normal;
@@ -25,7 +29,10 @@ fn create_build_dir() -> io::Result<()> {
     let mut path = std::env::current_dir()?;
     path.push(TOOL_DIR);
     fs::create_dir(path)?;
-    println!("<bld> {} directory initialized", TOOL_DIR);
+
+    let message = format!("{} directory created", TOOL_DIR);
+    print_info(&message)?;
+
     Ok(())
 }
 
@@ -34,14 +41,30 @@ fn create_default_yaml() -> io::Result<()> {
     path.push(TOOL_DIR);
     path.push(format!("{}.yaml", TOOL_DEFAULT_PIPELINE));
     fs::write(path, DEFAULT_PIPELINE_CONTENT)?;
-    println!("<bld> {} yaml file created", TOOL_DEFAULT_PIPELINE);
+
+    let message = format!("{} yaml file created", TOOL_DEFAULT_PIPELINE);
+    print_info(&message)?;
+
+    Ok(())
+}
+
+fn create_config_yaml() -> io::Result<()> {
+    let mut path = Path::new("./").to_path_buf();
+    path.push(TOOL_DIR);
+    path.push(format!("{}.yaml", TOOL_DEFAULT_CONFIG));
+    fs::write(path, DEFAULT_CONFIG_CONTENT)?;
+
+    print_info("config file created")?;
+
     Ok(())
 }
 
 pub fn exec() -> io::Result<()> {
     let build_dir_exists = build_dir_exists()?;
     if !build_dir_exists {
-        return create_build_dir().and_then(|_| create_default_yaml());
+        return create_build_dir()
+            .and_then(|_| create_default_yaml())
+            .and_then(|_| create_config_yaml());
     }
 
     let message = format!("{} dir already exists in the current directory", TOOL_DIR);

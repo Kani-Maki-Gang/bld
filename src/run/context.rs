@@ -1,4 +1,6 @@
 use crate::os::{self, OSname};
+use crate::config::BldConfig;
+use crate::term::print_info;
 use futures_util::StreamExt;
 use shiplift::{tty::TtyChunk, ContainerOptions, ExecContainerOptions, ImageListOptions, PullOptions, Docker};
 use std::fmt::{self, Display, Formatter};
@@ -51,8 +53,21 @@ pub struct Container {
 }
 
 impl Container {
+    fn address() -> io::Result<String> {
+        let config = BldConfig::load()?;
+        let host = match &config.host {
+            Some(host) => host,
+            None => "127.0.0.1",
+        };
+        let port = match &config.port {
+            Some(port) => port,
+            None => "2375"
+        };
+        Ok(format!("tcp://{}:{}", host, port))
+    }
+
     fn docker() -> io::Result<Docker> {
-        let uri = match "tcp://127.0.0.1:2375".parse() {
+        let uri = match (Container::address()?).parse() {
             Ok(uri) => uri,
             Err(_) => {
                 return Err(Error::new(
@@ -72,7 +87,8 @@ impl Container {
         };
 
         if images.len() == 0 {
-            println!("<bld> Download image: {}", image);
+            print_info(&format!("Download image: {}", image));
+
             let options = PullOptions::builder().image(image).build();
             let mut pull_iter = client.images().pull(&options);
             while let Some(progress) = pull_iter.next().await {

@@ -1,5 +1,6 @@
 use crate::definitions::{TOOL_DEFAULT_PIPELINE, TOOL_DIR};
 use crate::run::{Pipeline, RunPlatform};
+use crate::term::print_info;
 use clap::ArgMatches;
 use std::fs;
 use std::future::Future;
@@ -29,18 +30,16 @@ async fn load(pipeline: &str) -> io::Result<Pipeline> {
 
 fn info(pipeline: Pipeline) -> io::Result<Pipeline> {
     if let Some(name) = &pipeline.name {
-        println!("<bld> Pipeline: {}", name);
+       print_info(&format!("Pipeline: {}", name))?;
     }
-
-    println!("<bld> Runs on: {}", pipeline.runs_on);
-
+    print_info(&format!("Runs on: {}", pipeline.runs_on))?;
     Ok(pipeline)
 }
 
 async fn steps(pipeline: Pipeline) -> io::Result<()> {
     for step in pipeline.steps.iter() {
         if let Some(name) = &step.name {
-            println!("<bld> Step: {}", name);
+            print_info(&format!("Step: {}", name))?;
         }
 
         if let Some(call) = &step.call {

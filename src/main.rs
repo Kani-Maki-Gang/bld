@@ -1,8 +1,12 @@
+mod config;
 mod definitions;
 mod init;
 mod options;
 mod os;
+mod term;
 mod run;
+
+use term::print_error;
 
 #[tokio::main]
 async fn main() {
@@ -17,6 +21,8 @@ async fn main() {
     };
 
     if let Err(e) = result {
-        eprintln!("<bld | error> {}", e.to_string());
+        if let Err(e) = print_error(&e.to_string()) {
+            eprintln!("{}", e.to_string());
+        }
     }
 }
