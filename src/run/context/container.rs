@@ -1,55 +1,16 @@
-use crate::os::{self, OSname};
 use crate::config::BldConfig;
 use crate::term::print_info;
 use futures_util::StreamExt;
 use shiplift::{tty::TtyChunk, ContainerOptions, ExecContainerOptions, ImageListOptions, PullOptions, Docker};
-use std::fmt::{self, Display, Formatter};
 use std::io::{self, Error, ErrorKind};
 use std::thread::sleep;
 use std::time::Duration;
-use std::process::Command;
-
-#[derive(Clone, Debug)]
-pub struct Machine;
-
-impl Machine {
-    pub fn new() -> io::Result<Self> {
-        Ok(Self)
-    }
-
-    pub fn sh(&self, working_dir: &Option<String>, input: &str) -> io::Result<()> {
-        let os_name = os::name();
-
-        let (shell, mut args) = match os_name {
-            OSname::Windows => ("powershell.exe", Vec::<&str>::new()),
-            OSname::Linux => ("bash", vec!["-c"]),
-            OSname::Mac => ("sh", vec!["-c"]),
-            OSname::Unknown => return Err(Error::new(ErrorKind::Other, "Could not spawn shell")),
-        };
-        args.push(input);
-
-        let mut command = Command::new(shell);
-        command.args(&args);
-
-        if let Some(dir) = working_dir {
-            command.current_dir(dir);
-        }
-
-        let process = command.output()?;
-
-        let mut output = String::from_utf8_lossy(&process.stderr).to_string();
-        output.push_str(&format!("\r\n{}", String::from_utf8_lossy(&process.stdout)));
-        println!("{}", &output);
-
-        Ok(())
-    }
-}
 
 #[derive(Clone)]
 pub struct Container {
-    image: String,
-    client: Docker,
-    container_id: String,
+    pub image: String,
+    pub client: Docker,
+    pub container_id: String,
 }
 
 impl Container {
@@ -182,16 +143,3 @@ impl Container {
     }
 }
 
-pub enum RunPlatform {
-    Local(Machine),
-    Docker(Container),
-}
-
-impl Display for RunPlatform {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Local(_) => write!(f, "machine"),
-            Self::Docker(container) => write!(f, "docker [ {} ]", container.image),
-        }
-    }
-}
