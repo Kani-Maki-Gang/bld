@@ -60,7 +60,8 @@ steps:
 
 # What to do next
 - [X] Automatic download of image if missing
-- [ ] Parallel runs of pipelines
-- [ ] Daemon and logging
+- [ ] Server mode.
+- [ ] Logging.
+- [ ] Parallel run of pipelines
 - [ ] Support for referencing ssh keys.
 - [ ] Distributed mode

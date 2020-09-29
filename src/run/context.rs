@@ -55,14 +55,8 @@ pub struct Container {
 impl Container {
     fn address() -> io::Result<String> {
         let config = BldConfig::load()?;
-        let host = match &config.host {
-            Some(host) => host,
-            None => "127.0.0.1",
-        };
-        let port = match &config.port {
-            Some(port) => port,
-            None => &(2375 as i64)
-        };
+        let host = &config.local.docker_host;
+        let port = &config.local.docker_port;
         Ok(format!("tcp://{}:{}", host, port))
     }
 

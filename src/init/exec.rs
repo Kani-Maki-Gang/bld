@@ -1,7 +1,4 @@
-use crate::definitions::{
-    DEFAULT_PIPELINE_CONTENT, TOOL_DEFAULT_PIPELINE, TOOL_DIR, 
-    TOOL_DEFAULT_CONFIG, DEFAULT_CONFIG_CONTENT
-};
+use crate::definitions;
 use crate::term::print_info;
 use std::fs;
 use std::io::{self, Error, ErrorKind};
@@ -16,7 +13,7 @@ fn build_dir_exists() -> io::Result<bool> {
         if path.is_dir() {
             let component = path.components().last();
             if let Some(Normal(name)) = component {
-                if name == TOOL_DIR {
+                if name == definitions::TOOL_DIR {
                     return Ok(true);
                 }
             }
@@ -27,10 +24,10 @@ fn build_dir_exists() -> io::Result<bool> {
 
 fn create_build_dir() -> io::Result<()> {
     let mut path = std::env::current_dir()?;
-    path.push(TOOL_DIR);
+    path.push(definitions::TOOL_DIR);
     fs::create_dir(path)?;
 
-    let message = format!("{} directory created", TOOL_DIR);
+    let message = format!("{} directory created", definitions::TOOL_DIR);
     print_info(&message)?;
 
     Ok(())
@@ -38,11 +35,11 @@ fn create_build_dir() -> io::Result<()> {
 
 fn create_default_yaml() -> io::Result<()> {
     let mut path = Path::new("./").to_path_buf();
-    path.push(TOOL_DIR);
-    path.push(format!("{}.yaml", TOOL_DEFAULT_PIPELINE));
-    fs::write(path, DEFAULT_PIPELINE_CONTENT)?;
+    path.push(definitions::TOOL_DIR);
+    path.push(format!("{}.yaml", definitions::TOOL_DEFAULT_PIPELINE));
+    fs::write(path, definitions::DEFAULT_PIPELINE_CONTENT)?;
 
-    let message = format!("{} yaml file created", TOOL_DEFAULT_PIPELINE);
+    let message = format!("{} yaml file created", definitions::TOOL_DEFAULT_PIPELINE);
     print_info(&message)?;
 
     Ok(())
@@ -50,9 +47,12 @@ fn create_default_yaml() -> io::Result<()> {
 
 fn create_config_yaml() -> io::Result<()> {
     let mut path = Path::new("./").to_path_buf();
-    path.push(TOOL_DIR);
-    path.push(format!("{}.yaml", TOOL_DEFAULT_CONFIG));
-    fs::write(path, DEFAULT_CONFIG_CONTENT)?;
+    path.push(definitions::TOOL_DIR);
+    path.push(format!("{}.yaml", definitions::TOOL_DEFAULT_CONFIG));
+
+    let content = definitions::default_config_content();
+
+    fs::write(path, &content)?; 
 
     print_info("config file created")?;
 
@@ -67,7 +67,7 @@ pub fn exec() -> io::Result<()> {
             .and_then(|_| create_config_yaml());
     }
 
-    let message = format!("{} dir already exists in the current directory", TOOL_DIR);
+    let message = format!("{} dir already exists in the current directory", definitions::TOOL_DIR);
     let error = Error::new(ErrorKind::Other, message);
     Err(error)
 }

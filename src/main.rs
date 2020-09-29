@@ -1,10 +1,11 @@
 mod config;
-mod definitions;
 mod init;
 mod options;
 mod os;
 mod term;
 mod run;
+
+#[macro_use] mod definitions;
 
 use term::print_error;
 
