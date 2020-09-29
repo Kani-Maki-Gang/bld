@@ -1,19 +1,23 @@
 mod config;
+mod definitions;
 mod init;
-mod options;
 mod os;
 mod term;
 mod run;
 
-#[macro_use] mod definitions;
-
+use crate::definitions::VERSION;
+use clap::App;
 use term::print_error;
 
 #[tokio::main]
 async fn main() {
     let commands = vec![init::command(), run::command()];
 
-    let matches = options::cli(commands);
+    let matches = App::new("Bld")
+        .version(VERSION)
+        .about("A distributed CI/CD")
+        .subcommands(commands)
+        .get_matches();
 
     let result = match matches.subcommand() {
         ("init", Some(_)) => init::exec(),
