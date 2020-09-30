@@ -4,7 +4,7 @@ use std::io;
 
 #[derive(Debug)]
 pub struct BldRemoteConfig {
-    servers: Vec<BldServerConfig>,
+    pub servers: Vec<BldServerConfig>,
 }
 
 impl BldRemoteConfig {
