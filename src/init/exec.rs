@@ -52,7 +52,7 @@ fn create_config_yaml() -> io::Result<()> {
 
     let content = definitions::default_config_content();
 
-    fs::write(path, &content)?; 
+    fs::write(path, &content)?;
 
     print_info("config file created")?;
 
@@ -67,7 +67,10 @@ pub fn exec() -> io::Result<()> {
             .and_then(|_| create_config_yaml());
     }
 
-    let message = format!("{} dir already exists in the current directory", definitions::TOOL_DIR);
+    let message = format!(
+        "{} dir already exists in the current directory",
+        definitions::TOOL_DIR
+    );
     let error = Error::new(ErrorKind::Other, message);
     Err(error)
 }

@@ -1,5 +1,5 @@
-use crate::definitions::TOOL_DEFAULT_PIPELINE;
 use crate::config::{BldConfig, BldServerConfig};
+use crate::definitions::TOOL_DEFAULT_PIPELINE;
 use crate::term::print_info;
 use clap::ArgMatches;
 use std::io::{self, Error, ErrorKind};
@@ -7,10 +7,8 @@ use std::io::{self, Error, ErrorKind};
 fn start(pipeline: &str, server: &BldServerConfig) -> io::Result<()> {
     let message = format!(
         "Starting monitor pipeline: {}, server: {} [ {}:{} ]",
-        pipeline,
-        server.name,
-        server.host,
-        server.port);
+        pipeline, server.name, server.host, server.port
+    );
 
     print_info(&message)
 }

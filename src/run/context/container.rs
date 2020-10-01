@@ -1,7 +1,9 @@
 use crate::config::BldConfig;
 use crate::term::print_info;
 use futures_util::StreamExt;
-use shiplift::{tty::TtyChunk, ContainerOptions, ExecContainerOptions, ImageListOptions, PullOptions, Docker};
+use shiplift::{
+    tty::TtyChunk, ContainerOptions, Docker, ExecContainerOptions, ImageListOptions, PullOptions,
+};
 use std::io::{self, Error, ErrorKind};
 use std::thread::sleep;
 use std::time::Duration;
@@ -142,4 +144,3 @@ impl Container {
         Ok(())
     }
 }
-

@@ -25,7 +25,8 @@ steps:
 ";
 
 pub fn default_config_content() -> String {
-    format!(r"local:
+    format!(
+        r"local:
     enable-server: {} 
     host: {}
     port: {}
@@ -46,5 +47,6 @@ remote:
         LOCAL_DOCKER_USE_TLS,
         REMOTE_SERVER_NAME,
         REMOTE_SERVER_HOST,
-        REMOTE_SERVER_PORT)
+        REMOTE_SERVER_PORT
+    )
 }

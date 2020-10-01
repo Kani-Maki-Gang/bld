@@ -1,6 +1,6 @@
 use crate::config::BldServerConfig;
-use yaml_rust::Yaml;
 use std::io;
+use yaml_rust::Yaml;
 
 #[derive(Debug)]
 pub struct BldRemoteConfig {
@@ -22,9 +22,7 @@ impl BldRemoteConfig {
                 servers.push(BldServerConfig::load(&entry)?);
             }
         }
-        
-        Ok(Self {
-            servers
-        })
+
+        Ok(Self { servers })
     }
 }

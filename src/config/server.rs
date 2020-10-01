@@ -1,5 +1,5 @@
-use yaml_rust::Yaml;
 use std::io::{self, Error, ErrorKind};
+use yaml_rust::Yaml;
 
 #[derive(Debug)]
 pub struct BldServerConfig {
@@ -14,8 +14,8 @@ impl BldServerConfig {
             Some(name) => name.to_string(),
             None => {
                 let message = "Server entry must have a name".to_string();
-                return Err(Error::new(ErrorKind::Other, message)); 
-            },
+                return Err(Error::new(ErrorKind::Other, message));
+            }
         };
 
         let host = match yaml["host"].as_str() {
@@ -34,10 +34,6 @@ impl BldServerConfig {
             }
         };
 
-        Ok(Self {
-            name,
-            host,
-            port,
-        })
+        Ok(Self { name, host, port })
     }
 }

@@ -2,7 +2,6 @@ use crate::os::{self, OSname};
 use std::io::{self, Error, ErrorKind};
 use std::process::Command;
 
-
 #[derive(Clone, Debug)]
 pub struct Machine;
 
@@ -38,5 +37,3 @@ impl Machine {
         Ok(())
     }
 }
-
-

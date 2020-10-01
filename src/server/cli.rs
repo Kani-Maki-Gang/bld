@@ -16,4 +16,4 @@ pub fn command() -> App<'static, 'static> {
         .about("Start bld in server mode, listening to incoming build requests")
         .version(VERSION)
         .args(&vec![host, port])
-} 
+}

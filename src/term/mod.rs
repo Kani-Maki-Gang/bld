@@ -22,4 +22,3 @@ pub fn print_error(text: &str) -> io::Result<()> {
 
     Ok(())
 }
-

@@ -1,10 +1,10 @@
 mod local;
-mod server;
 mod remote;
+mod server;
 
 pub use local::*;
-pub use server::*;
 pub use remote::*;
+pub use server::*;
 
 use crate::definitions;
 use std::io::{self, Error, ErrorKind};
@@ -34,11 +34,11 @@ impl BldConfig {
                     local: BldLocalConfig::load(&yaml)?,
                     remote: BldRemoteConfig::load(&yaml)?,
                 })
-            },
+            }
             Err(_) => Ok(Self {
                 local: BldLocalConfig::default(),
                 remote: BldRemoteConfig::default(),
-            })
+            }),
         }
     }
 }

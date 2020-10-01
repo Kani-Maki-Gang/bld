@@ -1,6 +1,6 @@
 use crate::definitions;
-use yaml_rust::Yaml;
 use std::io;
+use yaml_rust::Yaml;
 
 #[derive(Debug)]
 pub struct BldLocalConfig {
@@ -61,7 +61,7 @@ impl BldLocalConfig {
 
         let docker_port = match local_yaml["docker_port"].as_i64() {
             Some(host) => host,
-            None => match docker_use_tls { 
+            None => match docker_use_tls {
                 true => definitions::LOCAL_DOCKER_SECURE_PORT,
                 false => definitions::LOCAL_DOCKER_INSECURE_PORT,
             },
@@ -78,4 +78,3 @@ impl BldLocalConfig {
         })
     }
 }
-

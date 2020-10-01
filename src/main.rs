@@ -1,11 +1,11 @@
 mod config;
 mod definitions;
 mod init;
-mod os;
 mod monit;
+mod os;
+mod run;
 mod server;
 mod term;
-mod run;
 
 use crate::definitions::VERSION;
 use clap::App;
@@ -14,10 +14,10 @@ use term::print_error;
 #[actix_web::main]
 async fn main() {
     let commands = vec![
-        init::command(), 
+        init::command(),
         run::command(),
         server::command(),
-        monit::command()
+        monit::command(),
     ];
 
     let matches = App::new("Bld")

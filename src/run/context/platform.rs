@@ -1,4 +1,4 @@
-use crate::run::{Machine, Container};
+use crate::run::{Container, Machine};
 use std::fmt::{self, Display, Formatter};
 
 pub enum RunPlatform {
