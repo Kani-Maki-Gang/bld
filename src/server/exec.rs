@@ -1,4 +1,6 @@
-use crate::{config::BldConfig, term::print_info, server::RunPipelineWS};
+use crate::config::BldConfig;
+use crate::term::print_info; 
+use crate::server::PipelineWebSocketServer;
 use actix_web::{
     web, get, App, Error, HttpRequest, 
     HttpResponse, HttpServer, Responder
@@ -13,7 +15,7 @@ async fn hello() -> impl Responder {
 }
 
 async fn ws_pipeline(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
-    ws::start(RunPipelineWS, &req, stream)
+    ws::start(PipelineWebSocketServer::new(), &req, stream)
 }
 
 async fn start(host: &str, port: i64) -> io::Result<()> {

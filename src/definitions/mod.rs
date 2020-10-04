@@ -12,9 +12,9 @@ pub static LOCAL_DOCKER_HOST: &str = "127.0.0.1";
 pub static LOCAL_DOCKER_INSECURE_PORT: i64 = 2375;
 pub static LOCAL_DOCKER_SECURE_PORT: i64 = 2376;
 pub static LOCAL_DOCKER_USE_TLS: bool = false;
-pub static REMOTE_SERVER_NAME: &str = "example bld server";
+pub static REMOTE_SERVER_NAME: &str = "demo_server";
 pub static REMOTE_SERVER_HOST: &str = "127.0.0.1";
-pub static REMOTE_SERVER_PORT: i64 = 6090;
+pub static REMOTE_SERVER_PORT: i64 = 6080;
 
 pub static DEFAULT_PIPELINE_CONTENT: &str = r"name: Default Pipeline
 runs-on: machine

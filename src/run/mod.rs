@@ -1,13 +1,13 @@
 mod cli;
-mod connect;
+mod socket;
 mod context;
 mod exec;
 mod pipeline;
 mod sync;
 
 pub use cli::*;
-use connect::*;
+use socket::*;
 use context::*;
 pub use exec::*;
 use pipeline::*;
-use sync::*;
+pub use sync::*;
