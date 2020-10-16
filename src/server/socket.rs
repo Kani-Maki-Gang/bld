@@ -1,4 +1,5 @@
 use actix::prelude::*;
+use actix::fut::WrapFuture;
 use actix_web_actors::ws;
 use crate::run;
 use crate::term;
@@ -21,10 +22,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PipelineWebSocket
         msg: Result<ws::Message, ws::ProtocolError>,
         ctx: &mut Self::Context,
     ) {
-        // process websocket messages
         match msg {
             Ok(ws::Message::Text(text)) => {
-                let _ = futures::executor::block_on(sync_wrapper(&text));
+                let content = String::from(&text);
+                let run_fut = run(content).into_actor(self);
+                ctx.wait(run_fut);
                 ctx.text(text);
             },
             Ok(ws::Message::Close(reason)) => {
@@ -36,8 +38,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PipelineWebSocket
     }
 }
 
-async fn sync_wrapper(text: &str) {
-    if let Err(e) = run::sync(String::from(text)).await.await {
-        println!("{}", e.to_string());
+async fn run(text: String) {
+    if let Err(e) = run::sync(text).await.await {
+        term::print_error(format!("{}", e.to_string()));
     }
 }
