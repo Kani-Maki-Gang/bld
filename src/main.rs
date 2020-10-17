@@ -1,6 +1,7 @@
 mod config;
 mod definitions;
 mod init;
+mod list;
 mod monit;
 mod os;
 mod run;
@@ -21,6 +22,7 @@ async fn main() {
             run::command(),
             server::command(),
             monit::command(),
+            list::command()
         ])
         .get_matches();
 
@@ -29,6 +31,7 @@ async fn main() {
         ("run", Some(matches)) => run::exec(matches).await,
         ("server", Some(matches)) => server::exec(matches).await,
         ("monit", Some(matches)) => monit::exec(matches),
+        ("ls", Some(matches)) => list::exec(matches),
         _ => Ok(()),
     };
 
