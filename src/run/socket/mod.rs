@@ -12,7 +12,7 @@ use crate::run::socket::{PipelineWebSocketClient, RunPipelineMessage};
 use futures::stream::StreamExt;
 use std::io::{self, Error, ErrorKind};
 
-pub async fn socket_client(server: &str, pipeline_name: &str) -> io::Result<()> {
+pub async fn on_server(server: &str, pipeline_name: &str) -> io::Result<()> {
     let config = BldConfig::load()?;
     let servers = config.remote.servers;
     let server = match servers.iter().find(|s| s.name == server) {

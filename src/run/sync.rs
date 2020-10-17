@@ -36,7 +36,7 @@ async fn steps(pipeline: &Pipeline) -> io::Result<()> {
         }
 
         if let Some(call) = &step.call {
-            sync_from_file(call.clone()).await.await?;
+            from_file(call.clone()).await.await?;
         }
 
         for command in step.commands.iter() {
@@ -68,7 +68,7 @@ pub fn read(pipeline: &str) -> io::Result<String> {
     fs::read_to_string(path)
 }
 
-pub async fn sync(src: String) -> Pin<Box<dyn Future<Output = io::Result<()>>>> {
+pub async fn from_src(src: String) -> Pin<Box<dyn Future<Output = io::Result<()>>>> {
     Box::pin(async move {
         let pipeline = parse(&src).await?;
         info(&pipeline)?;
@@ -76,9 +76,9 @@ pub async fn sync(src: String) -> Pin<Box<dyn Future<Output = io::Result<()>>>> 
     })
 }
 
-pub async fn sync_from_file(pipeline_name: String) -> Pin<Box<dyn Future<Output = io::Result<()>>>> {
+pub async fn from_file(pipeline_name: String) -> Pin<Box<dyn Future<Output = io::Result<()>>>> {
     Box::pin(async move {
         let src = read(&pipeline_name)?;
-        sync(src).await.await
+        from_src(src).await.await
     })
 }

@@ -39,7 +39,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PipelineWebSocket
 }
 
 async fn run(text: String) {
-    if let Err(e) = run::sync(text).await.await {
-        term::print_error(format!("{}", e.to_string()));
+    if let Err(e) = run::from_src(text).await.await {
+        let _ = term::print_error(&format!("{}", e));
     }
 }

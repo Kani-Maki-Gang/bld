@@ -10,7 +10,7 @@ pub async fn exec(matches: &ArgMatches<'_>) -> io::Result<()> {
     };
 
     match matches.value_of("server") {
-        Some(server) => run::socket_client(server, &pipeline).await,
-        None => run::sync_from_file(pipeline).await.await,
+        Some(server) => run::on_server(server, &pipeline).await,
+        None => run::from_file(pipeline).await.await,
     }
 }
