@@ -1,5 +1,9 @@
+mod pipeline;
+
+pub use pipeline::*;
+
 use crate::definitions::TOOL_DIR;
-use crate::run::{Pipeline, RunPlatform};
+use crate::run::{RunPlatform};
 use crate::term::print_info;
 use std::fs;
 use std::future::Future;

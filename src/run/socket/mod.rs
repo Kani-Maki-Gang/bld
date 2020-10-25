@@ -7,37 +7,51 @@ pub use messages::*;
 use crate::config::BldConfig;
 use crate::run::read;
 use crate::run::socket::{PipelineWebSocketClient, RunPipelineMessage};
+use crate::term::print_error;
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
 use awc::Client;
 use futures::stream::StreamExt;
-use std::io;
+use std::io::{self, Error, ErrorKind};
 
-pub fn on_server(server: String, pipeline_name: String) -> io::Result<()> {
+async fn remote_invoke(name: String, server: String) -> io::Result<()> {
+    let config = BldConfig::load()?;
+    let server = config
+        .remote
+        .servers
+        .iter()
+        .find(|s| s.name == server);
+    let server = match server {
+        Some(s) => s,
+        None => return Err(Error::new(ErrorKind::Other, "server not found in config"))
+    };
+
+    let url = format!("http://{}:{}/ws/", server.host, server.port);
+    let (_, framed) = Client::new()
+        .ws(url)
+        .connect()
+        .await
+        .map_err(|e| println!("Error: {}", e))
+        .unwrap();
+
+    let (sink, stream) = framed.split();
+    let addr = PipelineWebSocketClient::create(|ctx| {
+        PipelineWebSocketClient::add_stream(stream, ctx);
+        PipelineWebSocketClient::new(SinkWrite::new(sink, ctx))
+    });
+
+    let pipeline = read(&name)?;
+    let _ = addr.send(RunPipelineMessage(pipeline)).await;
+
+    Ok(())
+}
+
+pub fn on_server(name: String, server: String) -> io::Result<()> {
     let system = System::new("bld");
 
     Arbiter::spawn(async move {
-        if let Ok(config) = BldConfig::load() {
-            let servers = config.remote.servers;
-
-            if let Some(server) = servers.iter().find(|s| s.name == server) {
-                let url = format!("http://{}:{}/ws/", server.host, server.port);
-                let (_, framed) = Client::new()
-                    .ws(url)
-                    .connect()
-                    .await
-                    .map_err(|e| println!("Error: {}", e))
-                    .unwrap();
-
-                let (sink, stream) = framed.split();
-                let addr = PipelineWebSocketClient::create(|ctx| {
-                    PipelineWebSocketClient::add_stream(stream, ctx);
-                    PipelineWebSocketClient::new(SinkWrite::new(sink, ctx))
-                });
-
-                if let Ok(pipeline) = read(&pipeline_name) {
-                    let _ = addr.send(RunPipelineMessage(pipeline)).await;
-                }
-            }
+        if let Err(e) = remote_invoke(name, server).await {
+            let _ = print_error(&e.to_string());
+            System::current().stop();
         }
     });
 

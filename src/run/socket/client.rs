@@ -34,7 +34,6 @@ impl Actor for PipelineWebSocketClient {
     }
 
     fn stopped(&mut self, _: &mut Context<Self>) {
-        println!("Disconnected");
         System::current().stop();
     }
 }
@@ -51,10 +50,7 @@ impl Handler<RunPipelineMessage> for PipelineWebSocketClient {
 impl StreamHandler<Result<Frame, WsProtocolError>> for PipelineWebSocketClient {
     fn handle(&mut self, msg: Result<Frame, WsProtocolError>, _: &mut Context<Self>) {
         match msg {
-            Ok(Frame::Text(text)) => {
-                let text = format!("{:?}", text);
-                println!("{}", text);
-            }
+            Ok(Frame::Text(text)) => println!("{:?}", text),
             Ok(Frame::Close(_)) => System::current().stop(),
             _ => {}
         }
