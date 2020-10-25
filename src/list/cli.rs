@@ -2,7 +2,7 @@ use crate::definitions::VERSION;
 use clap::{App, Arg, SubCommand};
 
 pub fn command() -> App<'static, 'static> {
-    let local = Arg::with_name("local") 
+    let local = Arg::with_name("local")
         .short("l")
         .long("local")
         .help("list configuration for local options");

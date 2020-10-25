@@ -12,8 +12,7 @@ use crate::definitions::VERSION;
 use clap::App;
 use term::print_error;
 
-#[actix_web::main]
-async fn main() {
+fn main() {
     let matches = App::new("Bld")
         .version(VERSION)
         .about("A distributed CI/CD")
@@ -22,14 +21,14 @@ async fn main() {
             run::command(),
             server::command(),
             monit::command(),
-            list::command()
+            list::command(),
         ])
         .get_matches();
 
     let result = match matches.subcommand() {
         ("init", Some(_)) => init::exec(),
-        ("run", Some(matches)) => run::exec(matches).await,
-        ("server", Some(matches)) => server::exec(matches).await,
+        ("run", Some(matches)) => run::exec(matches),
+        ("server", Some(matches)) => server::exec(matches),
         ("monit", Some(matches)) => monit::exec(matches),
         ("ls", Some(matches)) => list::exec(matches),
         _ => Ok(()),

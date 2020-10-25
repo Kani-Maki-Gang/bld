@@ -1,6 +1,6 @@
-use clap::ArgMatches;
 use crate::config::{BldConfig, BldLocalConfig, BldRemoteConfig};
 use crate::term;
+use clap::ArgMatches;
 use std::io;
 
 fn list_locals(local: &BldLocalConfig) -> io::Result<()> {
@@ -41,7 +41,7 @@ pub fn exec(matches: &ArgMatches<'_>) -> io::Result<()> {
     let config = BldConfig::load()?;
 
     if matches.is_present("local") {
-       return list_locals(&config.local);
+        return list_locals(&config.local);
     }
 
     if matches.is_present("remote") {
