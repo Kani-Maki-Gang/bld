@@ -1,9 +1,11 @@
-use crate::run;
+use crate::run::Runner;
 use crate::term;
+use crate::persist::FileSystemDumpster;
 use actix::fut::WrapFuture;
 use actix::prelude::*;
 use actix_web_actors::ws;
 use std::time::{Duration, Instant};
+use std::sync::{Arc, Mutex};
 
 pub struct PipelineWebSocketServer {
     hb: Instant,
@@ -47,7 +49,15 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PipelineWebSocket
             Ok(ws::Message::Text(text)) => {
                 let content = String::from(text);
                 let ft = async {
-                    if let Err(e) = run::from_src(content).await.await {
+                    let dumpster = match FileSystemDumpster::new("") {
+                        Ok(d) => d,
+                        Err(e) => {
+                            let _ = term::print_error(&e.to_string());
+                            return;
+                        }
+                    };
+                    let dumpster = Arc::new(Mutex::new(dumpster));
+                    if let Err(e) = Runner::from_src(content, dumpster).await.await {
                         let _ = term::print_error(&format!("{}", e));
                     }
                 }

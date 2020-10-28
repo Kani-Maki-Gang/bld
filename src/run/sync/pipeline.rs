@@ -1,6 +1,9 @@
+use crate::definitions::TOOL_DIR;
+use crate::persist::Dumpster;
 use crate::run::{Container, Machine, RunPlatform};
-use std::io;
-use yaml_rust::Yaml;
+use std::io::{self, Error, ErrorKind};
+use std::sync::{Arc, Mutex};
+use yaml_rust::{Yaml, YamlLoader};
 
 #[derive(Debug)]
 pub struct BuildStep {
@@ -33,15 +36,36 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    pub async fn load(yaml: &Yaml) -> io::Result<Self> {
+    pub fn read(pipeline: &str) -> io::Result<String> {
+        let mut path = std::env::current_dir()?;
+        path.push(TOOL_DIR);
+        path.push(format!("{}.yaml", pipeline));
+        std::fs::read_to_string(path)
+    }
+
+    pub async fn parse(src: &str, dumpster: Arc<Mutex<dyn Dumpster>>) -> io::Result<Pipeline> {
+        match YamlLoader::load_from_str(&src) {
+            Ok(yaml) => {
+                if yaml.len() == 0 {
+                    return Err(Error::new(ErrorKind::Other, "invalid yaml".to_string()));
+                }
+                let entry = yaml[0].clone();
+                let pipeline = Pipeline::load(&entry, dumpster).await?;
+                Ok(pipeline)
+            }
+            Err(e) => Err(Error::new(ErrorKind::Other, e.to_string())),
+        }
+    }
+
+    pub async fn load(yaml: &Yaml, dumpster: Arc<Mutex<dyn Dumpster>>) -> io::Result<Self> {
         let name = match yaml["name"].as_str() {
             Some(n) => Some(n.to_string()),
             None => None,
         };
 
         let runs_on = match yaml["runs-on"].as_str() {
-            Some("machine") | None => RunPlatform::Local(Machine::new()?),
-            Some(target) => RunPlatform::Docker(Container::new(target).await?),
+            Some("machine") | None => RunPlatform::Local(Machine::new(dumpster)?),
+            Some(target) => RunPlatform::Docker(Container::new(target, dumpster).await?),
         };
 
         Ok(Self {

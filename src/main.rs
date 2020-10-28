@@ -4,6 +4,7 @@ mod init;
 mod list;
 mod monit;
 mod os;
+mod persist;
 mod run;
 mod server;
 mod term;

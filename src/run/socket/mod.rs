@@ -5,7 +5,7 @@ pub use client::*;
 pub use messages::*;
 
 use crate::config::BldConfig;
-use crate::run::read;
+use crate::run::Pipeline;
 use crate::run::socket::{PipelineWebSocketClient, RunPipelineMessage};
 use crate::term::print_error;
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
@@ -39,7 +39,7 @@ async fn remote_invoke(name: String, server: String) -> io::Result<()> {
         PipelineWebSocketClient::new(SinkWrite::new(sink, ctx))
     });
 
-    let pipeline = read(&name)?;
+    let pipeline = Pipeline::read(&name)?;
     let _ = addr.send(RunPipelineMessage(pipeline)).await;
 
     Ok(())

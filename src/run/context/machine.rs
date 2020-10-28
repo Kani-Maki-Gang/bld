@@ -1,16 +1,20 @@
 use crate::os::{self, OSname};
+use crate::persist::Dumpster;
 use std::io::{self, Error, ErrorKind};
 use std::process::Command;
+use std::sync::{Arc, Mutex};
 
-#[derive(Clone, Debug)]
-pub struct Machine;
+pub struct Machine {
+    pub dumpster: Arc<Mutex<dyn Dumpster>>
+}
 
 impl Machine {
-    pub fn new() -> io::Result<Self> {
-        Ok(Self)
+    pub fn new(dumpster: Arc<Mutex<dyn Dumpster>>) -> io::Result<Self> {
+        Ok(Self { dumpster })
     }
 
     pub fn sh(&self, working_dir: &Option<String>, input: &str) -> io::Result<()> {
+        let mut dumpster = self.dumpster.lock().unwrap();
         let os_name = os::name();
 
         let (shell, mut args) = match os_name {
@@ -32,7 +36,7 @@ impl Machine {
 
         let mut output = String::from_utf8_lossy(&process.stderr).to_string();
         output.push_str(&format!("\r\n{}", String::from_utf8_lossy(&process.stdout)));
-        println!("{}", &output);
+        dumpster.dump(&output);
 
         Ok(())
     }
