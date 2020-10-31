@@ -42,7 +42,6 @@ impl Handler<RunPipelineMessage> for PipelineWebSocketClient {
     type Result = ();
 
     fn handle(&mut self, msg: RunPipelineMessage, _ctx: &mut Self::Context) {
-        println!("Sending message");
         let _ = self.writer.write(Message::Text(msg.0));
     }
 }

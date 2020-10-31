@@ -12,7 +12,8 @@ pub struct FileSystemDumpster {
 impl FileSystemDumpster {
     pub fn new(file_path: &str) -> io::Result<Self> {
         let path = Path::new(file_path);
-        let file_handle = match path.is_file() {
+
+        let file_handle = match path.is_file() && path.exists() {
             true => File::open(&path)?,
             false => File::create(&path)?,
         };
@@ -47,10 +48,10 @@ impl Dumpster for FileSystemDumpster {
     }
 
     fn info(&mut self, text: &str) {
-        self.write(text);
+        self.writeln(text);
     }
 
     fn error(&mut self, text: &str) {
-        self.write(text);
+        self.writeln(text);
     }
 }

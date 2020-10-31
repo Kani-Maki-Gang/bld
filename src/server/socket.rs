@@ -1,22 +1,24 @@
+use crate::config::BldConfig;
+use crate::persist::FileSystemDumpster;
 use crate::run::Runner;
 use crate::term;
-use crate::persist::FileSystemDumpster;
-use actix::fut::WrapFuture;
 use actix::prelude::*;
 use actix_web_actors::ws;
-use std::time::{Duration, Instant};
+use serde_json::Value;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tokio::runtime::Runtime;
 
 pub struct PipelineWebSocketServer {
     hb: Instant,
-    is_processing: bool,
+    is_pipeline_done: bool,
 }
 
 impl PipelineWebSocketServer {
     pub fn new() -> Self {
         Self {
             hb: Instant::now(),
-            is_processing: false,
+            is_pipeline_done: false,
         }
     }
 
@@ -42,28 +44,14 @@ impl Actor for PipelineWebSocketServer {
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PipelineWebSocketServer {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        if self.is_processing {
+        if self.is_pipeline_done {
             ctx.close(None);
         }
         match msg {
             Ok(ws::Message::Text(text)) => {
-                let content = String::from(text);
-                let ft = async {
-                    let dumpster = match FileSystemDumpster::new("") {
-                        Ok(d) => d,
-                        Err(e) => {
-                            let _ = term::print_error(&e.to_string());
-                            return;
-                        }
-                    };
-                    let dumpster = Arc::new(Mutex::new(dumpster));
-                    if let Err(e) = Runner::from_src(content, dumpster).await.await {
-                        let _ = term::print_error(&format!("{}", e));
-                    }
+                if let Some((name, src)) = parse_text(&text) {
+                    std::thread::spawn(move || invoke_pipeline(name, src));
                 }
-                .into_actor(self);
-                ctx.wait(ft);
-                self.is_processing = true;
             }
             Ok(ws::Message::Ping(msg)) => {
                 self.hb = Instant::now();
@@ -78,5 +66,53 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PipelineWebSocket
             }
             _ => ctx.stop(),
         }
+    }
+}
+
+fn parse_text(text: &str) -> Option<(String, String)> {
+    match serde_json::from_str::<Value>(text) {
+        Ok(message) => {
+            let name = match message["name"].as_str() {
+                Some(name) => {
+                    let time = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .expect("Time went backwards");
+                    format!("{}-{}", name, time.as_nanos())
+                }
+                None => return None,
+            };
+            let src = match message["pipeline"].as_str() {
+                Some(src) => src.to_string(),
+                None => return None,
+            };
+            Some((name, src))
+        }
+        Err(_) => None,
+    }
+}
+
+fn invoke_pipeline(name: String, src: String) {
+    if let Ok(mut rt) = Runtime::new() {
+        rt.block_on(async move {
+            if let Ok(config) = BldConfig::load() {
+                let path = {
+                    let mut path = std::path::PathBuf::new();
+                    path.push(config.local.logs);
+                    path.push(name);
+                    path.display().to_string()
+                };
+                let dumpster = match FileSystemDumpster::new(&path) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        let _ = term::print_error(&e.to_string());
+                        return;
+                    }
+                };
+                let dumpster = Arc::new(Mutex::new(dumpster));
+                if let Err(e) = Runner::from_src(src, dumpster).await.await {
+                    let _ = term::print_error(&format!("{}", e));
+                }
+            }
+        });
     }
 }

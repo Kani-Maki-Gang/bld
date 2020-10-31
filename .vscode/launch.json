@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["run"],
+            "args": ["run", "-s", "example bld server"],
             "cwd": "${workspaceFolder}"
         },
         {

@@ -11,6 +11,7 @@ use crate::term::print_error;
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
 use awc::Client;
 use futures::stream::StreamExt;
+use serde_json::json;
 use std::io::{self, Error, ErrorKind};
 
 async fn remote_invoke(name: String, server: String) -> io::Result<()> {
@@ -39,8 +40,11 @@ async fn remote_invoke(name: String, server: String) -> io::Result<()> {
         PipelineWebSocketClient::new(SinkWrite::new(sink, ctx))
     });
 
-    let pipeline = Pipeline::read(&name)?;
-    let _ = addr.send(RunPipelineMessage(pipeline)).await;
+    let message = json!({
+        "name": name,
+        "pipeline": Pipeline::read(&name)?
+    }).to_string();
+    let _ = addr.send(RunPipelineMessage(message)).await;
 
     Ok(())
 }
