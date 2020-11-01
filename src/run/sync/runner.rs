@@ -1,4 +1,4 @@
-use crate::persist::Dumpster;
+use crate::persist::Logger;
 use crate::run::Pipeline;
 use crate::run::RunPlatform;
 use std::future::Future;
@@ -7,21 +7,21 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
 pub struct Runner {
-    pub dumpster: Arc<Mutex<dyn Dumpster>>,
+    pub logger: Arc<Mutex<dyn Logger>>,
     pub pipeline: Option<Pipeline>,
 }
 
 impl Runner {
     fn info(&self) {
-        let mut dumpster = self.dumpster.lock().unwrap();
+        let mut logger = self.logger.lock().unwrap();
         let pipeline = match &self.pipeline {
             Some(p) => p,
             None => return,
         };
         if let Some(name) = &pipeline.name {
-            dumpster.dumpln(&format!("Pipeline: {}", name));
+            logger.dumpln(&format!("Pipeline: {}", name));
         }
-        dumpster.dumpln(&format!("Runs on: {}", pipeline.runs_on));
+        logger.dumpln(&format!("Runs on: {}", pipeline.runs_on));
     }
 
     async fn steps(&mut self) -> io::Result<()> {
@@ -31,12 +31,12 @@ impl Runner {
         };
         for step in pipeline.steps.iter() {
             if let Some(name) = &step.name {
-                let mut dumpster = self.dumpster.lock().unwrap();
-                dumpster.info(&format!("Step: {}", name));
+                let mut logger = self.logger.lock().unwrap();
+                logger.info(&format!("Step: {}", name));
             }
 
             if let Some(call) = &step.call {
-                Runner::from_file(call.clone(), self.dumpster.clone())
+                Runner::from_file(call.clone(), self.logger.clone())
                     .await
                     .await?;
             }
@@ -64,12 +64,12 @@ impl Runner {
 
     pub async fn from_src(
         src: String,
-        dumpster: Arc<Mutex<dyn Dumpster>>,
+        logger: Arc<Mutex<dyn Logger>>,
     ) -> Pin<Box<dyn Future<Output = io::Result<()>>>> {
         Box::pin(async move {
-            let pipeline = Pipeline::parse(&src, dumpster.clone()).await?;
+            let pipeline = Pipeline::parse(&src, logger.clone()).await?;
             let mut runner = Runner {
-                dumpster,
+                logger,
                 pipeline: Some(pipeline),
             };
             runner.info();
@@ -79,11 +79,11 @@ impl Runner {
 
     pub async fn from_file(
         name: String,
-        dumpster: Arc<Mutex<dyn Dumpster>>,
+        logger: Arc<Mutex<dyn Logger>>,
     ) -> Pin<Box<dyn Future<Output = io::Result<()>>>> {
         Box::pin(async move {
             let src = Pipeline::read(&name)?;
-            Runner::from_src(src, dumpster).await.await
+            Runner::from_src(src, logger).await.await
         })
     }
 }

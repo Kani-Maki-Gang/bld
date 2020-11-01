@@ -1,19 +1,19 @@
 use crate::config::BldConfig;
-use crate::persist::Dumpster;
+use crate::persist::Logger;
 use futures_util::StreamExt;
 use shiplift::{
     tty::TtyChunk, ContainerOptions, Docker, ExecContainerOptions, ImageListOptions, PullOptions,
 };
 use std::io::{self, Error, ErrorKind};
+use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
-use std::sync::{Arc, Mutex};
 
 pub struct Container {
     pub image: String,
     pub client: Docker,
     pub container_id: String,
-    pub dumpster: Arc<Mutex<dyn Dumpster>>,
+    pub logger: Arc<Mutex<dyn Logger>>,
 }
 
 impl Container {
@@ -37,7 +37,11 @@ impl Container {
         Ok(Docker::host(uri))
     }
 
-    async fn pull(client: &Docker, image: &str, dumpster: &mut Arc<Mutex<dyn Dumpster>>) -> io::Result<()> {
+    async fn pull(
+        client: &Docker,
+        image: &str,
+        logger: &mut Arc<Mutex<dyn Logger>>,
+    ) -> io::Result<()> {
         let options = ImageListOptions::builder().filter_name(image).build();
         let images = match client.images().list(&options).await {
             Ok(img) => img,
@@ -46,8 +50,8 @@ impl Container {
 
         if images.len() == 0 {
             {
-                let mut dumpster = dumpster.lock().unwrap();
-                dumpster.info(&format!("Download image: {}", image));
+                let mut logger = logger.lock().unwrap();
+                logger.info(&format!("Download image: {}", image));
             }
 
             let options = PullOptions::builder().image(image).build();
@@ -55,9 +59,9 @@ impl Container {
             while let Some(progress) = pull_iter.next().await {
                 match progress {
                     Ok(info) => {
-                        let mut dumpster = dumpster.lock().unwrap();
-                        dumpster.dumpln(&format!("{}", info.to_string()))
-                    },
+                        let mut logger = logger.lock().unwrap();
+                        logger.dumpln(&format!("{}", info.to_string()))
+                    }
                     Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
                 }
                 sleep(Duration::from_millis(100));
@@ -67,8 +71,12 @@ impl Container {
         Ok(())
     }
 
-    async fn create(client: &Docker, image: &str, dumpster: &mut Arc<Mutex<dyn Dumpster>>) -> io::Result<String> {
-        Container::pull(client, image, dumpster).await?;
+    async fn create(
+        client: &Docker,
+        image: &str,
+        logger: &mut Arc<Mutex<dyn Logger>>,
+    ) -> io::Result<String> {
+        Container::pull(client, image, logger).await?;
 
         let options = ContainerOptions::builder(&image).tty(true).build();
         let info = match client.containers().create(&options).await {
@@ -83,15 +91,15 @@ impl Container {
         Ok(info.id)
     }
 
-    pub async fn new(image: &str, mut dumpster: Arc<Mutex<dyn Dumpster>>) -> io::Result<Self> {
+    pub async fn new(image: &str, mut logger: Arc<Mutex<dyn Logger>>) -> io::Result<Self> {
         let client = Container::docker()?;
-        let container_id = Container::create(&client, image, &mut dumpster).await?;
+        let container_id = Container::create(&client, image, &mut logger).await?;
 
         Ok(Self {
             image: image.to_string(),
             client,
             container_id,
-            dumpster,
+            logger,
         })
     }
 
@@ -120,8 +128,8 @@ impl Container {
                 Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
             };
             {
-                let mut dumpster = self.dumpster.lock().unwrap();
-                dumpster.dump(&format!("{}", &chunk));
+                let mut logger = self.logger.lock().unwrap();
+                logger.dump(&format!("{}", &chunk));
             }
             sleep(Duration::from_millis(100));
         }

@@ -1,7 +1,7 @@
 mod base;
 mod fs;
-mod term;
+mod sh;
 
 pub use base::*;
 pub use fs::*;
-pub use term::*;
+pub use sh::*;

@@ -1,5 +1,5 @@
 use crate::definitions::TOOL_DEFAULT_PIPELINE;
-use crate::persist::TerminalDumpster;
+use crate::persist::ShellLogger;
 use crate::run::{self, Runner};
 use clap::ArgMatches;
 use std::io;
@@ -16,8 +16,8 @@ pub fn exec(matches: &ArgMatches<'_>) -> io::Result<()> {
         Some(server) => run::on_server(pipeline, server.to_string()),
         None => {
             let mut rt = Runtime::new()?;
-            let dumpster = Arc::new(Mutex::new(TerminalDumpster));
-            rt.block_on(async { Runner::from_file(pipeline, dumpster).await.await })
+            let logger = Arc::new(Mutex::new(ShellLogger));
+            rt.block_on(async { Runner::from_file(pipeline, logger).await.await })
         }
     }
 }

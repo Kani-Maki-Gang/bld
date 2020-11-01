@@ -49,7 +49,7 @@ impl Handler<RunPipelineMessage> for PipelineWebSocketClient {
 impl StreamHandler<Result<Frame, WsProtocolError>> for PipelineWebSocketClient {
     fn handle(&mut self, msg: Result<Frame, WsProtocolError>, _: &mut Context<Self>) {
         match msg {
-            Ok(Frame::Text(text)) => println!("{:?}", text),
+            Ok(Frame::Text(bt)) => println!("{}", String::from_utf8_lossy(&bt[..])),
             Ok(Frame::Close(_)) => System::current().stop(),
             _ => {}
         }

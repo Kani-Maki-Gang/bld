@@ -1,10 +1,10 @@
-use crate::persist::Dumpster;
+use crate::persist::Logger;
 use std::io::Write;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-pub struct TerminalDumpster;
+pub struct ShellLogger;
 
-impl Dumpster for TerminalDumpster {
+impl Logger for ShellLogger {
     fn dump(&mut self, text: &str) {
         print!("{}", text);
     }

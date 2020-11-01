@@ -5,8 +5,8 @@ pub use client::*;
 pub use messages::*;
 
 use crate::config::BldConfig;
-use crate::run::Pipeline;
 use crate::run::socket::{PipelineWebSocketClient, RunPipelineMessage};
+use crate::run::Pipeline;
 use crate::term::print_error;
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
 use awc::Client;
@@ -16,14 +16,10 @@ use std::io::{self, Error, ErrorKind};
 
 async fn remote_invoke(name: String, server: String) -> io::Result<()> {
     let config = BldConfig::load()?;
-    let server = config
-        .remote
-        .servers
-        .iter()
-        .find(|s| s.name == server);
+    let server = config.remote.servers.iter().find(|s| s.name == server);
     let server = match server {
         Some(s) => s,
-        None => return Err(Error::new(ErrorKind::Other, "server not found in config"))
+        None => return Err(Error::new(ErrorKind::Other, "server not found in config")),
     };
     let url = format!("http://{}:{}/ws/", server.host, server.port);
     let (_, framed) = Client::new()
@@ -40,7 +36,8 @@ async fn remote_invoke(name: String, server: String) -> io::Result<()> {
     let message = json!({
         "name": name,
         "pipeline": Pipeline::read(&name)?
-    }).to_string();
+    })
+    .to_string();
     let _ = addr.send(RunPipelineMessage(message)).await;
     Ok(())
 }
