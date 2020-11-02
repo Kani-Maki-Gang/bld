@@ -27,7 +27,7 @@ fn main() {
         .get_matches();
 
     let result = match matches.subcommand() {
-        ("init", Some(_)) => init::exec(),
+        ("init", Some(matches)) => init::exec(matches),
         ("run", Some(matches)) => run::exec(matches),
         ("server", Some(matches)) => server::exec(matches),
         ("monit", Some(matches)) => monit::exec(matches),
