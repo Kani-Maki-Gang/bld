@@ -1,8 +1,15 @@
 use crate::persist::Logger;
 use std::io::Write;
+use std::sync::{Arc, Mutex};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 pub struct ShellLogger;
+
+impl ShellLogger {
+    pub fn atom() -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Self))
+    }
+}
 
 impl Logger for ShellLogger {
     fn dump(&mut self, text: &str) {

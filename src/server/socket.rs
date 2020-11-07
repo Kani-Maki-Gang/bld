@@ -1,5 +1,5 @@
 use crate::config::BldConfig;
-use crate::persist::{FileLogger, FileScanner, Scanner};
+use crate::persist::{Database, FileLogger, FileScanner, Scanner};
 use crate::run::Runner;
 use crate::term;
 use actix::prelude::*;
@@ -7,19 +7,32 @@ use actix_web_actors::ws;
 use serde_json::Value;
 use std::io::{self, Error, ErrorKind};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
+use uuid::Uuid;
 
 pub struct PipelineWebSocketServer {
     hb: Instant,
+    config: Option<BldConfig>,
+    src: Option<String>,
+    exec: Option<Arc<Mutex<Database>>>,
+    logger: Option<Arc<Mutex<FileLogger>>>,
     scanner: Option<FileScanner>,
     is_pipeline_done: bool,
 }
 
 impl PipelineWebSocketServer {
     pub fn new() -> Self {
+        let config = match BldConfig::load() {
+            Ok(config) => Some(config),
+            Err(_) => None,
+        };
         Self {
             hb: Instant::now(),
+            config,
+            src: None,
+            exec: None,
+            logger: None,
             scanner: None,
             is_pipeline_done: false,
         }
@@ -46,6 +59,70 @@ impl PipelineWebSocketServer {
             }
         });
     }
+
+    fn exec(&mut self, ctx: &mut <Self as Actor>::Context) {
+        ctx.run_interval(Duration::from_secs(3), |act, ctx| {
+            if let Some(exec) = act.exec.as_mut() {
+                let exec = exec.lock().unwrap();
+                if let Some(pipeline) = &exec.pipeline {
+                    if !pipeline.running {
+                        ctx.stop();
+                    }
+                }
+            }
+        });
+    }
+
+    fn dependencies(&mut self, text: &str) -> io::Result<()> {
+        let id = Uuid::new_v4().to_string();
+
+        let message = match serde_json::from_str::<Value>(text) {
+            Ok(message) => message,
+            Err(_) => return Err(Error::new(ErrorKind::Other, "message could not be parsed")),
+        };
+
+        let name = match message["name"].as_str() {
+            Some(n) => n,
+            None => return Err(Error::new(ErrorKind::Other, "name not found in message")),
+        };
+
+        self.src = match message["pipeline"].as_str() {
+            Some(src) => Some(src.to_string()),
+            None => return Err(Error::new(ErrorKind::Other, "pipeline not found in message")),
+        };
+
+        let config = match &self.config {
+            Some(config) => config,
+            None => return Err(Error::new(ErrorKind::Other, "config not loaded")),
+        };
+
+        let path = {
+            let mut path = std::path::PathBuf::new();
+            path.push(&config.local.logs);
+            path.push(format!("{}-{}", name, id));
+            path.display().to_string()
+        };
+
+        self.exec = match Database::connect(&config.local.db) {
+            Ok(mut db) => {
+                let _ = db.add(&id, &name);
+                Some(Arc::new(Mutex::new(db)))
+            },
+            Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
+        };
+
+        self.logger = match FileLogger::new(&path) {
+            Ok(lg) => Some(Arc::new(Mutex::new(lg))),
+            Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
+        };
+
+        self.scanner = match FileScanner::new(&path) {
+            Ok(sc) => Some(sc),
+            Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
+        };
+
+        Ok(())
+    }
 }
 
 impl Actor for PipelineWebSocketServer {
@@ -54,6 +131,7 @@ impl Actor for PipelineWebSocketServer {
     fn started(&mut self, ctx: &mut Self::Context) {
         self.heartbeat(ctx);
         self.scan(ctx);
+        self.exec(ctx);
     }
 }
 
@@ -64,12 +142,33 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PipelineWebSocket
         }
         match msg {
             Ok(ws::Message::Text(txt)) => {
-                if let Some((path, src)) = parse_text(&txt) {
-                    if let Ok((logger, scanner)) = create_ds(&path) {
-                        self.scanner = Some(scanner);
-                        std::thread::spawn(move || invoke_pipeline(src, logger));
-                    }
+                if let Err(e) = self.dependencies(&txt) {
+                    eprintln!("{}", e.to_string());
+                    ctx.text("internal server error");
+                    ctx.stop();
                 }
+                let src = match &self.src {
+                    Some(src) => src.clone(),
+                    None => {
+                        ctx.stop();
+                        return;
+                    },
+                };
+                let exec = match &self.exec {
+                    Some(exec) => exec.clone(),
+                    None => {
+                        ctx.stop();
+                        return;
+                    },
+                };
+                let lg = match &self.logger {
+                    Some(lg) => lg.clone(),
+                    None => {
+                        ctx.stop();
+                        return;
+                    },
+                };
+                std::thread::spawn(move || invoke_pipeline(src, exec, lg));
             }
             Ok(ws::Message::Ping(msg)) => {
                 self.hb = Instant::now();
@@ -87,51 +186,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PipelineWebSocket
     }
 }
 
-fn parse_text(text: &str) -> Option<(String, String)> {
-    if let Ok(config) = BldConfig::load() {
-        if let Ok(message) = serde_json::from_str::<Value>(text) {
-            let name = match message["name"].as_str() {
-                Some(name) => {
-                    let time = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .expect("Time went backwards");
-                    format!("{}-{}", name, time.as_nanos())
-                }
-                None => return None,
-            };
-            let path = {
-                let mut path = std::path::PathBuf::new();
-                path.push(config.local.logs);
-                path.push(name);
-                path.display().to_string()
-            };
-            let src = match message["pipeline"].as_str() {
-                Some(src) => src.to_string(),
-                None => return None,
-            };
-            return Some((path, src));
-        }
-    }
-    None
-}
-
-fn create_ds(path: &str) -> io::Result<(FileLogger, FileScanner)> {
-    let logger = match FileLogger::new(&path) {
-        Ok(logger) => logger,
-        Err(_) => return Err(Error::new(ErrorKind::Other, "could not create fs logger")),
-    };
-    let scanner = match FileScanner::new(path) {
-        Ok(scav) => scav,
-        Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
-    };
-    Ok((logger, scanner))
-}
-
-fn invoke_pipeline(src: String, logger: FileLogger) {
+fn invoke_pipeline(src: String, ex: Arc<Mutex<Database>>, lg: Arc<Mutex<FileLogger>>) {
     if let Ok(mut rt) = Runtime::new() {
         rt.block_on(async move {
-            let logger = Arc::new(Mutex::new(logger));
-            if let Err(e) = Runner::from_src(src, logger).await.await {
+            let fut = Runner::from_src(src, ex, lg);
+            if let Err(e) = fut.await.await {
                 let _ = term::print_error(&format!("{}", e));
             }
         });

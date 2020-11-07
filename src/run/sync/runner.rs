@@ -1,4 +1,4 @@
-use crate::persist::Logger;
+use crate::persist::{Execution, Logger, NullExec};
 use crate::run::Pipeline;
 use crate::run::RunPlatform;
 use std::future::Future;
@@ -7,11 +7,22 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
 pub struct Runner {
+    pub exec: Arc<Mutex<dyn Execution>>,
     pub logger: Arc<Mutex<dyn Logger>>,
     pub pipeline: Option<Pipeline>,
 }
 
 impl Runner {
+    fn persist_start(&mut self) {
+        let mut exec = self.exec.lock().unwrap();
+        let _ = exec.update(true);
+    }
+
+    fn persist_end(&mut self) {
+        let mut exec = self.exec.lock().unwrap();
+        let _ = exec.update(false);
+    }
+
     fn info(&self) {
         let mut logger = self.logger.lock().unwrap();
         let pipeline = match &self.pipeline {
@@ -36,7 +47,7 @@ impl Runner {
             }
 
             if let Some(call) = &step.call {
-                Runner::from_file(call.clone(), self.logger.clone())
+                Runner::from_file(call.clone(), NullExec::atom(), self.logger.clone())
                     .await
                     .await?;
             }
@@ -64,26 +75,32 @@ impl Runner {
 
     pub async fn from_src(
         src: String,
-        logger: Arc<Mutex<dyn Logger>>,
+        ex: Arc<Mutex<dyn Execution>>,
+        lg: Arc<Mutex<dyn Logger>>,
     ) -> Pin<Box<dyn Future<Output = io::Result<()>>>> {
         Box::pin(async move {
-            let pipeline = Pipeline::parse(&src, logger.clone()).await?;
+            let pipeline = Pipeline::parse(&src, lg.clone()).await?;
             let mut runner = Runner {
-                logger,
+                exec: ex,
+                logger: lg,
                 pipeline: Some(pipeline),
             };
+            runner.persist_start();
             runner.info();
-            runner.steps().await
+            let res = runner.steps().await;
+            runner.persist_end();
+            res
         })
     }
 
     pub async fn from_file(
         name: String,
+        execution: Arc<Mutex<dyn Execution>>,
         logger: Arc<Mutex<dyn Logger>>,
     ) -> Pin<Box<dyn Future<Output = io::Result<()>>>> {
         Box::pin(async move {
             let src = Pipeline::read(&name)?;
-            Runner::from_src(src, logger).await.await
+            Runner::from_src(src, execution, logger).await.await
         })
     }
 }
