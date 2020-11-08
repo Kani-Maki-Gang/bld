@@ -8,6 +8,11 @@ pub static CREATE_TABLE_PIPELINE_QUERY: &str = r"
     )
 ";
 
+pub static SELECT_PIPELINES_QUERY: &str = r"
+    select *
+    from pipeline
+";
+
 pub static SELECT_PIPELINE_BY_ID_QUERY: &str = r"
     select * 
     from pipeline 

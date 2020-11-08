@@ -19,6 +19,7 @@ fn main() {
         .about("A distributed CI/CD")
         .subcommands(vec![
             init::command(),
+            config::command(),
             run::command(),
             server::command(),
             monit::command(),
@@ -28,6 +29,7 @@ fn main() {
 
     let result = match matches.subcommand() {
         ("init", Some(matches)) => init::exec(matches),
+        ("config", Some(matches)) => config::exec(matches),
         ("run", Some(matches)) => run::exec(matches),
         ("server", Some(matches)) => server::exec(matches),
         ("monit", Some(matches)) => monit::exec(matches),

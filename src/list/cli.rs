@@ -2,18 +2,19 @@ use crate::definitions::VERSION;
 use clap::{App, Arg, SubCommand};
 
 pub fn command() -> App<'static, 'static> {
-    let local = Arg::with_name("local")
-        .short("l")
-        .long("local")
-        .help("list configuration for local options");
+    let server = Arg::with_name("server")
+        .short("s")
+        .long("server")
+        .takes_value(true)
+        .help("the name of the server from which to fetch pipeline information");
 
-    let remote = Arg::with_name("remote")
+    let running = Arg::with_name("running")
         .short("r")
-        .long("remote")
-        .help("list configuration for remote options");
+        .long("running")
+        .help("list pipelines running in a remote server");
 
     SubCommand::with_name("ls")
-        .about("Lists bld's configuration options")
+        .about("Lists information of pipelines in a remote server")
         .version(VERSION)
-        .args(&vec![local, remote])
+        .args(&vec![server, running])
 }

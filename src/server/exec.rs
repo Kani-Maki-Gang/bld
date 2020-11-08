@@ -1,5 +1,5 @@
 use crate::config::BldConfig;
-use crate::server::PipelineWebSocketServer;
+use crate::server::{list_pipelines, PipelineWebSocketServer};
 use crate::term::print_info;
 use actix::{Arbiter, System};
 use actix_web::{
@@ -12,6 +12,14 @@ use std::io;
 #[get("/")]
 async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Bld server running")
+}
+
+#[get("/list")]
+async fn list() -> impl Responder {
+    match list_pipelines() {
+        Ok(ls) => HttpResponse::Ok().body(ls),
+        Err(_) => HttpResponse::BadRequest().body(""),
+    }
 }
 
 async fn ws_pipeline(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
@@ -29,6 +37,7 @@ async fn start(host: &str, port: i64) -> io::Result<()> {
         App::new()
             .wrap(middleware::Logger::default())
             .service(hello)
+            .service(list)
             .service(web::resource("/ws/").route(web::get().to(ws_pipeline)))
     })
     .bind(format!("{}:{}", host, port))?

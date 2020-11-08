@@ -88,7 +88,12 @@ impl PipelineWebSocketServer {
 
         self.src = match message["pipeline"].as_str() {
             Some(src) => Some(src.to_string()),
-            None => return Err(Error::new(ErrorKind::Other, "pipeline not found in message")),
+            None => {
+                return Err(Error::new(
+                    ErrorKind::Other,
+                    "pipeline not found in message",
+                ))
+            }
         };
 
         let config = match &self.config {
@@ -107,7 +112,7 @@ impl PipelineWebSocketServer {
             Ok(mut db) => {
                 let _ = db.add(&id, &name);
                 Some(Arc::new(Mutex::new(db)))
-            },
+            }
             Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
         };
 
@@ -152,21 +157,21 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PipelineWebSocket
                     None => {
                         ctx.stop();
                         return;
-                    },
+                    }
                 };
                 let exec = match &self.exec {
                     Some(exec) => exec.clone(),
                     None => {
                         ctx.stop();
                         return;
-                    },
+                    }
                 };
                 let lg = match &self.logger {
                     Some(lg) => lg.clone(),
                     None => {
                         ctx.stop();
                         return;
-                    },
+                    }
                 };
                 std::thread::spawn(move || invoke_pipeline(src, exec, lg));
             }

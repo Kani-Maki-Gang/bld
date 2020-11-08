@@ -1,52 +1,87 @@
-use crate::config::{BldConfig, BldLocalConfig, BldRemoteConfig};
-use crate::term;
+use crate::config::BldConfig;
+use actix::{Arbiter, System};
+use actix_http::Payload;
+use actix_web::{client::Client, dev::Decompress, error::PayloadError};
+use awc::{http::StatusCode, ClientResponse};
+use bytes::Bytes;
 use clap::ArgMatches;
-use std::io;
+use futures::Stream;
+use std::io::{self, Error, ErrorKind};
+use std::pin::Pin;
 
-fn list_locals(local: &BldLocalConfig) -> io::Result<()> {
-    term::print_info("Local configuration:")?;
-    println!("- enable_server: {}", local.enable_server);
-    println!("- host: {}", local.host);
-    println!("- port: {}", local.port);
-    println!("- logs: {}", local.logs);
-    println!("- docker_host: {}", local.docker_host);
-    println!("- docker_port: {}", local.docker_port);
-    println!("- docker_use_tls: {}", local.docker_use_tls);
-    Ok(())
-}
+type ServerResponse =
+    ClientResponse<Decompress<Payload<Pin<Box<dyn Stream<Item = Result<Bytes, PayloadError>>>>>>>;
 
-fn list_remote(remote: &BldRemoteConfig) -> io::Result<()> {
-    term::print_info("Remote configuration:")?;
-
-    for (i, server) in remote.servers.iter().enumerate() {
-        println!("- name: {}", server.name);
-        println!("- host: {}", server.host);
-        println!("- port: {}", server.port);
-        if i < remote.servers.len() - 1 {
-            println!("");
-        }
+fn handle_body(body: &Result<Bytes, PayloadError>) {
+    match body {
+        Ok(b) => println!("{}", String::from_utf8_lossy(&b)),
+        Err(e) => println!("{}", e.to_string()),
     }
-
-    Ok(())
 }
 
-fn list_all(config: &BldConfig) -> io::Result<()> {
-    list_locals(&config.local)?;
-    println!("");
-    list_remote(&config.remote)?;
-    Ok(())
+async fn handle_response(resp: &mut ServerResponse) {
+    let body = resp.body().await;
+    match resp.status() {
+        StatusCode::OK => handle_body(&body),
+        StatusCode::BAD_REQUEST => handle_body(&body),
+        _ => println!("unexpected response from server"),
+    }
+}
+
+fn exec_request(host: String, port: i64, _running: bool) {
+    let system = System::new("bld-ls");
+
+    Arbiter::spawn(async move {
+        let url = format!("http://{}:{}/list", host, port);
+        let client = Client::default();
+        let mut response = client
+            .get(url)
+            .header("User-Agent", "Bld")
+            .no_decompress()
+            .send()
+            .await;
+        match response.as_mut() {
+            Ok(resp) => handle_response(resp).await,
+            Err(e) => println!("{}", e.to_string()),
+        }
+        System::current().stop();
+    });
+
+    let _ = system.run();
 }
 
 pub fn exec(matches: &ArgMatches<'_>) -> io::Result<()> {
     let config = BldConfig::load()?;
 
-    if matches.is_present("local") {
-        return list_locals(&config.local);
-    }
+    let (host, port) = match matches.value_of("server") {
+        Some(name) => {
+            let server = config.remote.servers.iter().find(|s| s.name == name);
+            match server {
+                Some(s) => (&s.host, s.port),
+                None => {
+                    return Err(Error::new(
+                        ErrorKind::Other,
+                        "server not found in configuration",
+                    ))
+                }
+            }
+        }
+        None => {
+            let server = config.remote.servers.iter().next();
+            match server {
+                Some(s) => (&s.host, s.port),
+                None => {
+                    return Err(Error::new(
+                        ErrorKind::Other,
+                        "no server found in configuration",
+                    ))
+                }
+            }
+        }
+    };
 
-    if matches.is_present("remote") {
-        return list_remote(&config.remote);
-    }
+    let running = matches.is_present("running");
 
-    list_all(&config)
+    exec_request(host.to_string(), port, running);
+    Ok(())
 }

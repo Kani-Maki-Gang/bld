@@ -23,6 +23,14 @@ impl PipelineModel {
         Ok(())
     }
 
+    pub fn select_all(connection: &SqliteConnection) -> io::Result<Vec<Self>> {
+        let query = sql_query(SELECT_PIPELINES_QUERY).load::<Self>(connection);
+        if let Err(e) = query {
+            return Err(Error::new(ErrorKind::Other, e.to_string()));
+        }
+        Ok(query.unwrap())
+    }
+
     pub fn select_by_id(connection: &SqliteConnection, id: &str) -> Option<Self> {
         let query = sql_query(SELECT_PIPELINE_BY_ID_QUERY)
             .bind::<Text, _>(id)

@@ -17,7 +17,7 @@ dependencies = [
  "log",
  "once_cell",
  "parking_lot",
- "pin-project",
+ "pin-project 0.4.23",
  "smallvec",
  "tokio",
  "tokio-util",
@@ -36,7 +36,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "log",
- "pin-project",
+ "pin-project 0.4.23",
  "tokio",
  "tokio-util",
 ]
@@ -62,9 +62,9 @@ dependencies = [
 
 [[package]]
 name = "actix-http"
-version = "2.0.0"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05dd80ba8f27c4a34357c07e338c8f5c38f8520e6d626ca1727d8fecc41b0cab"
+checksum = "404df68c297f73b8d36c9c9056404913d25905a8f80127b0e5fe147c9c4b9f02"
 dependencies = [
  "actix-codec",
  "actix-connect",
@@ -72,7 +72,7 @@ dependencies = [
  "actix-service",
  "actix-threadpool",
  "actix-utils",
- "base64 0.12.3",
+ "base64 0.13.0",
  "bitflags",
  "brotli2",
  "bytes 0.5.6",
@@ -96,7 +96,7 @@ dependencies = [
  "log",
  "mime",
  "percent-encoding",
- "pin-project",
+ "pin-project 1.0.1",
  "rand",
  "regex",
  "serde",
@@ -172,7 +172,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0052435d581b5be835d11f4eb3bce417c8af18d87ddf8ace99f8e67e595882bb"
 dependencies = [
  "futures-util",
- "pin-project",
+ "pin-project 0.4.23",
 ]
 
 [[package]]
@@ -232,7 +232,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "log",
- "pin-project",
+ "pin-project 0.4.23",
  "slab",
 ]
 
@@ -264,7 +264,7 @@ dependencies = [
  "fxhash",
  "log",
  "mime",
- "pin-project",
+ "pin-project 0.4.23",
  "regex",
  "serde",
  "serde_json",
@@ -288,7 +288,7 @@ dependencies = [
  "bytes 0.5.6",
  "futures-channel",
  "futures-core",
- "pin-project",
+ "pin-project 0.4.23",
 ]
 
 [[package]]
@@ -442,6 +442,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3441f0f7b02788e948e47f457ca01f1d7e6d92c693bc132c22b087d3141c03ff"
 
 [[package]]
+name = "base64"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
+
+[[package]]
 name = "bitflags"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -453,6 +459,7 @@ version = "0.1.0"
 dependencies = [
  "actix",
  "actix-codec",
+ "actix-http",
  "actix-web",
  "actix-web-actors",
  "awc",
@@ -888,7 +895,7 @@ dependencies = [
  "futures-sink",
  "futures-task",
  "memchr",
- "pin-project",
+ "pin-project 0.4.23",
  "pin-utils",
  "proc-macro-hack",
  "proc-macro-nested",
@@ -904,7 +911,7 @@ dependencies = [
  "bytes 0.5.6",
  "futures",
  "memchr",
- "pin-project",
+ "pin-project 0.4.23",
 ]
 
 [[package]]
@@ -1051,7 +1058,7 @@ dependencies = [
  "http-body",
  "httparse",
  "itoa",
- "pin-project",
+ "pin-project 0.4.23",
  "socket2",
  "time 0.1.44",
  "tokio",
@@ -1087,7 +1094,7 @@ dependencies = [
  "futures-util",
  "hex",
  "hyper",
- "pin-project",
+ "pin-project 0.4.23",
  "tokio",
 ]
 
@@ -1454,7 +1461,16 @@ version = "0.4.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca4433fff2ae79342e497d9f8ee990d174071408f28f726d6d83af93e58e48aa"
 dependencies = [
- "pin-project-internal",
+ "pin-project-internal 0.4.23",
+]
+
+[[package]]
+name = "pin-project"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee41d838744f60d959d7074e3afb6b35c7456d0f61cad38a24e35e6553f73841"
+dependencies = [
+ "pin-project-internal 1.0.1",
 ]
 
 [[package]]
@@ -1462,6 +1478,17 @@ name = "pin-project-internal"
 version = "0.4.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c0e815c3ee9a031fdf5af21c10aa17c573c9c6a566328d99e3936c34e36461f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "pin-project-internal"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "81a4ffa594b66bff340084d4081df649a7dc049ac8d7fc458d8e628bfbbb2f86"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1506,9 +1533,9 @@ checksum = "eba180dafb9038b050a4c280019bbedf9f2467b61e5d892dcad585bb57aadc5a"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.20"
+version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "175c513d55719db99da20232b06cda8bab6b83ec2d04e3283edf0213c37c1a29"
+checksum = "1e0704ee1a7e00d7bb417d0770ea303c1bccbabf0ef1667dae92b5967f5f8a71"
 dependencies = [
  "unicode-xid",
 ]
@@ -1725,7 +1752,7 @@ dependencies = [
  "log",
  "mime",
  "openssl",
- "pin-project",
+ "pin-project 0.4.23",
  "serde",
  "serde_json",
  "tar",
@@ -1833,9 +1860,9 @@ checksum = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
 
 [[package]]
 name = "syn"
-version = "1.0.40"
+version = "1.0.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "963f7d3cc59b59b9325165add223142bbf1df27655d07789f109896d353d8350"
+checksum = "cc371affeffc477f42a221a1e4297aedcea33d47d19b61455588bd9d8f6b19ac"
 dependencies = [
  "proc-macro2",
  "quote",

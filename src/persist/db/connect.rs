@@ -43,6 +43,10 @@ impl Database {
         })
     }
 
+    pub fn all(&self) -> io::Result<Vec<PipelineModel>> {
+        PipelineModel::select_all(&self.connection)
+    }
+
     pub fn load(&mut self, id: &str) {
         self.pipeline = PipelineModel::select_by_id(&self.connection, &id);
     }
