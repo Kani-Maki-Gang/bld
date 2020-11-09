@@ -52,32 +52,27 @@ fn exec_request(host: String, port: i64, _running: bool) {
 
 pub fn exec(matches: &ArgMatches<'_>) -> io::Result<()> {
     let config = BldConfig::load()?;
+    let servers = config.remote.servers;
 
     let (host, port) = match matches.value_of("server") {
-        Some(name) => {
-            let server = config.remote.servers.iter().find(|s| s.name == name);
-            match server {
-                Some(s) => (&s.host, s.port),
-                None => {
-                    return Err(Error::new(
-                        ErrorKind::Other,
-                        "server not found in configuration",
-                    ))
-                }
+        Some(name) => match servers.iter().find(|s| s.name == name) {
+            Some(srv) => (&srv.host, srv.port),
+            None => {
+                return Err(Error::new(
+                    ErrorKind::Other,
+                    "server not found in configuration",
+                ))
             }
-        }
-        None => {
-            let server = config.remote.servers.iter().next();
-            match server {
-                Some(s) => (&s.host, s.port),
-                None => {
-                    return Err(Error::new(
-                        ErrorKind::Other,
-                        "no server found in configuration",
-                    ))
-                }
+        },
+        None => match servers.iter().next() {
+            Some(srv) => (&srv.host, srv.port),
+            None => {
+                return Err(Error::new(
+                    ErrorKind::Other,
+                    "no server found in configuration",
+                ))
             }
-        }
+        },
     };
 
     let running = matches.is_present("running");

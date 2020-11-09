@@ -11,17 +11,16 @@ use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use uuid::Uuid;
 
-pub struct PipelineWebSocketServer {
+pub struct ExecutePipelineSocket {
     hb: Instant,
     config: Option<BldConfig>,
     src: Option<String>,
     exec: Option<Arc<Mutex<Database>>>,
     logger: Option<Arc<Mutex<FileLogger>>>,
     scanner: Option<FileScanner>,
-    is_pipeline_done: bool,
 }
 
-impl PipelineWebSocketServer {
+impl ExecutePipelineSocket {
     pub fn new() -> Self {
         let config = match BldConfig::load() {
             Ok(config) => Some(config),
@@ -34,43 +33,36 @@ impl PipelineWebSocketServer {
             exec: None,
             logger: None,
             scanner: None,
-            is_pipeline_done: false,
         }
     }
 
-    fn heartbeat(&self, ctx: &mut <Self as Actor>::Context) {
-        ctx.run_interval(Duration::from_secs(1), |act, ctx| {
-            if Instant::now().duration_since(act.hb) > Duration::from_secs(10) {
-                println!("Websocket heartbeat failed, disconnecting!");
-                ctx.stop();
-                return;
-            }
-            ctx.ping(b"");
-        });
+    fn heartbeat(act: &Self, ctx: &mut <Self as Actor>::Context) {
+        if Instant::now().duration_since(act.hb) > Duration::from_secs(10) {
+            println!("Websocket heartbeat failed, disconnecting!");
+            ctx.stop();
+            return;
+        }
+        ctx.ping(b"");
     }
 
-    fn scan(&mut self, ctx: &mut <Self as Actor>::Context) {
-        ctx.run_interval(Duration::from_secs(1), |act, ctx| {
-            if let Some(scanner) = act.scanner.as_mut() {
-                let content = scanner.fetch();
-                for line in content.iter() {
-                    ctx.text(line);
-                }
+    fn scan(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
+        if let Some(scanner) = act.scanner.as_mut() {
+            let content = scanner.fetch();
+            for line in content.iter() {
+                ctx.text(line);
             }
-        });
+        }
     }
 
-    fn exec(&mut self, ctx: &mut <Self as Actor>::Context) {
-        ctx.run_interval(Duration::from_secs(3), |act, ctx| {
-            if let Some(exec) = act.exec.as_mut() {
-                let exec = exec.lock().unwrap();
-                if let Some(pipeline) = &exec.pipeline {
-                    if !pipeline.running {
-                        ctx.stop();
-                    }
+    fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
+        if let Some(exec) = act.exec.as_mut() {
+            let exec = exec.lock().unwrap();
+            if let Some(pipeline) = &exec.pipeline {
+                if !pipeline.running {
+                    ctx.stop();
                 }
             }
-        });
+        }
     }
 
     fn dependencies(&mut self, text: &str) -> io::Result<()> {
@@ -130,21 +122,22 @@ impl PipelineWebSocketServer {
     }
 }
 
-impl Actor for PipelineWebSocketServer {
+impl Actor for ExecutePipelineSocket {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        self.heartbeat(ctx);
-        self.scan(ctx);
-        self.exec(ctx);
+        ctx.run_interval(Duration::from_secs(1), |act, ctx| {
+            ExecutePipelineSocket::heartbeat(act, ctx);
+            ExecutePipelineSocket::scan(act, ctx);
+        });
+        ctx.run_interval(Duration::from_secs(5), |act, ctx| {
+            ExecutePipelineSocket::exec(act, ctx);
+        });
     }
 }
 
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PipelineWebSocketServer {
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSocket {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        if self.is_pipeline_done {
-            ctx.close(None);
-        }
         match msg {
             Ok(ws::Message::Text(txt)) => {
                 if let Err(e) = self.dependencies(&txt) {

@@ -1,5 +1,5 @@
 use crate::config::BldConfig;
-use crate::server::{list_pipelines, PipelineWebSocketServer};
+use crate::server::{list_pipelines, ExecutePipelineSocket, MonitorPipelineSocket};
 use crate::term::print_info;
 use actix::{Arbiter, System};
 use actix_web::{
@@ -22,9 +22,16 @@ async fn list() -> impl Responder {
     }
 }
 
-async fn ws_pipeline(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+async fn ws_exec(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
     println!("{:?}", req);
-    let res = ws::start(PipelineWebSocketServer::new(), &req, stream);
+    let res = ws::start(ExecutePipelineSocket::new(), &req, stream);
+    println!("{:?}", res);
+    res
+}
+
+async fn ws_monit(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+    println!("{:?}", req);
+    let res = ws::start(MonitorPipelineSocket::new(), &req, stream);
     println!("{:?}", res);
     res
 }
@@ -38,7 +45,8 @@ async fn start(host: &str, port: i64) -> io::Result<()> {
             .wrap(middleware::Logger::default())
             .service(hello)
             .service(list)
-            .service(web::resource("/ws/").route(web::get().to(ws_pipeline)))
+            .service(web::resource("/ws-exec/").route(web::get().to(ws_exec)))
+            .service(web::resource("/ws-monit").route(web::get().to(ws_monit)))
     })
     .bind(format!("{}:{}", host, port))?
     .run()

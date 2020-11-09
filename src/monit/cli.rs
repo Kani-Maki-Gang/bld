@@ -2,9 +2,9 @@ use crate::definitions::VERSION;
 use clap::{App, Arg, SubCommand};
 
 pub fn command() -> App<'static, 'static> {
-    let pipeline = Arg::with_name("pipeline")
-        .short("p")
-        .long("pipeline")
+    let pipeline = Arg::with_name("pipeline-id")
+        .short("i")
+        .long("pipeline-id")
         .help("the name of the pipeline to monitor")
         .takes_value(true);
 

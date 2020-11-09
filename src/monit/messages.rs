@@ -2,4 +2,4 @@ use actix::Message;
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct ExecutePipelineSocketMessage(pub String);
+pub struct MonitorPipelineSocketMessage(pub String);

@@ -5,7 +5,7 @@ pub use client::*;
 pub use messages::*;
 
 use crate::config::BldConfig;
-use crate::run::socket::{PipelineWebSocketClient, RunPipelineMessage};
+use crate::run::socket::{ExecutePipelineSocketClient, ExecutePipelineSocketMessage};
 use crate::run::Pipeline;
 use crate::term::print_error;
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
@@ -21,7 +21,7 @@ async fn remote_invoke(name: String, server: String) -> io::Result<()> {
         Some(s) => s,
         None => return Err(Error::new(ErrorKind::Other, "server not found in config")),
     };
-    let url = format!("http://{}:{}/ws/", server.host, server.port);
+    let url = format!("http://{}:{}/ws-exec/", server.host, server.port);
     let (_, framed) = Client::new()
         .ws(url)
         .connect()
@@ -29,16 +29,16 @@ async fn remote_invoke(name: String, server: String) -> io::Result<()> {
         .map_err(|e| println!("Error: {}", e))
         .unwrap();
     let (sink, stream) = framed.split();
-    let addr = PipelineWebSocketClient::create(|ctx| {
-        PipelineWebSocketClient::add_stream(stream, ctx);
-        PipelineWebSocketClient::new(SinkWrite::new(sink, ctx))
+    let addr = ExecutePipelineSocketClient::create(|ctx| {
+        ExecutePipelineSocketClient::add_stream(stream, ctx);
+        ExecutePipelineSocketClient::new(SinkWrite::new(sink, ctx))
     });
     let message = json!({
         "name": name,
         "pipeline": Pipeline::read(&name)?
     })
     .to_string();
-    let _ = addr.send(RunPipelineMessage(message)).await;
+    let _ = addr.send(ExecutePipelineSocketMessage(message)).await;
     Ok(())
 }
 
