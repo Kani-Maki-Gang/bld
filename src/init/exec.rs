@@ -1,4 +1,5 @@
 use crate::definitions;
+use crate::path;
 use crate::term::print_info;
 use clap::ArgMatches;
 use std::fs;
@@ -48,9 +49,10 @@ fn create_db_dir(is_server: bool) -> io::Result<()> {
 }
 
 fn create_default_yaml() -> io::Result<()> {
-    let mut path = PathBuf::new();
-    path.push(definitions::TOOL_DIR);
-    path.push(format!("{}.yaml", definitions::TOOL_DEFAULT_PIPELINE));
+    let path = path![
+        definitions::TOOL_DIR,
+        definitions::TOOL_DEFAULT_PIPELINE_FILE
+    ];
     fs::write(path, definitions::DEFAULT_PIPELINE_CONTENT)?;
     let message = format!("{} yaml file created", definitions::TOOL_DEFAULT_PIPELINE);
     print_info(&message)?;
@@ -58,9 +60,10 @@ fn create_default_yaml() -> io::Result<()> {
 }
 
 fn create_config_yaml(is_server: bool) -> io::Result<()> {
-    let mut path = PathBuf::new();
-    path.push(definitions::TOOL_DIR);
-    path.push(format!("{}.yaml", definitions::TOOL_DEFAULT_CONFIG));
+    let path = path![
+        definitions::TOOL_DIR,
+        definitions::TOOL_DEFAULT_PIPELINE_FILE
+    ];
     let content = match is_server {
         true => definitions::default_server_config(),
         false => definitions::default_client_config(),

@@ -1,5 +1,6 @@
 mod config;
 mod definitions;
+mod helpers;
 mod init;
 mod list;
 mod monit;

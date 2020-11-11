@@ -1,10 +1,12 @@
 #![allow(dead_code)]
 use crate::definitions::DB_NAME;
+use crate::helpers::err;
+use crate::path;
 use crate::persist::Execution;
 use crate::persist::PipelineModel;
 use diesel::sqlite::SqliteConnection;
 use diesel::Connection;
-use std::io::{self, Error, ErrorKind};
+use std::io;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -14,25 +16,18 @@ pub struct Database {
 }
 
 impl Database {
-    fn path(db: &str) -> PathBuf {
-        let mut path = PathBuf::new();
-        path.push(db);
-        path.push(DB_NAME);
-        path
-    }
-
     fn initialize(conn: &SqliteConnection) -> io::Result<()> {
         PipelineModel::create(conn)?;
         Ok(())
     }
 
     pub fn connect(db: &str) -> io::Result<Self> {
-        let path_buf = Database::path(db);
+        let path_buf = path![db, DB_NAME];
         let path_str = path_buf.as_path().display().to_string();
         let is_new = !path_buf.is_file();
         let connection = match SqliteConnection::establish(&path_str) {
             Ok(connection) => connection,
-            Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
+            Err(e) => return err(e.to_string()),
         };
         if is_new {
             Database::initialize(&connection)?;
@@ -71,7 +66,7 @@ impl Execution for Database {
                 pipeline.running = running;
                 Ok(())
             }
-            None => Err(Error::new(ErrorKind::Other, "no pipeline instance")),
+            None => err("no pipeline instance".to_string()),
         }
     }
 }

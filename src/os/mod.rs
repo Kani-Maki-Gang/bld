@@ -2,6 +2,7 @@
 
 use std::path::PathBuf;
 
+#[macro_export]
 macro_rules! path {
     ($($x:expr), *) => {
         {

@@ -6,6 +6,8 @@ use std::io;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
+type RecursiveFuture = Pin<Box<dyn Future<Output = io::Result<()>>>>;
+
 pub struct Runner {
     pub exec: Arc<Mutex<dyn Execution>>,
     pub logger: Arc<Mutex<dyn Logger>>,
@@ -77,7 +79,7 @@ impl Runner {
         src: String,
         ex: Arc<Mutex<dyn Execution>>,
         lg: Arc<Mutex<dyn Logger>>,
-    ) -> Pin<Box<dyn Future<Output = io::Result<()>>>> {
+    ) -> RecursiveFuture {
         Box::pin(async move {
             let pipeline = Pipeline::parse(&src, lg.clone()).await?;
             let mut runner = Runner {
@@ -97,7 +99,7 @@ impl Runner {
         name: String,
         execution: Arc<Mutex<dyn Execution>>,
         logger: Arc<Mutex<dyn Logger>>,
-    ) -> Pin<Box<dyn Future<Output = io::Result<()>>>> {
+    ) -> RecursiveFuture {
         Box::pin(async move {
             let src = Pipeline::read(&name)?;
             Runner::from_src(src, execution, logger).await.await

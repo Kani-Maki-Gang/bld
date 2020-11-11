@@ -3,6 +3,7 @@ pub static TOOL_DIR: &str = ".bld";
 pub static DB_NAME: &str = "bld-server.db";
 
 pub static TOOL_DEFAULT_PIPELINE: &str = "default";
+pub static TOOL_DEFAULT_PIPELINE_FILE: &str = "default.yaml";
 pub static TOOL_DEFAULT_CONFIG: &str = "config";
 
 pub static LOCAL_ENABLE_SERVER: bool = false;

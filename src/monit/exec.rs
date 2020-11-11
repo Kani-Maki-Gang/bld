@@ -1,21 +1,20 @@
 use crate::config::BldConfig;
 use crate::definitions::TOOL_DEFAULT_PIPELINE;
+use crate::helpers::err;
 use crate::monit::{MonitorPipelineSocketClient, MonitorPipelineSocketMessage};
 use crate::term::print_error;
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
 use awc::Client;
 use clap::ArgMatches;
 use futures::stream::StreamExt;
-use std::io::{self, Error, ErrorKind};
+use std::io;
 
 async fn remote_invoke(host: String, port: i64, id: String) -> io::Result<()> {
     let url = format!("http://{}:{}/ws-monit", host, port);
-    let (_, framed) = Client::new()
-        .ws(url)
-        .connect()
-        .await
-        .map_err(|e| println!("Error: {}", e))
-        .unwrap();
+    let (_, framed) = match Client::new().ws(url).connect().await {
+        Ok(data) => data,
+        Err(e) => return err(e.to_string()),
+    };
     let (sink, stream) = framed.split();
     let addr = MonitorPipelineSocketClient::create(|ctx| {
         MonitorPipelineSocketClient::add_stream(stream, ctx);
@@ -50,21 +49,11 @@ pub fn exec(matches: &ArgMatches<'_>) -> io::Result<()> {
     let (host, port) = match matches.value_of("server") {
         Some(name) => match servers.iter().find(|s| s.name == name) {
             Some(srv) => (&srv.host, srv.port),
-            None => {
-                return Err(Error::new(
-                    ErrorKind::Other,
-                    "server not found in configuration",
-                ))
-            }
+            None => return err("server not found in config".to_string()),
         },
         None => match servers.iter().next() {
             Some(srv) => (&srv.host, srv.port),
-            None => {
-                return Err(Error::new(
-                    ErrorKind::Other,
-                    "no server found in configuration",
-                ))
-            }
+            None => return err("no server found in config".to_string()),
         },
     };
 

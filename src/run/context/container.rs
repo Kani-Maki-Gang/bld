@@ -1,10 +1,10 @@
 use crate::config::BldConfig;
+use crate::helpers::err;
 use crate::persist::Logger;
 use futures_util::StreamExt;
-use shiplift::{
-    tty::TtyChunk, ContainerOptions, Docker, ExecContainerOptions, ImageListOptions, PullOptions,
-};
-use std::io::{self, Error, ErrorKind};
+use shiplift::tty::TtyChunk;
+use shiplift::{ContainerOptions, Docker, ExecContainerOptions, ImageListOptions, PullOptions};
+use std::io;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
@@ -28,10 +28,7 @@ impl Container {
         let uri = match (Container::address()?).parse() {
             Ok(uri) => uri,
             Err(_) => {
-                return Err(Error::new(
-                    ErrorKind::Other,
-                    "could not parse tcp address for docker daemon",
-                ))
+                return err("could not parse tcp address for docker daemon".to_string());
             }
         };
         Ok(Docker::host(uri))
@@ -45,7 +42,7 @@ impl Container {
         let options = ImageListOptions::builder().filter_name(image).build();
         let images = match client.images().list(&options).await {
             Ok(img) => img,
-            Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
+            Err(e) => return err(e.to_string()),
         };
 
         if images.len() == 0 {
@@ -62,7 +59,7 @@ impl Container {
                         let mut logger = logger.lock().unwrap();
                         logger.dumpln(&format!("{}", info.to_string()))
                     }
-                    Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
+                    Err(e) => return err(e.to_string()),
                 }
                 sleep(Duration::from_millis(100));
             }
@@ -81,11 +78,11 @@ impl Container {
         let options = ContainerOptions::builder(&image).tty(true).build();
         let info = match client.containers().create(&options).await {
             Ok(info) => info,
-            Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
+            Err(e) => return err(e.to_string()),
         };
 
         if let Err(e) = client.containers().get(&info.id).start().await {
-            return Err(Error::new(ErrorKind::Other, e.to_string()));
+            return err(e.to_string());
         }
 
         Ok(info.id)
@@ -125,7 +122,7 @@ impl Container {
                 Ok(TtyChunk::StdOut(bytes)) => String::from_utf8(bytes).unwrap(),
                 Ok(TtyChunk::StdErr(bytes)) => String::from_utf8(bytes).unwrap(),
                 Ok(TtyChunk::StdIn(_)) => unreachable!(),
-                Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
+                Err(e) => return err(e.to_string()),
             };
             {
                 let mut logger = self.logger.lock().unwrap();
@@ -146,7 +143,7 @@ impl Container {
             .await;
 
         if let Err(e) = stop_res {
-            return Err(Error::new(ErrorKind::Other, e.to_string()));
+            return err(e.to_string());
         }
 
         let delete_res = self
@@ -157,7 +154,7 @@ impl Container {
             .await;
 
         if let Err(e) = delete_res {
-            return Err(Error::new(ErrorKind::Other, e.to_string()));
+            return err(e.to_string());
         }
 
         Ok(())

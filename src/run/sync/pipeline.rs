@@ -1,7 +1,10 @@
 use crate::definitions::TOOL_DIR;
+use crate::helpers::err;
+use crate::path;
 use crate::persist::Logger;
 use crate::run::{Container, Machine, RunPlatform};
-use std::io::{self, Error, ErrorKind};
+use std::io;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use yaml_rust::{Yaml, YamlLoader};
 
@@ -37,9 +40,11 @@ pub struct Pipeline {
 
 impl Pipeline {
     pub fn read(pipeline: &str) -> io::Result<String> {
-        let mut path = std::env::current_dir()?;
-        path.push(TOOL_DIR);
-        path.push(format!("{}.yaml", pipeline));
+        let path = path![
+            std::env::current_dir()?,
+            TOOL_DIR,
+            format!("{}.yaml", pipeline)
+        ];
         std::fs::read_to_string(path)
     }
 
@@ -47,13 +52,13 @@ impl Pipeline {
         match YamlLoader::load_from_str(&src) {
             Ok(yaml) => {
                 if yaml.len() == 0 {
-                    return Err(Error::new(ErrorKind::Other, "invalid yaml".to_string()));
+                    return err("invalid yaml".to_string());
                 }
                 let entry = yaml[0].clone();
                 let pipeline = Pipeline::load(&entry, logger).await?;
                 Ok(pipeline)
             }
-            Err(e) => Err(Error::new(ErrorKind::Other, e.to_string())),
+            Err(e) => err(e.to_string()),
         }
     }
 

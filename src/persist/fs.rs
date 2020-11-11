@@ -1,6 +1,7 @@
+use crate::helpers::err;
 use crate::persist::{Logger, Scanner};
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Error, ErrorKind, Write};
+use std::io::{self, BufRead, BufReader, Write};
 use std::path::Path;
 
 pub struct FileLogger {
@@ -58,7 +59,7 @@ impl FileScanner {
         let fpath = Path::new(path);
         let file_handle = match fpath.is_file() {
             true => File::open(path)?,
-            false => return Err(Error::new(ErrorKind::Other, "could not find file")),
+            false => return err("could not find file".to_string()),
         };
         Ok(Self {
             file_handle,

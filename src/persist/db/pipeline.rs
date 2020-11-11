@@ -1,9 +1,10 @@
+use crate::helpers::err;
 use crate::persist::db::queries::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sql_types::{Bool, Text};
 use diesel::sqlite::SqliteConnection;
 use diesel::{sql_query, Queryable, QueryableByName};
-use std::io::{self, Error, ErrorKind};
+use std::io;
 
 #[derive(Debug, Queryable, QueryableByName)]
 pub struct PipelineModel {
@@ -18,7 +19,7 @@ pub struct PipelineModel {
 impl PipelineModel {
     pub fn create(connection: &SqliteConnection) -> io::Result<()> {
         if let Err(e) = sql_query(CREATE_TABLE_PIPELINE_QUERY).execute(connection) {
-            return Err(Error::new(ErrorKind::Other, e.to_string()));
+            return err(e.to_string());
         }
         Ok(())
     }
@@ -26,7 +27,7 @@ impl PipelineModel {
     pub fn select_all(connection: &SqliteConnection) -> io::Result<Vec<Self>> {
         let query = sql_query(SELECT_PIPELINES_QUERY).load::<Self>(connection);
         if let Err(e) = query {
-            return Err(Error::new(ErrorKind::Other, e.to_string()));
+            return err(e.to_string());
         }
         Ok(query.unwrap())
     }
@@ -48,7 +49,7 @@ impl PipelineModel {
             .bind::<Bool, _>(pipeline.running)
             .execute(connection);
         if let Err(e) = query {
-            return Err(Error::new(ErrorKind::Other, e.to_string()));
+            return err(e.to_string());
         }
         Ok(())
     }
@@ -59,7 +60,7 @@ impl PipelineModel {
             .bind::<Text, _>(id)
             .execute(connection);
         if let Err(e) = query {
-            return Err(Error::new(ErrorKind::Other, e.to_string()));
+            return err(e.to_string());
         }
         Ok(())
     }

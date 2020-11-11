@@ -1,22 +1,28 @@
 use crate::config::BldConfig;
+use crate::helpers::err;
+use crate::term::print_error;
 use actix::{Arbiter, System};
 use actix_http::Payload;
-use actix_web::{client::Client, dev::Decompress, error::PayloadError};
-use awc::{http::StatusCode, ClientResponse};
+use actix_web::client::Client;
+use actix_web::dev::Decompress;
+use actix_web::error::PayloadError;
+use awc::http::StatusCode;
+use awc::ClientResponse;
 use bytes::Bytes;
 use clap::ArgMatches;
 use futures::Stream;
-use std::io::{self, Error, ErrorKind};
+use std::io;
 use std::pin::Pin;
 
 type ServerResponse =
     ClientResponse<Decompress<Payload<Pin<Box<dyn Stream<Item = Result<Bytes, PayloadError>>>>>>>;
 
 fn handle_body(body: &Result<Bytes, PayloadError>) {
-    match body {
-        Ok(b) => println!("{}", String::from_utf8_lossy(&b)),
-        Err(e) => println!("{}", e.to_string()),
-    }
+    let res = match body {
+        Ok(b) => String::from_utf8_lossy(&b).to_string(),
+        Err(e) => e.to_string(),
+    };
+    println!("{}", res);
 }
 
 async fn handle_response(resp: &mut ServerResponse) {
@@ -34,15 +40,12 @@ fn exec_request(host: String, port: i64, _running: bool) {
     Arbiter::spawn(async move {
         let url = format!("http://{}:{}/list", host, port);
         let client = Client::default();
-        let mut response = client
-            .get(url)
-            .header("User-Agent", "Bld")
-            .no_decompress()
-            .send()
-            .await;
+        let mut response = client.get(url).header("User-Agent", "Bld").send().await;
         match response.as_mut() {
             Ok(resp) => handle_response(resp).await,
-            Err(e) => println!("{}", e.to_string()),
+            Err(e) => {
+                let _ = print_error(&e.to_string());
+            }
         }
         System::current().stop();
     });
@@ -57,21 +60,11 @@ pub fn exec(matches: &ArgMatches<'_>) -> io::Result<()> {
     let (host, port) = match matches.value_of("server") {
         Some(name) => match servers.iter().find(|s| s.name == name) {
             Some(srv) => (&srv.host, srv.port),
-            None => {
-                return Err(Error::new(
-                    ErrorKind::Other,
-                    "server not found in configuration",
-                ))
-            }
+            None => return err("server not found in config".to_string()),
         },
         None => match servers.iter().next() {
             Some(srv) => (&srv.host, srv.port),
-            None => {
-                return Err(Error::new(
-                    ErrorKind::Other,
-                    "no server found in configuration",
-                ))
-            }
+            None => return err("no server found in config".to_string()),
         },
     };
 

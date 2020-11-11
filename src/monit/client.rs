@@ -49,7 +49,7 @@ impl Handler<MonitorPipelineSocketMessage> for MonitorPipelineSocketClient {
 impl StreamHandler<Result<Frame, WsProtocolError>> for MonitorPipelineSocketClient {
     fn handle(&mut self, msg: Result<Frame, WsProtocolError>, _: &mut Context<Self>) {
         match msg {
-            Ok(Frame::Text(bt)) => println!("{}", String::from_utf8_lossy(&bt[..])),
+            Ok(Frame::Text(bt)) => println!("{}", String::from_utf8_lossy(&bt)),
             Ok(Frame::Close(_)) => System::current().stop(),
             _ => {}
         }
