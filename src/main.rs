@@ -1,6 +1,5 @@
 mod config;
 mod definitions;
-mod helpers;
 mod init;
 mod list;
 mod monit;
@@ -9,6 +8,7 @@ mod persist;
 mod run;
 mod server;
 mod term;
+mod types;
 
 use crate::definitions::VERSION;
 use clap::App;

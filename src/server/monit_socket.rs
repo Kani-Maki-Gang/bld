@@ -1,10 +1,13 @@
 use crate::config::BldConfig;
+use crate::path;
 use crate::persist::{Database, FileScanner, Scanner};
+use crate::types::{BldError, Result};
 use actix::prelude::*;
 use actix_web_actors::ws;
-use std::io::{self, Error, ErrorKind};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
+
+type StdResult<T, V> = std::result::Result<T, V>;
 
 pub struct MonitorPipelineSocket {
     hb: Instant,
@@ -64,38 +67,30 @@ impl MonitorPipelineSocket {
         }
     }
 
-    fn dependencies(&mut self, id: &str) -> io::Result<()> {
+    fn dependencies(&mut self, id: &str) -> Result<()> {
         let config = match &self.config {
             Some(config) => config,
-            None => return Err(Error::new(ErrorKind::Other, "config not loaded")),
+            None => return Err(BldError::Other("config not loaded".to_string())),
         };
 
-        let mut db = match Database::connect(&config.local.db) {
-            Ok(db) => db,
-            Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
-        };
+        let mut db = Database::connect(&config.local.db)?;
         db.load(id);
         let pipeline = match &db.pipeline {
             Some(pipeline) => pipeline,
-            None => return Err(Error::new(ErrorKind::Other, "pipeline not found")),
+            None => return Err(BldError::Other("pipeline not found".to_string())),
         };
 
         self.id = id.to_string();
 
-        let path = {
-            let mut path = PathBuf::new();
-            path.push(&config.local.logs);
-            path.push(format!("{}-{}", pipeline.name, pipeline.id));
-            path.display().to_string()
-        };
+        let path = path![
+            &config.local.logs,
+            format!("{}-{}", pipeline.name, pipeline.id)
+        ]
+        .display()
+        .to_string();
 
-        self.scanner = match FileScanner::new(&path) {
-            Ok(sc) => Some(sc),
-            Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
-        };
-
+        self.scanner = Some(FileScanner::new(&path)?);
         self.db = Some(db);
-
         Ok(())
     }
 }
@@ -114,8 +109,8 @@ impl Actor for MonitorPipelineSocket {
     }
 }
 
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MonitorPipelineSocket {
-    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for MonitorPipelineSocket {
+    fn handle(&mut self, msg: StdResult<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(txt)) => {
                 if let Err(e) = self.dependencies(&txt) {

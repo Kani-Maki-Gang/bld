@@ -1,12 +1,12 @@
 use crate::config::BldConfig;
 use crate::persist::Database;
-use std::io;
+use crate::types::Result;
 
 fn format(arg1: &str, arg2: &str, arg3: &str) -> String {
     format!("{0: <40} | {1: <30} | {2: <10}", arg1, arg2, arg3)
 }
 
-pub fn list_pipelines() -> io::Result<String> {
+pub fn list_pipelines() -> Result<String> {
     let config = BldConfig::load()?;
     let db = Database::connect(&config.local.db)?;
     let pipelines = db.all()?;

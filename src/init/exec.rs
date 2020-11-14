@@ -1,13 +1,13 @@
 use crate::definitions;
 use crate::path;
 use crate::term::print_info;
+use crate::types::{BldError, Result};
 use clap::ArgMatches;
 use std::fs;
-use std::io::{self, Error, ErrorKind};
 use std::path::Component::Normal;
 use std::path::{Path, PathBuf};
 
-fn build_dir_exists() -> io::Result<bool> {
+fn build_dir_exists() -> Result<bool> {
     let curr_dir = std::env::current_dir()?;
     for entry in fs::read_dir(&curr_dir)? {
         let entry = entry?;
@@ -24,7 +24,7 @@ fn build_dir_exists() -> io::Result<bool> {
     Ok(false)
 }
 
-fn create_build_dir() -> io::Result<()> {
+fn create_build_dir() -> Result<()> {
     let path = Path::new(definitions::TOOL_DIR);
     fs::create_dir(path)?;
     let message = format!("{} directory created", definitions::TOOL_DIR);
@@ -32,7 +32,7 @@ fn create_build_dir() -> io::Result<()> {
     Ok(())
 }
 
-fn create_logs_dir(is_server: bool) -> io::Result<()> {
+fn create_logs_dir(is_server: bool) -> Result<()> {
     if is_server {
         let path = Path::new(definitions::LOCAL_LOGS);
         fs::create_dir(path)?;
@@ -40,7 +40,7 @@ fn create_logs_dir(is_server: bool) -> io::Result<()> {
     Ok(())
 }
 
-fn create_db_dir(is_server: bool) -> io::Result<()> {
+fn create_db_dir(is_server: bool) -> Result<()> {
     if is_server {
         let path = Path::new(definitions::LOCAL_DB);
         fs::create_dir(path)?;
@@ -48,7 +48,7 @@ fn create_db_dir(is_server: bool) -> io::Result<()> {
     Ok(())
 }
 
-fn create_default_yaml() -> io::Result<()> {
+fn create_default_yaml() -> Result<()> {
     let path = path![
         definitions::TOOL_DIR,
         definitions::TOOL_DEFAULT_PIPELINE_FILE
@@ -59,7 +59,7 @@ fn create_default_yaml() -> io::Result<()> {
     Ok(())
 }
 
-fn create_config_yaml(is_server: bool) -> io::Result<()> {
+fn create_config_yaml(is_server: bool) -> Result<()> {
     let path = path![
         definitions::TOOL_DIR,
         definitions::TOOL_DEFAULT_PIPELINE_FILE
@@ -73,7 +73,7 @@ fn create_config_yaml(is_server: bool) -> io::Result<()> {
     Ok(())
 }
 
-pub fn exec(matches: &ArgMatches<'_>) -> io::Result<()> {
+pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
     let build_dir_exists = build_dir_exists()?;
     if !build_dir_exists {
         let is_server = matches.is_present("server");
@@ -87,5 +87,5 @@ pub fn exec(matches: &ArgMatches<'_>) -> io::Result<()> {
         "{} dir already exists in the current directory",
         definitions::TOOL_DIR
     );
-    Err(Error::new(ErrorKind::Other, message))
+    Err(BldError::IoError(message))
 }

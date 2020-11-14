@@ -1,15 +1,19 @@
 use crate::config::BldConfig;
+use crate::path;
 use crate::persist::{Database, FileLogger, FileScanner, Scanner};
 use crate::run::Runner;
 use crate::term;
+use crate::types::{BldError, Result};
 use actix::prelude::*;
 use actix_web_actors::ws;
 use serde_json::Value;
-use std::io::{self, Error, ErrorKind};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use uuid::Uuid;
+
+type StdResult<T, V> = std::result::Result<T, V>;
 
 pub struct ExecutePipelineSocket {
     hb: Instant,
@@ -65,58 +69,38 @@ impl ExecutePipelineSocket {
         }
     }
 
-    fn dependencies(&mut self, text: &str) -> io::Result<()> {
+    fn dependencies(&mut self, text: &str) -> Result<()> {
         let id = Uuid::new_v4().to_string();
 
-        let message = match serde_json::from_str::<Value>(text) {
-            Ok(message) => message,
-            Err(_) => return Err(Error::new(ErrorKind::Other, "message could not be parsed")),
-        };
+        let message = serde_json::from_str::<Value>(text)?;
 
         let name = match message["name"].as_str() {
             Some(n) => n,
-            None => return Err(Error::new(ErrorKind::Other, "name not found in message")),
+            None => return Err(BldError::Other("name not found in message".to_string())),
         };
 
         self.src = match message["pipeline"].as_str() {
             Some(src) => Some(src.to_string()),
-            None => {
-                return Err(Error::new(
-                    ErrorKind::Other,
-                    "pipeline not found in message",
-                ))
-            }
+            None => return Err(BldError::Other("pipeline not found in message".to_string())),
         };
 
         let config = match &self.config {
             Some(config) => config,
-            None => return Err(Error::new(ErrorKind::Other, "config not loaded")),
+            None => return Err(BldError::Other("config not loaded".to_string())),
         };
 
-        let path = {
-            let mut path = std::path::PathBuf::new();
-            path.push(&config.local.logs);
-            path.push(format!("{}-{}", name, id));
-            path.display().to_string()
-        };
+        let path = path![&config.local.logs, format!("{}-{}", name, id)]
+            .display()
+            .to_string();
 
-        self.exec = match Database::connect(&config.local.db) {
-            Ok(mut db) => {
-                let _ = db.add(&id, &name);
-                Some(Arc::new(Mutex::new(db)))
-            }
-            Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
-        };
+        let mut db = Database::connect(&config.local.db)?;
+        let _ = db.add(&id, &name)?;
+        self.exec = Some(Arc::new(Mutex::new(db)));
 
-        self.logger = match FileLogger::new(&path) {
-            Ok(lg) => Some(Arc::new(Mutex::new(lg))),
-            Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
-        };
+        let lg = FileLogger::new(&path)?;
+        self.logger = Some(Arc::new(Mutex::new(lg)));
 
-        self.scanner = match FileScanner::new(&path) {
-            Ok(sc) => Some(sc),
-            Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
-        };
+        self.scanner = Some(FileScanner::new(&path)?);
 
         Ok(())
     }
@@ -136,8 +120,8 @@ impl Actor for ExecutePipelineSocket {
     }
 }
 
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSocket {
-    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for ExecutePipelineSocket {
+    fn handle(&mut self, msg: StdResult<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(txt)) => {
                 if let Err(e) = self.dependencies(&txt) {
@@ -189,7 +173,7 @@ fn invoke_pipeline(src: String, ex: Arc<Mutex<Database>>, lg: Arc<Mutex<FileLogg
         rt.block_on(async move {
             let fut = Runner::from_src(src, ex, lg);
             if let Err(e) = fut.await.await {
-                let _ = term::print_error(&format!("{}", e));
+                let _ = term::print_error(&e.to_string());
             }
         });
     }

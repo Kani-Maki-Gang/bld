@@ -1,12 +1,12 @@
 use crate::persist::{Execution, Logger, NullExec};
 use crate::run::Pipeline;
 use crate::run::RunPlatform;
+use crate::types::Result;
 use std::future::Future;
-use std::io;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
-type RecursiveFuture = Pin<Box<dyn Future<Output = io::Result<()>>>>;
+type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 
 pub struct Runner {
     pub exec: Arc<Mutex<dyn Execution>>,
@@ -37,7 +37,7 @@ impl Runner {
         logger.dumpln(&format!("Runs on: {}", pipeline.runs_on));
     }
 
-    async fn steps(&mut self) -> io::Result<()> {
+    async fn steps(&mut self) -> Result<()> {
         let pipeline = match &self.pipeline {
             Some(p) => p,
             None => return Ok(()),

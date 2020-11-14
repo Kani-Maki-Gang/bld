@@ -1,13 +1,15 @@
 use crate::config::BldConfig;
 use crate::server::{list_pipelines, ExecutePipelineSocket, MonitorPipelineSocket};
 use crate::term::print_info;
+use crate::types::Result;
 use actix::{Arbiter, System};
 use actix_web::{
     get, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 use actix_web_actors::ws;
 use clap::ArgMatches;
-use std::io;
+
+type StdResult<T, V> = std::result::Result<T, V>;
 
 #[get("/")]
 async fn hello() -> impl Responder {
@@ -22,21 +24,21 @@ async fn list() -> impl Responder {
     }
 }
 
-async fn ws_exec(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+async fn ws_exec(req: HttpRequest, stream: web::Payload) -> StdResult<HttpResponse, Error> {
     println!("{:?}", req);
     let res = ws::start(ExecutePipelineSocket::new(), &req, stream);
     println!("{:?}", res);
     res
 }
 
-async fn ws_monit(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+async fn ws_monit(req: HttpRequest, stream: web::Payload) -> StdResult<HttpResponse, Error> {
     println!("{:?}", req);
     let res = ws::start(MonitorPipelineSocket::new(), &req, stream);
     println!("{:?}", res);
     res
 }
 
-async fn start(host: &str, port: i64) -> io::Result<()> {
+async fn start(host: &str, port: i64) -> Result<()> {
     print_info(&format!("starting bld server at {}:{}", host, port))?;
     std::env::set_var("RUST_LOG", "actix_server=info,actix_wev=info");
     env_logger::init();
@@ -50,10 +52,19 @@ async fn start(host: &str, port: i64) -> io::Result<()> {
     })
     .bind(format!("{}:{}", host, port))?
     .run()
-    .await
+    .await?;
+    Ok(())
 }
 
-pub fn exec(matches: &ArgMatches<'_>) -> io::Result<()> {
+pub fn sys_spawn(host: String, port: i64) {
+    let system = System::new("bld-server");
+    Arbiter::spawn(async move {
+        let _ = start(&host, port).await;
+    });
+    let _ = system.run();
+}
+
+pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
     let config = BldConfig::load()?;
 
     let host = match matches.value_of("host") {
@@ -69,13 +80,6 @@ pub fn exec(matches: &ArgMatches<'_>) -> io::Result<()> {
         None => config.local.port,
     };
 
-    let system = System::new("bld-server");
-
-    Arbiter::spawn(async move {
-        let _ = start(&host, port).await;
-    });
-
-    let _ = system.run();
-
+    sys_spawn(host, port);
     Ok(())
 }

@@ -1,5 +1,5 @@
 use crate::config::BldServerConfig;
-use std::io;
+use crate::types::Result;
 use yaml_rust::Yaml;
 
 #[derive(Debug)]
@@ -14,7 +14,7 @@ impl BldRemoteConfig {
         }
     }
 
-    pub fn load(yaml: &Yaml) -> io::Result<Self> {
+    pub fn load(yaml: &Yaml) -> Result<Self> {
         let mut servers = Vec::<BldServerConfig>::new();
 
         if let Some(yaml) = yaml["remote"].as_vec() {

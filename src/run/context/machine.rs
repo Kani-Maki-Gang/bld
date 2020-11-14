@@ -1,19 +1,24 @@
 use crate::os::{self, OSname};
 use crate::persist::Logger;
-use std::io::{self, Error, ErrorKind};
+use crate::types::{BldError, Result};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
+
+fn could_not_spawn_shell() -> Result<()> {
+    let message = String::from("could not spawn shell");
+    Err(BldError::Other(message))
+}
 
 pub struct Machine {
     pub logger: Arc<Mutex<dyn Logger>>,
 }
 
 impl Machine {
-    pub fn new(logger: Arc<Mutex<dyn Logger>>) -> io::Result<Self> {
+    pub fn new(logger: Arc<Mutex<dyn Logger>>) -> Result<Self> {
         Ok(Self { logger })
     }
 
-    pub fn sh(&self, working_dir: &Option<String>, input: &str) -> io::Result<()> {
+    pub fn sh(&self, working_dir: &Option<String>, input: &str) -> Result<()> {
         let mut logger = self.logger.lock().unwrap();
         let os_name = os::name();
 
@@ -21,7 +26,7 @@ impl Machine {
             OSname::Windows => ("powershell.exe", Vec::<&str>::new()),
             OSname::Linux => ("bash", vec!["-c"]),
             OSname::Mac => ("sh", vec!["-c"]),
-            OSname::Unknown => return Err(Error::new(ErrorKind::Other, "Could not spawn shell")),
+            OSname::Unknown => return could_not_spawn_shell(),
         };
         args.push(input);
 

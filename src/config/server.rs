@@ -1,4 +1,4 @@
-use std::io::{self, Error, ErrorKind};
+use crate::types::{BldError, Result};
 use yaml_rust::Yaml;
 
 #[derive(Debug)]
@@ -9,12 +9,12 @@ pub struct BldServerConfig {
 }
 
 impl BldServerConfig {
-    pub fn load(yaml: &Yaml) -> io::Result<Self> {
+    pub fn load(yaml: &Yaml) -> Result<Self> {
         let name = match yaml["server"].as_str() {
             Some(name) => name.to_string(),
             None => {
                 let message = "Server entry must have a name".to_string();
-                return Err(Error::new(ErrorKind::Other, message));
+                return Err(BldError::Other(message));
             }
         };
 
@@ -22,7 +22,7 @@ impl BldServerConfig {
             Some(host) => host.to_string(),
             None => {
                 let message = "Server entry must have a host address".to_string();
-                return Err(Error::new(ErrorKind::Other, message));
+                return Err(BldError::Other(message));
             }
         };
 
@@ -30,7 +30,7 @@ impl BldServerConfig {
             Some(port) => port,
             None => {
                 let message = "Server entry must define a port".to_string();
-                return Err(Error::new(ErrorKind::Other, message));
+                return Err(BldError::Other(message));
             }
         };
 

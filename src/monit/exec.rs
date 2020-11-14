@@ -1,26 +1,32 @@
 use crate::config::BldConfig;
 use crate::definitions::TOOL_DEFAULT_PIPELINE;
-use crate::helpers::err;
 use crate::monit::{MonitorPipelineSocketClient, MonitorPipelineSocketMessage};
 use crate::term::print_error;
+use crate::types::{BldError, Result};
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
 use awc::Client;
 use clap::ArgMatches;
 use futures::stream::StreamExt;
-use std::io;
 
-async fn remote_invoke(host: String, port: i64, id: String) -> io::Result<()> {
+fn server_not_in_config() -> Result<()> {
+    let message = String::from("server not found in config");
+    Err(BldError::Other(message))
+}
+
+fn no_server_in_config() -> Result<()> {
+    let message = String::from("no server found in config");
+    Err(BldError::Other(message))
+}
+
+async fn remote_invoke(host: String, port: i64, id: String) -> Result<()> {
     let url = format!("http://{}:{}/ws-monit", host, port);
-    let (_, framed) = match Client::new().ws(url).connect().await {
-        Ok(data) => data,
-        Err(e) => return err(e.to_string()),
-    };
+    let (_, framed) = Client::new().ws(url).connect().await?;
     let (sink, stream) = framed.split();
     let addr = MonitorPipelineSocketClient::create(|ctx| {
         MonitorPipelineSocketClient::add_stream(stream, ctx);
         MonitorPipelineSocketClient::new(SinkWrite::new(sink, ctx))
     });
-    let _ = addr.send(MonitorPipelineSocketMessage(id)).await;
+    addr.send(MonitorPipelineSocketMessage(id)).await?;
     Ok(())
 }
 
@@ -37,7 +43,7 @@ fn exec_request(host: String, port: i64, id: String) {
     let _ = system.run();
 }
 
-pub fn exec(matches: &ArgMatches<'_>) -> io::Result<()> {
+pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
     let config = BldConfig::load()?;
     let servers = config.remote.servers;
 
@@ -49,11 +55,11 @@ pub fn exec(matches: &ArgMatches<'_>) -> io::Result<()> {
     let (host, port) = match matches.value_of("server") {
         Some(name) => match servers.iter().find(|s| s.name == name) {
             Some(srv) => (&srv.host, srv.port),
-            None => return err("server not found in config".to_string()),
+            None => return server_not_in_config(),
         },
         None => match servers.iter().next() {
             Some(srv) => (&srv.host, srv.port),
-            None => return err("no server found in config".to_string()),
+            None => return no_server_in_config(),
         },
     };
 

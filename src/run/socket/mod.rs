@@ -5,28 +5,29 @@ pub use client::*;
 pub use messages::*;
 
 use crate::config::BldConfig;
-use crate::helpers::err;
 use crate::run::socket::{ExecutePipelineSocketClient, ExecutePipelineSocketMessage};
 use crate::run::Pipeline;
 use crate::term::print_error;
+use crate::types::{BldError, Result};
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
 use awc::Client;
 use futures::stream::StreamExt;
 use serde_json::json;
-use std::io::{self, Error, ErrorKind};
 
-async fn remote_invoke(name: String, server: String) -> io::Result<()> {
+fn server_not_found() -> Result<()> {
+    let message = String::from("server not found in config");
+    Err(BldError::Other(message))
+}
+
+async fn remote_invoke(name: String, server: String) -> Result<()> {
     let config = BldConfig::load()?;
     let server = config.remote.servers.iter().find(|s| s.name == server);
     let server = match server {
         Some(s) => s,
-        None => return Err(Error::new(ErrorKind::Other, "server not found in config")),
+        None => return server_not_found(),
     };
     let url = format!("http://{}:{}/ws-exec/", server.host, server.port);
-    let (_, framed) = match Client::new().ws(url).connect().await {
-        Ok(data) => data,
-        Err(e) => return err(e.to_string()),
-    };
+    let (_, framed) = Client::new().ws(url).connect().await?;
     let (sink, stream) = framed.split();
     let addr = ExecutePipelineSocketClient::create(|ctx| {
         ExecutePipelineSocketClient::add_stream(stream, ctx);
@@ -41,7 +42,7 @@ async fn remote_invoke(name: String, server: String) -> io::Result<()> {
     Ok(())
 }
 
-pub fn on_server(name: String, server: String) -> io::Result<()> {
+pub fn on_server(name: String, server: String) -> Result<()> {
     let system = System::new("bld");
     Arbiter::spawn(async move {
         if let Err(e) = remote_invoke(name, server).await {

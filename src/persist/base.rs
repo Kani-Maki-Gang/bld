@@ -1,4 +1,4 @@
-use std::io;
+use crate::types::Result;
 
 pub trait Logger {
     fn dump(&mut self, text: &str);
@@ -12,5 +12,5 @@ pub trait Scanner {
 }
 
 pub trait Execution {
-    fn update(&mut self, is_running: bool) -> io::Result<()>;
+    fn update(&mut self, is_running: bool) -> Result<()>;
 }

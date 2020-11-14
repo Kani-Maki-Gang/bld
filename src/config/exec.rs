@@ -1,9 +1,9 @@
 use crate::config::{BldConfig, BldLocalConfig, BldRemoteConfig};
 use crate::term;
+use crate::types::Result;
 use clap::ArgMatches;
-use std::io;
 
-fn list_locals(local: &BldLocalConfig) -> io::Result<()> {
+fn list_locals(local: &BldLocalConfig) -> Result<()> {
     term::print_info("Local configuration:")?;
     println!("- enable_server: {}", local.enable_server);
     println!("- host: {}", local.host);
@@ -15,7 +15,7 @@ fn list_locals(local: &BldLocalConfig) -> io::Result<()> {
     Ok(())
 }
 
-fn list_remote(remote: &BldRemoteConfig) -> io::Result<()> {
+fn list_remote(remote: &BldRemoteConfig) -> Result<()> {
     term::print_info("Remote configuration:")?;
 
     for (i, server) in remote.servers.iter().enumerate() {
@@ -30,14 +30,14 @@ fn list_remote(remote: &BldRemoteConfig) -> io::Result<()> {
     Ok(())
 }
 
-fn list_all(config: &BldConfig) -> io::Result<()> {
+fn list_all(config: &BldConfig) -> Result<()> {
     list_locals(&config.local)?;
     println!("");
     list_remote(&config.remote)?;
     Ok(())
 }
 
-pub fn exec(matches: &ArgMatches<'_>) -> io::Result<()> {
+pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
     let config = BldConfig::load()?;
 
     if matches.is_present("local") {

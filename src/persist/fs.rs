@@ -1,15 +1,20 @@
-use crate::helpers::err;
 use crate::persist::{Logger, Scanner};
+use crate::types::{BldError, Result};
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
+
+fn file_not_found() -> Result<FileScanner> {
+    let message = String::from("file not found");
+    Err(BldError::Other(message))
+}
 
 pub struct FileLogger {
     file_handle: File,
 }
 
 impl FileLogger {
-    pub fn new(file_path: &str) -> io::Result<Self> {
+    pub fn new(file_path: &str) -> Result<Self> {
         let path = Path::new(file_path);
         let file_handle = match path.is_file() {
             true => File::open(&path)?,
@@ -55,11 +60,11 @@ pub struct FileScanner {
 }
 
 impl FileScanner {
-    pub fn new(path: &str) -> io::Result<Self> {
+    pub fn new(path: &str) -> Result<Self> {
         let fpath = Path::new(path);
         let file_handle = match fpath.is_file() {
             true => File::open(path)?,
-            false => return err("could not find file".to_string()),
+            false => return file_not_found(),
         };
         Ok(Self {
             file_handle,
