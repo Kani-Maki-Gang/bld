@@ -1,6 +1,15 @@
 use crate::config::BldConfig;
 use crate::persist::Database;
 use crate::types::Result;
+use actix_web::{get, Responder, HttpResponse};
+
+#[get("/list")]
+pub async fn list() -> impl Responder {
+    match list_pipelines() {
+        Ok(ls) => HttpResponse::Ok().body(ls),
+        Err(_) => HttpResponse::BadRequest().body(""),
+    }
+}
 
 fn format(arg1: &str, arg2: &str, arg3: &str) -> String {
     format!("{0: <40} | {1: <30} | {2: <10}", arg1, arg2, arg3)

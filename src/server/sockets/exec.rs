@@ -1,12 +1,12 @@
 use crate::config::BldConfig;
 use crate::path;
 use crate::persist::{Database, FileLogger, FileScanner, Scanner};
-use crate::run::Runner;
+use crate::run::{Runner, Pipeline};
 use crate::term;
 use crate::types::{BldError, Result};
 use actix::prelude::*;
+use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -18,7 +18,6 @@ type StdResult<T, V> = std::result::Result<T, V>;
 pub struct ExecutePipelineSocket {
     hb: Instant,
     config: Option<BldConfig>,
-    src: Option<String>,
     exec: Option<Arc<Mutex<Database>>>,
     logger: Option<Arc<Mutex<FileLogger>>>,
     scanner: Option<FileScanner>,
@@ -33,7 +32,6 @@ impl ExecutePipelineSocket {
         Self {
             hb: Instant::now(),
             config,
-            src: None,
             exec: None,
             logger: None,
             scanner: None,
@@ -69,38 +67,28 @@ impl ExecutePipelineSocket {
         }
     }
 
-    fn dependencies(&mut self, text: &str) -> Result<()> {
+    fn dependencies(&mut self, name: &str) -> Result<()> {
+        let path = Pipeline::get_path(name)?;
+        if !path.is_file() {
+            let message = String::from("pipeline file not found");
+            return Err(BldError::IoError(message));
+        }
+
         let id = Uuid::new_v4().to_string();
-
-        let message = serde_json::from_str::<Value>(text)?;
-
-        let name = match message["name"].as_str() {
-            Some(n) => n,
-            None => return Err(BldError::Other("name not found in message".to_string())),
-        };
-
-        self.src = match message["pipeline"].as_str() {
-            Some(src) => Some(src.to_string()),
-            None => return Err(BldError::Other("pipeline not found in message".to_string())),
-        };
-
         let config = match &self.config {
             Some(config) => config,
             None => return Err(BldError::Other("config not loaded".to_string())),
         };
-
-        let path = path![&config.local.logs, format!("{}-{}", name, id)]
+        let lg_path = path![&config.local.logs, format!("{}-{}", name, id)]
             .display()
             .to_string();
-
         let mut db = Database::connect(&config.local.db)?;
         let _ = db.add(&id, &name)?;
+        let lg = FileLogger::new(&lg_path)?;
+
         self.exec = Some(Arc::new(Mutex::new(db)));
-
-        let lg = FileLogger::new(&path)?;
         self.logger = Some(Arc::new(Mutex::new(lg)));
-
-        self.scanner = Some(FileScanner::new(&path)?);
+        self.scanner = Some(FileScanner::new(&lg_path)?);
 
         Ok(())
     }
@@ -126,17 +114,10 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for ExecutePipelin
             Ok(ws::Message::Text(txt)) => {
                 if let Err(e) = self.dependencies(&txt) {
                     eprintln!("{}", e.to_string());
-                    ctx.text("internal server error");
+                    ctx.text("Unable to run pipeline");
                     ctx.stop();
                 }
-                let src = match &self.src {
-                    Some(src) => src.clone(),
-                    None => {
-                        ctx.stop();
-                        return;
-                    }
-                };
-                let exec = match &self.exec {
+                let ex = match &self.exec {
                     Some(exec) => exec.clone(),
                     None => {
                         ctx.stop();
@@ -150,7 +131,7 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for ExecutePipelin
                         return;
                     }
                 };
-                std::thread::spawn(move || invoke_pipeline(src, exec, lg));
+                std::thread::spawn(move || invoke_pipeline(txt, ex, lg));
             }
             Ok(ws::Message::Ping(msg)) => {
                 self.hb = Instant::now();
@@ -168,13 +149,20 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for ExecutePipelin
     }
 }
 
-fn invoke_pipeline(src: String, ex: Arc<Mutex<Database>>, lg: Arc<Mutex<FileLogger>>) {
+fn invoke_pipeline(name: String, ex: Arc<Mutex<Database>>, lg: Arc<Mutex<FileLogger>>) {
     if let Ok(mut rt) = Runtime::new() {
         rt.block_on(async move {
-            let fut = Runner::from_src(src, ex, lg);
+            let fut = Runner::from_file(name, ex, lg);
             if let Err(e) = fut.await.await {
                 let _ = term::print_error(&e.to_string());
             }
         });
     }
+}
+
+pub async fn ws_exec(req: HttpRequest, stream: web::Payload) -> StdResult<HttpResponse, Error> {
+    println!("{:?}", req);
+    let res = ws::start(ExecutePipelineSocket::new(), &req, stream);
+    println!("{:?}", res);
+    res
 }

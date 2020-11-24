@@ -469,6 +469,7 @@ dependencies = [
  "env_logger",
  "futures",
  "futures-util",
+ "serde",
  "serde_json",
  "shiplift",
  "termcolor",

@@ -1,41 +1,14 @@
 use crate::config::BldConfig;
-use crate::server::{list_pipelines, ExecutePipelineSocket, MonitorPipelineSocket};
+use crate::server::{list, push, ws_exec, ws_monit};
 use crate::term::print_info;
 use crate::types::Result;
 use actix::{Arbiter, System};
-use actix_web::{
-    get, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
-};
-use actix_web_actors::ws;
+use actix_web::{middleware, get, web, App, HttpResponse, HttpServer, Responder};
 use clap::ArgMatches;
-
-type StdResult<T, V> = std::result::Result<T, V>;
 
 #[get("/")]
 async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Bld server running")
-}
-
-#[get("/list")]
-async fn list() -> impl Responder {
-    match list_pipelines() {
-        Ok(ls) => HttpResponse::Ok().body(ls),
-        Err(_) => HttpResponse::BadRequest().body(""),
-    }
-}
-
-async fn ws_exec(req: HttpRequest, stream: web::Payload) -> StdResult<HttpResponse, Error> {
-    println!("{:?}", req);
-    let res = ws::start(ExecutePipelineSocket::new(), &req, stream);
-    println!("{:?}", res);
-    res
-}
-
-async fn ws_monit(req: HttpRequest, stream: web::Payload) -> StdResult<HttpResponse, Error> {
-    println!("{:?}", req);
-    let res = ws::start(MonitorPipelineSocket::new(), &req, stream);
-    println!("{:?}", res);
-    res
 }
 
 async fn start(host: &str, port: i64) -> Result<()> {
@@ -47,6 +20,7 @@ async fn start(host: &str, port: i64) -> Result<()> {
             .wrap(middleware::Logger::default())
             .service(hello)
             .service(list)
+            .service(push)
             .service(web::resource("/ws-exec/").route(web::get().to(ws_exec)))
             .service(web::resource("/ws-monit").route(web::get().to(ws_monit)))
     })

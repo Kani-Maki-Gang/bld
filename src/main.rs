@@ -5,6 +5,7 @@ mod list;
 mod monit;
 mod os;
 mod persist;
+mod push;
 mod run;
 mod server;
 mod term;
@@ -25,6 +26,7 @@ fn main() {
             server::command(),
             monit::command(),
             list::command(),
+            push::command(),
         ])
         .get_matches();
 
@@ -35,6 +37,7 @@ fn main() {
         ("server", Some(matches)) => server::exec(matches),
         ("monit", Some(matches)) => monit::exec(matches),
         ("ls", Some(matches)) => list::exec(matches),
+        ("push", Some(matches)) => push::exec(matches),
         _ => Ok(()),
     };
 

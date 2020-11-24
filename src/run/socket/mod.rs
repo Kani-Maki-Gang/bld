@@ -6,13 +6,11 @@ pub use messages::*;
 
 use crate::config::BldConfig;
 use crate::run::socket::{ExecutePipelineSocketClient, ExecutePipelineSocketMessage};
-use crate::run::Pipeline;
 use crate::term::print_error;
 use crate::types::{BldError, Result};
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
 use awc::Client;
 use futures::stream::StreamExt;
-use serde_json::json;
 
 fn server_not_found() -> Result<()> {
     let message = String::from("server not found in config");
@@ -33,12 +31,7 @@ async fn remote_invoke(name: String, server: String) -> Result<()> {
         ExecutePipelineSocketClient::add_stream(stream, ctx);
         ExecutePipelineSocketClient::new(SinkWrite::new(sink, ctx))
     });
-    let message = json!({
-        "name": name,
-        "pipeline": Pipeline::read(&name)?
-    })
-    .to_string();
-    let _ = addr.send(ExecutePipelineSocketMessage(message)).await;
+    let _ = addr.send(ExecutePipelineSocketMessage(name)).await;
     Ok(())
 }
 

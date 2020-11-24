@@ -38,12 +38,16 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    pub fn read(pipeline: &str) -> Result<String> {
-        let path = path![
+    pub fn get_path(name: &str) -> Result<PathBuf> {
+        Ok(path![
             std::env::current_dir()?,
             TOOL_DIR,
-            format!("{}.yaml", pipeline)
-        ];
+            format!("{}.yaml", name)
+        ])
+    }
+
+    pub fn read(pipeline: &str) -> Result<String> {
+        let path = Pipeline::get_path(pipeline)?;
         Ok(std::fs::read_to_string(path)?)
     }
 

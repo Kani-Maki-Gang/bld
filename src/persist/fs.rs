@@ -3,6 +3,7 @@ use crate::types::{BldError, Result};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 fn file_not_found() -> Result<FileScanner> {
     let message = String::from("file not found");
@@ -52,6 +53,24 @@ impl Logger for FileLogger {
     fn error(&mut self, text: &str) {
         self.writeln(text);
     }
+}
+
+pub struct NullLogger;
+
+impl NullLogger {
+    pub fn atom() -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Self))
+    }
+}
+
+impl Logger for NullLogger {
+    fn dump(&mut self, _: &str) {}
+
+    fn dumpln(&mut self, _: &str) {}
+
+    fn info(&mut self, _: &str) {}
+
+    fn error(&mut self, _: &str) {}
 }
 
 pub struct FileScanner {
