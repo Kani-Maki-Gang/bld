@@ -13,7 +13,7 @@ pub fn command() -> App<'static, 'static> {
         .help("list configuration for remote options");
 
     SubCommand::with_name("config")
-        .about("Lists bld's configuration options")
+        .about("Lists bld's configuration")
         .version(VERSION)
         .args(&vec![local, remote])
 }

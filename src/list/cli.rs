@@ -14,7 +14,7 @@ pub fn command() -> App<'static, 'static> {
         .help("list pipelines running in a remote server");
 
     SubCommand::with_name("ls")
-        .about("Lists information of pipelines in a remote server")
+        .about("Lists information of pipelines in a bld server")
         .version(VERSION)
         .args(&vec![server, running])
 }
