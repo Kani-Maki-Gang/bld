@@ -9,10 +9,10 @@ use std::thread::sleep;
 use std::time::Duration;
 
 pub struct Container {
-    pub image: String,
+    pub img: String,
     pub client: Docker,
-    pub container_id: String,
-    pub logger: Arc<Mutex<dyn Logger>>,
+    pub id: String,
+    pub lg: Arc<Mutex<dyn Logger>>,
 }
 
 impl Container {
@@ -64,18 +64,18 @@ impl Container {
         Ok(info.id)
     }
 
-    pub async fn new(image: &str, mut logger: Arc<Mutex<dyn Logger>>) -> Result<Self> {
+    pub async fn new(img: &str, mut lg: Arc<Mutex<dyn Logger>>) -> Result<Self> {
         let client = Container::docker()?;
-        let container_id = Container::create(&client, image, &mut logger).await?;
+        let id = Container::create(&client, img, &mut lg).await?;
         Ok(Self {
-            image: image.to_string(),
+            img: img.to_string(),
             client,
-            container_id,
-            logger,
+            id,
+            lg,
         })
     }
 
-    pub async fn sh(&self, working_dir: &Option<String>, input: &str) -> Result<String> {
+    pub async fn sh(&self, working_dir: &Option<String>, input: &str) -> Result<()> {
         let input = match working_dir {
             Some(wd) => format!("cd {} && {}", &wd, input),
             None => input.to_string(),
@@ -89,7 +89,7 @@ impl Container {
             .attach_stderr(true)
             .build();
 
-        let container = self.client.containers().get(&self.container_id);
+        let container = self.client.containers().get(&self.id);
 
         let mut exec_iter = container.exec(&options);
         while let Some(result) = exec_iter.next().await {
@@ -100,28 +100,18 @@ impl Container {
                 Err(e) => return Err(BldError::ShipliftError(e.to_string())),
             };
             {
-                let mut logger = self.logger.lock().unwrap();
+                let mut logger = self.lg.lock().unwrap();
                 logger.dump(&format!("{}", &chunk));
             }
             sleep(Duration::from_millis(100));
         }
 
-        Ok(String::new())
+        Ok(())
     }
 
     pub async fn dispose(&self) -> Result<()> {
-        self.client
-            .containers()
-            .get(&self.container_id)
-            .stop(None)
-            .await?;
-
-        self.client
-            .containers()
-            .get(&self.container_id)
-            .delete()
-            .await?;
-
+        self.client.containers().get(&self.id).stop(None).await?;
+        self.client.containers().get(&self.id).delete().await?;
         Ok(())
     }
 }

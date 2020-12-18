@@ -10,7 +10,7 @@ impl Display for RunPlatform {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Local(_) => write!(f, "machine"),
-            Self::Docker(container) => write!(f, "docker [ {} ]", container.image),
+            Self::Docker(container) => write!(f, "docker [ {} ]", container.img),
         }
     }
 }

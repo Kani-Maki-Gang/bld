@@ -1,19 +1,23 @@
 use crate::config::BldConfig;
 use crate::path;
 use crate::persist::{Database, FileLogger, FileScanner, Scanner};
-use crate::run::{Runner, Pipeline};
+use crate::run::{Pipeline, Runner};
 use crate::term;
 use crate::types::{BldError, Result};
 use actix::prelude::*;
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use std::path::PathBuf;
+use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use uuid::Uuid;
 
 type StdResult<T, V> = std::result::Result<T, V>;
+type AtomicDb = Arc<Mutex<Database>>;
+type AtomicFs = Arc<Mutex<FileLogger>>;
+type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
 
 pub struct ExecutePipelineSocket {
     hb: Instant,
@@ -131,7 +135,7 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for ExecutePipelin
                         return;
                     }
                 };
-                std::thread::spawn(move || invoke_pipeline(txt, ex, lg));
+                std::thread::spawn(move || invoke_pipeline(txt, ex, lg, None));
             }
             Ok(ws::Message::Ping(msg)) => {
                 self.hb = Instant::now();
@@ -149,10 +153,10 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for ExecutePipelin
     }
 }
 
-fn invoke_pipeline(name: String, ex: Arc<Mutex<Database>>, lg: Arc<Mutex<FileLogger>>) {
+fn invoke_pipeline(name: String, ex: AtomicDb, lg: AtomicFs, cm: Option<AtomicRecv>) {
     if let Ok(mut rt) = Runtime::new() {
         rt.block_on(async move {
-            let fut = Runner::from_file(name, ex, lg);
+            let fut = Runner::from_file(name, ex, lg, cm);
             if let Err(e) = fut.await.await {
                 let _ = term::print_error(&e.to_string());
             }

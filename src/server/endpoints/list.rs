@@ -1,7 +1,7 @@
 use crate::config::BldConfig;
 use crate::persist::Database;
 use crate::types::Result;
-use actix_web::{get, Responder, HttpResponse};
+use actix_web::{get, HttpResponse, Responder};
 
 #[get("/list")]
 pub async fn list() -> impl Responder {

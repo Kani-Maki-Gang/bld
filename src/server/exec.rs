@@ -3,7 +3,7 @@ use crate::server::{list, push, ws_exec, ws_monit};
 use crate::term::print_info;
 use crate::types::Result;
 use actix::{Arbiter, System};
-use actix_web::{middleware, get, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{get, middleware, web, App, HttpResponse, HttpServer, Responder};
 use clap::ArgMatches;
 
 #[get("/")]

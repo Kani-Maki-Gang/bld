@@ -16,7 +16,7 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
         None => {
             let mut rt = Runtime::new()?;
             rt.block_on(async {
-                Runner::from_file(pipeline, NullExec::atom(), ShellLogger::atom())
+                Runner::from_file(pipeline, NullExec::atom(), ShellLogger::atom(), None)
                     .await
                     .await
             })

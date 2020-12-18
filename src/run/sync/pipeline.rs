@@ -7,7 +7,6 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use yaml_rust::{Yaml, YamlLoader};
 
-#[derive(Debug)]
 pub struct BuildStep {
     pub name: Option<String>,
     pub working_dir: Option<String>,

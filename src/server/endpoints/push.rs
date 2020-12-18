@@ -1,6 +1,6 @@
 use crate::run::Pipeline;
 use crate::types::{PushInfo, Result};
-use actix_web::{post, web, Responder, HttpResponse};
+use actix_web::{post, web, HttpResponse, Responder};
 use std::fs::{remove_file, File};
 use std::io::Write;
 
