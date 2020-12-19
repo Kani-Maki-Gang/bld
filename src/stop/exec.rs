@@ -1,6 +1,6 @@
 use crate::config::BldConfig;
 use crate::term::print_error;
-use crate::types::{Result, BldError};
+use crate::types::{BldError, Result};
 use actix::{Arbiter, System};
 use actix_http::Payload;
 use actix_web::client::Client;
@@ -66,8 +66,7 @@ fn exec_request(host: String, port: i64, id: String) {
     let _ = system.run();
 }
 
-
-pub fn exec(matches: &ArgMatches<'_>)  -> Result<()> {
+pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
     let config = BldConfig::load()?;
     let servers = config.remote.servers;
     let id = matches.value_of("id").unwrap().to_string();
@@ -79,8 +78,8 @@ pub fn exec(matches: &ArgMatches<'_>)  -> Result<()> {
         None => match servers.iter().next() {
             Some(srv) => (srv.host.to_string(), srv.port),
             None => return no_server_in_config(),
-        }
+        },
     };
     exec_request(host, port, id);
-    Ok(()) 
+    Ok(())
 }

@@ -8,8 +8,8 @@ pub fn stop((req, data): (web::Json<String>, web::Data<PipelinePool>)) -> HttpRe
     match pool.get(&id) {
         Some(sender) => match sender.send(true) {
             Ok(_) => HttpResponse::Ok().finish(),
-            Err(e) => HttpResponse::BadRequest().body(e.to_string())
-        }
+            Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+        },
         None => {
             let message = format!("no pipeline with id {} found", &id);
             HttpResponse::BadRequest().body(message)

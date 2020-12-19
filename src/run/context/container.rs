@@ -1,12 +1,15 @@
 use crate::config::BldConfig;
 use crate::persist::Logger;
-use crate::types::{BldError, Result};
+use crate::types::{BldError, CheckStopSignal, Result};
 use futures_util::StreamExt;
 use shiplift::tty::TtyChunk;
 use shiplift::{ContainerOptions, Docker, ExecContainerOptions, ImageListOptions, PullOptions};
+use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
+
+type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
 
 pub struct Container {
     pub img: String,
@@ -75,7 +78,12 @@ impl Container {
         })
     }
 
-    pub async fn sh(&self, working_dir: &Option<String>, input: &str) -> Result<()> {
+    pub async fn sh(
+        &self,
+        working_dir: &Option<String>,
+        input: &str,
+        cm: &Option<AtomicRecv>,
+    ) -> Result<()> {
         let input = match working_dir {
             Some(wd) => format!("cd {} && {}", &wd, input),
             None => input.to_string(),
@@ -93,6 +101,7 @@ impl Container {
 
         let mut exec_iter = container.exec(&options);
         while let Some(result) = exec_iter.next().await {
+            cm.check_stop_signal()?;
             let chunk = match result {
                 Ok(TtyChunk::StdOut(bytes)) => String::from_utf8(bytes).unwrap(),
                 Ok(TtyChunk::StdErr(bytes)) => String::from_utf8(bytes).unwrap(),

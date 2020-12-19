@@ -1,7 +1,7 @@
 use crate::persist::{Execution, Logger, NullExec};
 use crate::run::RunPlatform;
 use crate::run::{BuildStep, Pipeline};
-use crate::types::{BldError, Result};
+use crate::types::{CheckStopSignal, Result};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::mpsc::Receiver;
@@ -63,23 +63,15 @@ impl Runner {
                 .await
                 .await?;
         }
-        self.check_stop_signal()?;
+        self.cm.check_stop_signal()?;
         for command in step.commands.iter() {
             match &self.pip.runs_on {
-                RunPlatform::Docker(container) => container.sh(&step.working_dir, &command).await?,
+                RunPlatform::Docker(container) => {
+                    container.sh(&step.working_dir, &command, &self.cm).await?
+                }
                 RunPlatform::Local(machine) => machine.sh(&step.working_dir, &command)?,
             }
-            self.check_stop_signal()?;
-        }
-        Ok(())
-    }
-
-    fn check_stop_signal(&self) -> Result<()> {
-        if let Some(comm) = &self.cm {
-            let comm = comm.lock().unwrap();
-            if let Ok(true) = comm.try_recv() {
-                return Err(BldError::Other("stop signal sent to thread".to_string()));
-            }
+            self.cm.check_stop_signal()?;
         }
         Ok(())
     }
