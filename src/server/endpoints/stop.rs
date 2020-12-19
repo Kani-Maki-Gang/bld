@@ -11,7 +11,7 @@ pub fn stop((req, data): (web::Json<String>, web::Data<PipelinePool>)) -> HttpRe
             Err(e) => HttpResponse::BadRequest().body(e.to_string())
         }
         None => {
-            let message = format!("no pipeline with  id {} found", &id);
+            let message = format!("no pipeline with id {} found", &id);
             HttpResponse::BadRequest().body(message)
         }
     }

@@ -40,7 +40,9 @@ async fn handle_response(resp: &mut ServerResponse) {
         StatusCode::BAD_REQUEST => handle_body(&body),
         _ => String::from("unexpected response from server"),
     };
-    println!("{}", res);
+    if res.len() > 0 {
+        println!("{}", res);
+    }
 }
 
 fn exec_request(host: String, port: i64, id: String) {
