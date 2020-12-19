@@ -1,5 +1,5 @@
 use crate::config::BldConfig;
-use crate::server::{list, push, ws_exec, ws_monit};
+use crate::server::{list, push, ws_exec, ws_monit, PipelinePool};
 use crate::term::print_info;
 use crate::types::Result;
 use actix::{Arbiter, System};
@@ -15,8 +15,10 @@ async fn start(host: &str, port: i64) -> Result<()> {
     print_info(&format!("starting bld server at {}:{}", host, port))?;
     std::env::set_var("RUST_LOG", "actix_server=info,actix_wev=info");
     env_logger::init();
-    HttpServer::new(|| {
+    let pool = web::Data::new(PipelinePool::new());
+    HttpServer::new(move || {
         App::new()
+            .app_data(pool.clone())
             .wrap(middleware::Logger::default())
             .service(hello)
             .service(list)

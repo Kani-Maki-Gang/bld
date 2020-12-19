@@ -2,14 +2,16 @@ use crate::config::BldConfig;
 use crate::path;
 use crate::persist::{Database, FileLogger, FileScanner, Scanner};
 use crate::run::{Pipeline, Runner};
+use crate::server::PipelinePool;
 use crate::term;
 use crate::types::{BldError, Result};
 use actix::prelude::*;
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use std::path::PathBuf;
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use uuid::Uuid;
@@ -25,10 +27,11 @@ pub struct ExecutePipelineSocket {
     exec: Option<Arc<Mutex<Database>>>,
     logger: Option<Arc<Mutex<FileLogger>>>,
     scanner: Option<FileScanner>,
+    app_data: web::Data<PipelinePool>,
 }
 
 impl ExecutePipelineSocket {
-    pub fn new() -> Self {
+    pub fn new(app_data: web::Data<PipelinePool>) -> Self {
         let config = match BldConfig::load() {
             Ok(config) => Some(config),
             Err(_) => None,
@@ -39,6 +42,7 @@ impl ExecutePipelineSocket {
             exec: None,
             logger: None,
             scanner: None,
+            app_data,
         }
     }
 
@@ -135,7 +139,21 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for ExecutePipelin
                         return;
                     }
                 };
-                std::thread::spawn(move || invoke_pipeline(txt, ex, lg, None));
+                let id = {
+                    let ex = ex.lock().unwrap();
+                    match &ex.pipeline {
+                        Some(pip) => pip.id.to_string(),
+                        None => {
+                            ctx.stop();
+                            return;
+                        }
+                    }
+                };
+                let (tx, rx) = mpsc::channel::<bool>();
+                let rx = Arc::new(Mutex::new(rx));
+                let mut pool = self.app_data.senders.lock().unwrap();
+                pool.insert(id, tx);
+                thread::spawn(move || invoke_pipeline(txt, ex, lg, Some(rx)));
             }
             Ok(ws::Message::Ping(msg)) => {
                 self.hb = Instant::now();
@@ -164,9 +182,13 @@ fn invoke_pipeline(name: String, ex: AtomicDb, lg: AtomicFs, cm: Option<AtomicRe
     }
 }
 
-pub async fn ws_exec(req: HttpRequest, stream: web::Payload) -> StdResult<HttpResponse, Error> {
+pub async fn ws_exec(
+    req: HttpRequest,
+    stream: web::Payload,
+    data: web::Data<PipelinePool>,
+) -> StdResult<HttpResponse, Error> {
     println!("{:?}", req);
-    let res = ws::start(ExecutePipelineSocket::new(), &req, stream);
+    let res = ws::start(ExecutePipelineSocket::new(data), &req, stream);
     println!("{:?}", res);
     res
 }

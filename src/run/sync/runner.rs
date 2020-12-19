@@ -77,7 +77,7 @@ impl Runner {
     fn check_stop_signal(&self) -> Result<()> {
         if let Some(comm) = &self.cm {
             let comm = comm.lock().unwrap();
-            if let Ok(true) = comm.recv() {
+            if let Ok(true) = comm.try_recv() {
                 return Err(BldError::Other("stop signal sent to thread".to_string()));
             }
         }

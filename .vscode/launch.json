@@ -7,7 +7,25 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'bld'",
+            "name": "Debug executable 'bld' - run local pipeline",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=bld",
+                    "--package=bld"
+                ],
+                "filter": {
+                    "name": "bld",
+                    "kind": "bin"
+                }
+            },
+            "args": ["run", "-p", "burstchat-api"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'bld' - run on server",
             "cargo": {
                 "args": [
                     "build",
