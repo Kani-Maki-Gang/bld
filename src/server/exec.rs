@@ -1,5 +1,5 @@
 use crate::config::BldConfig;
-use crate::server::{list, push, ws_exec, ws_monit, PipelinePool};
+use crate::server::{list, push, stop, ws_exec, ws_monit, PipelinePool};
 use crate::term::print_info;
 use crate::types::Result;
 use actix::{Arbiter, System};
@@ -23,6 +23,7 @@ async fn start(host: &str, port: i64) -> Result<()> {
             .service(hello)
             .service(list)
             .service(push)
+            .service(stop)
             .service(web::resource("/ws-exec/").route(web::get().to(ws_exec)))
             .service(web::resource("/ws-monit").route(web::get().to(ws_monit)))
     })

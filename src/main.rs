@@ -8,6 +8,7 @@ mod persist;
 mod push;
 mod run;
 mod server;
+mod stop;
 mod term;
 mod types;
 
@@ -27,6 +28,7 @@ fn main() {
             monit::command(),
             list::command(),
             push::command(),
+            stop::command(),
         ])
         .get_matches();
 
@@ -38,6 +40,7 @@ fn main() {
         ("monit", Some(matches)) => monit::exec(matches),
         ("ls", Some(matches)) => list::exec(matches),
         ("push", Some(matches)) => push::exec(matches),
+        ("stop", Some(matches)) => stop::exec(matches),
         _ => Ok(()),
     };
 
