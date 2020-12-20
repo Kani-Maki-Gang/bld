@@ -1,5 +1,5 @@
 use crate::config::BldConfig;
-use crate::server::{list, push, stop, ws_exec, ws_monit, PipelinePool};
+use crate::server::{hist, list, push, stop, ws_exec, ws_monit, PipelinePool};
 use crate::term::print_info;
 use crate::types::Result;
 use actix::{Arbiter, System};
@@ -21,6 +21,7 @@ async fn start(host: &str, port: i64) -> Result<()> {
             .app_data(pool.clone())
             .wrap(middleware::Logger::default())
             .service(hello)
+            .service(hist)
             .service(list)
             .service(push)
             .service(stop)

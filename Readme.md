@@ -1,5 +1,5 @@
 # BLD
-A simple CI/CD tool build on rust
+A simple CI/CD tool.
 
 # Usage
 ```bash
@@ -9,10 +9,36 @@ bld init
 # Command to run the default pipeline.
 bld run
 
-# Command to run a specific pipeline.
+# Command to run a specific pipeline on the local machine.
 # pipeline_name should be a yaml file in the .bld directory.
 bld run -p pipeline_name 
+
+# Command to create the .bld directory for a bld server.
+bld init -s
+
+# Command to start bld in server mode.
+bld server
+
+# Command to push a local pipeline file to a server.
+bld push -p pipeline_name -s server_name
+
+# Command to run a pipeline on a server.
+bld run -p pipeline_name -s server_name
 ```
+
+# Commands
+Command | Description
+------- | -----------
+config  | Lists bld's configuration.
+init    | Initializes the bld configuration.
+hist    | Fetches execution history of pipelines on a bld server.
+ls      | Lists pipelines in a bld server.
+monit   | Connects to a bld server to monitor the execution of a pipeline.
+push    | Pushes the content of a pipeline to a bld server.
+run     | Execute a bld pipeline.
+server  | Start bld in server mode, listening to incoming build requests.
+stop    | Stops a running pipeline on a server.
+
 
 # Pipeline examples
 #### Default pipeline
@@ -58,10 +84,19 @@ steps:
   - sh: npm build 
 ```
 
+### Pipeline that invokes other pipelines
+```yaml
+name: pipeline that calls other pipelines
+steps:
+- name: Execute dotnet core pipeline
+  call: dotnet_core_pipeline
+- name: Execute nodejs pipeline 
+  call: nodejs_pipeline
+```
+
 # What to do next
 - [X] Automatic download of image if missing
-- [ ] Server mode.
-- [ ] Logging.
-- [ ] Parallel run of pipelines
+- [X] Server mode.
+- [X] Logging.
+- [ ] Authentication. 
 - [ ] Support for referencing ssh keys.
-- [ ] Distributed mode

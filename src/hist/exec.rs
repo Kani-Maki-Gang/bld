@@ -47,10 +47,9 @@ async fn handle_response(resp: &mut ServerResponse) {
 }
 
 fn exec_request(host: String, port: i64) {
-    let system = System::new("bld-ls");
-
+    let system = System::new("bld-hist");
     Arbiter::spawn(async move {
-        let url = format!("http://{}:{}/list", host, port);
+        let url = format!("http://{}:{}/hist", host, port);
         let client = Client::default();
         let mut response = client.get(url).header("User-Agent", "Bld").send().await;
         match response.as_mut() {
@@ -61,9 +60,9 @@ fn exec_request(host: String, port: i64) {
         }
         System::current().stop();
     });
-
     let _ = system.run();
 }
+
 
 pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
     let config = BldConfig::load()?;

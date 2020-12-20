@@ -1,5 +1,6 @@
 mod config;
 mod definitions;
+mod hist;
 mod init;
 mod list;
 mod monit;
@@ -22,6 +23,7 @@ fn main() {
         .about("A distributed CI/CD")
         .subcommands(vec![
             init::command(),
+            hist::command(),
             config::command(),
             run::command(),
             server::command(),
@@ -34,6 +36,7 @@ fn main() {
 
     let result = match matches.subcommand() {
         ("init", Some(matches)) => init::exec(matches),
+        ("hist", Some(matches)) => hist::exec(matches),
         ("config", Some(matches)) => config::exec(matches),
         ("run", Some(matches)) => run::exec(matches),
         ("server", Some(matches)) => server::exec(matches),
