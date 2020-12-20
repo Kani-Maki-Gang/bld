@@ -1,27 +1,49 @@
 mod config;
 mod definitions;
+mod hist;
 mod init;
+mod list;
+mod monit;
 mod os;
-mod term;
+mod persist;
+mod push;
 mod run;
+mod server;
+mod stop;
+mod term;
+mod types;
 
 use crate::definitions::VERSION;
 use clap::App;
 use term::print_error;
 
-#[tokio::main]
-async fn main() {
-    let commands = vec![init::command(), run::command()];
-
+fn main() {
     let matches = App::new("Bld")
         .version(VERSION)
         .about("A distributed CI/CD")
-        .subcommands(commands)
+        .subcommands(vec![
+            init::command(),
+            hist::command(),
+            config::command(),
+            run::command(),
+            server::command(),
+            monit::command(),
+            list::command(),
+            push::command(),
+            stop::command(),
+        ])
         .get_matches();
 
     let result = match matches.subcommand() {
-        ("init", Some(_)) => init::exec(),
-        ("run", Some(matches)) => run::exec(matches).await,
+        ("init", Some(matches)) => init::exec(matches),
+        ("hist", Some(matches)) => hist::exec(matches),
+        ("config", Some(matches)) => config::exec(matches),
+        ("run", Some(matches)) => run::exec(matches),
+        ("server", Some(matches)) => server::exec(matches),
+        ("monit", Some(matches)) => monit::exec(matches),
+        ("ls", Some(matches)) => list::exec(matches),
+        ("push", Some(matches)) => push::exec(matches),
+        ("stop", Some(matches)) => stop::exec(matches),
         _ => Ok(()),
     };
 

@@ -1,6 +1,6 @@
 use crate::definitions;
-use yaml_rust::Yaml;
 use std::io;
+use yaml_rust::Yaml;
 
 #[derive(Debug)]
 pub struct BldLocalConfig {
@@ -8,6 +8,7 @@ pub struct BldLocalConfig {
     pub host: String,
     pub port: i64,
     pub logs: String,
+    pub db: String,
     pub docker_host: String,
     pub docker_port: i64,
     pub docker_use_tls: bool,
@@ -20,6 +21,7 @@ impl BldLocalConfig {
             host: definitions::LOCAL_SERVER_HOST.to_string(),
             port: definitions::LOCAL_SERVER_PORT,
             logs: definitions::LOCAL_LOGS.to_string(),
+            db: definitions::LOCAL_DB.to_string(),
             docker_host: definitions::LOCAL_DOCKER_HOST.to_string(),
             docker_port: definitions::LOCAL_DOCKER_INSECURE_PORT,
             docker_use_tls: definitions::LOCAL_DOCKER_USE_TLS,
@@ -49,19 +51,24 @@ impl BldLocalConfig {
             None => definitions::LOCAL_LOGS.to_string(),
         };
 
-        let docker_host = match local_yaml["docker_host"].as_str() {
+        let db = match local_yaml["db"].as_str() {
+            Some(db) => db.to_string(),
+            None => definitions::LOCAL_DB.to_string(),
+        };
+
+        let docker_host = match local_yaml["docker-host"].as_str() {
             Some(host) => host.to_string(),
             None => definitions::LOCAL_DOCKER_HOST.to_string(),
         };
 
-        let docker_use_tls = match local_yaml["docker_use_tls"].as_bool() {
+        let docker_use_tls = match local_yaml["docker-use-tls"].as_bool() {
             Some(tls) => tls,
             None => definitions::LOCAL_DOCKER_USE_TLS,
         };
 
-        let docker_port = match local_yaml["docker_port"].as_i64() {
+        let docker_port = match local_yaml["docker-port"].as_i64() {
             Some(host) => host,
-            None => match docker_use_tls { 
+            None => match docker_use_tls {
                 true => definitions::LOCAL_DOCKER_SECURE_PORT,
                 false => definitions::LOCAL_DOCKER_INSECURE_PORT,
             },
@@ -72,10 +79,10 @@ impl BldLocalConfig {
             host,
             port,
             logs,
+            db,
             docker_host,
             docker_port,
             docker_use_tls,
         })
     }
 }
-

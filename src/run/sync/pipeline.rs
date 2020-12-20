@@ -1,8 +1,12 @@
+use crate::definitions::TOOL_DIR;
+use crate::path;
+use crate::persist::Logger;
 use crate::run::{Container, Machine, RunPlatform};
-use std::io;
-use yaml_rust::Yaml;
+use crate::types::{BldError, Result};
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use yaml_rust::{Yaml, YamlLoader};
 
-#[derive(Debug)]
 pub struct BuildStep {
     pub name: Option<String>,
     pub working_dir: Option<String>,
@@ -33,15 +37,38 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    pub async fn load(yaml: &Yaml) -> io::Result<Self> {
+    pub fn get_path(name: &str) -> Result<PathBuf> {
+        Ok(path![
+            std::env::current_dir()?,
+            TOOL_DIR,
+            format!("{}.yaml", name)
+        ])
+    }
+
+    pub fn read(pipeline: &str) -> Result<String> {
+        let path = Pipeline::get_path(pipeline)?;
+        Ok(std::fs::read_to_string(path)?)
+    }
+
+    pub async fn parse(src: &str, logger: Arc<Mutex<dyn Logger>>) -> Result<Pipeline> {
+        let yaml = YamlLoader::load_from_str(&src)?;
+        if yaml.len() == 0 {
+            return Err(BldError::YamlError("invalid yaml".to_string()));
+        }
+        let entry = yaml[0].clone();
+        let pipeline = Pipeline::load(&entry, logger).await?;
+        Ok(pipeline)
+    }
+
+    pub async fn load(yaml: &Yaml, logger: Arc<Mutex<dyn Logger>>) -> Result<Self> {
         let name = match yaml["name"].as_str() {
             Some(n) => Some(n.to_string()),
             None => None,
         };
 
         let runs_on = match yaml["runs-on"].as_str() {
-            Some("machine") | None => RunPlatform::Local(Machine::new()?),
-            Some(target) => RunPlatform::Docker(Container::new(target).await?),
+            Some("machine") | None => RunPlatform::Local(Machine::new(logger)?),
+            Some(target) => RunPlatform::Docker(Container::new(target, logger).await?),
         };
 
         Ok(Self {

@@ -1,55 +1,52 @@
 use crate::config::BldConfig;
-use crate::term::print_info;
+use crate::persist::Logger;
+use crate::types::{BldError, CheckStopSignal, Result};
 use futures_util::StreamExt;
-use shiplift::{tty::TtyChunk, ContainerOptions, ExecContainerOptions, ImageListOptions, PullOptions, Docker};
-use std::io::{self, Error, ErrorKind};
+use shiplift::tty::TtyChunk;
+use shiplift::{ContainerOptions, Docker, ExecContainerOptions, ImageListOptions, PullOptions};
+use std::sync::mpsc::Receiver;
+use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
 
-#[derive(Clone)]
+type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
+
 pub struct Container {
-    pub image: String,
+    pub img: String,
     pub client: Docker,
-    pub container_id: String,
+    pub id: String,
+    pub lg: Arc<Mutex<dyn Logger>>,
 }
 
 impl Container {
-    fn address() -> io::Result<String> {
+    fn address() -> Result<String> {
         let config = BldConfig::load()?;
         let host = &config.local.docker_host;
         let port = &config.local.docker_port;
         Ok(format!("tcp://{}:{}", host, port))
     }
 
-    fn docker() -> io::Result<Docker> {
-        let uri = match (Container::address()?).parse() {
-            Ok(uri) => uri,
-            Err(_) => {
-                return Err(Error::new(
-                    ErrorKind::Other,
-                    "could not parse tcp address for docker daemon",
-                ))
-            }
-        };
+    fn docker() -> Result<Docker> {
+        let uri = Container::address()?.parse()?;
         Ok(Docker::host(uri))
     }
 
-    async fn pull(client: &Docker, image: &str) -> io::Result<()> {
+    async fn pull(client: &Docker, image: &str, logger: &mut Arc<Mutex<dyn Logger>>) -> Result<()> {
         let options = ImageListOptions::builder().filter_name(image).build();
-        let images = match client.images().list(&options).await {
-            Ok(img) => img,
-            Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
-        };
-
+        let images = client.images().list(&options).await?;
         if images.len() == 0 {
-            print_info(&format!("Download image: {}", image))?;
+            {
+                let mut logger = logger.lock().unwrap();
+                logger.info(&format!("Download image: {}", image));
+            }
 
             let options = PullOptions::builder().image(image).build();
             let mut pull_iter = client.images().pull(&options);
             while let Some(progress) = pull_iter.next().await {
-                match progress {
-                    Ok(info) => println!("{}", info.to_string()),
-                    Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
+                let info = progress?;
+                {
+                    let mut logger = logger.lock().unwrap();
+                    logger.dumpln(&format!("{}", info.to_string()))
                 }
                 sleep(Duration::from_millis(100));
             }
@@ -58,34 +55,35 @@ impl Container {
         Ok(())
     }
 
-    async fn create(client: &Docker, image: &str) -> io::Result<String> {
-        Container::pull(client, image).await?;
-
+    async fn create(
+        client: &Docker,
+        image: &str,
+        logger: &mut Arc<Mutex<dyn Logger>>,
+    ) -> Result<String> {
+        Container::pull(client, image, logger).await?;
         let options = ContainerOptions::builder(&image).tty(true).build();
-        let info = match client.containers().create(&options).await {
-            Ok(info) => info,
-            Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
-        };
-
-        if let Err(e) = client.containers().get(&info.id).start().await {
-            return Err(Error::new(ErrorKind::Other, e.to_string()));
-        }
-
+        let info = client.containers().create(&options).await?;
+        client.containers().get(&info.id).start().await?;
         Ok(info.id)
     }
 
-    pub async fn new(image: &str) -> io::Result<Self> {
+    pub async fn new(img: &str, mut lg: Arc<Mutex<dyn Logger>>) -> Result<Self> {
         let client = Container::docker()?;
-        let container_id = Container::create(&client, image).await?;
-
+        let id = Container::create(&client, img, &mut lg).await?;
         Ok(Self {
-            image: image.to_string(),
+            img: img.to_string(),
             client,
-            container_id,
+            id,
+            lg,
         })
     }
 
-    pub async fn sh(&mut self, working_dir: &Option<String>, input: &str) -> io::Result<String> {
+    pub async fn sh(
+        &self,
+        working_dir: &Option<String>,
+        input: &str,
+        cm: &Option<AtomicRecv>,
+    ) -> Result<()> {
         let input = match working_dir {
             Some(wd) => format!("cd {} && {}", &wd, input),
             None => input.to_string(),
@@ -99,47 +97,30 @@ impl Container {
             .attach_stderr(true)
             .build();
 
-        let container = self.client.containers().get(&self.container_id);
+        let container = self.client.containers().get(&self.id);
 
         let mut exec_iter = container.exec(&options);
         while let Some(result) = exec_iter.next().await {
+            cm.check_stop_signal()?;
             let chunk = match result {
                 Ok(TtyChunk::StdOut(bytes)) => String::from_utf8(bytes).unwrap(),
                 Ok(TtyChunk::StdErr(bytes)) => String::from_utf8(bytes).unwrap(),
                 Ok(TtyChunk::StdIn(_)) => unreachable!(),
-                Err(e) => return Err(Error::new(ErrorKind::Other, e.to_string())),
+                Err(e) => return Err(BldError::ShipliftError(e.to_string())),
             };
-            print!("{}", &chunk);
+            {
+                let mut logger = self.lg.lock().unwrap();
+                logger.dump(&format!("{}", &chunk));
+            }
             sleep(Duration::from_millis(100));
-        }
-
-        Ok(String::new())
-    }
-
-    pub async fn dispose(&self) -> io::Result<()> {
-        let stop_res = self
-            .client
-            .containers()
-            .get(&self.container_id)
-            .stop(None)
-            .await;
-
-        if let Err(e) = stop_res {
-            return Err(Error::new(ErrorKind::Other, e.to_string()));
-        }
-
-        let delete_res = self
-            .client
-            .containers()
-            .get(&self.container_id)
-            .delete()
-            .await;
-
-        if let Err(e) = delete_res {
-            return Err(Error::new(ErrorKind::Other, e.to_string()));
         }
 
         Ok(())
     }
-}
 
+    pub async fn dispose(&self) -> Result<()> {
+        self.client.containers().get(&self.id).stop(None).await?;
+        self.client.containers().get(&self.id).delete().await?;
+        Ok(())
+    }
+}

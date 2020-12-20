@@ -1,4 +1,4 @@
-use crate::run::{Machine, Container};
+use crate::run::{Container, Machine};
 use std::fmt::{self, Display, Formatter};
 
 pub enum RunPlatform {
@@ -10,7 +10,7 @@ impl Display for RunPlatform {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Local(_) => write!(f, "machine"),
-            Self::Docker(container) => write!(f, "docker [ {} ]", container.image),
+            Self::Docker(container) => write!(f, "docker [ {} ]", container.img),
         }
     }
 }

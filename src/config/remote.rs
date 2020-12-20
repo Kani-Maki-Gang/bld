@@ -1,10 +1,10 @@
 use crate::config::BldServerConfig;
+use crate::types::Result;
 use yaml_rust::Yaml;
-use std::io;
 
 #[derive(Debug)]
 pub struct BldRemoteConfig {
-    servers: Vec<BldServerConfig>,
+    pub servers: Vec<BldServerConfig>,
 }
 
 impl BldRemoteConfig {
@@ -14,7 +14,7 @@ impl BldRemoteConfig {
         }
     }
 
-    pub fn load(yaml: &Yaml) -> io::Result<Self> {
+    pub fn load(yaml: &Yaml) -> Result<Self> {
         let mut servers = Vec::<BldServerConfig>::new();
 
         if let Some(yaml) = yaml["remote"].as_vec() {
@@ -22,9 +22,7 @@ impl BldRemoteConfig {
                 servers.push(BldServerConfig::load(&entry)?);
             }
         }
-        
-        Ok(Self {
-            servers
-        })
+
+        Ok(Self { servers })
     }
 }

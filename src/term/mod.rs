@@ -1,7 +1,8 @@
-use std::io::{self, Write};
+use crate::types::Result;
+use std::io::Write;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-pub fn print_info(text: &str) -> io::Result<()> {
+pub fn print_info(text: &str) -> Result<()> {
     let mut stdout = StandardStream::stdout(ColorChoice::Always);
 
     stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)))?;
@@ -12,14 +13,13 @@ pub fn print_info(text: &str) -> io::Result<()> {
     Ok(())
 }
 
-pub fn print_error(text: &str) -> io::Result<()> {
-    let mut stdout = StandardStream::stdout(ColorChoice::Always);
+pub fn print_error(text: &str) -> Result<()> {
+    let mut stderr = StandardStream::stderr(ColorChoice::Always);
 
-    stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)))?;
-    writeln!(&mut stdout, "{}", text)?;
+    stderr.set_color(ColorSpec::new().set_fg(Some(Color::Red)))?;
+    writeln!(&mut stderr, "{}", text)?;
 
-    stdout.set_color(ColorSpec::new().set_fg(None))?;
+    stderr.set_color(ColorSpec::new().set_fg(None))?;
 
     Ok(())
 }
-
