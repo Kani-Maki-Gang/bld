@@ -65,12 +65,10 @@ impl Pipeline {
             Some(n) => Some(n.to_string()),
             None => None,
         };
-
         let runs_on = match yaml["runs-on"].as_str() {
             Some("machine") | None => RunPlatform::Local(Machine::new(logger)?),
-            Some(target) => RunPlatform::Docker(Container::new(target, logger).await?),
+            Some(target) => RunPlatform::Docker(Container::new(target, logger)),
         };
-
         Ok(Self {
             name,
             runs_on,
@@ -84,24 +82,20 @@ impl Pipeline {
             Some(wd) => Some(wd.to_string()),
             None => None,
         };
-
         if let Some(entries) = &yaml["steps"].as_vec() {
             for entry in entries.iter() {
                 let name = match entry["name"].as_str() {
                     Some(name) => Some(name.to_string()),
                     None => None,
                 };
-
                 let working_dir = match &entry["working-dir"].as_str() {
                     Some(wd) => Some(wd.to_string()),
                     None => working_dir.clone(),
                 };
-
                 let call = match entry["call"].as_str() {
                     Some(pipeline) => Some(pipeline.to_string()),
                     None => None,
                 };
-
                 let commands = match entry["exec"].as_vec() {
                     Some(commands) => commands
                         .iter()
@@ -113,11 +107,9 @@ impl Pipeline {
                         .collect::<Vec<String>>(),
                     None => Vec::<String>::new(),
                 };
-
                 steps.push(BuildStep::new(name, working_dir, call, commands));
             }
         }
-
         steps
     }
 }

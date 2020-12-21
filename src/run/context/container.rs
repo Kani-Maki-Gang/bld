@@ -13,12 +13,26 @@ type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
 
 pub struct Container {
     pub img: String,
-    pub client: Docker,
-    pub id: String,
+    pub client: Option<Docker>,
+    pub id: Option<String>,
     pub lg: Arc<Mutex<dyn Logger>>,
 }
 
 impl Container {
+    fn get_client(&self) -> Result<&Docker> {
+        match &self.client {
+            Some(client) => Ok(client),
+            None => Err(BldError::Other("container not started".to_string())),
+        }
+    }
+
+    fn get_id(&self) -> Result<&str> {
+        match &self.id {
+            Some(id) => Ok(id),
+            None => Err(BldError::Other("container id not found".to_string())),
+        }
+    }
+
     fn address() -> Result<String> {
         let config = BldConfig::load()?;
         let host = &config.local.docker_host;
@@ -39,7 +53,6 @@ impl Container {
                 let mut logger = logger.lock().unwrap();
                 logger.info(&format!("Download image: {}", image));
             }
-
             let options = PullOptions::builder().image(image).build();
             let mut pull_iter = client.images().pull(&options);
             while let Some(progress) = pull_iter.next().await {
@@ -51,7 +64,6 @@ impl Container {
                 sleep(Duration::from_millis(100));
             }
         }
-
         Ok(())
     }
 
@@ -67,14 +79,24 @@ impl Container {
         Ok(info.id)
     }
 
-    pub async fn new(img: &str, mut lg: Arc<Mutex<dyn Logger>>) -> Result<Self> {
-        let client = Container::docker()?;
-        let id = Container::create(&client, img, &mut lg).await?;
-        Ok(Self {
+    pub fn new(img: &str, lg: Arc<Mutex<dyn Logger>>) -> Self {
+        Self {
             img: img.to_string(),
-            client,
-            id,
+            client: None,
+            id: None,
             lg,
+        }
+    }
+
+    pub async fn start(&self) -> Result<Self> {
+        let mut lg = self.lg.clone();
+        let client = Container::docker()?;
+        let id = Container::create(&client, &self.img, &mut lg).await?;
+        Ok(Self {
+            img: self.img.to_string(),
+            client: Some(client),
+            id: Some(id),
+            lg: self.lg.clone(),
         })
     }
 
@@ -84,21 +106,19 @@ impl Container {
         input: &str,
         cm: &Option<AtomicRecv>,
     ) -> Result<()> {
+        let client = self.get_client()?;
+        let id = self.get_id()?;
         let input = match working_dir {
             Some(wd) => format!("cd {} && {}", &wd, input),
             None => input.to_string(),
         };
-
         let cmd = vec!["bash", "-c", &input];
-
         let options = ExecContainerOptions::builder()
             .cmd(cmd)
             .attach_stdout(true)
             .attach_stderr(true)
             .build();
-
-        let container = self.client.containers().get(&self.id);
-
+        let container = client.containers().get(&id);
         let mut exec_iter = container.exec(&options);
         while let Some(result) = exec_iter.next().await {
             cm.check_stop_signal()?;
@@ -114,13 +134,14 @@ impl Container {
             }
             sleep(Duration::from_millis(100));
         }
-
         Ok(())
     }
 
     pub async fn dispose(&self) -> Result<()> {
-        self.client.containers().get(&self.id).stop(None).await?;
-        self.client.containers().get(&self.id).delete().await?;
+        let client = self.get_client()?; 
+        let id = self.get_id()?;
+        client.containers().get(id).stop(None).await?;
+        client.containers().get(id).delete().await?;
         Ok(())
     }
 }

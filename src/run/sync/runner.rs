@@ -20,8 +20,11 @@ pub struct Runner {
 }
 
 impl Runner {
-    fn new(ex: AtomicExec, lg: AtomicLog, pip: Pipeline, cm: Option<AtomicRecv>) -> Runner {
-        Runner { ex, lg, pip, cm }
+    async fn new(ex: AtomicExec, lg: AtomicLog, mut pip: Pipeline, cm: Option<AtomicRecv>) -> Result<Runner> {
+        if let RunPlatform::Docker(container) = &pip.runs_on {
+            pip.runs_on = RunPlatform::Docker(container.start().await?);
+        }
+        Ok(Runner { ex, lg, pip, cm })
     }
 
     fn persist_start(&mut self) {
@@ -91,7 +94,7 @@ impl Runner {
     ) -> RecursiveFuture {
         Box::pin(async move {
             let pip = Pipeline::parse(&src, lg.clone()).await?;
-            let mut runner = Runner::new(ex, lg, pip, cm);
+            let mut runner = Runner::new(ex, lg, pip, cm).await?;
             runner.persist_start();
             runner.info();
             let res = runner.steps().await;
