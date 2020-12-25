@@ -1,5 +1,5 @@
 mod config;
-mod definitions;
+mod helpers;
 mod hist;
 mod init;
 mod list;
@@ -10,12 +10,11 @@ mod push;
 mod run;
 mod server;
 mod stop;
-mod term;
 mod types;
 
-use crate::definitions::VERSION;
+use crate::config::definitions::VERSION;
+use crate::helpers::term::print_error;
 use clap::App;
-use term::print_error;
 
 fn main() {
     let matches = App::new("Bld")

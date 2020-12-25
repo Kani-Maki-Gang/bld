@@ -1,4 +1,4 @@
-use crate::definitions::VERSION;
+use crate::config::definitions::VERSION;
 use clap::{App, Arg, SubCommand};
 
 pub fn command() -> App<'static, 'static> {

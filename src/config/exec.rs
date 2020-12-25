@@ -1,5 +1,5 @@
 use crate::config::{BldConfig, BldLocalConfig, BldRemoteConfig};
-use crate::term;
+use crate::helpers::term;
 use crate::types::Result;
 use clap::ArgMatches;
 

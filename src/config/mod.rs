@@ -1,4 +1,5 @@
 mod cli;
+pub mod definitions;
 mod exec;
 mod local;
 mod remote;
@@ -10,7 +11,6 @@ pub use local::*;
 pub use remote::*;
 pub use server::*;
 
-use crate::definitions;
 use crate::path;
 use crate::types::Result;
 use std::path::PathBuf;

@@ -1,4 +1,4 @@
-use crate::definitions::{TOOL_DIR, TOOL_DEFAULT_CONFIG};
+use crate::config::definitions::{TOOL_DIR, TOOL_DEFAULT_CONFIG};
 use actix_web::{get, HttpResponse};
 use std::fs::{read_dir, DirEntry};
 

@@ -1,4 +1,4 @@
-use crate::definitions::TOOL_DEFAULT_PIPELINE;
+use crate::config::definitions::TOOL_DEFAULT_PIPELINE;
 use crate::persist::{NullExec, ShellLogger};
 use crate::run::{self, Runner};
 use crate::types::Result;

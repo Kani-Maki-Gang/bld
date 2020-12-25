@@ -1,4 +1,4 @@
-use crate::definitions::TOOL_DIR;
+use crate::config::definitions::TOOL_DIR;
 use crate::path;
 use crate::persist::Logger;
 use crate::run::{Container, Machine, RunPlatform};
@@ -50,17 +50,17 @@ impl Pipeline {
         Ok(std::fs::read_to_string(path)?)
     }
 
-    pub async fn parse(src: &str, logger: Arc<Mutex<dyn Logger>>) -> Result<Pipeline> {
+    pub fn parse(src: &str, logger: Arc<Mutex<dyn Logger>>) -> Result<Pipeline> {
         let yaml = YamlLoader::load_from_str(&src)?;
         if yaml.len() == 0 {
             return Err(BldError::YamlError("invalid yaml".to_string()));
         }
         let entry = yaml[0].clone();
-        let pipeline = Pipeline::load(&entry, logger).await?;
+        let pipeline = Pipeline::load(&entry, logger)?;
         Ok(pipeline)
     }
 
-    pub async fn load(yaml: &Yaml, logger: Arc<Mutex<dyn Logger>>) -> Result<Self> {
+    pub fn load(yaml: &Yaml, logger: Arc<Mutex<dyn Logger>>) -> Result<Self> {
         let name = match yaml["name"].as_str() {
             Some(n) => Some(n.to_string()),
             None => None,

@@ -1,4 +1,4 @@
-use crate::definitions;
+use crate::config::definitions;
 use std::io;
 use yaml_rust::Yaml;
 

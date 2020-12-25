@@ -1,6 +1,6 @@
-use crate::definitions;
+use crate::config::definitions;
 use crate::path;
-use crate::term::print_info;
+use crate::helpers::term::print_info;
 use crate::types::{BldError, Result};
 use clap::ArgMatches;
 use std::fs;

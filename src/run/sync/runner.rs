@@ -93,7 +93,7 @@ impl Runner {
         cm: Option<AtomicRecv>,
     ) -> RecursiveFuture {
         Box::pin(async move {
-            let pip = Pipeline::parse(&src, lg.clone()).await?;
+            let pip = Pipeline::parse(&src, lg.clone())?;
             let mut runner = Runner::new(ex, lg, pip, cm).await?;
             runner.persist_start();
             runner.info();

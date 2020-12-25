@@ -3,7 +3,7 @@ use crate::path;
 use crate::persist::{Database, FileLogger, FileScanner, Scanner};
 use crate::run::{Pipeline, Runner};
 use crate::server::PipelinePool;
-use crate::term;
+use crate::helpers::term;
 use crate::types::{BldError, Result};
 use actix::prelude::*;
 use actix_web::{web, Error, HttpRequest, HttpResponse};

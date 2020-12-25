@@ -1,6 +1,6 @@
 use crate::config::BldConfig;
 use crate::server::{hist, list, push, stop, ws_exec, ws_monit, PipelinePool};
-use crate::term::print_info;
+use crate::helpers::term::print_info;
 use crate::types::Result;
 use actix::{Arbiter, System};
 use actix_web::{get, middleware, web, App, HttpResponse, HttpServer, Responder};

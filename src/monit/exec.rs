@@ -1,22 +1,12 @@
-use crate::config::BldConfig;
-use crate::definitions::TOOL_DEFAULT_PIPELINE;
+use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, BldConfig};
 use crate::monit::{MonitorPipelineSocketClient, MonitorPipelineSocketMessage};
-use crate::term::print_error;
-use crate::types::{BldError, Result};
+use crate::helpers::term::print_error;
+use crate::helpers::errors::{server_not_in_config, no_server_in_config};
+use crate::types::Result;
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
 use awc::Client;
 use clap::ArgMatches;
 use futures::stream::StreamExt;
-
-fn server_not_in_config() -> Result<()> {
-    let message = String::from("server not found in config");
-    Err(BldError::Other(message))
-}
-
-fn no_server_in_config() -> Result<()> {
-    let message = String::from("no server found in config");
-    Err(BldError::Other(message))
-}
 
 async fn remote_invoke(host: String, port: i64, id: String) -> Result<()> {
     let url = format!("http://{}:{}/ws-monit", host, port);
@@ -32,14 +22,12 @@ async fn remote_invoke(host: String, port: i64, id: String) -> Result<()> {
 
 fn exec_request(host: String, port: i64, id: String) {
     let system = System::new("bld-monit");
-
     Arbiter::spawn(async move {
         if let Err(e) = remote_invoke(host, port, id).await {
             let _ = print_error(&e.to_string());
             System::current().stop();
         }
     });
-
     let _ = system.run();
 }
 

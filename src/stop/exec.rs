@@ -1,70 +1,8 @@
 use crate::config::BldConfig;
-use crate::term::print_error;
-use crate::types::{BldError, Result};
-use actix::{Arbiter, System};
-use actix_http::Payload;
-use actix_web::client::Client;
-use actix_web::dev::Decompress;
-use actix_web::error::PayloadError;
-use awc::http::StatusCode;
-use awc::ClientResponse;
-use bytes::Bytes;
+use crate::helpers::errors::{no_server_in_config, server_not_in_config};
+use crate::helpers::request::exec_post;
+use crate::types::Result;
 use clap::ArgMatches;
-use futures::Stream;
-use std::pin::Pin;
-
-type StdResult<T, V> = std::result::Result<T, V>;
-type ServerResponse = ClientResponse<
-    Decompress<Payload<Pin<Box<dyn Stream<Item = StdResult<Bytes, PayloadError>>>>>>,
->;
-
-fn server_not_in_config() -> Result<()> {
-    Err(BldError::Other("server not found in config".to_string()))
-}
-
-fn no_server_in_config() -> Result<()> {
-    Err(BldError::Other("no server in config".to_string()))
-}
-
-fn handle_body(body: &StdResult<Bytes, PayloadError>) -> String {
-    match body {
-        Ok(b) => String::from_utf8_lossy(&b).to_string(),
-        Err(e) => e.to_string(),
-    }
-}
-
-async fn handle_response(resp: &mut ServerResponse) {
-    let body = resp.body().await;
-    let res = match resp.status() {
-        StatusCode::OK => handle_body(&body),
-        StatusCode::BAD_REQUEST => handle_body(&body),
-        _ => String::from("unexpected response from server"),
-    };
-    if res.len() > 0 {
-        println!("{}", res);
-    }
-}
-
-fn exec_request(host: String, port: i64, id: String) {
-    let system = System::new("bld-stop");
-    Arbiter::spawn(async move {
-        let url = format!("http://{}:{}/stop", host, port);
-        let client = Client::default();
-        let mut response = client
-            .post(url)
-            .header("User-Agent", "Bld")
-            .send_json(&id)
-            .await;
-        match response.as_mut() {
-            Ok(r) => handle_response(r).await,
-            Err(e) => {
-                let _ = print_error(&e.to_string());
-            }
-        }
-        System::current().stop();
-    });
-    let _ = system.run();
-}
 
 pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
     let config = BldConfig::load()?;
@@ -80,6 +18,8 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
             None => return no_server_in_config(),
         },
     };
-    exec_request(host, port, id);
+    let sys = String::from("bld-stop");
+    let url = format!("http://{}:{}/stop", host, port);
+    exec_post(sys, url, id);
     Ok(())
 }

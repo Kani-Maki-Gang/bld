@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use crate::definitions::DB_NAME;
+use crate::config::definitions::DB_NAME;
 use crate::path;
 use crate::persist::Execution;
 use crate::persist::PipelineModel;
