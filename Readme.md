@@ -84,7 +84,7 @@ steps:
   - sh: npm build 
 ```
 
-### Pipeline that invokes other pipelines
+#### Pipeline that invokes other pipelines
 ```yaml
 name: pipeline that calls other pipelines
 steps:
