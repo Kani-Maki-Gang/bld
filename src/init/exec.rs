@@ -62,7 +62,7 @@ fn create_default_yaml() -> Result<()> {
 fn create_config_yaml(is_server: bool) -> Result<()> {
     let path = path![
         definitions::TOOL_DIR,
-        definitions::TOOL_DEFAULT_PIPELINE_FILE
+        definitions::TOOL_DEFAULT_CONFIG_FILE
     ];
     let content = match is_server {
         true => definitions::default_server_config(),
