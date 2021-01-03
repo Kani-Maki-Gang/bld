@@ -26,4 +26,5 @@ diesel = { version = "1.4.5", features = ["sqlite"] }
 uuid = { version = "0.8.1", features = ["v4"] }
 actix-http = "2.1.0"
 serde = "1.0.117"
-openidconnect = "1.1.1"
+oauth2 = { version = "3.0.0", features = ["futures-03"] }
+serde_derive = "1.0.118"

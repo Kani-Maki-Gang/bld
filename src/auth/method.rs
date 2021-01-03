@@ -1,44 +1,62 @@
-use crate::config::{Auth, BldServerConfig};
+use crate::config::OAuth2Info;
 use crate::types::{BldError, Result};
-use openidconnect::core::{CoreClient, CoreProviderMetadata, CoreResponseType};
-use openidconnect::reqwest::http_client;
-use openidconnect::{AuthenticationFlow, CsrfToken, Scope, Nonce, RedirectUrl};
+use oauth2::{AuthorizationCode, PkceCodeChallenge, CsrfToken};
+use oauth2::reqwest::http_client;
+use oauth2::basic::BasicClient;
+use std::io::stdin;
+
+fn oauth2_url_summary() {
+    println!("Open the printed url in a browser in order to login with the specified oauth2 provider.");
+    println!();
+}
+
+fn oauth2_input_summary() {
+    println!();
+    println!("After logging in input both the provided code and state here.");
+}
+
+fn stdin_with_label(label: &str) -> Result<String> {
+    let mut value = String::new();
+    println!("{}: ", label);
+    stdin().read_line(&mut value)?;
+    Ok(value.trim().to_string())
+}
 
 pub trait Login {
     fn login(&self) -> Result<String>;
 }
 
-impl Login for BldServerConfig {
+impl Login for OAuth2Info {
     fn login(&self) -> Result<String> {
-        match &self.auth {
-            Auth::OpenId(_) => openid_login(self),
-            Auth::Ldap => ldap_login(self),
-            _ => unreachable!(),
+        let client = BasicClient::new(
+            self.client_id.clone(),
+            Some(self.client_secret.clone()),
+            self.auth_url.clone(),
+            Some(self.token_url.clone())
+        )
+        .set_redirect_url(self.redirect_url.clone());
+        let (pkce_challenge, _pkce_verifier) = PkceCodeChallenge::new_random_sha256();
+        let mut auth_url = client
+            .authorize_url(CsrfToken::new_random)
+            .set_pkce_challenge(pkce_challenge);
+        for scope in &self.scopes {
+            auth_url = auth_url.add_scope(scope.clone());
         }
-    }
-}
+        let (auth_url, csrf_token) = auth_url.url();
 
-fn openid_login(config: &BldServerConfig) -> Result<String> {
-    let info = match &config.auth {
-        Auth::OpenId(info) => info,
-        _ => return Err(BldError::Other("invalid auth method".to_string())),
-    };
-    let provider = CoreProviderMetadata::discover(&info.issuer_url, http_client)?;
-    let client = CoreClient::from_provider_metadata(provider, info.client_id.clone(), Some(info.client_secret.clone()))
-        .set_redirect_uri(RedirectUrl::new(format!("http://{}:{}/authRedirect", config.host, config.port))?);
-    let mut auth_url = client.authorize_url(
-        AuthenticationFlow::<CoreResponseType>::AuthorizationCode, 
-        CsrfToken::new_random,
-        Nonce::new_random
-    );
-    for scope in &info.scopes {
-        auth_url = auth_url.add_scope(Scope::new(scope.clone()));
-    }
-    let (auth_url, _, _) = auth_url.url();
-    println!("{}", auth_url);
-    Ok(String::new())
-}
+        oauth2_url_summary();
+        println!("{}", auth_url.to_string());
+        oauth2_input_summary();
 
-fn ldap_login(_config: &BldServerConfig) -> Result<String> {
-    Ok(String::new())
+        let code = AuthorizationCode::new(stdin_with_label("code")?);
+        let state = CsrfToken::new(stdin_with_label("state")?);
+        if state.secret() != csrf_token.secret() {
+            let message = String::from("state token not the one expected. operation is aborted");
+            return Err(BldError::Other(message));
+        }
+
+        let token_res = client.exchange_code(code).request(http_client)?;
+        dbg!(&token_res);
+        Ok(String::new())
+    }
 }

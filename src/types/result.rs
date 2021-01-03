@@ -2,12 +2,14 @@ use actix::MailboxError;
 use actix_http::http::uri::InvalidUri;
 use actix_web::client::WsClientError;
 use diesel::ConnectionError;
-use openidconnect::url::ParseError;
-use openidconnect::DiscoveryError;
+use oauth2::{RequestTokenError, StandardErrorResponse};
+use oauth2::basic::BasicErrorResponseType;
+use oauth2::reqwest::Error as ReqError;
+use oauth2::url::ParseError;
+use std::error::Error;
 use std::convert::From;
-use std::error;
+use std::marker::{Sync, Send};
 use std::io;
-use std::marker::{Send, Sync};
 use yaml_rust::scanner::ScanError;
 
 pub type Result<T> = std::result::Result<T, BldError>;
@@ -19,7 +21,7 @@ pub enum BldError {
     SerdeError(String),
     ShipliftError(String),
     YamlError(String),
-    OpenIdConnectError(String),
+    OAuth2(String),
     Other(String),
 }
 
@@ -77,15 +79,21 @@ impl From<shiplift::Error> for BldError {
     }
 }
 
-impl From<ParseError> for BldError {
-    fn from(error: ParseError) -> Self {
-        BldError::OpenIdConnectError(error.to_string())
+impl From<&str> for BldError {
+    fn from(error: &str) -> Self {
+        Self::Other(error.to_string())
     }
 }
 
-impl<T: 'static + Sync + Send + error::Error> From<DiscoveryError<openidconnect::reqwest::Error<T>>> for BldError {
-    fn from(error: DiscoveryError<openidconnect::reqwest::Error<T>>) -> Self {
-        BldError::OpenIdConnectError(error.to_string())
+impl From<ParseError> for BldError {
+    fn from(error: ParseError) -> Self {
+        Self::OAuth2(error.to_string())
+    }
+}
+
+impl<T: 'static + Sync + Send + Error> From<RequestTokenError<ReqError<T>, StandardErrorResponse<BasicErrorResponseType>>> for BldError {
+    fn from(error: RequestTokenError<ReqError<T>, StandardErrorResponse<BasicErrorResponseType>>) -> Self {
+        Self::OAuth2(error.to_string())
     }
 }
 
@@ -98,7 +106,7 @@ impl std::string::ToString for BldError {
             BldError::SerdeError(s) => s.to_string(),
             BldError::ShipliftError(s) => s.to_string(),
             BldError::YamlError(y) => y.to_string(),
-            BldError::OpenIdConnectError(o) => o.to_string(),
+            BldError::OAuth2(o) => o.to_string(),
             BldError::Other(o) => o.to_string(),
         }
     }

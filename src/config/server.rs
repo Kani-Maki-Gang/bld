@@ -1,55 +1,61 @@
-use crate::types::{BldError, Result};
-use openidconnect::{ClientId, ClientSecret, IssuerUrl};
+use crate::types::Result;
+use oauth2::{AuthUrl, ClientId, ClientSecret, TokenUrl, Scope, RedirectUrl};
 use yaml_rust::Yaml;
 
 #[derive(Debug)]
-pub struct OpenIdInfo {
-    pub issuer_url: IssuerUrl,
+pub struct OAuth2Info {
+    pub auth_url: AuthUrl,
+    pub token_url: TokenUrl,
+    pub redirect_url: RedirectUrl,
     pub client_id: ClientId,
     pub client_secret: ClientSecret,
-    pub scopes: Vec<String>,
+    pub scopes: Vec<Scope>,
 }
 
-impl OpenIdInfo {
-    pub fn load(yaml: &Yaml) -> Result<Self> {
-        let issuer_url = match yaml["issuer"].as_str() {
-            Some(url) => IssuerUrl::new(url.to_string())?,
-            None => {
-                let message = "No issuer url found in config".to_string();
-                return Err(BldError::Other(message));
-            }
-        };
-        let client_id = match yaml["client-id"].as_str() {
-            Some(id) => ClientId::new(id.to_string()),
-            None => {
-                let message = "No client id found in config".to_string();
-                return Err(BldError::Other(message));
-            }
-        };
-        let client_secret = match yaml["client-secret"].as_str() {
-            Some(secret) => ClientSecret::new(secret.to_string()),
-            None => {
-                let message = "No client secret found in config".to_string();
-                return Err(BldError::Other(message));
-            }
-        };
-        let scopes = match yaml["scopes"].as_vec() {
-            Some(scopes) => scopes
-                .iter()
-                .map(|y| y.as_str())
-                .filter(|y| y.is_some())
-                .map(|y| y.unwrap().to_string())
-                .collect(),
-            None => Vec::<String>::new(),
-        };
-        Ok(Self { issuer_url, client_id, client_secret, scopes })
+impl OAuth2Info {
+    pub fn load(host: &str, port: i64, yaml: &Yaml) -> Result<Self> {
+        let auth_url = AuthUrl::new(
+            yaml["auth-url"]
+                .as_str()
+                .ok_or("No auth url found in config")?
+                .to_string()
+        )?;
+        let token_url = TokenUrl::new(
+            yaml["token-url"]
+                .as_str()
+                .ok_or("No token url found in config")?
+                .to_string()
+        )?;
+        let client_id = ClientId::new(
+            yaml["client-id"]
+                .as_str()
+                .ok_or("No client id found in config")?
+                .to_string()
+        );
+        let client_secret = ClientSecret::new(
+            yaml["client-secret"]
+                .as_str()
+                .ok_or("No client secret found in config")?
+                .to_string()
+        );
+        let scopes = yaml["scopes"]
+            .as_vec()
+            .or(Some(&Vec::new()))
+            .unwrap()
+            .iter()
+            .map(|y| y.as_str())
+            .filter(|y| y.is_some())
+            .map(|y| Scope::new(y.unwrap().to_string()))
+            .collect();
+        let redirect_url = RedirectUrl::new(format!("http://{}:{}/authRedirect", host, port))?;
+        Ok(Self { auth_url, token_url, client_id, client_secret, scopes, redirect_url })
     }
 }
 
 #[derive(Debug)]
 pub enum Auth {
     Ldap,
-    OpenId(OpenIdInfo),
+    OAuth2(OAuth2Info),
     None
 }
 
@@ -63,30 +69,20 @@ pub struct BldServerConfig {
 
 impl BldServerConfig {
     pub fn load(yaml: &Yaml) -> Result<Self> {
-        let name = match yaml["server"].as_str() {
-            Some(name) => name.to_string(),
-            None => {
-                let message = "Server entry must have a name".to_string();
-                return Err(BldError::Other(message));
-            }
-        };
-        let host = match yaml["host"].as_str() {
-            Some(host) => host.to_string(),
-            None => {
-                let message = "Server entry must have a host address".to_string();
-                return Err(BldError::Other(message));
-            }
-        };
-        let port = match yaml["port"].as_i64() {
-            Some(port) => port,
-            None => {
-                let message = "Server entry must define a port".to_string();
-                return Err(BldError::Other(message));
-            }
-        };
+        let name = yaml["server"]
+            .as_str() 
+            .ok_or("Server entry must have a name")?
+            .to_string();
+        let host = yaml["host"]
+            .as_str()
+            .ok_or("Server entry must define a host address")?
+            .to_string();
+        let port = yaml["port"]
+            .as_i64()
+            .ok_or("Server entry must define a port")?;
         let auth = match yaml["auth"]["method"].as_str() {
             Some("ldap") => Auth::Ldap,
-            Some("openid") => Auth::OpenId(OpenIdInfo::load(&yaml["auth"])?),
+            Some("oauth2") => Auth::OAuth2(OAuth2Info::load(&host, port, &yaml["auth"])?),
             _ => Auth::None,
         };
         Ok(Self { name, host, port, auth })
