@@ -1,3 +1,4 @@
+mod auth;
 mod config;
 mod helpers;
 mod hist;
@@ -21,6 +22,7 @@ fn main() {
         .version(VERSION)
         .about("A distributed CI/CD")
         .subcommands(vec![
+            auth::command(),
             init::command(),
             hist::command(),
             config::command(),
@@ -34,6 +36,7 @@ fn main() {
         .get_matches();
 
     let result = match matches.subcommand() {
+        ("login", Some(matches)) => auth::exec(matches),
         ("init", Some(matches)) => init::exec(matches),
         ("hist", Some(matches)) => hist::exec(matches),
         ("config", Some(matches)) => config::exec(matches),

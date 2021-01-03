@@ -2,8 +2,12 @@ use actix::MailboxError;
 use actix_http::http::uri::InvalidUri;
 use actix_web::client::WsClientError;
 use diesel::ConnectionError;
+use openidconnect::url::ParseError;
+use openidconnect::DiscoveryError;
 use std::convert::From;
-use std::io::Error;
+use std::error;
+use std::io;
+use std::marker::{Send, Sync};
 use yaml_rust::scanner::ScanError;
 
 pub type Result<T> = std::result::Result<T, BldError>;
@@ -15,11 +19,12 @@ pub enum BldError {
     SerdeError(String),
     ShipliftError(String),
     YamlError(String),
+    OpenIdConnectError(String),
     Other(String),
 }
 
-impl From<Error> for BldError {
-    fn from(error: Error) -> Self {
+impl From<io::Error> for BldError {
+    fn from(error: io::Error) -> Self {
         BldError::IoError(error.to_string())
     }
 }
@@ -72,6 +77,18 @@ impl From<shiplift::Error> for BldError {
     }
 }
 
+impl From<ParseError> for BldError {
+    fn from(error: ParseError) -> Self {
+        BldError::OpenIdConnectError(error.to_string())
+    }
+}
+
+impl<T: 'static + Sync + Send + error::Error> From<DiscoveryError<openidconnect::reqwest::Error<T>>> for BldError {
+    fn from(error: DiscoveryError<openidconnect::reqwest::Error<T>>) -> Self {
+        BldError::OpenIdConnectError(error.to_string())
+    }
+}
+
 impl std::string::ToString for BldError {
     fn to_string(&self) -> String {
         match self {
@@ -81,6 +98,7 @@ impl std::string::ToString for BldError {
             BldError::SerdeError(s) => s.to_string(),
             BldError::ShipliftError(s) => s.to_string(),
             BldError::YamlError(y) => y.to_string(),
+            BldError::OpenIdConnectError(o) => o.to_string(),
             BldError::Other(o) => o.to_string(),
         }
     }
