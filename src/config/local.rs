@@ -9,9 +9,7 @@ pub struct BldLocalConfig {
     pub port: i64,
     pub logs: String,
     pub db: String,
-    pub docker_host: String,
-    pub docker_port: i64,
-    pub docker_use_tls: bool,
+    pub docker_url: String,
 }
 
 impl BldLocalConfig {
@@ -22,9 +20,7 @@ impl BldLocalConfig {
             port: definitions::LOCAL_SERVER_PORT,
             logs: definitions::LOCAL_LOGS.to_string(),
             db: definitions::LOCAL_DB.to_string(),
-            docker_host: definitions::LOCAL_DOCKER_HOST.to_string(),
-            docker_port: definitions::LOCAL_DOCKER_INSECURE_PORT,
-            docker_use_tls: definitions::LOCAL_DOCKER_USE_TLS,
+            docker_url: definitions::LOCAL_DOCKER_URL.to_string(),
         }
     }
 
@@ -56,22 +52,9 @@ impl BldLocalConfig {
             None => definitions::LOCAL_DB.to_string(),
         };
 
-        let docker_host = match local_yaml["docker-host"].as_str() {
-            Some(host) => host.to_string(),
-            None => definitions::LOCAL_DOCKER_HOST.to_string(),
-        };
-
-        let docker_use_tls = match local_yaml["docker-use-tls"].as_bool() {
-            Some(tls) => tls,
-            None => definitions::LOCAL_DOCKER_USE_TLS,
-        };
-
-        let docker_port = match local_yaml["docker-port"].as_i64() {
-            Some(host) => host,
-            None => match docker_use_tls {
-                true => definitions::LOCAL_DOCKER_SECURE_PORT,
-                false => definitions::LOCAL_DOCKER_INSECURE_PORT,
-            },
+        let docker_url = match local_yaml["docker-url"].as_str() {
+            Some(url) => url.to_string(),
+            None => definitions::LOCAL_DOCKER_URL.to_string(),
         };
 
         Ok(Self {
@@ -80,9 +63,7 @@ impl BldLocalConfig {
             port,
             logs,
             db,
-            docker_host,
-            docker_port,
-            docker_use_tls,
+            docker_url,
         })
     }
 }

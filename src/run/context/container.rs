@@ -33,16 +33,11 @@ impl Container {
         }
     }
 
-    fn address() -> Result<String> {
-        let config = BldConfig::load()?;
-        let host = &config.local.docker_host;
-        let port = &config.local.docker_port;
-        Ok(format!("tcp://{}:{}", host, port))
-    }
-
     fn docker() -> Result<Docker> {
-        let uri = Container::address()?.parse()?;
-        Ok(Docker::host(uri))
+        let config = BldConfig::load()?;
+        let url = config.local.docker_url.parse()?; 
+        let host = Docker::host(url);
+        Ok(host)
     }
 
     async fn pull(client: &Docker, image: &str, logger: &mut Arc<Mutex<dyn Logger>>) -> Result<()> {

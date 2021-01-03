@@ -9,9 +9,7 @@ fn list_locals(local: &BldLocalConfig) -> Result<()> {
     println!("- host: {}", local.host);
     println!("- port: {}", local.port);
     println!("- logs: {}", local.logs);
-    println!("- docker_host: {}", local.docker_host);
-    println!("- docker_port: {}", local.docker_port);
-    println!("- docker_use_tls: {}", local.docker_use_tls);
+    println!("- docker-url: {}", local.docker_url);
     Ok(())
 }
 
