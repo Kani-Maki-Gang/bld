@@ -1,6 +1,6 @@
 use crate::config::definitions;
-use crate::path;
 use crate::helpers::term::print_info;
+use crate::path;
 use crate::types::{BldError, Result};
 use clap::ArgMatches;
 use std::fs;
@@ -60,10 +60,7 @@ fn create_default_yaml() -> Result<()> {
 }
 
 fn create_config_yaml(is_server: bool) -> Result<()> {
-    let path = path![
-        definitions::TOOL_DIR,
-        definitions::TOOL_DEFAULT_CONFIG_FILE
-    ];
+    let path = path![definitions::TOOL_DIR, definitions::TOOL_DEFAULT_CONFIG_FILE];
     let content = match is_server {
         true => definitions::default_server_config(),
         false => definitions::default_client_config(),

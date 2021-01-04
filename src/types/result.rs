@@ -2,14 +2,14 @@ use actix::MailboxError;
 use actix_http::http::uri::InvalidUri;
 use actix_web::client::WsClientError;
 use diesel::ConnectionError;
-use oauth2::{RequestTokenError, StandardErrorResponse};
 use oauth2::basic::BasicErrorResponseType;
 use oauth2::reqwest::Error as ReqError;
 use oauth2::url::ParseError;
-use std::error::Error;
+use oauth2::{RequestTokenError, StandardErrorResponse};
 use std::convert::From;
-use std::marker::{Sync, Send};
+use std::error::Error;
 use std::io;
+use std::marker::{Send, Sync};
 use yaml_rust::scanner::ScanError;
 
 pub type Result<T> = std::result::Result<T, BldError>;
@@ -91,8 +91,13 @@ impl From<ParseError> for BldError {
     }
 }
 
-impl<T: 'static + Sync + Send + Error> From<RequestTokenError<ReqError<T>, StandardErrorResponse<BasicErrorResponseType>>> for BldError {
-    fn from(error: RequestTokenError<ReqError<T>, StandardErrorResponse<BasicErrorResponseType>>) -> Self {
+impl<T: 'static + Sync + Send + Error>
+    From<RequestTokenError<ReqError<T>, StandardErrorResponse<BasicErrorResponseType>>>
+    for BldError
+{
+    fn from(
+        error: RequestTokenError<ReqError<T>, StandardErrorResponse<BasicErrorResponseType>>,
+    ) -> Self {
         Self::OAuth2(error.to_string())
     }
 }

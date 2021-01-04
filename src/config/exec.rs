@@ -5,10 +5,11 @@ use clap::ArgMatches;
 
 fn list_locals(local: &BldLocalConfig) -> Result<()> {
     term::print_info("Local configuration:")?;
-    println!("- enable_server: {}", local.enable_server);
+    println!("- enable-server: {}", local.enable_server);
     println!("- host: {}", local.host);
     println!("- port: {}", local.port);
     println!("- logs: {}", local.logs);
+    println!("- db: {}", local.db);
     println!("- docker-url: {}", local.docker_url);
     Ok(())
 }
@@ -37,14 +38,11 @@ fn list_all(config: &BldConfig) -> Result<()> {
 
 pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
     let config = BldConfig::load()?;
-
     if matches.is_present("local") {
         return list_locals(&config.local);
     }
-
     if matches.is_present("remote") {
         return list_remote(&config.remote);
     }
-
     list_all(&config)
 }

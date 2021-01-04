@@ -5,8 +5,8 @@ pub use client::*;
 pub use messages::*;
 
 use crate::config::BldConfig;
-use crate::run::socket::{ExecutePipelineSocketClient, ExecutePipelineSocketMessage};
 use crate::helpers::term::print_error;
+use crate::run::socket::{ExecutePipelineSocketClient, ExecutePipelineSocketMessage};
 use crate::types::{BldError, Result};
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
 use awc::Client;

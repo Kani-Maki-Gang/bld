@@ -15,14 +15,15 @@ impl BldRemoteConfig {
     }
 
     pub fn load(yaml: &Yaml) -> Result<Self> {
-        let mut servers = Vec::<BldServerConfig>::new();
-
-        if let Some(yaml) = yaml["remote"].as_vec() {
-            for entry in yaml.iter() {
-                servers.push(BldServerConfig::load(&entry)?);
-            }
-        }
-
+        let servers = yaml["remote"]
+            .as_vec()
+            .or(Some(&Vec::new()))
+            .unwrap()
+            .iter()
+            .map(|s| BldServerConfig::load(s))
+            .filter(|s| s.is_ok())
+            .map(|s| s.ok().unwrap())
+            .collect();
         Ok(Self { servers })
     }
 }

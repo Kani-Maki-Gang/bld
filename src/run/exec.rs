@@ -6,11 +6,11 @@ use clap::ArgMatches;
 use tokio::runtime::Runtime;
 
 pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
-    let pipeline = match matches.value_of("pipeline") {
-        Some(name) => name.to_string(),
-        None => TOOL_DEFAULT_PIPELINE.to_string(),
-    };
-
+    let pipeline = matches
+        .value_of("pipeline")
+        .or(Some(TOOL_DEFAULT_PIPELINE))
+        .unwrap()
+        .to_string();
     match matches.value_of("server") {
         Some(server) => run::on_server(pipeline, server.to_string()),
         None => {

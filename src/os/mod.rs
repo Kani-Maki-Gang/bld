@@ -25,16 +25,13 @@ pub enum OSname {
 
 fn is_linux() -> bool {
     let lsb_path = path!["/", "etc", "lsb-release"];
-
     if lsb_path.is_file() {
         return true;
     };
-
     let deb_path = path!["/", "etc", "debian-version"];
     if deb_path.is_file() {
         return true;
     }
-
     false
 }
 
@@ -52,14 +49,11 @@ pub fn name() -> OSname {
     if is_linux() {
         return OSname::Linux;
     }
-
     if is_mac() {
         return OSname::Mac;
     }
-
     if is_windows() {
         return OSname::Windows;
     }
-
     OSname::Unknown
 }

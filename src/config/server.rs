@@ -1,5 +1,5 @@
 use crate::types::Result;
-use oauth2::{AuthUrl, ClientId, ClientSecret, TokenUrl, Scope, RedirectUrl};
+use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, Scope, TokenUrl};
 use yaml_rust::Yaml;
 
 #[derive(Debug)]
@@ -18,25 +18,25 @@ impl OAuth2Info {
             yaml["auth-url"]
                 .as_str()
                 .ok_or("No auth url found in config")?
-                .to_string()
+                .to_string(),
         )?;
         let token_url = TokenUrl::new(
             yaml["token-url"]
                 .as_str()
                 .ok_or("No token url found in config")?
-                .to_string()
+                .to_string(),
         )?;
         let client_id = ClientId::new(
             yaml["client-id"]
                 .as_str()
                 .ok_or("No client id found in config")?
-                .to_string()
+                .to_string(),
         );
         let client_secret = ClientSecret::new(
             yaml["client-secret"]
                 .as_str()
                 .ok_or("No client secret found in config")?
-                .to_string()
+                .to_string(),
         );
         let scopes = yaml["scopes"]
             .as_vec()
@@ -48,7 +48,14 @@ impl OAuth2Info {
             .map(|y| Scope::new(y.unwrap().to_string()))
             .collect();
         let redirect_url = RedirectUrl::new(format!("http://{}:{}/authRedirect", host, port))?;
-        Ok(Self { auth_url, token_url, client_id, client_secret, scopes, redirect_url })
+        Ok(Self {
+            auth_url,
+            token_url,
+            client_id,
+            client_secret,
+            scopes,
+            redirect_url,
+        })
     }
 }
 
@@ -56,7 +63,7 @@ impl OAuth2Info {
 pub enum Auth {
     Ldap,
     OAuth2(OAuth2Info),
-    None
+    None,
 }
 
 #[derive(Debug)]
@@ -70,7 +77,7 @@ pub struct BldServerConfig {
 impl BldServerConfig {
     pub fn load(yaml: &Yaml) -> Result<Self> {
         let name = yaml["server"]
-            .as_str() 
+            .as_str()
             .ok_or("Server entry must have a name")?
             .to_string();
         let host = yaml["host"]
@@ -85,6 +92,11 @@ impl BldServerConfig {
             Some("oauth2") => Auth::OAuth2(OAuth2Info::load(&host, port, &yaml["auth"])?),
             _ => Auth::None,
         };
-        Ok(Self { name, host, port, auth })
+        Ok(Self {
+            name,
+            host,
+            port,
+            auth,
+        })
     }
 }

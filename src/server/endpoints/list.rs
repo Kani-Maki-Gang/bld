@@ -1,4 +1,4 @@
-use crate::config::definitions::{TOOL_DIR, TOOL_DEFAULT_CONFIG};
+use crate::config::definitions::{TOOL_DEFAULT_CONFIG, TOOL_DIR};
 use actix_web::{get, HttpResponse};
 use std::fs::{read_dir, DirEntry};
 
@@ -12,7 +12,7 @@ pub async fn list() -> HttpResponse {
             .map(|e| get_file_name(&e))
             .fold(String::new(), |mut acc, n| {
                 let line = format!("{}\n", n);
-                acc.push_str(&line); 
+                acc.push_str(&line);
                 acc
             });
         return HttpResponse::Ok().body(pips);
@@ -26,10 +26,10 @@ fn is_yaml_file(entry: &DirEntry) -> bool {
             let name = entry.file_name();
             let name = name.to_string_lossy();
             file_type.is_file()
-            && name.ends_with(".yaml") 
-            && name != format!("{}.yaml", TOOL_DEFAULT_CONFIG)
+                && name.ends_with(".yaml")
+                && name != format!("{}.yaml", TOOL_DEFAULT_CONFIG)
         }
-        Err(_) => false
+        Err(_) => false,
     }
 }
 

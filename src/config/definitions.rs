@@ -34,12 +34,7 @@ pub fn default_server_config() -> String {
     logs: {}
     db: {}
     docker-url: {}",
-        true,
-        LOCAL_SERVER_HOST,
-        LOCAL_SERVER_PORT,
-        LOCAL_LOGS,
-        LOCAL_DB,
-        LOCAL_DOCKER_URL
+        true, LOCAL_SERVER_HOST, LOCAL_SERVER_PORT, LOCAL_LOGS, LOCAL_DB, LOCAL_DOCKER_URL
     )
 }
 

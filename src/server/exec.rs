@@ -1,6 +1,6 @@
 use crate::config::BldConfig;
-use crate::server::{auth_redirect, hist, list, push, stop, ws_exec, ws_monit, PipelinePool};
 use crate::helpers::term::print_info;
+use crate::server::{auth_redirect, hist, list, push, stop, ws_exec, ws_monit, PipelinePool};
 use crate::types::Result;
 use actix::{Arbiter, System};
 use actix_web::{get, middleware, web, App, HttpResponse, HttpServer, Responder};
@@ -45,12 +45,11 @@ pub fn sys_spawn(host: String, port: i64) {
 
 pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
     let config = BldConfig::load()?;
-
-    let host = match matches.value_of("host") {
-        Some(host) => host.to_string(),
-        None => config.local.host,
-    };
-
+    let host = matches
+        .value_of("host")
+        .or(Some(&config.local.host))
+        .unwrap()
+        .to_string();
     let port = match matches.value_of("port") {
         Some(port) => match port.parse::<i64>() {
             Ok(port) => port,
@@ -58,7 +57,6 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
         },
         None => config.local.port,
     };
-
     sys_spawn(host, port);
     Ok(())
 }

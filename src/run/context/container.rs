@@ -35,7 +35,7 @@ impl Container {
 
     fn docker() -> Result<Docker> {
         let config = BldConfig::load()?;
-        let url = config.local.docker_url.parse()?; 
+        let url = config.local.docker_url.parse()?;
         let host = Docker::host(url);
         Ok(host)
     }
@@ -133,7 +133,7 @@ impl Container {
     }
 
     pub async fn dispose(&self) -> Result<()> {
-        let client = self.get_client()?; 
+        let client = self.get_client()?;
         let id = self.get_id()?;
         client.containers().get(id).stop(None).await?;
         client.containers().get(id).delete().await?;

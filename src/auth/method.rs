@@ -1,12 +1,14 @@
 use crate::config::OAuth2Info;
 use crate::types::{BldError, Result};
-use oauth2::{AuthorizationCode, PkceCodeChallenge, CsrfToken};
-use oauth2::reqwest::http_client;
 use oauth2::basic::BasicClient;
+use oauth2::reqwest::http_client;
+use oauth2::{AuthorizationCode, CsrfToken, PkceCodeChallenge};
 use std::io::stdin;
 
 fn oauth2_url_summary() {
-    println!("Open the printed url in a browser in order to login with the specified oauth2 provider.");
+    println!(
+        "Open the printed url in a browser in order to login with the specified oauth2 provider."
+    );
     println!();
 }
 
@@ -32,7 +34,7 @@ impl Login for OAuth2Info {
             self.client_id.clone(),
             Some(self.client_secret.clone()),
             self.auth_url.clone(),
-            Some(self.token_url.clone())
+            Some(self.token_url.clone()),
         )
         .set_redirect_url(self.redirect_url.clone());
         let (pkce_challenge, _pkce_verifier) = PkceCodeChallenge::new_random_sha256();

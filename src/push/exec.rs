@@ -1,9 +1,9 @@
 use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, BldConfig};
-use crate::persist::NullLogger;
-use crate::run::Pipeline;
 use crate::helpers::errors::{no_server_in_config, server_not_in_config};
 use crate::helpers::request::exec_post;
 use crate::helpers::term::print_error;
+use crate::persist::NullLogger;
+use crate::run::Pipeline;
 use crate::types::{PushInfo, Result};
 use clap::ArgMatches;
 use std::collections::HashSet;
@@ -27,10 +27,11 @@ fn build_payload(name: String) -> Result<HashSet<(String, String)>> {
 pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
     let config = BldConfig::load()?;
     let servers = config.remote.servers;
-    let name = match matches.value_of("pipeline") {
-        Some(pipeline) => pipeline.to_string(),
-        None => TOOL_DEFAULT_PIPELINE.to_string(),
-    };
+    let name = matches
+        .value_of("pipeline")
+        .or(Some(TOOL_DEFAULT_PIPELINE))
+        .unwrap()
+        .to_string();
     let (host, port) = match matches.value_of("server") {
         Some(name) => match servers.iter().find(|s| s.name == name) {
             Some(srv) => (&srv.host, srv.port),

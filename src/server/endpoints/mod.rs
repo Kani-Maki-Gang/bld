@@ -1,11 +1,11 @@
 mod auth_redirect;
-mod list;
 mod hist;
+mod list;
 mod push;
 mod stop;
 
 pub use auth_redirect::*;
-pub use list::*;
 pub use hist::*;
+pub use list::*;
 pub use push::*;
 pub use stop::*;

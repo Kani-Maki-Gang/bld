@@ -96,17 +96,14 @@ impl Pipeline {
                     Some(pipeline) => Some(pipeline.to_string()),
                     None => None,
                 };
-                let commands = match entry["exec"].as_vec() {
-                    Some(commands) => commands
-                        .iter()
-                        .map(|c| match c["sh"].as_str() {
-                            Some(command) => command.to_string(),
-                            None => String::new(),
-                        })
-                        .filter(|c| !c.is_empty())
-                        .collect::<Vec<String>>(),
-                    None => Vec::<String>::new(),
-                };
+                let commands: Vec<String> = entry["exec"]
+                    .as_vec()
+                    .or(Some(&Vec::new()))
+                    .unwrap()
+                    .iter()
+                    .map(|c| c["sh"].as_str().or(Some("")).unwrap().to_string())
+                    .filter(|c| !c.is_empty())
+                    .collect();
                 steps.push(BuildStep::new(name, working_dir, call, commands));
             }
         }

@@ -26,37 +26,34 @@ impl BldLocalConfig {
 
     pub fn load(yaml: &Yaml) -> io::Result<Self> {
         let local_yaml = &yaml["local"];
-
-        let enable_server = match local_yaml["enable-server"].as_bool() {
-            Some(enable_server) => enable_server,
-            None => definitions::LOCAL_ENABLE_SERVER,
-        };
-
-        let host = match local_yaml["host"].as_str() {
-            Some(host) => host.to_string(),
-            None => definitions::LOCAL_SERVER_HOST.to_string(),
-        };
-
-        let port = match local_yaml["port"].as_i64() {
-            Some(port) => port,
-            None => definitions::LOCAL_SERVER_PORT,
-        };
-
-        let logs = match local_yaml["logs"].as_str() {
-            Some(logs) => logs.to_string(),
-            None => definitions::LOCAL_LOGS.to_string(),
-        };
-
-        let db = match local_yaml["db"].as_str() {
-            Some(db) => db.to_string(),
-            None => definitions::LOCAL_DB.to_string(),
-        };
-
-        let docker_url = match local_yaml["docker-url"].as_str() {
-            Some(url) => url.to_string(),
-            None => definitions::LOCAL_DOCKER_URL.to_string(),
-        };
-
+        let enable_server = local_yaml["enable-server"]
+            .as_bool()
+            .or(Some(definitions::LOCAL_ENABLE_SERVER))
+            .unwrap();
+        let host = local_yaml["host"]
+            .as_str()
+            .or(Some(definitions::LOCAL_SERVER_HOST))
+            .unwrap()
+            .to_string();
+        let port = local_yaml["port"]
+            .as_i64()
+            .or(Some(definitions::LOCAL_SERVER_PORT))
+            .unwrap();
+        let logs = local_yaml["logs"]
+            .as_str()
+            .or(Some(definitions::LOCAL_LOGS))
+            .unwrap()
+            .to_string();
+        let db = local_yaml["db"]
+            .as_str()
+            .or(Some(definitions::LOCAL_DB))
+            .unwrap()
+            .to_string();
+        let docker_url = local_yaml["docker-url"]
+            .as_str()
+            .or(Some(definitions::LOCAL_DOCKER_URL))
+            .unwrap()
+            .to_string();
         Ok(Self {
             enable_server,
             host,
