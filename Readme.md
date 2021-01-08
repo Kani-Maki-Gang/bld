@@ -32,6 +32,7 @@ Command | Description
 config  | Lists bld's configuration.
 init    | Initializes the bld configuration.
 hist    | Fetches execution history of pipelines on a bld server.
+login   | Initiates the login process for a bld server
 ls      | Lists pipelines in a bld server.
 monit   | Connects to a bld server to monitor the execution of a pipeline.
 push    | Pushes the content of a pipeline to a bld server.
@@ -94,9 +95,71 @@ steps:
   call: nodejs_pipeline
 ```
 
+# Authentication
+
+Server mode does not have it own authentication method but it uses external authentication server. In the future multiple ways of
+authentication will be supported. The only current method is using an existing oauth2 service (Github, Google, Microsoft etc). 
+An example of authentication using Github.
+
+#### Configuration of client to login using github
+The below example assumes that a github oauth2 app has been setup.
+```yaml
+local:
+  docker-url: tcp://127.0.0.1:2376
+remote:
+  - server: local_srv 
+    host: 127.0.0.1
+    port: 6080
+    auth:
+      method: oauth2 
+      auth-url: https://github.com/login/oauth/authorize
+      token-url: https://github.com/login/oauth/access_token
+      client-id: your_oauth2_app_client_id 
+      client-secret: your_oauth2_app_client_secret 
+      scopes: ["public_repo", "user:email"]
+```
+
+#### Configuration of server to validate user using github
+This will send a request to the provided validation url in order to fetch the user info.
+```yaml
+local:
+    enable-server: true 
+    auth:
+      method: oauth2
+      validation-url: https://api.github.com/user
+    host: 127.0.0.1
+    port: 6080
+    logs: .bld/logs
+    db: .bld/db
+    docker-url: tcp://127.0.0.1:2376
+```
+
+#### Login process
+```bash
+# Use the login command to generate a url that will provide you with a code and state 
+# tokens used for the auth process
+bld login
+
+# Or use -s to specify the server name
+bld login -s local_srv
+
+Open the printed url in a browser in order to login with the specified oauth2 provider.
+
+https://github.com/login/oauth/authorize?response_type=code&client_id=your_oauth2_client_id&state=some_state_token&code_challenge=some_generated_code_challenge&code_challenge_method=the_code_challenge_method&redirect_uri=http%3A%2F%2F127.0.0.1%3A6080%2FauthRedirect&scope=public_repo+user%3Aemail
+
+After logging in input both the provided code and state here.
+code:
+
+state:
+
+# At this point by navigating to the generated url you will be able to get the code and state. Copy it to your terminal and a new
+# token will be created under .bld/oauth2 directory on a file with the target server as name.
+```
+
 # What to do next
 - [X] Automatic download of image if missing
 - [X] Server mode.
 - [X] Logging.
-- [ ] Authentication. 
+- [X] Authentication. 
 - [ ] Support for referencing ssh keys.
+- [ ] High availability mode.
