@@ -18,7 +18,7 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
         },
     };
     if let Auth::OAuth2(info) = &srv.auth {
-        info.login()?;
+        info.login(&srv.name)?;
     }
     Ok(())
 }

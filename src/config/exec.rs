@@ -1,11 +1,23 @@
-use crate::config::{BldConfig, BldLocalConfig, BldRemoteConfig};
+use crate::config::{Auth, AuthValidation, BldConfig, BldLocalConfig, BldRemoteConfig};
 use crate::helpers::term;
 use crate::types::Result;
 use clap::ArgMatches;
 
 fn list_locals(local: &BldLocalConfig) -> Result<()> {
     term::print_info("Local configuration:")?;
-    println!("- enable-server: {}", local.enable_server);
+    println!("- server-mode: {}", local.server_mode);
+    match &local.auth {
+        AuthValidation::OAuth2(url) => {
+            println!("- auth:");
+            println!("  - method: oauth2");
+            println!("  - validation-url: {}", url);
+        }
+        AuthValidation::Ldap => {
+            println!("- auth:");
+            println!("  - method: ldap");
+        }
+        _ => {}
+    }
     println!("- host: {}", local.host);
     println!("- port: {}", local.port);
     println!("- logs: {}", local.logs);
@@ -21,6 +33,30 @@ fn list_remote(remote: &BldRemoteConfig) -> Result<()> {
         println!("- name: {}", server.name);
         println!("- host: {}", server.host);
         println!("- port: {}", server.port);
+        match &server.auth {
+            Auth::OAuth2(info) => {
+                println!("- auth:");
+                println!("  - method: oauth2");
+                println!("  - auth-url: {}", info.auth_url.to_string());
+                println!("  - token-url: {}", info.token_url.to_string());
+                println!("  - redirect-url: {}", info.redirect_url.to_string());
+                println!("  - client-id: {}", info.client_id.to_string());
+                println!("  - client-secret: ***********");
+                println!(
+                    "  - scopes: [{} ]",
+                    info.scopes.iter().fold(String::new(), |acc, n| format!(
+                        "{} \"{}\",",
+                        acc,
+                        n.to_string()
+                    ))
+                );
+            }
+            Auth::Ldap => {
+                println!("- auth:");
+                println!("  - method: ldap");
+            }
+            _ => {}
+        }
         if i < remote.servers.len() - 1 {
             println!("");
         }

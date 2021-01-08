@@ -1,9 +1,12 @@
+use crate::config::definitions;
 use crate::config::OAuth2Info;
 use crate::types::{BldError, Result};
 use oauth2::basic::BasicClient;
 use oauth2::reqwest::http_client;
-use oauth2::{AuthorizationCode, CsrfToken, PkceCodeChallenge};
-use std::io::stdin;
+use oauth2::{AuthorizationCode, CsrfToken, PkceCodeChallenge, TokenResponse};
+use std::fs::{create_dir, remove_file, File};
+use std::io::{stdin, Write};
+use std::path::PathBuf;
 
 fn oauth2_url_summary() {
     println!(
@@ -17,6 +20,21 @@ fn oauth2_input_summary() {
     println!("After logging in input both the provided code and state here.");
 }
 
+fn persist_access_token(server: &str, token: &str) -> Result<()> {
+    let mut path = PathBuf::new();
+    path.push(definitions::REMOTE_SERVER_OAUTH2);
+    if !path.is_dir() {
+        create_dir(&path)?;
+    }
+    path.push(server);
+    if path.is_file() {
+        remove_file(&path)?;
+    }
+    let mut handle = File::create(path)?;
+    handle.write_all(token.as_bytes())?;
+    Ok(())
+}
+
 fn stdin_with_label(label: &str) -> Result<String> {
     let mut value = String::new();
     println!("{}: ", label);
@@ -25,11 +43,11 @@ fn stdin_with_label(label: &str) -> Result<String> {
 }
 
 pub trait Login {
-    fn login(&self) -> Result<String>;
+    fn login(&self, server: &str) -> Result<String>;
 }
 
 impl Login for OAuth2Info {
-    fn login(&self) -> Result<String> {
+    fn login(&self, server: &str) -> Result<String> {
         let client = BasicClient::new(
             self.client_id.clone(),
             Some(self.client_secret.clone()),
@@ -58,7 +76,7 @@ impl Login for OAuth2Info {
         }
 
         let token_res = client.exchange_code(code).request(http_client)?;
-        dbg!(&token_res);
+        persist_access_token(server, token_res.access_token().secret())?;
         Ok(String::new())
     }
 }

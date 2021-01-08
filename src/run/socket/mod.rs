@@ -5,6 +5,7 @@ pub use client::*;
 pub use messages::*;
 
 use crate::config::BldConfig;
+use crate::helpers::request::headers;
 use crate::helpers::term::print_error;
 use crate::run::socket::{ExecutePipelineSocketClient, ExecutePipelineSocketMessage};
 use crate::types::{BldError, Result};
@@ -25,7 +26,12 @@ async fn remote_invoke(name: String, server: String) -> Result<()> {
         None => return server_not_found(),
     };
     let url = format!("http://{}:{}/ws-exec/", server.host, server.port);
-    let (_, framed) = Client::new().ws(url).connect().await?;
+    let headers = headers(&server.name, &server.auth)?;
+    let mut client = Client::new().ws(url);
+    for (key, value) in headers.iter() {
+        client = client.header(&key[..], &value[..]);
+    }
+    let (_, framed) = client.connect().await?;
     let (sink, stream) = framed.split();
     let addr = ExecutePipelineSocketClient::create(|ctx| {
         ExecutePipelineSocketClient::add_stream(stream, ctx);

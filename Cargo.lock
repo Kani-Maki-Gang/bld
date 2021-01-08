@@ -56,6 +56,8 @@ dependencies = [
  "futures-util",
  "http 0.2.1",
  "log",
+ "openssl",
+ "tokio-openssl",
  "trust-dns-proto",
  "trust-dns-resolver",
 ]
@@ -71,6 +73,7 @@ dependencies = [
  "actix-rt",
  "actix-service",
  "actix-threadpool",
+ "actix-tls",
  "actix-utils",
  "base64 0.13.0",
  "bitflags",
@@ -214,6 +217,8 @@ dependencies = [
  "actix-service",
  "actix-utils",
  "futures-util",
+ "openssl",
+ "tokio-openssl",
 ]
 
 [[package]]
@@ -264,6 +269,7 @@ dependencies = [
  "fxhash",
  "log",
  "mime",
+ "openssl",
  "pin-project 0.4.23",
  "regex",
  "serde",
@@ -408,6 +414,7 @@ dependencies = [
  "futures-core",
  "log",
  "mime",
+ "openssl",
  "percent-encoding 2.1.0",
  "rand 0.7.3",
  "serde",
@@ -475,6 +482,7 @@ dependencies = [
  "actix",
  "actix-codec",
  "actix-http",
+ "actix-service",
  "actix-web",
  "actix-web-actors",
  "awc",

@@ -1,15 +1,15 @@
+use crate::path;
+use crate::types::Result;
+use crate::config::{Auth, definitions::REMOTE_SERVER_OAUTH2};
 use crate::helpers::term::print_error;
 use actix::{Arbiter, System};
 use actix_http::Payload;
-use actix_web::client::Client;
-use actix_web::dev::Decompress;
-use actix_web::error::PayloadError;
-use awc::http::StatusCode;
-use awc::ClientResponse;
+use actix_web::{client::Client, dev::Decompress, error::PayloadError};
+use awc::{http::StatusCode, ClientResponse};
 use bytes::Bytes;
 use futures::Stream;
 use serde::Serialize;
-use std::pin::Pin;
+use std::{collections::HashMap, fs, path::PathBuf, pin::Pin};
 
 type StdResult<T, V> = std::result::Result<T, V>;
 type ServerResponse = ClientResponse<
@@ -28,6 +28,7 @@ async fn handle_response(resp: &mut ServerResponse) {
     let res = match resp.status() {
         StatusCode::OK => handle_body(&body),
         StatusCode::BAD_REQUEST => handle_body(&body),
+        StatusCode::UNAUTHORIZED => String::from("unauthorized"),
         _ => String::from("unexpected response from server"),
     };
     if res.len() > 0 {
@@ -35,11 +36,25 @@ async fn handle_response(resp: &mut ServerResponse) {
     }
 }
 
-pub fn exec_get(sys: String, url: String) {
+pub fn headers(server: &str, auth: &Auth) -> Result<HashMap<String, String>> {
+    let mut headers = HashMap::new();
+    if let Auth::OAuth2(_info) = auth {
+        let token = fs::read_to_string(path![REMOTE_SERVER_OAUTH2, server])?;
+        let bearer = format!("Bearer {}", token); 
+        headers.insert("Authorization".to_string(), bearer);
+    }
+    Ok(headers)
+}
+
+pub fn exec_get(sys: String, url: String, headers: HashMap<String, String>) {
     let system = System::new(sys);
     Arbiter::spawn(async move {
         let client = Client::default();
-        let mut response = client.get(url).header("User-Agent", "Bld").send().await;
+        let mut request = client.get(url);
+        for (key, value) in headers.iter() {
+            request = request.header(&key[..], &value[..]);
+        }
+        let mut response = request.header("User-Agent", "Bld").send().await;
         match response.as_mut() {
             Ok(resp) => handle_response(resp).await,
             Err(e) => {
@@ -51,18 +66,18 @@ pub fn exec_get(sys: String, url: String) {
     let _ = system.run();
 }
 
-pub fn exec_post<T>(sys: String, url: String, body: T)
+pub fn exec_post<T>(sys: String, url: String, headers: HashMap<String, String>, body: T)
 where
     T: 'static + Serialize,
 {
     let system = System::new(&sys);
     Arbiter::spawn(async move {
         let client = Client::default();
-        let mut response = client
-            .post(url)
-            .header("User-Agent", "Bld")
-            .send_json(&body)
-            .await;
+        let mut request = client.post(url);
+        for (key, value) in headers.iter() {
+            request = request.header(&key[..], &value[..]);
+        }
+        let mut response = request.header("User-Agent", "Bld").send_json(&body).await;
         match response.as_mut() {
             Ok(r) => handle_response(r).await,
             Err(e) => {

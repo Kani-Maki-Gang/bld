@@ -1,4 +1,5 @@
 use actix::MailboxError;
+use actix_http::client::SendRequestError;
 use actix_http::http::uri::InvalidUri;
 use actix_web::client::WsClientError;
 use diesel::ConnectionError;
@@ -27,55 +28,61 @@ pub enum BldError {
 
 impl From<io::Error> for BldError {
     fn from(error: io::Error) -> Self {
-        BldError::IoError(error.to_string())
+        Self::IoError(error.to_string())
     }
 }
 
 impl From<ScanError> for BldError {
     fn from(error: ScanError) -> Self {
-        BldError::YamlError(error.to_string())
+        Self::YamlError(error.to_string())
     }
 }
 
 impl From<InvalidUri> for BldError {
     fn from(error: InvalidUri) -> Self {
-        BldError::ActixError(error.to_string())
+        Self::ActixError(error.to_string())
     }
 }
 
 impl From<MailboxError> for BldError {
     fn from(error: MailboxError) -> Self {
-        BldError::ActixError(error.to_string())
+        Self::ActixError(error.to_string())
     }
 }
 
 impl From<WsClientError> for BldError {
     fn from(error: WsClientError) -> Self {
-        BldError::ActixError(error.to_string())
+        Self::ActixError(error.to_string())
+    }
+}
+
+impl From<SendRequestError> for BldError {
+    fn from(error: SendRequestError) -> Self {
+        Self::ActixError(error.to_string())
     }
 }
 
 impl From<diesel::result::Error> for BldError {
     fn from(error: diesel::result::Error) -> Self {
-        BldError::DieselError(error.to_string())
+        Self::DieselError(error.to_string())
     }
 }
 
 impl From<ConnectionError> for BldError {
     fn from(error: ConnectionError) -> Self {
-        BldError::DieselError(error.to_string())
+        Self::DieselError(error.to_string())
     }
 }
 
 impl From<serde_json::Error> for BldError {
     fn from(error: serde_json::Error) -> Self {
-        BldError::SerdeError(error.to_string())
+        Self::SerdeError(error.to_string())
     }
 }
 
 impl From<shiplift::Error> for BldError {
     fn from(error: shiplift::Error) -> Self {
-        BldError::ShipliftError(error.to_string())
+        Self::ShipliftError(error.to_string())
     }
 }
 
@@ -105,14 +112,14 @@ impl<T: 'static + Sync + Send + Error>
 impl std::string::ToString for BldError {
     fn to_string(&self) -> String {
         match self {
-            BldError::ActixError(a) => a.to_string(),
-            BldError::DieselError(d) => d.to_string(),
-            BldError::IoError(i) => i.to_string(),
-            BldError::SerdeError(s) => s.to_string(),
-            BldError::ShipliftError(s) => s.to_string(),
-            BldError::YamlError(y) => y.to_string(),
-            BldError::OAuth2(o) => o.to_string(),
-            BldError::Other(o) => o.to_string(),
+            Self::ActixError(a) => a.to_string(),
+            Self::DieselError(d) => d.to_string(),
+            Self::IoError(i) => i.to_string(),
+            Self::SerdeError(s) => s.to_string(),
+            Self::ShipliftError(s) => s.to_string(),
+            Self::YamlError(y) => y.to_string(),
+            Self::OAuth2(o) => o.to_string(),
+            Self::Other(o) => o.to_string(),
         }
     }
 }

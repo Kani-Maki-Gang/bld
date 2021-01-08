@@ -1,3 +1,4 @@
+mod auth;
 mod cli;
 pub mod definitions;
 mod exec;
@@ -5,6 +6,7 @@ mod local;
 mod remote;
 mod server;
 
+pub use auth::*;
 pub use cli::*;
 pub use exec::*;
 pub use local::*;

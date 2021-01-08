@@ -12,7 +12,7 @@ yaml-rust = "0.4.4"
 futures-util = "0.3.5"
 shiplift = { git = "https://github.com/softprops/shiplift.git", branch = "master" } 
 termcolor = "1.1.0"
-actix-web = "3.1.0"
+actix-web = { version = "3.1.0", features = ["openssl"] }
 actix-web-actors = "3.0.0"
 actix = "0.10.0"
 awc = "2.0.0"
@@ -28,3 +28,4 @@ actix-http = "2.1.0"
 serde = "1.0.117"
 oauth2 = { version = "3.0.0", features = ["futures-03"] }
 serde_derive = "1.0.118"
+actix-service = "1.0.6"

@@ -7,7 +7,7 @@ pub static TOOL_DEFAULT_PIPELINE_FILE: &str = "default.yaml";
 pub static TOOL_DEFAULT_CONFIG: &str = "config";
 pub static TOOL_DEFAULT_CONFIG_FILE: &str = "config.yaml";
 
-pub static LOCAL_ENABLE_SERVER: bool = false;
+pub static LOCAL_SERVER_MODE: bool = false;
 pub static LOCAL_SERVER_HOST: &str = "127.0.0.1";
 pub static LOCAL_SERVER_PORT: i64 = 6080;
 pub static LOCAL_LOGS: &str = ".bld/logs";
@@ -16,6 +16,7 @@ pub static LOCAL_DOCKER_URL: &str = "tcp://127.0.0.1:2376";
 pub static REMOTE_SERVER_NAME: &str = "demo_server";
 pub static REMOTE_SERVER_HOST: &str = "127.0.0.1";
 pub static REMOTE_SERVER_PORT: i64 = 6080;
+pub static REMOTE_SERVER_OAUTH2: &str = ".bld/oauth2";
 
 pub static DEFAULT_PIPELINE_CONTENT: &str = r"name: Default Pipeline
 runs-on: machine
@@ -28,7 +29,7 @@ steps:
 pub fn default_server_config() -> String {
     format!(
         r"local:
-    enable-server: {} 
+    server-mode: {} 
     host: {}
     port: {}
     logs: {}
@@ -41,13 +42,13 @@ pub fn default_server_config() -> String {
 pub fn default_client_config() -> String {
     format!(
         r"local:
-    enable-server: {} 
+    server-mode: {} 
     docker-url: {}
 remote:
     - server: {}
       host: {}
       port: {}",
-        LOCAL_ENABLE_SERVER,
+        LOCAL_SERVER_MODE,
         LOCAL_DOCKER_URL,
         REMOTE_SERVER_NAME,
         REMOTE_SERVER_HOST,

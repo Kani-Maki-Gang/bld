@@ -1,6 +1,6 @@
 use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, BldConfig};
 use crate::helpers::errors::{no_server_in_config, server_not_in_config};
-use crate::helpers::request::exec_post;
+use crate::helpers::request::{exec_post, headers};
 use crate::helpers::term::print_error;
 use crate::persist::NullLogger;
 use crate::run::Pipeline;
@@ -32,13 +32,13 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
         .or(Some(TOOL_DEFAULT_PIPELINE))
         .unwrap()
         .to_string();
-    let (host, port) = match matches.value_of("server") {
+    let srv = match matches.value_of("server") {
         Some(name) => match servers.iter().find(|s| s.name == name) {
-            Some(srv) => (&srv.host, srv.port),
+            Some(srv) => srv,
             None => return server_not_in_config(),
         },
         None => match servers.iter().next() {
-            Some(srv) => (&srv.host, srv.port),
+            Some(srv) => srv,
             None => return no_server_in_config(),
         },
     };
@@ -52,8 +52,9 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
                     PushInfo::new(n, s)
                 })
                 .collect();
-            let url = format!("http://{}:{}/push", host, port);
-            exec_post(sys, url, data);
+            let url = format!("http://{}:{}/push", srv.host, srv.port);
+            let headers = headers(&srv.name, &srv.auth)?;
+            exec_post(sys, url, headers, data);
         }
         Err(e) => {
             let _ = print_error(&e.to_string());
