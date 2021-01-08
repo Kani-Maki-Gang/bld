@@ -97,9 +97,9 @@ steps:
 
 # Authentication
 
-Server mode does not have it own authentication method but it uses external authentication server. In the future multiple ways of
+Server mode does not have it's own authentication method but it uses external authentication services. In the future multiple ways of
 authentication will be supported. The only current method is using an existing oauth2 service (Github, Google, Microsoft etc). 
-An example of authentication using Github.
+Below is an example of authentication using a Github oauth2 app.
 
 #### Configuration of client to login using github
 The below example assumes that a github oauth2 app has been setup.
