@@ -106,11 +106,12 @@ impl Actor for ExecutePipelineSocket {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_interval(Duration::from_secs(1), |act, ctx| {
+        ctx.run_interval(Duration::from_millis(500), |act, ctx| {
             ExecutePipelineSocket::heartbeat(act, ctx);
             ExecutePipelineSocket::scan(act, ctx);
         });
-        ctx.run_interval(Duration::from_secs(5), |act, ctx| {
+        ctx.run_interval(Duration::from_secs(10), |act, ctx| {
+            ExecutePipelineSocket::scan(act, ctx);
             ExecutePipelineSocket::exec(act, ctx);
         });
     }
