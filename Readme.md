@@ -117,6 +117,10 @@ remote:
       client-id: your_oauth2_app_client_id 
       client-secret: your_oauth2_app_client_secret 
       scopes: ["public_repo", "user:email"]
+  - server: local_srv_2
+    host: 127.0.0.1
+    port: 6090
+    same-auth-as: local_srv
 ```
 
 #### Configuration of server to validate user using github

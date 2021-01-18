@@ -1,5 +1,5 @@
 use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, BldConfig};
-use crate::helpers::errors::{no_server_in_config, server_not_in_config};
+use crate::helpers::errors::{auth_for_server_invalid, no_server_in_config, server_not_in_config};
 use crate::helpers::request::headers;
 use crate::helpers::term::print_error;
 use crate::monit::{MonitorPipelineSocketClient, MonitorPipelineSocketMessage};
@@ -12,7 +12,7 @@ use std::collections::HashMap;
 
 struct MonitorConnectionInfo {
     host: String,
-    port: i64, 
+    port: i64,
     headers: HashMap<String, String>,
     id: String,
 }
@@ -52,7 +52,7 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
         .or(Some(TOOL_DEFAULT_PIPELINE))
         .unwrap()
         .to_string();
-    let server = match matches.value_of("server") {
+    let srv = match matches.value_of("server") {
         Some(name) => match servers.iter().find(|s| s.name == name) {
             Some(srv) => srv,
             None => return server_not_in_config(),
@@ -62,10 +62,17 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
             None => return no_server_in_config(),
         },
     };
+    let (name, auth) = match &srv.same_auth_as {
+        Some(name) => match servers.iter().find(|s| &s.name == name) {
+            Some(srv) => (&srv.name, &srv.auth),
+            None => return auth_for_server_invalid(),
+        },
+        None => (&srv.name, &srv.auth),
+    };
     exec_request(MonitorConnectionInfo {
-        host: server.host.to_string(),
-        port: server.port,
-        headers: headers(&server.name, &server.auth)?,
+        host: srv.host.to_string(),
+        port: srv.port,
+        headers: headers(name, auth)?,
         id: id,
     });
     Ok(())

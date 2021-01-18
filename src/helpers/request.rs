@@ -1,7 +1,7 @@
+use crate::config::{definitions::REMOTE_SERVER_OAUTH2, Auth};
+use crate::helpers::term::print_error;
 use crate::path;
 use crate::types::Result;
-use crate::config::{Auth, definitions::REMOTE_SERVER_OAUTH2};
-use crate::helpers::term::print_error;
 use actix::{Arbiter, System};
 use actix_http::Payload;
 use actix_web::{client::Client, dev::Decompress, error::PayloadError};
@@ -39,9 +39,10 @@ async fn handle_response(resp: &mut ServerResponse) {
 pub fn headers(server: &str, auth: &Auth) -> Result<HashMap<String, String>> {
     let mut headers = HashMap::new();
     if let Auth::OAuth2(_info) = auth {
-        let token = fs::read_to_string(path![REMOTE_SERVER_OAUTH2, server])?;
-        let bearer = format!("Bearer {}", token); 
-        headers.insert("Authorization".to_string(), bearer);
+        if let Ok(token) = fs::read_to_string(path![REMOTE_SERVER_OAUTH2, server]) {
+            let bearer = format!("Bearer {}", token);
+            headers.insert("Authorization".to_string(), bearer);
+        }
     }
     Ok(headers)
 }

@@ -1,5 +1,5 @@
 use crate::config::BldConfig;
-use crate::helpers::errors::{no_server_in_config, server_not_in_config};
+use crate::helpers::errors::{auth_for_server_invalid, no_server_in_config, server_not_in_config};
 use crate::helpers::request::{exec_post, headers};
 use crate::types::Result;
 use clap::ArgMatches;
@@ -18,9 +18,16 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
             None => return no_server_in_config(),
         },
     };
+    let (name, auth) = match &srv.same_auth_as {
+        Some(name) => match servers.iter().find(|s| &s.name == name) {
+            Some(srv) => (&srv.name, &srv.auth),
+            None => return auth_for_server_invalid(),
+        },
+        None => (&srv.name, &srv.auth),
+    };
     let sys = String::from("bld-stop");
     let url = format!("http://{}:{}/stop", srv.host, srv.port);
-    let headers = headers(&srv.name, &srv.auth)?;
+    let headers = headers(name, auth)?;
     exec_post(sys, url, headers, id);
     Ok(())
 }

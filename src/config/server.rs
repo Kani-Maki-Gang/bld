@@ -8,6 +8,7 @@ pub struct BldServerConfig {
     pub host: String,
     pub port: i64,
     pub auth: Auth,
+    pub same_auth_as: Option<String>,
 }
 
 impl BldServerConfig {
@@ -28,11 +29,13 @@ impl BldServerConfig {
             Some("oauth2") => Auth::OAuth2(OAuth2Info::load(&host, port, &yaml["auth"])?),
             _ => Auth::None,
         };
+        let same_auth_as = yaml["same-auth-as"].as_str().map(|s| s.to_string());
         Ok(Self {
             name,
             host,
             port,
             auth,
+            same_auth_as,
         })
     }
 }

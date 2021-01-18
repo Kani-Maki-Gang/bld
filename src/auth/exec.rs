@@ -1,6 +1,6 @@
 use crate::auth::Login;
 use crate::config::{Auth, BldConfig};
-use crate::helpers::errors::{no_server_in_config, server_not_in_config};
+use crate::helpers::errors::{auth_for_server_invalid, no_server_in_config, server_not_in_config};
 use crate::types::Result;
 use clap::ArgMatches;
 
@@ -17,8 +17,15 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
             None => return no_server_in_config(),
         },
     };
-    if let Auth::OAuth2(info) = &srv.auth {
-        info.login(&srv.name)?;
+    let (name, auth) = match &srv.same_auth_as {
+        Some(name) => match servers.iter().find(|s| &s.name == name) {
+            Some(srv) => (&srv.name, &srv.auth),
+            None => return auth_for_server_invalid(),
+        },
+        None => (&srv.name, &srv.auth),
+    };
+    if let Auth::OAuth2(info) = auth {
+        info.login(name)?;
     }
     Ok(())
 }

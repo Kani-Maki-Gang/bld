@@ -5,28 +5,31 @@ pub use client::*;
 pub use messages::*;
 
 use crate::config::BldConfig;
+use crate::helpers::errors::{auth_for_server_invalid, server_not_in_config};
 use crate::helpers::request::headers;
 use crate::helpers::term::print_error;
 use crate::run::socket::{ExecutePipelineSocketClient, ExecutePipelineSocketMessage};
-use crate::types::{BldError, Result};
+use crate::types::Result;
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
 use awc::Client;
 use futures::stream::StreamExt;
 
-fn server_not_found() -> Result<()> {
-    let message = String::from("server not found in config");
-    Err(BldError::Other(message))
-}
-
 async fn remote_invoke(name: String, server: String) -> Result<()> {
     let config = BldConfig::load()?;
-    let server = config.remote.servers.iter().find(|s| s.name == server);
-    let server = match server {
-        Some(s) => s,
-        None => return server_not_found(),
+    let servers = config.remote.servers;
+    let srv = match servers.iter().find(|s| s.name == server) {
+        Some(srv) => srv,
+        None => return server_not_in_config(),
     };
-    let url = format!("http://{}:{}/ws-exec/", server.host, server.port);
-    let headers = headers(&server.name, &server.auth)?;
+    let (srv_name, auth) = match &srv.same_auth_as {
+        Some(name) => match servers.iter().find(|s| &s.name == name) {
+            Some(srv) => (&srv.name, &srv.auth),
+            None => return auth_for_server_invalid(),
+        },
+        None => (&srv.name, &srv.auth),
+    };
+    let url = format!("http://{}:{}/ws-exec/", srv.host, srv.port);
+    let headers = headers(srv_name, auth)?;
     let mut client = Client::new().ws(url);
     for (key, value) in headers.iter() {
         client = client.header(&key[..], &value[..]);

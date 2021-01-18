@@ -1,5 +1,5 @@
 use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, BldConfig};
-use crate::helpers::errors::{no_server_in_config, server_not_in_config};
+use crate::helpers::errors::{auth_for_server_invalid, no_server_in_config, server_not_in_config};
 use crate::helpers::request::{exec_post, headers};
 use crate::helpers::term::print_error;
 use crate::persist::NullLogger;
@@ -27,7 +27,7 @@ fn build_payload(name: String) -> Result<HashSet<(String, String)>> {
 pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
     let config = BldConfig::load()?;
     let servers = config.remote.servers;
-    let name = matches
+    let pip = matches
         .value_of("pipeline")
         .or(Some(TOOL_DEFAULT_PIPELINE))
         .unwrap()
@@ -42,7 +42,14 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
             None => return no_server_in_config(),
         },
     };
-    match build_payload(name) {
+    let (name, auth) = match &srv.same_auth_as {
+        Some(name) => match servers.iter().find(|s| &s.name == name) {
+            Some(srv) => (&srv.name, &srv.auth),
+            None => return auth_for_server_invalid(),
+        },
+        None => (&srv.name, &srv.auth),
+    };
+    match build_payload(pip) {
         Ok(payload) => {
             let sys = String::from("bld-push");
             let data: Vec<PushInfo> = payload
@@ -53,7 +60,7 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
                 })
                 .collect();
             let url = format!("http://{}:{}/push", srv.host, srv.port);
-            let headers = headers(&srv.name, &srv.auth)?;
+            let headers = headers(name, auth)?;
             exec_post(sys, url, headers, data);
         }
         Err(e) => {
