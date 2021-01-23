@@ -47,11 +47,14 @@ impl Database {
         self.pipeline = PipelineModel::select_by_id(&self.connection, &id);
     }
 
-    pub fn add(&mut self, id: &str, name: &str) -> Result<()> {
+    pub fn add(&mut self, id: &str, name: &str, user: &str) -> Result<()> {
         let pipeline = PipelineModel {
             id: id.to_string(),
             name: name.to_string(),
             running: false,
+            user: user.to_string(),
+            start_date_time: chrono::Utc::now().to_string(),
+            end_date_time: String::new(),
         };
         PipelineModel::insert(&self.connection, &pipeline)?;
         self.pipeline = Some(pipeline);
@@ -62,9 +65,20 @@ impl Database {
 impl Execution for Database {
     fn update(&mut self, running: bool) -> Result<()> {
         match self.pipeline.as_mut() {
-            Some(mut pipeline) => {
-                PipelineModel::update(&self.connection, &pipeline.id, running)?;
-                pipeline.running = running;
+            Some(mut pip) => {
+                let end_date_time = match running {
+                    true => String::new(),
+                    false => chrono::Utc::now().to_string(),
+                };
+                match PipelineModel::update(&self.connection, &pip.id, running, &end_date_time) {
+                    Ok(_) => {},
+                    Err(e) => {
+                        eprintln!("{}", e.to_string());
+                        return Err(BldError::Other("could not update pipeline model".to_string()));
+                    }
+                }
+                pip.running = running;
+                pip.end_date_time = end_date_time;
                 Ok(())
             }
             None => no_pipeline_instance(),

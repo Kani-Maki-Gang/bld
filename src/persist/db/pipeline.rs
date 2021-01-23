@@ -13,6 +13,12 @@ pub struct PipelineModel {
     pub name: String,
     #[sql_type = "Bool"]
     pub running: bool,
+    #[sql_type="Text"]
+    pub user: String,
+    #[sql_type="Text"]
+    pub start_date_time: String,
+    #[sql_type="Text"]
+    pub end_date_time: String,
 }
 
 impl PipelineModel {
@@ -41,15 +47,32 @@ impl PipelineModel {
             .bind::<Text, _>(&pipeline.id)
             .bind::<Text, _>(&pipeline.name)
             .bind::<Bool, _>(pipeline.running)
+            .bind::<Text, _>(&pipeline.user)
+            .bind::<Text, _>(&pipeline.start_date_time)
+            .bind::<Text, _>(&pipeline.end_date_time)
             .execute(connection)?;
         Ok(())
     }
 
-    pub fn update(connection: &SqliteConnection, id: &str, running: bool) -> Result<()> {
+    pub fn update(connection: &SqliteConnection, id: &str, running: bool, end_date_time: &str) -> Result<()> {
         sql_query(UPDATE_PIPELINE_QUERY)
             .bind::<Bool, _>(running)
+            .bind::<Text, _>(end_date_time)
             .bind::<Text, _>(id)
             .execute(connection)?;
         Ok(())
+    }
+}
+
+impl ToString for PipelineModel {
+    fn to_string(&self) -> String {
+        let mut info = String::new();
+        info.push_str(&format!("ID: {}\n", self.id));
+        info.push_str(&format!("NAME: {}\n", self.name));
+        info.push_str(&format!("USER: {}\n", self.user));
+        info.push_str(&format!("IS RUNNING: {}\n", self.running));
+        info.push_str(&format!("START TIME: {}\n", self.start_date_time));
+        info.push_str(&format!("END TIME: {}", self.end_date_time));
+        info
     }
 }

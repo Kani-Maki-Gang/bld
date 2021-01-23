@@ -487,6 +487,7 @@ dependencies = [
  "actix-web-actors",
  "awc",
  "bytes 0.5.6",
+ "chrono",
  "clap",
  "diesel",
  "env_logger",

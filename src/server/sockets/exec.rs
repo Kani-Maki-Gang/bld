@@ -91,7 +91,7 @@ impl ExecutePipelineSocket {
             .display()
             .to_string();
         let mut db = Database::connect(&config.local.db)?;
-        let _ = db.add(&id, &name)?;
+        let _ = db.add(&id, &name, "some user")?;
         let lg = FileLogger::new(&lg_path)?;
 
         self.exec = Some(Arc::new(Mutex::new(db)));
