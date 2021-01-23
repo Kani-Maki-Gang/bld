@@ -68,13 +68,17 @@ where
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
         let auth = self.auth.clone();
         let bearer = get_header(&req, "Authorization");
+        let ignore_auth = req.uri().to_string().contains("authRedirect");
         let fut = self.service.call(req);
         Box::pin(async move {
-            let validation = match auth {
-                AuthValidation::OAuth2(url) => oauth2_validate(&url, &bearer).await,
-                AuthValidation::Ldap => Ok(()),
-                AuthValidation::None => Ok(()),
-            };
+            let mut validation: Result<()> = Ok(());
+            if !ignore_auth {
+                validation = match auth {
+                    AuthValidation::OAuth2(url) => oauth2_validate(&url, &bearer).await,
+                    AuthValidation::Ldap => Ok(()),
+                    AuthValidation::None => Ok(()),
+                };
+            }
             if let Ok(()) = validation {
                 return Ok(fut.await?);
             }
@@ -93,9 +97,6 @@ fn get_header(req: &ServiceRequest, name: &str) -> String {
 }
 
 async fn oauth2_validate(url: &str, bearer: &str) -> Result<()> {
-    if url.contains("authRedirect") {
-        return Ok(());
-    }
     let client = Client::default();
     let response = client
         .get(url)
