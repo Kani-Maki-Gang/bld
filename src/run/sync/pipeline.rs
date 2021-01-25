@@ -52,7 +52,7 @@ impl Pipeline {
 
     pub fn parse(src: &str, logger: Arc<Mutex<dyn Logger>>) -> Result<Pipeline> {
         let yaml = YamlLoader::load_from_str(&src)?;
-        if yaml.len() == 0 {
+        if yaml.is_empty() {
             return Err(BldError::YamlError("invalid yaml".to_string()));
         }
         let entry = yaml[0].clone();

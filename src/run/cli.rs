@@ -15,5 +15,5 @@ pub fn command() -> App<'static, 'static> {
     SubCommand::with_name("run")
         .about("Executes a build pipeline")
         .version(VERSION)
-        .args(&vec![pipeline, server])
+        .args(&[pipeline, server])
 }

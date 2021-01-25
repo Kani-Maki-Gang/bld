@@ -13,5 +13,5 @@ pub fn command() -> App<'static, 'static> {
     SubCommand::with_name("config")
         .about("Lists bld's configuration")
         .version(VERSION)
-        .args(&vec![local, remote])
+        .args(&[local, remote])
 }

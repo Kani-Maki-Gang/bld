@@ -58,7 +58,7 @@ fn list_remote(remote: &BldRemoteConfig) -> Result<()> {
             _ => {}
         }
         if i < remote.servers.len() - 1 {
-            println!("");
+            println!();
         }
     }
 
@@ -67,7 +67,7 @@ fn list_remote(remote: &BldRemoteConfig) -> Result<()> {
 
 fn list_all(config: &BldConfig) -> Result<()> {
     list_locals(&config.local)?;
-    println!("");
+    println!();
     list_remote(&config.remote)?;
     Ok(())
 }

@@ -36,7 +36,7 @@ impl PipelineModel {
         let query = sql_query(SELECT_PIPELINE_BY_ID_QUERY)
             .bind::<Text, _>(id)
             .load::<Self>(connection);
-        if let Err(_) = query {
+        if query.is_err() {
             return None;
         }
         query.unwrap().pop()

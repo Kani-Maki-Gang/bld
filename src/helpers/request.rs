@@ -31,7 +31,7 @@ async fn handle_response(resp: &mut ServerResponse) {
         StatusCode::UNAUTHORIZED => String::from("unauthorized"),
         _ => String::from("unexpected response from server"),
     };
-    if res.len() > 0 {
+    if !res.is_empty() {
         println!("{}", res);
     }
 }

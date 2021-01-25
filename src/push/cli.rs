@@ -15,5 +15,5 @@ pub fn command() -> App<'static, 'static> {
     SubCommand::with_name("push")
         .about("Pushes the contents of a pipeline to a bld server")
         .version(VERSION)
-        .args(&vec![pipeline, server])
+        .args(&[pipeline, server])
 }

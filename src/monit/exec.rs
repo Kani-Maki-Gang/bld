@@ -73,7 +73,7 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
         host: srv.host.to_string(),
         port: srv.port,
         headers: headers(name, auth)?,
-        id: id,
+        id,
     });
     Ok(())
 }
