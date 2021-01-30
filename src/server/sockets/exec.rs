@@ -23,6 +23,7 @@ type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
 
 pub struct ExecutePipelineSocket {
     hb: Instant,
+    user: User,
     config: Option<BldConfig>,
     exec: Option<Arc<Mutex<Database>>>,
     logger: Option<Arc<Mutex<FileLogger>>>,
@@ -31,13 +32,14 @@ pub struct ExecutePipelineSocket {
 }
 
 impl ExecutePipelineSocket {
-    pub fn new(app_data: web::Data<PipelinePool>) -> Self {
+    pub fn new(user: User, app_data: web::Data<PipelinePool>) -> Self {
         let config = match BldConfig::load() {
             Ok(config) => Some(config),
             Err(_) => None,
         };
         Self {
             hb: Instant::now(),
+            user,
             config,
             exec: None,
             logger: None,
@@ -91,7 +93,7 @@ impl ExecutePipelineSocket {
             .display()
             .to_string();
         let mut db = Database::connect(&config.local.db)?;
-        let _ = db.add(&id, &name, "some user")?;
+        let _ = db.add(&id, &name, &self.user.name)?;
         let lg = FileLogger::new(&lg_path)?;
 
         self.exec = Some(Arc::new(Mutex::new(db)));
@@ -189,10 +191,13 @@ pub async fn ws_exec(
     stream: web::Payload,
     data: web::Data<PipelinePool>,
 ) -> StdResult<HttpResponse, Error> {
-    if let None = user { return Err(ErrorUnauthorized("")); }
+    let user = match user {
+        Some(usr) => usr,
+        None => return Err(ErrorUnauthorized("")),
+    };
 
     println!("{:?}", req);
-    let res = ws::start(ExecutePipelineSocket::new(data), &req, stream);
+    let res = ws::start(ExecutePipelineSocket::new(user, data), &req, stream);
     println!("{:?}", res);
     res
 }
