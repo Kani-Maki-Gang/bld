@@ -1,9 +1,12 @@
 use crate::config::definitions::{TOOL_DEFAULT_CONFIG, TOOL_DIR};
+use crate::server::User;
 use actix_web::{get, HttpResponse};
 use std::fs::{read_dir, DirEntry};
 
 #[get("/list")]
-pub async fn list() -> HttpResponse {
+pub async fn list(user: Option<User>) -> HttpResponse {
+    if let None = user { return HttpResponse::Unauthorized().body(""); }
+
     if let Ok(dir) = read_dir(TOOL_DIR) {
         let pips = dir
             .filter(|e| e.is_ok())
@@ -17,6 +20,7 @@ pub async fn list() -> HttpResponse {
             });
         return HttpResponse::Ok().body(pips);
     }
+
     HttpResponse::BadRequest().body("no pipelines found")
 }
 

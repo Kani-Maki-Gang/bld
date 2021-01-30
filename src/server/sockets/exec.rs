@@ -3,10 +3,10 @@ use crate::helpers::term;
 use crate::path;
 use crate::persist::{Database, FileLogger, FileScanner, Scanner};
 use crate::run::{Pipeline, Runner};
-use crate::server::PipelinePool;
+use crate::server::{User, PipelinePool};
 use crate::types::{BldError, Result};
 use actix::prelude::*;
-use actix_web::{web, Error, HttpRequest, HttpResponse};
+use actix_web::{web, error::ErrorUnauthorized, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
@@ -184,10 +184,13 @@ fn invoke_pipeline(name: String, ex: AtomicDb, lg: AtomicFs, cm: Option<AtomicRe
 }
 
 pub async fn ws_exec(
+    user: Option<User>,
     req: HttpRequest,
     stream: web::Payload,
     data: web::Data<PipelinePool>,
 ) -> StdResult<HttpResponse, Error> {
+    if let None = user { return Err(ErrorUnauthorized("")); }
+
     println!("{:?}", req);
     let res = ws::start(ExecutePipelineSocket::new(data), &req, stream);
     println!("{:?}", res);

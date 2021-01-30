@@ -1,8 +1,10 @@
-use crate::server::PipelinePool;
+use crate::server::{User, PipelinePool};
 use actix_web::{post, web, HttpResponse};
 
 #[post("/stop")]
-pub fn stop((req, data): (web::Json<String>, web::Data<PipelinePool>)) -> HttpResponse {
+pub fn stop((user, req, data): (Option<User>, web::Json<String>, web::Data<PipelinePool>)) -> HttpResponse {
+    if let None = user { return HttpResponse::Unauthorized().body(""); }
+
     let id = req.into_inner();
     let pool = data.senders.lock().unwrap();
     match pool.get(&id) {

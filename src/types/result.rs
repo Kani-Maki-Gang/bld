@@ -1,5 +1,6 @@
 use actix::MailboxError;
 use actix_http::client::SendRequestError;
+use actix_http::error::PayloadError;
 use actix_http::http::uri::InvalidUri;
 use actix_web::client::WsClientError;
 use diesel::ConnectionError;
@@ -58,6 +59,18 @@ impl From<WsClientError> for BldError {
 
 impl From<SendRequestError> for BldError {
     fn from(error: SendRequestError) -> Self {
+        Self::ActixError(error.to_string())
+    }
+}
+
+impl From<&mut SendRequestError> for BldError {
+    fn from(error: &mut SendRequestError) -> Self {
+        Self::ActixError(error.to_string())
+    }
+}
+
+impl From<PayloadError> for BldError {
+    fn from(error: PayloadError) -> Self {
         Self::ActixError(error.to_string())
     }
 }
