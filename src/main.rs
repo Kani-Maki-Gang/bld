@@ -20,7 +20,7 @@ use clap::App;
 fn main() {
     let matches = App::new("Bld")
         .version(VERSION)
-        .about("A distributed CI/CD")
+        .about("A simple CI/CD")
         .subcommands(vec![
             auth::command(),
             init::command(),
