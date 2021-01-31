@@ -43,7 +43,7 @@ impl Container {
     async fn pull(client: &Docker, image: &str, logger: &mut Arc<Mutex<dyn Logger>>) -> Result<()> {
         let options = ImageListOptions::builder().filter_name(image).build();
         let images = client.images().list(&options).await?;
-        if images.len() == 0 {
+        if images.is_empty() {
             {
                 let mut logger = logger.lock().unwrap();
                 logger.info(&format!("Download image: {}", image));
@@ -54,7 +54,7 @@ impl Container {
                 let info = progress?;
                 {
                     let mut logger = logger.lock().unwrap();
-                    logger.dumpln(&format!("{}", info.to_string()))
+                    logger.dumpln(&info.to_string());
                 }
                 sleep(Duration::from_millis(100));
             }
@@ -125,7 +125,7 @@ impl Container {
             };
             {
                 let mut logger = self.lg.lock().unwrap();
-                logger.dump(&format!("{}", &chunk));
+                logger.dump(&chunk);
             }
             sleep(Duration::from_millis(100));
         }

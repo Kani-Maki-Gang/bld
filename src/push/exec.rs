@@ -12,7 +12,7 @@ fn build_payload(name: String) -> Result<HashSet<(String, String)>> {
     let src = Pipeline::read(&name)?;
     let pipeline = Pipeline::parse(&src, NullLogger::atom())?;
     let mut set = HashSet::new();
-    set.insert((name.to_string(), src));
+    set.insert((name, src));
     for step in pipeline.steps.iter() {
         if let Some(pipeline) = &step.call {
             let subset = build_payload(pipeline.to_string())?;
@@ -37,7 +37,7 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
             Some(srv) => srv,
             None => return server_not_in_config(),
         },
-        None => match servers.iter().next() {
+        None => match servers.get(0) {
             Some(srv) => srv,
             None => return no_server_in_config(),
         },

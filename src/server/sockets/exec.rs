@@ -3,10 +3,10 @@ use crate::helpers::term;
 use crate::path;
 use crate::persist::{Database, FileLogger, FileScanner, Scanner};
 use crate::run::{Pipeline, Runner};
-use crate::server::PipelinePool;
+use crate::server::{User, PipelinePool};
 use crate::types::{BldError, Result};
 use actix::prelude::*;
-use actix_web::{web, Error, HttpRequest, HttpResponse};
+use actix_web::{web, error::ErrorUnauthorized, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
@@ -23,6 +23,7 @@ type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
 
 pub struct ExecutePipelineSocket {
     hb: Instant,
+    user: User,
     config: Option<BldConfig>,
     exec: Option<Arc<Mutex<Database>>>,
     logger: Option<Arc<Mutex<FileLogger>>>,
@@ -31,13 +32,14 @@ pub struct ExecutePipelineSocket {
 }
 
 impl ExecutePipelineSocket {
-    pub fn new(app_data: web::Data<PipelinePool>) -> Self {
+    pub fn new(user: User, app_data: web::Data<PipelinePool>) -> Self {
         let config = match BldConfig::load() {
             Ok(config) => Some(config),
             Err(_) => None,
         };
         Self {
             hb: Instant::now(),
+            user,
             config,
             exec: None,
             logger: None,
@@ -91,7 +93,7 @@ impl ExecutePipelineSocket {
             .display()
             .to_string();
         let mut db = Database::connect(&config.local.db)?;
-        let _ = db.add(&id, &name)?;
+        let _ = db.add(&id, &name, &self.user.name)?;
         let lg = FileLogger::new(&lg_path)?;
 
         self.exec = Some(Arc::new(Mutex::new(db)));
@@ -184,12 +186,18 @@ fn invoke_pipeline(name: String, ex: AtomicDb, lg: AtomicFs, cm: Option<AtomicRe
 }
 
 pub async fn ws_exec(
+    user: Option<User>,
     req: HttpRequest,
     stream: web::Payload,
     data: web::Data<PipelinePool>,
 ) -> StdResult<HttpResponse, Error> {
+    let user = match user {
+        Some(usr) => usr,
+        None => return Err(ErrorUnauthorized("")),
+    };
+
     println!("{:?}", req);
-    let res = ws::start(ExecutePipelineSocket::new(data), &req, stream);
+    let res = ws::start(ExecutePipelineSocket::new(user, data), &req, stream);
     println!("{:?}", res);
     res
 }

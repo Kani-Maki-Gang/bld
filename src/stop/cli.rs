@@ -16,5 +16,5 @@ pub fn command() -> App<'static, 'static> {
     SubCommand::with_name("stop")
         .about("Stops a running pipeline on a server")
         .version(VERSION)
-        .args(&vec![id, server])
+        .args(&[id, server])
 }

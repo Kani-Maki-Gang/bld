@@ -10,5 +10,5 @@ pub fn command() -> App<'static, 'static> {
     SubCommand::with_name("hist")
         .about("Fetches execution history of pipelines on a server")
         .version(VERSION)
-        .args(&vec![server])
+        .args(&[server])
 }

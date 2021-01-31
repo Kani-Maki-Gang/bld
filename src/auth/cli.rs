@@ -10,5 +10,5 @@ pub fn command() -> App<'static, 'static> {
     SubCommand::with_name("login")
         .about("Initiates the login process for a bld server")
         .version(VERSION)
-        .args(&vec![server])
+        .args(&[server])
 }

@@ -2,7 +2,7 @@ use crate::config::definitions::TOOL_DIR;
 use crate::path;
 use crate::persist::Logger;
 use crate::run::{Container, Machine, RunPlatform};
-use crate::types::{BldError, Result};
+use crate::types::{EMPTY_YAML_VEC, BldError, Result};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use yaml_rust::{Yaml, YamlLoader};
@@ -52,7 +52,7 @@ impl Pipeline {
 
     pub fn parse(src: &str, logger: Arc<Mutex<dyn Logger>>) -> Result<Pipeline> {
         let yaml = YamlLoader::load_from_str(&src)?;
-        if yaml.len() == 0 {
+        if yaml.is_empty() {
             return Err(BldError::YamlError("invalid yaml".to_string()));
         }
         let entry = yaml[0].clone();
@@ -67,7 +67,7 @@ impl Pipeline {
         };
         let runs_on = match yaml["runs-on"].as_str() {
             Some("machine") | None => RunPlatform::Local(Machine::new(logger)?),
-            Some(target) => RunPlatform::Docker(Container::new(target, logger)),
+            Some(target) => RunPlatform::Docker(Box::new(Container::new(target, logger))),
         };
         Ok(Self {
             name,
@@ -98,7 +98,7 @@ impl Pipeline {
                 };
                 let commands: Vec<String> = entry["exec"]
                     .as_vec()
-                    .or(Some(&Vec::new()))
+                    .or(Some(&EMPTY_YAML_VEC))
                     .unwrap()
                     .iter()
                     .map(|c| c["sh"].as_str().or(Some("")).unwrap().to_string())

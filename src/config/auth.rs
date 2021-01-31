@@ -1,4 +1,4 @@
-use crate::types::Result;
+use crate::types::{EMPTY_YAML_VEC, Result};
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, Scope, TokenUrl};
 use yaml_rust::Yaml;
 
@@ -13,7 +13,7 @@ pub struct OAuth2Info {
 }
 
 impl OAuth2Info {
-    pub fn load(host: &str, port: i64, yaml: &Yaml) -> Result<Self> {
+    pub fn load(host: &str, port: i64, yaml: &Yaml) -> Result<Box<Self>> {
         let auth_url = AuthUrl::new(
             yaml["auth-url"]
                 .as_str()
@@ -40,7 +40,7 @@ impl OAuth2Info {
         );
         let scopes = yaml["scopes"]
             .as_vec()
-            .or(Some(&Vec::new()))
+            .or(Some(&EMPTY_YAML_VEC))
             .unwrap()
             .iter()
             .map(|y| y.as_str())
@@ -48,21 +48,21 @@ impl OAuth2Info {
             .map(|y| Scope::new(y.unwrap().to_string()))
             .collect();
         let redirect_url = RedirectUrl::new(format!("http://{}:{}/authRedirect", host, port))?;
-        Ok(Self {
+        Ok(Box::new(Self {
             auth_url,
             token_url,
             client_id,
             client_secret,
             scopes,
             redirect_url,
-        })
+        }))
     }
 }
 
 #[derive(Debug)]
 pub enum Auth {
     Ldap,
-    OAuth2(OAuth2Info),
+    OAuth2(Box<OAuth2Info>),
     None,
 }
 

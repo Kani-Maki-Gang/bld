@@ -4,7 +4,10 @@ pub static CREATE_TABLE_PIPELINE_QUERY: &str = r"
     create table pipeline (
         id nvarchar(50) primary key not null,
         name nvarchar(250) not null,
-        running boolean
+        running boolean,
+        user nvarchar(250),
+        start_date_time nvarchar(100),
+        end_date_time nvarchar(100)
     )
 ";
 
@@ -21,11 +24,11 @@ pub static SELECT_PIPELINE_BY_ID_QUERY: &str = r"
 
 pub static INSERT_PIPELINE_QUERY: &str = r"
     insert into pipeline
-    values (?, ?, ?)
+    values (?, ?, ?, ?, ?, ?)
 ";
 
 pub static UPDATE_PIPELINE_QUERY: &str = r"
     update pipeline 
-    set running = ? 
+    set running = ?, end_date_time = ?
     where id = ?
 ";
