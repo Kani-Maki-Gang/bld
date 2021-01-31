@@ -85,6 +85,9 @@ impl ExecutePipelineSocket {
         }
 
         let id = Uuid::new_v4().to_string();
+        let config = &self
+            .config
+            .ok_or_else(|| BldError::Other("config not loaded".to_string()))?;
         let config = match &self.config {
             Some(config) => config,
             None => return Err(BldError::Other("config not loaded".to_string())),

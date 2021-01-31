@@ -61,10 +61,7 @@ impl Pipeline {
     }
 
     pub fn load(yaml: &Yaml, logger: Arc<Mutex<dyn Logger>>) -> Result<Self> {
-        let name = match yaml["name"].as_str() {
-            Some(n) => Some(n.to_string()),
-            None => None,
-        };
+        let name = yaml["name"].as_str().map(|n| n.to_string());
         let runs_on = match yaml["runs-on"].as_str() {
             Some("machine") | None => RunPlatform::Local(Machine::new(logger)?),
             Some(target) => RunPlatform::Docker(Box::new(Container::new(target, logger))),
@@ -78,24 +75,22 @@ impl Pipeline {
 
     fn steps(yaml: &Yaml) -> Vec<BuildStep> {
         let mut steps = Vec::<BuildStep>::new();
-        let working_dir = match &yaml["working-dir"].as_str() {
-            Some(wd) => Some(wd.to_string()),
-            None => None,
-        };
+        let working_dir = yaml["working-dir"]
+            .as_str()
+            .map(|w| w.to_string());
         if let Some(entries) = &yaml["steps"].as_vec() {
             for entry in entries.iter() {
-                let name = match entry["name"].as_str() {
-                    Some(name) => Some(name.to_string()),
-                    None => None,
-                };
-                let working_dir = match &entry["working-dir"].as_str() {
-                    Some(wd) => Some(wd.to_string()),
-                    None => working_dir.clone(),
-                };
-                let call = match entry["call"].as_str() {
-                    Some(pipeline) => Some(pipeline.to_string()),
-                    None => None,
-                };
+                let name = entry["name"]
+                    .as_str()
+                    .map(|n| n.to_string());
+                let working_dir = entry["working-dir"]
+                    .as_str()
+                    .map(|w| w.to_string())
+                    .or_else(|| working_dir.clone());
+                dbg!(&working_dir);
+                let call = entry["call"]
+                    .as_str()
+                    .map(|p| p.to_string());
                 let commands: Vec<String> = entry["exec"]
                     .as_vec()
                     .or(Some(&EMPTY_YAML_VEC))
