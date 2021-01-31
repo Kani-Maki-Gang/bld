@@ -7,7 +7,7 @@ use std::io::Write;
 
 #[post("/push")]
 pub async fn push(user: Option<User>, info: web::Json<Vec<PushInfo>>) -> impl Responder {
-    if let None = user { return HttpResponse::Unauthorized().body(""); }
+    if user.is_none() { return HttpResponse::Unauthorized().body(""); }
 
     match push_pipelines(info.into_inner()) {
         Ok(()) => HttpResponse::Ok().body(&String::new()),

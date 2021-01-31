@@ -1,5 +1,5 @@
 use crate::config::BldServerConfig;
-use crate::types::Result;
+use crate::types::{EMPTY_YAML_VEC, Result};
 use yaml_rust::Yaml;
 
 #[derive(Debug)]
@@ -17,7 +17,7 @@ impl BldRemoteConfig {
     pub fn load(yaml: &Yaml) -> Result<Self> {
         let servers = yaml["remote"]
             .as_vec()
-            .or(Some(&Vec::new()))
+            .or(Some(&EMPTY_YAML_VEC))
             .unwrap()
             .iter()
             .map(|s| BldServerConfig::load(s))

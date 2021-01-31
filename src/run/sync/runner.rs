@@ -27,7 +27,7 @@ impl Runner {
         cm: Option<AtomicRecv>,
     ) -> Result<Runner> {
         if let RunPlatform::Docker(container) = &pip.runs_on {
-            pip.runs_on = RunPlatform::Docker(container.start().await?);
+            pip.runs_on = RunPlatform::Docker(Box::new(container.start().await?));
         }
         Ok(Runner { ex, lg, pip, cm })
     }
@@ -105,7 +105,7 @@ impl Runner {
             let res = runner.steps().await;
             let clean = runner.dispose().await;
             runner.persist_end();
-            res.and_then(|_| clean)
+            res.and(clean)
         })
     }
 

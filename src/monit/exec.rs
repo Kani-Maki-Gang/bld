@@ -57,7 +57,7 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
             Some(srv) => srv,
             None => return server_not_in_config(),
         },
-        None => match servers.iter().next() {
+        None => match servers.get(0) {
             Some(srv) => srv,
             None => return no_server_in_config(),
         },

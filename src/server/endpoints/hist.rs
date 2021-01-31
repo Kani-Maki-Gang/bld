@@ -6,7 +6,7 @@ use actix_web::{get, HttpResponse, Responder};
 
 #[get("/hist")]
 pub async fn hist(user: Option<User>) -> impl Responder {
-    if let None = user { return HttpResponse::Unauthorized().body(""); }
+    if user.is_none() { return HttpResponse::Unauthorized().body(""); }
 
     match history_info() {
         Ok(ls) => HttpResponse::Ok().body(ls),

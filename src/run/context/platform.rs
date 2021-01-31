@@ -3,7 +3,7 @@ use std::fmt::{self, Display, Formatter};
 
 pub enum RunPlatform {
     Local(Machine),
-    Docker(Container),
+    Docker(Box<Container>),
 }
 
 impl Display for RunPlatform {

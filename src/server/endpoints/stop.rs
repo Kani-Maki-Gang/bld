@@ -3,7 +3,7 @@ use actix_web::{post, web, HttpResponse};
 
 #[post("/stop")]
 pub fn stop((user, req, data): (Option<User>, web::Json<String>, web::Data<PipelinePool>)) -> HttpResponse {
-    if let None = user { return HttpResponse::Unauthorized().body(""); }
+    if user.is_none() { return HttpResponse::Unauthorized().body(""); }
 
     let id = req.into_inner();
     let pool = data.senders.lock().unwrap();

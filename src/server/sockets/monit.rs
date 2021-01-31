@@ -142,7 +142,7 @@ pub async fn ws_monit(
     req: HttpRequest, 
     stream: web::Payload
 ) -> StdResult<HttpResponse, Error> {
-    if let None = user { return Err(ErrorUnauthorized("")); }
+    if user.is_none() { return Err(ErrorUnauthorized("")); }
 
     println!("{:?}", req);
     let res = ws::start(MonitorPipelineSocket::new(), &req, stream);
