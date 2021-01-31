@@ -1,4 +1,4 @@
-use crate::config::{AuthValidation, BldConfig};
+use crate::config::BldConfig;
 use crate::helpers::term::print_info;
 use crate::server::{
     auth_redirect, hist, list, push, stop, ws_exec, ws_monit, PipelinePool
@@ -13,16 +13,16 @@ async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Bld server running")
 }
 
-async fn start(host: &str, port: i64, auth: AuthValidation) -> Result<()> {
+async fn start(config: BldConfig, host: &str, port: i64) -> Result<()> {
     print_info(&format!("starting bld server at {}:{}", host, port))?;
-    let auth_data = web::Data::new(auth);
+    let config_data = web::Data::new(config);
     let pool_data = web::Data::new(PipelinePool::new());
     std::env::set_var("RUST_LOG", "actix_server=info,actix_wev=info");
     env_logger::init();
     HttpServer::new(move || {
         App::new()
             .app_data(pool_data.clone())
-            .app_data(auth_data.clone())
+            .app_data(config_data.clone())
             .wrap(middleware::Logger::default())
             .service(hello)
             .service(auth_redirect)
@@ -39,10 +39,10 @@ async fn start(host: &str, port: i64, auth: AuthValidation) -> Result<()> {
     Ok(())
 }
 
-pub fn sys_spawn(host: String, port: i64, auth: AuthValidation) -> Result<()> {
+pub fn sys_spawn(config: BldConfig, host: String, port: i64) -> Result<()> {
     let system = System::new("bld-server");
     Arbiter::spawn(async move {
-        let _ = start(&host, port, auth).await;
+        let _ = start(config, &host, port).await;
     });
     system.run()?;
     Ok(())
@@ -62,6 +62,6 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
         },
         None => config.local.port,
     };
-    sys_spawn(host, port, config.local.auth)?;
+    sys_spawn(config, host, port)?;
     Ok(())
 }

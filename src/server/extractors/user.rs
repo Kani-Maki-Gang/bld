@@ -1,4 +1,4 @@
-use crate::config::AuthValidation;
+use crate::config::{AuthValidation, BldConfig};
 use crate::types::{BldError, Result};
 use actix_http::error::ErrorUnauthorized;
 use actix_web::{Error, HttpRequest, FromRequest};
@@ -30,10 +30,10 @@ impl FromRequest for User {
     type Config = ();
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        let auth = req.app_data::<Data<AuthValidation>>().unwrap().clone();
+        let config = req.app_data::<Data<BldConfig>>().unwrap().clone();
         let bearer = get_bearer(&req);
         async move {
-            if let AuthValidation::OAuth2(url) = auth.get_ref() {
+            if let AuthValidation::OAuth2(url) = &config.get_ref().local.auth {
                 return match oauth2_validate(&url, &bearer).await {
                     Ok(user) => Ok(user),
                     Err(_) => Err(ErrorUnauthorized("")),

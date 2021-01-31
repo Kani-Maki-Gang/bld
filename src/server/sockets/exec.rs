@@ -24,27 +24,23 @@ type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
 pub struct ExecutePipelineSocket {
     hb: Instant,
     user: User,
-    config: Option<BldConfig>,
+    config: web::Data<BldConfig>,
     exec: Option<Arc<Mutex<Database>>>,
     logger: Option<Arc<Mutex<FileLogger>>>,
     scanner: Option<FileScanner>,
-    app_data: web::Data<PipelinePool>,
+    pool: web::Data<PipelinePool>,
 }
 
 impl ExecutePipelineSocket {
-    pub fn new(user: User, app_data: web::Data<PipelinePool>) -> Self {
-        let config = match BldConfig::load() {
-            Ok(config) => Some(config),
-            Err(_) => None,
-        };
+    pub fn new(user: User, config: web::Data<BldConfig>, pool: web::Data<PipelinePool>) -> Self {
         Self {
             hb: Instant::now(),
             user,
-            config,
+            config: config.clone(),
             exec: None,
             logger: None,
             scanner: None,
-            app_data,
+            pool,
         }
     }
 
@@ -85,13 +81,7 @@ impl ExecutePipelineSocket {
         }
 
         let id = Uuid::new_v4().to_string();
-        let config = &self
-            .config
-            .ok_or_else(|| BldError::Other("config not loaded".to_string()))?;
-        let config = match &self.config {
-            Some(config) => config,
-            None => return Err(BldError::Other("config not loaded".to_string())),
-        };
+        let config = self.config.get_ref();
         let lg_path = path![&config.local.logs, format!("{}-{}", name, id)]
             .display()
             .to_string();
@@ -157,7 +147,7 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for ExecutePipelin
                 };
                 let (tx, rx) = mpsc::channel::<bool>();
                 let rx = Arc::new(Mutex::new(rx));
-                let mut pool = self.app_data.senders.lock().unwrap();
+                let mut pool = self.pool.senders.lock().unwrap();
                 pool.insert(id, tx);
                 thread::spawn(move || invoke_pipeline(txt, ex, lg, Some(rx)));
             }
@@ -192,7 +182,8 @@ pub async fn ws_exec(
     user: Option<User>,
     req: HttpRequest,
     stream: web::Payload,
-    data: web::Data<PipelinePool>,
+    config: web::Data<BldConfig>,
+    pool: web::Data<PipelinePool>,
 ) -> StdResult<HttpResponse, Error> {
     let user = match user {
         Some(usr) => usr,
@@ -200,7 +191,7 @@ pub async fn ws_exec(
     };
 
     println!("{:?}", req);
-    let res = ws::start(ExecutePipelineSocket::new(user, data), &req, stream);
+    let res = ws::start(ExecutePipelineSocket::new(user, config, pool), &req, stream);
     println!("{:?}", res);
     res
 }

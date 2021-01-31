@@ -87,7 +87,6 @@ impl Pipeline {
                     .as_str()
                     .map(|w| w.to_string())
                     .or_else(|| working_dir.clone());
-                dbg!(&working_dir);
                 let call = entry["call"]
                     .as_str()
                     .map(|p| p.to_string());
