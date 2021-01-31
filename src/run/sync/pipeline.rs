@@ -2,7 +2,7 @@ use crate::config::definitions::TOOL_DIR;
 use crate::path;
 use crate::persist::Logger;
 use crate::run::{Container, Machine, RunPlatform};
-use crate::types::{EMPTY_YAML_VEC, BldError, Result};
+use crate::types::{BldError, Result, EMPTY_YAML_VEC};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use yaml_rust::{Yaml, YamlLoader};
@@ -75,21 +75,15 @@ impl Pipeline {
 
     fn steps(yaml: &Yaml) -> Vec<BuildStep> {
         let mut steps = Vec::<BuildStep>::new();
-        let working_dir = yaml["working-dir"]
-            .as_str()
-            .map(|w| w.to_string());
+        let working_dir = yaml["working-dir"].as_str().map(|w| w.to_string());
         if let Some(entries) = &yaml["steps"].as_vec() {
             for entry in entries.iter() {
-                let name = entry["name"]
-                    .as_str()
-                    .map(|n| n.to_string());
+                let name = entry["name"].as_str().map(|n| n.to_string());
                 let working_dir = entry["working-dir"]
                     .as_str()
                     .map(|w| w.to_string())
                     .or_else(|| working_dir.clone());
-                let call = entry["call"]
-                    .as_str()
-                    .map(|p| p.to_string());
+                let call = entry["call"].as_str().map(|p| p.to_string());
                 let commands: Vec<String> = entry["exec"]
                     .as_vec()
                     .or(Some(&EMPTY_YAML_VEC))

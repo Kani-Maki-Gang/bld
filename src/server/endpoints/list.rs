@@ -5,7 +5,9 @@ use std::fs::{read_dir, DirEntry};
 
 #[get("/list")]
 pub async fn list(user: Option<User>) -> HttpResponse {
-    if user.is_none() { return HttpResponse::Unauthorized().body(""); }
+    if user.is_none() {
+        return HttpResponse::Unauthorized().body("");
+    }
 
     if let Ok(dir) = read_dir(TOOL_DIR) {
         let pips = dir

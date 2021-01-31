@@ -13,11 +13,11 @@ pub struct PipelineModel {
     pub name: String,
     #[sql_type = "Bool"]
     pub running: bool,
-    #[sql_type="Text"]
+    #[sql_type = "Text"]
     pub user: String,
-    #[sql_type="Text"]
+    #[sql_type = "Text"]
     pub start_date_time: String,
-    #[sql_type="Text"]
+    #[sql_type = "Text"]
     pub end_date_time: String,
 }
 
@@ -54,7 +54,12 @@ impl PipelineModel {
         Ok(())
     }
 
-    pub fn update(connection: &SqliteConnection, id: &str, running: bool, end_date_time: &str) -> Result<()> {
+    pub fn update(
+        connection: &SqliteConnection,
+        id: &str,
+        running: bool,
+        end_date_time: &str,
+    ) -> Result<()> {
         sql_query(UPDATE_PIPELINE_QUERY)
             .bind::<Bool, _>(running)
             .bind::<Text, _>(end_date_time)

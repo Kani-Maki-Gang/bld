@@ -1,10 +1,10 @@
 use crate::config::BldConfig;
 use crate::path;
 use crate::persist::{Database, FileScanner, Scanner};
-use crate::types::{BldError, Result};
 use crate::server::User;
+use crate::types::{BldError, Result};
 use actix::prelude::*;
-use actix_web::{web, error::ErrorUnauthorized, Error, HttpRequest, HttpResponse};
+use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -131,11 +131,13 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for MonitorPipelin
 
 pub async fn ws_monit(
     user: Option<User>,
-    req: HttpRequest, 
+    req: HttpRequest,
     stream: web::Payload,
-    config: web::Data<BldConfig>
+    config: web::Data<BldConfig>,
 ) -> StdResult<HttpResponse, Error> {
-    if user.is_none() { return Err(ErrorUnauthorized("")); }
+    if user.is_none() {
+        return Err(ErrorUnauthorized(""));
+    }
 
     println!("{:?}", req);
     let res = ws::start(MonitorPipelineSocket::new(config), &req, stream);

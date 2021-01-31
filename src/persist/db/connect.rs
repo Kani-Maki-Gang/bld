@@ -71,10 +71,12 @@ impl Execution for Database {
                     false => chrono::Utc::now().to_string(),
                 };
                 match PipelineModel::update(&self.connection, &pip.id, running, &end_date_time) {
-                    Ok(_) => {},
+                    Ok(_) => {}
                     Err(e) => {
                         eprintln!("{}", e.to_string());
-                        return Err(BldError::Other("could not update pipeline model".to_string()));
+                        return Err(BldError::Other(
+                            "could not update pipeline model".to_string(),
+                        ));
                     }
                 }
                 pip.running = running;

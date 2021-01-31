@@ -1,4 +1,4 @@
-use crate::types::{EMPTY_YAML_VEC, Result};
+use crate::types::{Result, EMPTY_YAML_VEC};
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, Scope, TokenUrl};
 use yaml_rust::Yaml;
 

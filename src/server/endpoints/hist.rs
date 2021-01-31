@@ -1,12 +1,14 @@
 use crate::config::BldConfig;
-use crate::server::User;
 use crate::persist::Database;
+use crate::server::User;
 use crate::types::Result;
 use actix_web::{get, web, HttpResponse, Responder};
 
 #[get("/hist")]
 pub async fn hist((user, config): (Option<User>, web::Data<BldConfig>)) -> impl Responder {
-    if user.is_none() { return HttpResponse::Unauthorized().body(""); }
+    if user.is_none() {
+        return HttpResponse::Unauthorized().body("");
+    }
 
     match history_info(config.get_ref()) {
         Ok(ls) => HttpResponse::Ok().body(ls),
