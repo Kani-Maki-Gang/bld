@@ -1,11 +1,11 @@
-use crate::config::AuthValidation;
+use crate::config::{AuthValidation, BldConfig};
 use crate::types::{BldError, Result};
 use actix_http::error::ErrorUnauthorized;
-use actix_web::{Error, HttpRequest, FromRequest};
 use actix_web::client::Client;
 use actix_web::dev::Payload;
 use actix_web::http::HeaderValue;
 use actix_web::web::Data;
+use actix_web::{Error, FromRequest, HttpRequest};
 use awc::http::StatusCode;
 use futures::Future;
 use futures_util::future::FutureExt;
@@ -15,12 +15,14 @@ type StdResult<T, V> = std::result::Result<T, V>;
 
 #[derive(Debug)]
 pub struct User {
-    pub name: String
+    pub name: String,
 }
 
 impl User {
     pub fn new(name: &str) -> Self {
-        Self { name: name.to_string() }
+        Self {
+            name: name.to_string(),
+        }
     }
 }
 
@@ -30,17 +32,18 @@ impl FromRequest for User {
     type Config = ();
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        let auth = req.app_data::<Data<AuthValidation>>().unwrap().clone();
+        let config = req.app_data::<Data<BldConfig>>().unwrap().clone();
         let bearer = get_bearer(&req);
         async move {
-            if let AuthValidation::OAuth2(url) = auth.get_ref() {
+            if let AuthValidation::OAuth2(url) = &config.get_ref().local.auth {
                 return match oauth2_validate(&url, &bearer).await {
                     Ok(user) => Ok(user),
                     Err(_) => Err(ErrorUnauthorized("")),
                 };
             }
             Ok(User::new(""))
-        }.boxed_local()
+        }
+        .boxed_local()
     }
 }
 

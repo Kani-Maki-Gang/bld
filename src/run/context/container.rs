@@ -4,6 +4,7 @@ use crate::types::{BldError, CheckStopSignal, Result};
 use futures_util::StreamExt;
 use shiplift::tty::TtyChunk;
 use shiplift::{ContainerOptions, Docker, ExecContainerOptions, ImageListOptions, PullOptions};
+use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
@@ -12,6 +13,7 @@ use std::time::Duration;
 type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
 
 pub struct Container {
+    pub config: Option<Rc<BldConfig>>,
     pub img: String,
     pub client: Option<Docker>,
     pub id: Option<String>,
@@ -33,8 +35,7 @@ impl Container {
         }
     }
 
-    fn docker() -> Result<Docker> {
-        let config = BldConfig::load()?;
+    fn docker(config: &Rc<BldConfig>) -> Result<Docker> {
         let url = config.local.docker_url.parse()?;
         let host = Docker::host(url);
         Ok(host)
@@ -76,6 +77,7 @@ impl Container {
 
     pub fn new(img: &str, lg: Arc<Mutex<dyn Logger>>) -> Self {
         Self {
+            config: None,
             img: img.to_string(),
             client: None,
             id: None,
@@ -83,11 +85,12 @@ impl Container {
         }
     }
 
-    pub async fn start(&self) -> Result<Self> {
+    pub async fn start(&self, config: Rc<BldConfig>) -> Result<Self> {
         let mut lg = self.lg.clone();
-        let client = Container::docker()?;
+        let client = Container::docker(&config)?;
         let id = Container::create(&client, &self.img, &mut lg).await?;
         Ok(Self {
+            config: Some(config),
             img: self.img.to_string(),
             client: Some(client),
             id: Some(id),

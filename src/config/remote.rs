@@ -1,5 +1,5 @@
 use crate::config::BldServerConfig;
-use crate::types::{EMPTY_YAML_VEC, Result};
+use crate::types::{Result, EMPTY_YAML_VEC};
 use yaml_rust::Yaml;
 
 #[derive(Debug)]

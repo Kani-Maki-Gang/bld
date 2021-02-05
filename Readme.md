@@ -1,6 +1,25 @@
 # BLD
 A simple CI/CD tool.
 
+# Features
+- [X] Running a pipeline on the executing machine or on a docker container.
+- [X] Client and Server mode. 
+- [X] Authentication using an oauth2 service (Github, Google, Microsoft etc).
+
+# Commands
+Command | Description
+------- | -----------
+config  | Lists bld's configuration.
+init    | Initializes the bld configuration.
+hist    | Fetches execution history of pipelines on a bld server.
+login   | Initiates the login process for a bld server
+ls      | Lists pipelines in a bld server.
+monit   | Connects to a bld server to monitor the execution of a pipeline.
+push    | Pushes the content of a pipeline to a bld server.
+run     | Execute a bld pipeline.
+server  | Start bld in server mode, listening to incoming build requests.
+stop    | Stops a running pipeline on a server.
+
 # Usage
 ```bash
 # Command to create the .bld directory and a default pipeline.
@@ -25,21 +44,6 @@ bld push -p pipeline_name -s server_name
 # Command to run a pipeline on a server.
 bld run -p pipeline_name -s server_name
 ```
-
-# Commands
-Command | Description
-------- | -----------
-config  | Lists bld's configuration.
-init    | Initializes the bld configuration.
-hist    | Fetches execution history of pipelines on a bld server.
-login   | Initiates the login process for a bld server
-ls      | Lists pipelines in a bld server.
-monit   | Connects to a bld server to monitor the execution of a pipeline.
-push    | Pushes the content of a pipeline to a bld server.
-run     | Execute a bld pipeline.
-server  | Start bld in server mode, listening to incoming build requests.
-stop    | Stops a running pipeline on a server.
-
 
 # Pipeline examples
 #### Default pipeline
@@ -161,9 +165,5 @@ state:
 ```
 
 # What to do next
-- [X] Automatic download of image if missing
-- [X] Server mode.
-- [X] Logging.
-- [X] Authentication. 
-- [ ] Support for referencing ssh keys.
+- [ ] Support for transfering ssh keys on containers for fetching git repositories.
 - [ ] High availability mode.

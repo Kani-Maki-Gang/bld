@@ -1,10 +1,10 @@
 use crate::config::BldConfig;
 use crate::path;
 use crate::persist::{Database, FileScanner, Scanner};
-use crate::types::{BldError, Result};
 use crate::server::User;
+use crate::types::{BldError, Result};
 use actix::prelude::*;
-use actix_web::{web, error::ErrorUnauthorized, Error, HttpRequest, HttpResponse};
+use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -14,21 +14,17 @@ type StdResult<T, V> = std::result::Result<T, V>;
 pub struct MonitorPipelineSocket {
     hb: Instant,
     id: String,
-    config: Option<BldConfig>,
+    config: web::Data<BldConfig>,
     scanner: Option<FileScanner>,
     db: Option<Database>,
 }
 
 impl MonitorPipelineSocket {
-    pub fn new() -> Self {
-        let config = match BldConfig::load() {
-            Ok(config) => Some(config),
-            Err(_) => None,
-        };
+    pub fn new(config: web::Data<BldConfig>) -> Self {
         Self {
             hb: Instant::now(),
             id: String::new(),
-            config,
+            config: config.clone(),
             scanner: None,
             db: None,
         }
@@ -70,11 +66,7 @@ impl MonitorPipelineSocket {
     }
 
     fn dependencies(&mut self, id: &str) -> Result<()> {
-        let config = match &self.config {
-            Some(config) => config,
-            None => return Err(BldError::Other("config not loaded".to_string())),
-        };
-
+        let config = self.config.get_ref();
         let mut db = Database::connect(&config.local.db)?;
         db.load(id);
         let pipeline = match &db.pipeline {
@@ -139,13 +131,16 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for MonitorPipelin
 
 pub async fn ws_monit(
     user: Option<User>,
-    req: HttpRequest, 
-    stream: web::Payload
+    req: HttpRequest,
+    stream: web::Payload,
+    config: web::Data<BldConfig>,
 ) -> StdResult<HttpResponse, Error> {
-    if user.is_none() { return Err(ErrorUnauthorized("")); }
+    if user.is_none() {
+        return Err(ErrorUnauthorized(""));
+    }
 
     println!("{:?}", req);
-    let res = ws::start(MonitorPipelineSocket::new(), &req, stream);
+    let res = ws::start(MonitorPipelineSocket::new(config), &req, stream);
     println!("{:?}", res);
     res
 }
