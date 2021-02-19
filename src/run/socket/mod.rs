@@ -5,7 +5,7 @@ pub use client::*;
 pub use messages::*;
 
 use crate::config::BldConfig;
-use crate::helpers::errors::{auth_for_server_invalid, server_not_in_config};
+use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::headers;
 use crate::helpers::term::print_error;
 use crate::run::socket::{ExecutePipelineSocketClient, ExecutePipelineSocketMessage};
@@ -14,15 +14,11 @@ use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
 use awc::Client;
 use futures::stream::StreamExt;
 
-async fn remote_invoke(name: String, server: String) -> Result<()> {
+async fn remote_invoke(name: String, server: String, _detach: bool) -> Result<()> {
     let config = BldConfig::load()?;
-    let servers = config.remote.servers;
-    let srv = match servers.iter().find(|s| s.name == server) {
-        Some(srv) => srv,
-        None => return server_not_in_config(),
-    };
+    let srv = config.remote.server(&server)?;
     let (srv_name, auth) = match &srv.same_auth_as {
-        Some(name) => match servers.iter().find(|s| &s.name == name) {
+        Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
             Some(srv) => (&srv.name, &srv.auth),
             None => return auth_for_server_invalid(),
         },
@@ -44,10 +40,10 @@ async fn remote_invoke(name: String, server: String) -> Result<()> {
     Ok(())
 }
 
-pub fn on_server(name: String, server: String) -> Result<()> {
+pub fn on_server(name: String, server: String, detach: bool) -> Result<()> {
     let system = System::new("bld");
     Arbiter::spawn(async move {
-        if let Err(e) = remote_invoke(name, server).await {
+        if let Err(e) = remote_invoke(name, server, detach).await {
             let _ = print_error(&e.to_string());
             System::current().stop();
         }

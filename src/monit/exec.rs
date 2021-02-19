@@ -1,5 +1,5 @@
 use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, BldConfig};
-use crate::helpers::errors::{auth_for_server_invalid, no_server_in_config, server_not_in_config};
+use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::headers;
 use crate::helpers::term::print_error;
 use crate::monit::{MonitorPipelineSocketClient, MonitorPipelineSocketMessage};
@@ -46,24 +46,14 @@ fn exec_request(info: MonitorConnectionInfo) {
 
 pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
     let config = BldConfig::load()?;
-    let servers = config.remote.servers;
     let id = matches
         .value_of("pipeline-id")
         .or(Some(TOOL_DEFAULT_PIPELINE))
         .unwrap()
         .to_string();
-    let srv = match matches.value_of("server") {
-        Some(name) => match servers.iter().find(|s| s.name == name) {
-            Some(srv) => srv,
-            None => return server_not_in_config(),
-        },
-        None => match servers.get(0) {
-            Some(srv) => srv,
-            None => return no_server_in_config(),
-        },
-    };
+    let srv = config.remote.server_or_first(matches.value_of("server"))?;
     let (name, auth) = match &srv.same_auth_as {
-        Some(name) => match servers.iter().find(|s| &s.name == name) {
+        Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
             Some(srv) => (&srv.name, &srv.auth),
             None => return auth_for_server_invalid(),
         },

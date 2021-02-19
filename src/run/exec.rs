@@ -11,8 +11,9 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
         .or(Some(TOOL_DEFAULT_PIPELINE))
         .unwrap()
         .to_string();
+    let detach = matches.is_present("detach");
     match matches.value_of("server") {
-        Some(server) => run::on_server(pipeline, server.to_string()),
+        Some(server) => run::on_server(pipeline, server.to_string(), detach),
         None => {
             let mut rt = Runtime::new()?;
             rt.block_on(async {
