@@ -22,9 +22,9 @@ pub struct MonitorPipelineSocket {
 impl MonitorPipelineSocket {
     pub fn new(config: web::Data<BldConfig>) -> Self {
         Self {
+            config,
             hb: Instant::now(),
             id: String::new(),
-            config: config.clone(),
             scanner: None,
             db: None,
         }

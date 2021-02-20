@@ -36,7 +36,7 @@ impl ExecutePipelineSocket {
         Self {
             hb: Instant::now(),
             user,
-            config: config.clone(),
+            config,
             exec: None,
             logger: None,
             scanner: None,

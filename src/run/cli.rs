@@ -12,8 +12,12 @@ pub fn command() -> App<'static, 'static> {
         .long("server")
         .help("the name of the server to run the pipeline")
         .takes_value(true);
+    let detach = Arg::with_name("detach")
+        .short("d")
+        .long("detach")
+        .help("detaches from the run execution (for server mode runs)");
     SubCommand::with_name("run")
         .about("Executes a build pipeline")
         .version(VERSION)
-        .args(&[pipeline, server])
+        .args(&[pipeline, server, detach])
 }
