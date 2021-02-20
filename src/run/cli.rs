@@ -15,8 +15,7 @@ pub fn command() -> App<'static, 'static> {
     let detach = Arg::with_name("detach")
         .short("d")
         .long("detach")
-        .help("detaches from the run execution and ends the command (for server mode runs)")
-        .takes_value(false);
+        .help("detaches from the run execution (for server mode runs)");
     SubCommand::with_name("run")
         .about("Executes a build pipeline")
         .version(VERSION)
