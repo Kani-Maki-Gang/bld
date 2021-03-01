@@ -1,14 +1,17 @@
 use crate::config::BldConfig;
 use crate::persist::Logger;
 use crate::types::{BldError, CheckStopSignal, Result};
+use futures::TryStreamExt;
 use futures_util::StreamExt;
 use shiplift::tty::TtyChunk;
 use shiplift::{ContainerOptions, Docker, ExecContainerOptions, ImageListOptions, PullOptions};
+use std::path::Path;
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
+use tar::Archive;
 
 type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
 
@@ -96,6 +99,25 @@ impl Container {
             id: Some(id),
             lg: self.lg.clone(),
         })
+    }
+
+    pub async fn copy_from(&self, from: &str, to: &str) -> Result<()> {
+        let client = self.get_client()?;
+        let id = self.get_id()?;
+        let container = client.containers().get(&id);
+        let bytes = container.copy_from(Path::new(from)).try_concat().await?;
+        let mut archive = Archive::new(&bytes[..]);
+        archive.unpack(Path::new(to))?;
+        Ok(())
+    }
+
+    pub async fn copy_into(&self, from: &str, to: &str) -> Result<()> {
+        let client = self.get_client()?;
+        let id = self.get_id()?;
+        let container = client.containers().get(&id);
+        let content = std::fs::read(from)?;
+        container.copy_file_into(to, &content).await?;
+        Ok(())
     }
 
     pub async fn sh(

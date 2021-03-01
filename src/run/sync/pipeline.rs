@@ -30,9 +30,36 @@ impl BuildStep {
     }
 }
 
+pub struct CopyArtifacts {
+    pub method: Option<String>,
+    pub from: Option<String>,
+    pub to: Option<String>,
+    pub ignore_errors: bool,
+    pub after_steps: bool,
+}
+
+impl CopyArtifacts {
+    pub fn new(
+        method: Option<String>,
+        from: Option<String>,
+        to: Option<String>,
+        ignore_errors: bool,
+        after_steps: bool,
+    ) -> Self {
+        Self {
+            method,
+            from,
+            to,
+            ignore_errors,
+            after_steps,
+        }
+    }
+}
+
 pub struct Pipeline {
     pub name: Option<String>,
     pub runs_on: RunPlatform,
+    pub artifacts: Vec<CopyArtifacts>,
     pub steps: Vec<BuildStep>,
 }
 
@@ -69,8 +96,30 @@ impl Pipeline {
         Ok(Self {
             name,
             runs_on,
+            artifacts: Self::artifacts(yaml),
             steps: Self::steps(yaml),
         })
+    }
+
+    fn artifacts(yaml: &Yaml) -> Vec<CopyArtifacts> {
+        let mut artifacts = Vec::<CopyArtifacts>::new();
+        if let Some(entries) = &yaml["artifacts"].as_vec() {
+            for entry in entries.iter() {
+                let method = entry["method"].as_str().map(|m| m.to_string());
+                let from = entry["from"].as_str().map(|p| p.to_string());
+                let to = entry["to"].as_str().map(|p| p.to_string());
+                let ignore_errors = entry["ignore-errors"].as_bool().or(Some(false)).unwrap();
+                let after_steps = entry["after-steps"].as_bool().or(Some(false)).unwrap();
+                artifacts.push(CopyArtifacts::new(
+                    method,
+                    from,
+                    to,
+                    ignore_errors,
+                    after_steps,
+                ));
+            }
+        }
+        artifacts
     }
 
     fn steps(yaml: &Yaml) -> Vec<BuildStep> {

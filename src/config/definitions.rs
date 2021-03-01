@@ -1,6 +1,8 @@
 pub static VERSION: &str = "0.1";
 pub static TOOL_DIR: &str = ".bld";
 pub static DB_NAME: &str = "bld-server.db";
+pub static PUSH: &str = "push";
+pub static GET: &str = "get";
 
 pub static TOOL_DEFAULT_PIPELINE: &str = "default";
 pub static TOOL_DEFAULT_PIPELINE_FILE: &str = "default.yaml";

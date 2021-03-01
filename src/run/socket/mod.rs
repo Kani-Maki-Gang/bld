@@ -20,7 +20,7 @@ async fn remote_invoke(name: String, server: String, detach: bool) -> Result<boo
     let (srv_name, auth) = match &srv.same_auth_as {
         Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
             Some(srv) => (&srv.name, &srv.auth),
-            None => return auth_for_server_invalid().and_then(|_| Ok(false)),
+            None => return auth_for_server_invalid().map(|_| false),
         },
         None => (&srv.name, &srv.auth),
     };

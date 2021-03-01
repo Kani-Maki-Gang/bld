@@ -30,3 +30,4 @@ oauth2 = { version = "3.0.0", features = ["futures-03"] }
 serde_derive = "1.0.118"
 actix-service = "1.0.6"
 chrono = "0.4.19"
+tar = "0.4.32"

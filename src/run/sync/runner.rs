@@ -1,3 +1,4 @@
+use crate::config::definitions::{GET, PUSH};
 use crate::config::BldConfig;
 use crate::persist::{Execution, Logger, NullExec};
 use crate::run::RunPlatform;
@@ -53,6 +54,55 @@ impl Runner {
         logger.dumpln(&format!("Runs on: {}", self.pip.runs_on));
     }
 
+    async fn artifacts(&self, after_steps: bool) -> Result<()> {
+        for artifact in self
+            .pip
+            .artifacts
+            .iter()
+            .filter(|a| a.after_steps == after_steps)
+        {
+            let can_continue = (artifact.method == Some(PUSH.to_string())
+                || artifact.method == Some(GET.to_string()))
+                && artifact.from.is_some()
+                && artifact.to.is_some();
+            if can_continue {
+                let method = artifact.method.as_ref().unwrap();
+                let from = artifact.from.as_ref().unwrap();
+                let to = artifact.to.as_ref().unwrap();
+                {
+                    let mut logger = self.lg.lock().unwrap();
+                    logger.dumpln(&format!(
+                        "Copying artifacts from: {} into container at: {}",
+                        from, to
+                    ));
+                }
+                match &self.pip.runs_on {
+                    RunPlatform::Docker(container) => {
+                        let result = if method == PUSH {
+                            container.copy_into(&from, &to).await
+                        } else {
+                            container.copy_from(&from, &to).await
+                        };
+                        if !artifact.ignore_errors {
+                            result?;
+                        }
+                    }
+                    RunPlatform::Local(machine) => {
+                        let result = if method == PUSH {
+                            machine.copy_into(&from, &to)
+                        } else {
+                            machine.copy_from(&from, &to)
+                        };
+                        if !artifact.ignore_errors {
+                            result?;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     async fn steps(&mut self) -> Result<()> {
         for step in self.pip.steps.iter() {
             self.step(&step).await?;
@@ -104,12 +154,17 @@ impl Runner {
             let config = Rc::new(BldConfig::load()?);
             let pip = Pipeline::parse(&src, lg.clone())?;
             let mut runner = Runner::new(Rc::clone(&config), ex, lg, pip, cm).await?;
+
             runner.persist_start();
             runner.info();
-            let res = runner.steps().await;
+            runner.artifacts(false).await?;
+
+            let _ = runner.steps().await;
+            let _ = runner.artifacts(true).await;
             let clean = runner.dispose().await;
+
             runner.persist_end();
-            res.and(clean)
+            clean
         })
     }
 

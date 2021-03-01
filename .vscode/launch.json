@@ -7,6 +7,24 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug executable 'bld' - exec subcommand",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=bld",
+                    "--package=bld"
+                ],
+                "filter": {
+                    "name": "bld",
+                    "kind": "bin"
+                }
+            },
+            "args": ["hist"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug executable 'bld' - run local pipeline",
             "cargo": {
                 "args": [

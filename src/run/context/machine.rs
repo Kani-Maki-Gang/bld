@@ -1,6 +1,7 @@
 use crate::os::{self, OSname};
 use crate::persist::Logger;
 use crate::types::{BldError, Result};
+use std::path::Path;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 
@@ -16,6 +17,19 @@ pub struct Machine {
 impl Machine {
     pub fn new(logger: Arc<Mutex<dyn Logger>>) -> Result<Self> {
         Ok(Self { logger })
+    }
+
+    fn copy(&self, from: &str, to: &str) -> Result<()> {
+        std::fs::copy(Path::new(from), Path::new(to))?;
+        Ok(())
+    }
+
+    pub fn copy_from(&self, from: &str, to: &str) -> Result<()> {
+        self.copy(from, to)
+    }
+
+    pub fn copy_into(&self, from: &str, to: &str) -> Result<()> {
+        self.copy(from, to)
     }
 
     pub fn sh(&self, working_dir: &Option<String>, input: &str) -> Result<()> {

@@ -1,5 +1,5 @@
 use crate::config::BldServerConfig;
-use crate::helpers::errors::{err_server_not_in_config, err_no_server_in_config};
+use crate::helpers::errors::{err_no_server_in_config, err_server_not_in_config};
 use crate::types::{Result, EMPTY_YAML_VEC};
 use yaml_rust::Yaml;
 
@@ -36,9 +36,7 @@ impl BldRemoteConfig {
     }
 
     pub fn nth_server(&self, i: usize) -> Result<&BldServerConfig> {
-        self.servers
-            .get(i)
-            .ok_or_else(err_no_server_in_config)
+        self.servers.get(i).ok_or_else(err_no_server_in_config)
     }
 
     pub fn server_or_first(&self, name: Option<&str>) -> Result<&BldServerConfig> {
