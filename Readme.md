@@ -4,6 +4,7 @@ A simple CI/CD tool.
 # Features
 - [X] Running a pipeline on the executing machine or on a docker container.
 - [X] Client and Server mode. 
+- [X] Copying artifacts to and from a container.
 - [X] Authentication using an oauth2 service (Github, Google, Microsoft etc).
 
 # Commands
@@ -187,5 +188,4 @@ state:
 ```
 
 # What to do next
-- [ ] Support for transfering ssh keys on containers for fetching git repositories.
 - [ ] High availability mode.
