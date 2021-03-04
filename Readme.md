@@ -60,6 +60,17 @@ steps:
 ```yaml
 name: dotnet core project ipeline
 runs-on: mcr.microsoft.com/dotnet/core/sdk:3.1
+artifacts:
+- method: push
+  from: /some/path
+  to: /some/path/in/the/container
+  ignore-errors: false
+  after-steps: false
+- method: get
+  from: /some/path/in/the/container
+  to: /some/path
+  ignore-errors: false
+  after-steps: true
 steps:
 - name: fetch repository
   exec:
@@ -75,6 +86,17 @@ steps:
 ```yaml
 name: node project pipeline
 runs-on: node:12.18.3
+artifacts:
+- method: push
+  from: /some/path
+  to: /some/path/in/the/container
+  ignore-errors: false
+  after-steps: false
+- method: get
+  from: /some/path/in/the/container
+  to: /some/path
+  ignore-errors: false
+  after-steps: true
 steps:
 - name: Fetch repository
   exec:
