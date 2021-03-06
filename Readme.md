@@ -2,10 +2,10 @@
 A simple CI/CD tool.
 
 # Features
-- [X] Running a pipeline on the executing machine or on a docker container.
-- [X] Client and Server mode. 
-- [X] Copying artifacts to and from a container.
-- [X] Authentication using an oauth2 service (Github, Google, Microsoft etc).
+- [x] Running a pipeline on the executing machine or on a docker container.
+- [x] Client and Server mode. 
+- [x] Copying artifacts to and from a container.
+- [x] Authentication using an oauth2 service (Github, Google, Microsoft etc).
 
 # Commands
 Command | Description
