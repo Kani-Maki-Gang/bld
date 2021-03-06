@@ -36,6 +36,11 @@ impl Runner {
         Ok(Runner { ex, lg, pip, cm })
     }
 
+    fn dumpln(&self, message: &str) {
+        let mut lg = self.lg.lock().unwrap();
+        lg.dumpln(message);
+    }
+
     fn persist_start(&mut self) {
         let mut exec = self.ex.lock().unwrap();
         let _ = exec.update(true);
@@ -54,12 +59,12 @@ impl Runner {
         logger.dumpln(&format!("Runs on: {}", self.pip.runs_on));
     }
 
-    async fn artifacts(&self, after_steps: bool) -> Result<()> {
+    async fn artifacts(&self, name: &Option<String>) -> Result<()> {
         for artifact in self
             .pip
             .artifacts
             .iter()
-            .filter(|a| a.after_steps == after_steps)
+            .filter(|a| &a.after == name)
         {
             let can_continue = (artifact.method == Some(PUSH.to_string())
                 || artifact.method == Some(GET.to_string()))
@@ -106,6 +111,8 @@ impl Runner {
     async fn steps(&mut self) -> Result<()> {
         for step in self.pip.steps.iter() {
             self.step(&step).await?;
+            self.artifacts(&step.name).await?;
+            self.cm.check_stop_signal()?;
         }
         Ok(())
     }
@@ -157,14 +164,16 @@ impl Runner {
 
             runner.persist_start();
             runner.info();
-            runner.artifacts(false).await?;
-
-            let _ = runner.steps().await;
-            let _ = runner.artifacts(true).await;
-            let clean = runner.dispose().await;
-
+            match runner.artifacts(&None).await {
+                Ok(_) => {
+                    if let Err(e) = runner.steps().await {
+                        runner.dumpln(&e.to_string());
+                    }
+                }
+                Err(e) => runner.dumpln(&e.to_string()),
+            }
             runner.persist_end();
-            clean
+            runner.dispose().await
         })
     }
 

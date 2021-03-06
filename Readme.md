@@ -65,13 +65,10 @@ artifacts:
 - method: push
   from: /some/path
   to: /some/path/in/the/container
-  ignore-errors: false
-  after-steps: false
 - method: get
   from: /some/path/in/the/container
   to: /some/path
-  ignore-errors: false
-  after-steps: true
+  after: build project 
 steps:
 - name: fetch repository
   exec:
@@ -91,13 +88,10 @@ artifacts:
 - method: push
   from: /some/path
   to: /some/path/in/the/container
-  ignore-errors: false
-  after-steps: false
 - method: get
   from: /some/path/in/the/container
   to: /some/path
-  ignore-errors: false
-  after-steps: true
+  after: build project 
 steps:
 - name: Fetch repository
   exec:

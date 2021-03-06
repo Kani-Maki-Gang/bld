@@ -35,7 +35,7 @@ pub struct CopyArtifacts {
     pub from: Option<String>,
     pub to: Option<String>,
     pub ignore_errors: bool,
-    pub after_steps: bool,
+    pub after: Option<String>,
 }
 
 impl CopyArtifacts {
@@ -43,15 +43,15 @@ impl CopyArtifacts {
         method: Option<String>,
         from: Option<String>,
         to: Option<String>,
+        after: Option<String>,
         ignore_errors: bool,
-        after_steps: bool,
     ) -> Self {
         Self {
             method,
             from,
             to,
+            after,
             ignore_errors,
-            after_steps,
         }
     }
 }
@@ -108,14 +108,14 @@ impl Pipeline {
                 let method = entry["method"].as_str().map(|m| m.to_string());
                 let from = entry["from"].as_str().map(|p| p.to_string());
                 let to = entry["to"].as_str().map(|p| p.to_string());
+                let after = entry["after"].as_str().map(|a| a.to_string());
                 let ignore_errors = entry["ignore-errors"].as_bool().or(Some(false)).unwrap();
-                let after_steps = entry["after-steps"].as_bool().or(Some(false)).unwrap();
                 artifacts.push(CopyArtifacts::new(
                     method,
                     from,
                     to,
+                    after,
                     ignore_errors,
-                    after_steps,
                 ));
             }
         }
