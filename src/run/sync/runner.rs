@@ -1,4 +1,4 @@
-use crate::config::definitions::{GET, PUSH};
+use crate::config::definitions::{GET, PUSH, VAR_TOKEN};
 use crate::config::BldConfig;
 use crate::persist::{Execution, Logger, NullExec};
 use crate::run::RunPlatform;
@@ -59,6 +59,21 @@ impl Runner {
         logger.dumpln(&format!("Runs on: {}", self.pip.runs_on));
     }
 
+    fn apply_variables(&self, command: &str) -> String {
+        let mut command_with_vars = String::from(command);
+        for variable in self.pip.variables.iter() {
+            let full_name = format!("{}{}", VAR_TOKEN, &variable.name);
+            let value = variable
+                .default_value
+                .as_ref()
+                .map(|d| d.to_string())
+                .or_else(|| Some(String::new()))
+                .unwrap();
+            command_with_vars = command_with_vars.replace(&full_name, &value);
+        }
+        command_with_vars
+    }
+
     async fn artifacts(&self, name: &Option<String>) -> Result<()> {
         for artifact in self
             .pip
@@ -77,7 +92,7 @@ impl Runner {
                 {
                     let mut logger = self.lg.lock().unwrap();
                     logger.dumpln(&format!(
-                        "Copying artifacts from: {} into container at: {}",
+                        "Copying artifacts from: {} into container to: {}",
                         from, to
                     ));
                 }
@@ -133,11 +148,12 @@ impl Runner {
         }
         self.cm.check_stop_signal()?;
         for command in step.commands.iter() {
+            let command_with_vars = self.apply_variables(&command);
             match &self.pip.runs_on {
                 RunPlatform::Docker(container) => {
-                    container.sh(&step.working_dir, &command, &self.cm).await?
+                    container.sh(&step.working_dir, &command_with_vars, &self.cm).await?
                 }
-                RunPlatform::Local(machine) => machine.sh(&step.working_dir, &command)?,
+                RunPlatform::Local(machine) => machine.sh(&step.working_dir, &command_with_vars)?,
             }
             self.cm.check_stop_signal()?;
         }
