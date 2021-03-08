@@ -124,7 +124,7 @@ impl Pipeline {
             for variable in entries.iter() {
                 let name = variable["name"]
                     .as_str()
-                    .ok_or_else(|| err_variable_in_yaml())?
+                    .ok_or_else(err_variable_in_yaml)?
                     .to_string();
                 let default_value = variable["default-value"]
                     .as_str()

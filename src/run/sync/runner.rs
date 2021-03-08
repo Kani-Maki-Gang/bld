@@ -4,6 +4,7 @@ use crate::persist::{Execution, Logger, NullExec};
 use crate::run::RunPlatform;
 use crate::run::{BuildStep, Pipeline};
 use crate::types::{CheckStopSignal, Result};
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
@@ -14,12 +15,14 @@ type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 type AtomicExec = Arc<Mutex<dyn Execution>>;
 type AtomicLog = Arc<Mutex<dyn Logger>>;
 type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
+type AtomicVars = Arc<HashMap<String, String>>;
 
 pub struct Runner {
     pub ex: AtomicExec,
     pub lg: AtomicLog,
     pub pip: Pipeline,
     pub cm: Option<AtomicRecv>,
+    pub vars: AtomicVars
 }
 
 impl Runner {
@@ -29,11 +32,12 @@ impl Runner {
         lg: AtomicLog,
         mut pip: Pipeline,
         cm: Option<AtomicRecv>,
+        vars: AtomicVars
     ) -> Result<Runner> {
         if let RunPlatform::Docker(container) = &pip.runs_on {
             pip.runs_on = RunPlatform::Docker(Box::new(container.start(cfg).await?));
         }
-        Ok(Runner { ex, lg, pip, cm })
+        Ok(Runner { ex, lg, pip, cm, vars })
     }
 
     fn dumpln(&self, message: &str) {
@@ -61,6 +65,10 @@ impl Runner {
 
     fn apply_variables(&self, command: &str) -> String {
         let mut command_with_vars = String::from(command);
+        for (key, value) in self.vars.iter() {
+            let full_name = format!("{}{}", VAR_TOKEN, &key);
+            command_with_vars = command_with_vars.replace(&full_name, &value);
+        }
         for variable in self.pip.variables.iter() {
             let full_name = format!("{}{}", VAR_TOKEN, &variable.name);
             let value = variable
@@ -142,7 +150,7 @@ impl Runner {
             None => None,
         };
         if let Some(call) = &step.call {
-            Runner::from_file(call.clone(), NullExec::atom(), self.lg.clone(), comm)
+            Runner::from_file(call.clone(), NullExec::atom(), self.lg.clone(), comm, self.vars.clone())
                 .await
                 .await?;
         }
@@ -172,11 +180,12 @@ impl Runner {
         ex: AtomicExec,
         lg: AtomicLog,
         cm: Option<AtomicRecv>,
+        vars: AtomicVars 
     ) -> RecursiveFuture {
         Box::pin(async move {
             let config = Rc::new(BldConfig::load()?);
             let pip = Pipeline::parse(&src, lg.clone())?;
-            let mut runner = Runner::new(Rc::clone(&config), ex, lg, pip, cm).await?;
+            let mut runner = Runner::new(Rc::clone(&config), ex, lg, pip, cm, vars).await?;
 
             runner.persist_start();
             runner.info();
@@ -198,10 +207,11 @@ impl Runner {
         ex: AtomicExec,
         lg: AtomicLog,
         cm: Option<AtomicRecv>,
+        vars: AtomicVars
     ) -> RecursiveFuture {
         Box::pin(async move {
             let src = Pipeline::read(&name)?;
-            Runner::from_src(src, ex, lg, cm).await.await
+            Runner::from_src(src, ex, lg, cm, vars).await.await
         })
     }
 }

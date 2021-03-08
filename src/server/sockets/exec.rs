@@ -8,6 +8,7 @@ use crate::types::{BldError, Result};
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
@@ -170,7 +171,8 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for ExecutePipelin
 fn invoke_pipeline(name: String, ex: AtomicDb, lg: AtomicFs, cm: Option<AtomicRecv>) {
     if let Ok(mut rt) = Runtime::new() {
         rt.block_on(async move {
-            let fut = Runner::from_file(name, ex, lg, cm);
+            let vars = Arc::new(HashMap::<String, String>::new());
+            let fut = Runner::from_file(name, ex, lg, cm, vars);
             if let Err(e) = fut.await.await {
                 let _ = term::print_error(&e.to_string());
             }
