@@ -4,7 +4,7 @@ use crate::path;
 use crate::persist::{Database, FileLogger, FileScanner, Scanner};
 use crate::run::{Pipeline, Runner};
 use crate::server::{PipelinePool, User};
-use crate::types::{BldError, Result};
+use crate::types::{BldError, ExecInfo, Result};
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
@@ -26,9 +26,11 @@ pub struct ExecutePipelineSocket {
     hb: Instant,
     user: User,
     config: web::Data<BldConfig>,
+    pipeline: String,
     exec: Option<Arc<Mutex<Database>>>,
     logger: Option<Arc<Mutex<FileLogger>>>,
     scanner: Option<FileScanner>,
+    vars: Arc<HashMap<String, String>>,
     pool: web::Data<PipelinePool>,
 }
 
@@ -38,9 +40,11 @@ impl ExecutePipelineSocket {
             hb: Instant::now(),
             user,
             config,
+            pipeline: String::new(),
             exec: None,
             logger: None,
             scanner: None,
+            vars: Arc::new(HashMap::new()),
             pool,
         }
     }
@@ -74,8 +78,9 @@ impl ExecutePipelineSocket {
         }
     }
 
-    fn dependencies(&mut self, name: &str) -> Result<()> {
-        let path = Pipeline::get_path(name)?;
+    fn dependencies(&mut self, data: &str) -> Result<()> {
+        let info = serde_json::from_str::<ExecInfo>(data)?;
+        let path = Pipeline::get_path(&info.name)?;
         if !path.is_file() {
             let message = String::from("pipeline file not found");
             return Err(BldError::IoError(message));
@@ -83,16 +88,21 @@ impl ExecutePipelineSocket {
 
         let id = Uuid::new_v4().to_string();
         let config = self.config.get_ref();
-        let lg_path = path![&config.local.logs, format!("{}-{}", name, id)]
+        let lg_path = path![&config.local.logs, format!("{}-{}", &info.name, id)]
             .display()
             .to_string();
         let mut db = Database::connect(&config.local.db)?;
-        let _ = db.add(&id, &name, &self.user.name)?;
+        let _ = db.add(&id, &info.name, &self.user.name)?;
         let lg = FileLogger::new(&lg_path)?;
 
+        self.pipeline = info.name;
         self.exec = Some(Arc::new(Mutex::new(db)));
         self.logger = Some(Arc::new(Mutex::new(lg)));
         self.scanner = Some(FileScanner::new(&lg_path)?);
+
+        if let Some(vars) = info.variables {
+            self.vars = Arc::new(vars);
+        }
 
         Ok(())
     }
@@ -122,6 +132,7 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for ExecutePipelin
                     ctx.text("Unable to run pipeline");
                     ctx.stop();
                 }
+                let name = self.pipeline.clone();
                 let ex = match &self.exec {
                     Some(exec) => exec.clone(),
                     None => {
@@ -146,11 +157,12 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for ExecutePipelin
                         }
                     }
                 };
+                let vars = self.vars.clone();
                 let (tx, rx) = mpsc::channel::<bool>();
                 let rx = Arc::new(Mutex::new(rx));
                 let mut pool = self.pool.senders.lock().unwrap();
                 pool.insert(id, tx);
-                thread::spawn(move || invoke_pipeline(txt, ex, lg, Some(rx)));
+                thread::spawn(move || invoke_pipeline(name, ex, lg, Some(rx), vars));
             }
             Ok(ws::Message::Ping(msg)) => {
                 self.hb = Instant::now();
@@ -168,10 +180,9 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for ExecutePipelin
     }
 }
 
-fn invoke_pipeline(name: String, ex: AtomicDb, lg: AtomicFs, cm: Option<AtomicRecv>) {
+fn invoke_pipeline(name: String, ex: AtomicDb, lg: AtomicFs, cm: Option<AtomicRecv>, vars: Arc<HashMap<String, String>>) {
     if let Ok(mut rt) = Runtime::new() {
         rt.block_on(async move {
-            let vars = Arc::new(HashMap::<String, String>::new());
             let fut = Runner::from_file(name, ex, lg, cm, vars);
             if let Err(e) = fut.await.await {
                 let _ = term::print_error(&e.to_string());

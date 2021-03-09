@@ -14,7 +14,7 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
         .unwrap()
         .to_string();
     let detach = matches.is_present("detach");
-    let vars = Arc::new(matches
+    let vars = matches
         .values_of("variables")
         .map(|variable| {
             variable
@@ -27,13 +27,13 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
                 .collect::<HashMap<String, String>>()
         })
         .or_else(|| Some(HashMap::new()))
-        .unwrap());
+        .unwrap();
     match matches.value_of("server") {
-        Some(server) => run::on_server(pipeline, server.to_string(), detach),
+        Some(server) => run::on_server(pipeline, vars, server.to_string(), detach),
         None => {
             let mut rt = Runtime::new()?;
             rt.block_on(async {
-                Runner::from_file(pipeline, NullExec::atom(), ShellLogger::atom(), None, vars)
+                Runner::from_file(pipeline, NullExec::atom(), ShellLogger::atom(), None, Arc::new(vars))
                     .await
                     .await
             })
