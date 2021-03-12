@@ -1,5 +1,10 @@
 use crate::types::{BldError, Result};
 
+pub fn err_variable_in_yaml() -> BldError {
+    let message = String::from("error in variable section");
+    BldError::Other(message)
+}
+
 pub fn err_server_not_in_config() -> BldError {
     let message = String::from("server not found in config");
     BldError::Other(message)

@@ -1,9 +1,10 @@
-use crate::config::definitions::{GET, PUSH};
+use crate::config::definitions::{GET, PUSH, VAR_TOKEN};
 use crate::config::BldConfig;
 use crate::persist::{Execution, Logger, NullExec};
 use crate::run::RunPlatform;
 use crate::run::{BuildStep, Pipeline};
 use crate::types::{CheckStopSignal, Result};
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
@@ -14,12 +15,14 @@ type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 type AtomicExec = Arc<Mutex<dyn Execution>>;
 type AtomicLog = Arc<Mutex<dyn Logger>>;
 type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
+type AtomicVars = Arc<HashMap<String, String>>;
 
 pub struct Runner {
     pub ex: AtomicExec,
     pub lg: AtomicLog,
     pub pip: Pipeline,
     pub cm: Option<AtomicRecv>,
+    pub vars: AtomicVars,
 }
 
 impl Runner {
@@ -29,11 +32,18 @@ impl Runner {
         lg: AtomicLog,
         mut pip: Pipeline,
         cm: Option<AtomicRecv>,
+        vars: AtomicVars,
     ) -> Result<Runner> {
         if let RunPlatform::Docker(container) = &pip.runs_on {
             pip.runs_on = RunPlatform::Docker(Box::new(container.start(cfg).await?));
         }
-        Ok(Runner { ex, lg, pip, cm })
+        Ok(Runner {
+            ex,
+            lg,
+            pip,
+            cm,
+            vars,
+        })
     }
 
     fn dumpln(&self, message: &str) {
@@ -59,13 +69,27 @@ impl Runner {
         logger.dumpln(&format!("Runs on: {}", self.pip.runs_on));
     }
 
+    fn apply_variables(&self, command: &str) -> String {
+        let mut command_with_vars = String::from(command);
+        for (key, value) in self.vars.iter() {
+            let full_name = format!("{}{}", VAR_TOKEN, &key);
+            command_with_vars = command_with_vars.replace(&full_name, &value);
+        }
+        for variable in self.pip.variables.iter() {
+            let full_name = format!("{}{}", VAR_TOKEN, &variable.name);
+            let value = variable
+                .default_value
+                .as_ref()
+                .map(|d| d.to_string())
+                .or_else(|| Some(String::new()))
+                .unwrap();
+            command_with_vars = command_with_vars.replace(&full_name, &value);
+        }
+        command_with_vars
+    }
+
     async fn artifacts(&self, name: &Option<String>) -> Result<()> {
-        for artifact in self
-            .pip
-            .artifacts
-            .iter()
-            .filter(|a| &a.after == name)
-        {
+        for artifact in self.pip.artifacts.iter().filter(|a| &a.after == name) {
             let can_continue = (artifact.method == Some(PUSH.to_string())
                 || artifact.method == Some(GET.to_string()))
                 && artifact.from.is_some()
@@ -77,7 +101,7 @@ impl Runner {
                 {
                     let mut logger = self.lg.lock().unwrap();
                     logger.dumpln(&format!(
-                        "Copying artifacts from: {} into container at: {}",
+                        "Copying artifacts from: {} into container to: {}",
                         from, to
                     ));
                 }
@@ -127,17 +151,26 @@ impl Runner {
             None => None,
         };
         if let Some(call) = &step.call {
-            Runner::from_file(call.clone(), NullExec::atom(), self.lg.clone(), comm)
-                .await
-                .await?;
+            Runner::from_file(
+                call.clone(),
+                NullExec::atom(),
+                self.lg.clone(),
+                comm,
+                self.vars.clone(),
+            )
+            .await
+            .await?;
         }
         self.cm.check_stop_signal()?;
         for command in step.commands.iter() {
+            let command_with_vars = self.apply_variables(&command);
             match &self.pip.runs_on {
                 RunPlatform::Docker(container) => {
-                    container.sh(&step.working_dir, &command, &self.cm).await?
+                    container
+                        .sh(&step.working_dir, &command_with_vars, &self.cm)
+                        .await?
                 }
-                RunPlatform::Local(machine) => machine.sh(&step.working_dir, &command)?,
+                RunPlatform::Local(machine) => machine.sh(&step.working_dir, &command_with_vars)?,
             }
             self.cm.check_stop_signal()?;
         }
@@ -156,11 +189,12 @@ impl Runner {
         ex: AtomicExec,
         lg: AtomicLog,
         cm: Option<AtomicRecv>,
+        vars: AtomicVars,
     ) -> RecursiveFuture {
         Box::pin(async move {
             let config = Rc::new(BldConfig::load()?);
             let pip = Pipeline::parse(&src, lg.clone())?;
-            let mut runner = Runner::new(Rc::clone(&config), ex, lg, pip, cm).await?;
+            let mut runner = Runner::new(Rc::clone(&config), ex, lg, pip, cm, vars).await?;
 
             runner.persist_start();
             runner.info();
@@ -182,10 +216,11 @@ impl Runner {
         ex: AtomicExec,
         lg: AtomicLog,
         cm: Option<AtomicRecv>,
+        vars: AtomicVars,
     ) -> RecursiveFuture {
         Box::pin(async move {
             let src = Pipeline::read(&name)?;
-            Runner::from_src(src, ex, lg, cm).await.await
+            Runner::from_src(src, ex, lg, cm, vars).await.await
         })
     }
 }

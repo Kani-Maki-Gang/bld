@@ -32,6 +32,9 @@ bld run
 # pipeline_name should be a yaml file in the .bld directory.
 bld run -p pipeline_name 
 
+# Command to run a pipeline on local machine with variables.
+bld run -p pipeline_name -v VARIABLE1=value1 VARIABLE2=value2
+
 # Command to create the .bld directory for a bld server.
 bld init -s
 
@@ -43,6 +46,9 @@ bld push -p pipeline_name -s server_name
 
 # Command to run a pipeline on a server.
 bld run -p pipeline_name -s server_name
+
+# Command to run a pipeline on a server with variables.
+bld run -p pipeline_name -s server_name -v VARIABLE1=value1 VARIABLE2=value2
 ```
 
 # Pipeline examples
@@ -60,6 +66,13 @@ steps:
 ```yaml
 name: dotnet core project ipeline
 runs-on: mcr.microsoft.com/dotnet/core/sdk:3.1
+
+variables:
+- name: BRANCH
+  default-value: master
+- name: CONFIG
+  default-value: release 
+
 artifacts:
 - method: push
   from: /some/path
@@ -68,14 +81,15 @@ artifacts:
   from: /some/path/in/the/container
   to: /some/path
   after: build project 
+
 steps:
 - name: fetch repository
   exec:
-  - sh: git clone https://github.com/project/project.git  
+  - sh: git clone -b bld:var:BRANCH https://github.com/project/project.git  
 - name: build project
   working-dir: project
   exec:  
-  - sh: dotnet build -c release
+  - sh: dotnet build -c bld:var:CONFIG 
   - sh: cp -r bin/release/netcoreapp3.1/linux-x64/* /output
 ```
 
@@ -83,6 +97,13 @@ steps:
 ```yaml
 name: node project pipeline
 runs-on: node:12.18.3
+
+variables:
+- name: BRANCH
+  default-value: master
+- name: SCRIPT
+  default-value: build
+
 artifacts:
 - method: push
   from: /some/path
@@ -91,10 +112,11 @@ artifacts:
   from: /some/path/in/the/container
   to: /some/path
   after: build project 
+
 steps:
 - name: Fetch repository
   exec:
-  - sh: git clone https://github.com/project/project.git
+  - sh: git clone -b bld:var:BRANCH https://github.com/project/project.git
 - name: install dependencies 
   working-dir: project
   exec:
@@ -102,7 +124,7 @@ steps:
 - name: build project 
   working-dir: project 
   exec:
-  - sh: npm build 
+  - sh: npm run bld:var:SCRIPT 
 ```
 
 #### Pipeline that invokes other pipelines
