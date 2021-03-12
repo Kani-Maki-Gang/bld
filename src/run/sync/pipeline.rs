@@ -126,9 +126,7 @@ impl Pipeline {
                     .as_str()
                     .ok_or_else(err_variable_in_yaml)?
                     .to_string();
-                let default_value = variable["default-value"]
-                    .as_str()
-                    .map(|d| d.to_string());
+                let default_value = variable["default-value"].as_str().map(|d| d.to_string());
                 variables.push(Variable::new(name, default_value));
             }
         }
@@ -144,13 +142,7 @@ impl Pipeline {
                 let to = artifact["to"].as_str().map(|p| p.to_string());
                 let after = artifact["after"].as_str().map(|a| a.to_string());
                 let ignore_errors = artifact["ignore-errors"].as_bool().or(Some(false)).unwrap();
-                artifacts.push(Artifacts::new(
-                    method,
-                    from,
-                    to,
-                    after,
-                    ignore_errors,
-                ));
+                artifacts.push(Artifacts::new(method, from, to, after, ignore_errors));
             }
         }
         artifacts
@@ -161,7 +153,7 @@ impl Pipeline {
         let working_dir = yaml["working-dir"].as_str().map(|w| w.to_string());
         if let Some(entries) = &yaml["steps"].as_vec() {
             for step in entries.iter() {
-                let name = step ["name"].as_str().map(|n| n.to_string());
+                let name = step["name"].as_str().map(|n| n.to_string());
                 let working_dir = step["working-dir"]
                     .as_str()
                     .map(|w| w.to_string())

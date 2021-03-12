@@ -180,7 +180,13 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for ExecutePipelin
     }
 }
 
-fn invoke_pipeline(name: String, ex: AtomicDb, lg: AtomicFs, cm: Option<AtomicRecv>, vars: Arc<HashMap<String, String>>) {
+fn invoke_pipeline(
+    name: String,
+    ex: AtomicDb,
+    lg: AtomicFs,
+    cm: Option<AtomicRecv>,
+    vars: Arc<HashMap<String, String>>,
+) {
     if let Ok(mut rt) = Runtime::new() {
         rt.block_on(async move {
             let fut = Runner::from_file(name, ex, lg, cm, vars);

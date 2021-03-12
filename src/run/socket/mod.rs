@@ -47,7 +47,12 @@ async fn remote_invoke(server: String, detach: bool, data: ExecInfo) -> Result<b
     }
 }
 
-pub fn on_server(name: String, vars: HashMap<String, String>, server: String, detach: bool) -> Result<()> {
+pub fn on_server(
+    name: String,
+    vars: HashMap<String, String>,
+    server: String,
+    detach: bool,
+) -> Result<()> {
     let system = System::new("bld");
     let data = ExecInfo::new(&name, Some(vars));
     Arbiter::spawn(async move {

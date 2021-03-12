@@ -22,7 +22,7 @@ pub struct Runner {
     pub lg: AtomicLog,
     pub pip: Pipeline,
     pub cm: Option<AtomicRecv>,
-    pub vars: AtomicVars
+    pub vars: AtomicVars,
 }
 
 impl Runner {
@@ -32,12 +32,18 @@ impl Runner {
         lg: AtomicLog,
         mut pip: Pipeline,
         cm: Option<AtomicRecv>,
-        vars: AtomicVars
+        vars: AtomicVars,
     ) -> Result<Runner> {
         if let RunPlatform::Docker(container) = &pip.runs_on {
             pip.runs_on = RunPlatform::Docker(Box::new(container.start(cfg).await?));
         }
-        Ok(Runner { ex, lg, pip, cm, vars })
+        Ok(Runner {
+            ex,
+            lg,
+            pip,
+            cm,
+            vars,
+        })
     }
 
     fn dumpln(&self, message: &str) {
@@ -83,12 +89,7 @@ impl Runner {
     }
 
     async fn artifacts(&self, name: &Option<String>) -> Result<()> {
-        for artifact in self
-            .pip
-            .artifacts
-            .iter()
-            .filter(|a| &a.after == name)
-        {
+        for artifact in self.pip.artifacts.iter().filter(|a| &a.after == name) {
             let can_continue = (artifact.method == Some(PUSH.to_string())
                 || artifact.method == Some(GET.to_string()))
                 && artifact.from.is_some()
@@ -150,16 +151,24 @@ impl Runner {
             None => None,
         };
         if let Some(call) = &step.call {
-            Runner::from_file(call.clone(), NullExec::atom(), self.lg.clone(), comm, self.vars.clone())
-                .await
-                .await?;
+            Runner::from_file(
+                call.clone(),
+                NullExec::atom(),
+                self.lg.clone(),
+                comm,
+                self.vars.clone(),
+            )
+            .await
+            .await?;
         }
         self.cm.check_stop_signal()?;
         for command in step.commands.iter() {
             let command_with_vars = self.apply_variables(&command);
             match &self.pip.runs_on {
                 RunPlatform::Docker(container) => {
-                    container.sh(&step.working_dir, &command_with_vars, &self.cm).await?
+                    container
+                        .sh(&step.working_dir, &command_with_vars, &self.cm)
+                        .await?
                 }
                 RunPlatform::Local(machine) => machine.sh(&step.working_dir, &command_with_vars)?,
             }
@@ -180,7 +189,7 @@ impl Runner {
         ex: AtomicExec,
         lg: AtomicLog,
         cm: Option<AtomicRecv>,
-        vars: AtomicVars 
+        vars: AtomicVars,
     ) -> RecursiveFuture {
         Box::pin(async move {
             let config = Rc::new(BldConfig::load()?);
@@ -207,7 +216,7 @@ impl Runner {
         ex: AtomicExec,
         lg: AtomicLog,
         cm: Option<AtomicRecv>,
-        vars: AtomicVars
+        vars: AtomicVars,
     ) -> RecursiveFuture {
         Box::pin(async move {
             let src = Pipeline::read(&name)?;

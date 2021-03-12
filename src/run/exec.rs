@@ -3,9 +3,9 @@ use crate::persist::{NullExec, ShellLogger};
 use crate::run::{self, Runner};
 use crate::types::Result;
 use clap::ArgMatches;
-use tokio::runtime::Runtime;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::runtime::Runtime;
 
 pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
     let pipeline = matches
@@ -33,9 +33,15 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
         None => {
             let mut rt = Runtime::new()?;
             rt.block_on(async {
-                Runner::from_file(pipeline, NullExec::atom(), ShellLogger::atom(), None, Arc::new(vars))
-                    .await
-                    .await
+                Runner::from_file(
+                    pipeline,
+                    NullExec::atom(),
+                    ShellLogger::atom(),
+                    None,
+                    Arc::new(vars),
+                )
+                .await
+                .await
             })
         }
     }
