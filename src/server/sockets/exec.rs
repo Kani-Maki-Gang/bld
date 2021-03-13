@@ -22,15 +22,44 @@ type AtomicDb = Arc<Mutex<Database>>;
 type AtomicFs = Arc<Mutex<FileLogger>>;
 type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
 
+struct PipelineInfo {
+    pool: web::Data<PipelinePool>,
+    id: String,
+    name: String,
+    ex: AtomicDb,
+    lg: AtomicFs,
+    cm: Option<AtomicRecv>,
+    vars: Arc<HashMap<String, String>>,
+}
+
+impl PipelineInfo {
+    pub fn spawn(self) {
+        thread::spawn(move || {
+            if let Ok(mut rt) = Runtime::new() {
+                rt.block_on(async move {
+                    if let Err(e) =
+                        Runner::from_file(self.name, self.ex, self.lg, self.cm, self.vars)
+                            .await
+                            .await
+                    {
+                        let _ = term::print_error(&e.to_string());
+                    }
+                    {
+                        let mut pool = self.pool.senders.lock().unwrap();
+                        pool.remove(&self.id);
+                    } 
+                });
+            }
+        });
+    }
+}
+
 pub struct ExecutePipelineSocket {
     hb: Instant,
     user: User,
     config: web::Data<BldConfig>,
-    pipeline: String,
-    exec: Option<Arc<Mutex<Database>>>,
-    logger: Option<Arc<Mutex<FileLogger>>>,
+    exec: Option<AtomicDb>,
     scanner: Option<FileScanner>,
-    vars: Arc<HashMap<String, String>>,
     pool: web::Data<PipelinePool>,
 }
 
@@ -40,11 +69,8 @@ impl ExecutePipelineSocket {
             hb: Instant::now(),
             user,
             config,
-            pipeline: String::new(),
             exec: None,
-            logger: None,
             scanner: None,
-            vars: Arc::new(HashMap::new()),
             pool,
         }
     }
@@ -78,7 +104,7 @@ impl ExecutePipelineSocket {
         }
     }
 
-    fn dependencies(&mut self, data: &str) -> Result<()> {
+    fn get_info(&mut self, data: &str) -> Result<PipelineInfo> {
         let info = serde_json::from_str::<ExecInfo>(data)?;
         let path = Pipeline::get_path(&info.name)?;
         if !path.is_file() {
@@ -88,23 +114,38 @@ impl ExecutePipelineSocket {
 
         let id = Uuid::new_v4().to_string();
         let config = self.config.get_ref();
-        let lg_path = path![&config.local.logs, format!("{}-{}", &info.name, id)]
+        let logs = path![&config.local.logs, format!("{}-{}", &info.name, id)]
             .display()
             .to_string();
+
         let mut db = Database::connect(&config.local.db)?;
-        let _ = db.add(&id, &info.name, &self.user.name)?;
-        let lg = FileLogger::new(&lg_path)?;
+        db.add(&id, &info.name, &self.user.name)?;
 
-        self.pipeline = info.name;
-        self.exec = Some(Arc::new(Mutex::new(db)));
-        self.logger = Some(Arc::new(Mutex::new(lg)));
-        self.scanner = Some(FileScanner::new(&lg_path)?);
-
-        if let Some(vars) = info.variables {
-            self.vars = Arc::new(vars);
+        let ex = Arc::new(Mutex::new(db));
+        let (tx, rx) = mpsc::channel::<bool>();
+        let rx = Arc::new(Mutex::new(rx));
+        {
+            let mut pool = self.pool.senders.lock().unwrap();
+            pool.insert(id.clone(), tx);
         }
 
-        Ok(())
+        let info = PipelineInfo {
+            pool: self.pool.clone(),
+            id,
+            name: info.name,
+            ex,
+            lg: Arc::new(Mutex::new(FileLogger::new(&logs)?)),
+            cm: Some(rx),
+            vars: match info.variables {
+                Some(vars) => Arc::new(vars),
+                None => Arc::new(HashMap::<String, String>::new()),
+            },
+        };
+
+        self.exec = Some(info.ex.clone());
+        self.scanner = Some(FileScanner::new(&logs)?);
+
+        Ok(info)
     }
 }
 
@@ -127,42 +168,16 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for ExecutePipelin
     fn handle(&mut self, msg: StdResult<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(txt)) => {
-                if let Err(e) = self.dependencies(&txt) {
-                    eprintln!("{}", e.to_string());
-                    ctx.text("Unable to run pipeline");
-                    ctx.stop();
-                }
-                let name = self.pipeline.clone();
-                let ex = match &self.exec {
-                    Some(exec) => exec.clone(),
-                    None => {
+                match self.get_info(&txt) {
+                    Ok(pipeline_info) => {
+                        pipeline_info.spawn();
+                    }
+                    Err(e) => {
+                        eprintln!("{}", e.to_string());
+                        ctx.text("Unable to run pipeline");
                         ctx.stop();
-                        return;
                     }
                 };
-                let lg = match &self.logger {
-                    Some(lg) => lg.clone(),
-                    None => {
-                        ctx.stop();
-                        return;
-                    }
-                };
-                let id = {
-                    let ex = ex.lock().unwrap();
-                    match &ex.pipeline {
-                        Some(pip) => pip.id.to_string(),
-                        None => {
-                            ctx.stop();
-                            return;
-                        }
-                    }
-                };
-                let vars = self.vars.clone();
-                let (tx, rx) = mpsc::channel::<bool>();
-                let rx = Arc::new(Mutex::new(rx));
-                let mut pool = self.pool.senders.lock().unwrap();
-                pool.insert(id, tx);
-                thread::spawn(move || invoke_pipeline(name, ex, lg, Some(rx), vars));
             }
             Ok(ws::Message::Ping(msg)) => {
                 self.hb = Instant::now();
@@ -180,23 +195,6 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for ExecutePipelin
     }
 }
 
-fn invoke_pipeline(
-    name: String,
-    ex: AtomicDb,
-    lg: AtomicFs,
-    cm: Option<AtomicRecv>,
-    vars: Arc<HashMap<String, String>>,
-) {
-    if let Ok(mut rt) = Runtime::new() {
-        rt.block_on(async move {
-            let fut = Runner::from_file(name, ex, lg, cm, vars);
-            if let Err(e) = fut.await.await {
-                let _ = term::print_error(&e.to_string());
-            }
-        });
-    }
-}
-
 pub async fn ws_exec(
     user: Option<User>,
     req: HttpRequest,
@@ -204,11 +202,7 @@ pub async fn ws_exec(
     config: web::Data<BldConfig>,
     pool: web::Data<PipelinePool>,
 ) -> StdResult<HttpResponse, Error> {
-    let user = match user {
-        Some(usr) => usr,
-        None => return Err(ErrorUnauthorized("")),
-    };
-
+    let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{:?}", req);
     let res = ws::start(ExecutePipelineSocket::new(user, config, pool), &req, stream);
     println!("{:?}", res);
