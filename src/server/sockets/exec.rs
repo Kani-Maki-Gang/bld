@@ -47,7 +47,7 @@ impl PipelineInfo {
                     {
                         let mut pool = self.pool.senders.lock().unwrap();
                         pool.remove(&self.id);
-                    } 
+                    }
                 });
             }
         });

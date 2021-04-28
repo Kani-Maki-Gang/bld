@@ -1,7 +1,7 @@
 use crate::config::definitions::{GET, PUSH, VAR_TOKEN};
 use crate::config::BldConfig;
 use crate::persist::{Execution, Logger, NullExec};
-use crate::run::{BuildStep, Container, Pipeline, RunsOn, Machine};
+use crate::run::{BuildStep, Container, Machine, Pipeline, RunsOn};
 use crate::types::{CheckStopSignal, Result};
 use std::collections::HashMap;
 use std::future::Future;
@@ -41,7 +41,9 @@ impl Runner {
     ) -> Result<Runner> {
         let platform = match &pip.runs_on {
             RunsOn::Machine => TargetPlatform::Machine(Box::new(Machine::new(lg.clone())?)),
-            RunsOn::Docker(img) => TargetPlatform::Container(Box::new(Container::new(img, cfg.clone(), lg.clone()).await?)),
+            RunsOn::Docker(img) => TargetPlatform::Container(Box::new(
+                Container::new(img, cfg.clone(), lg.clone()).await?,
+            )),
         };
         Ok(Runner {
             ex,
@@ -49,7 +51,7 @@ impl Runner {
             pip,
             cm,
             vars,
-            platform
+            platform,
         })
     }
 
@@ -177,7 +179,9 @@ impl Runner {
                         .sh(&step.working_dir, &command_with_vars, &self.cm)
                         .await?
                 }
-                TargetPlatform::Machine(machine) => machine.sh(&step.working_dir, &command_with_vars)?,
+                TargetPlatform::Machine(machine) => {
+                    machine.sh(&step.working_dir, &command_with_vars)?
+                }
             }
             self.cm.check_stop_signal()?;
         }
