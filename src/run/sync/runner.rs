@@ -1,8 +1,7 @@
 use crate::config::definitions::{GET, PUSH, VAR_TOKEN};
 use crate::config::BldConfig;
 use crate::persist::{Execution, Logger, NullExec};
-use crate::run::RunPlatform;
-use crate::run::{BuildStep, Pipeline};
+use crate::run::{BuildStep, Container, Pipeline, RunsOn, Machine};
 use crate::types::{CheckStopSignal, Result};
 use std::collections::HashMap;
 use std::future::Future;
@@ -17,12 +16,18 @@ type AtomicLog = Arc<Mutex<dyn Logger>>;
 type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
 type AtomicVars = Arc<HashMap<String, String>>;
 
+pub enum TargetPlatform {
+    Machine(Box<Machine>),
+    Container(Box<Container>),
+}
+
 pub struct Runner {
     pub ex: AtomicExec,
     pub lg: AtomicLog,
     pub pip: Pipeline,
     pub cm: Option<AtomicRecv>,
     pub vars: AtomicVars,
+    pub platform: TargetPlatform,
 }
 
 impl Runner {
@@ -30,19 +35,21 @@ impl Runner {
         cfg: Rc<BldConfig>,
         ex: AtomicExec,
         lg: AtomicLog,
-        mut pip: Pipeline,
+        pip: Pipeline,
         cm: Option<AtomicRecv>,
         vars: AtomicVars,
     ) -> Result<Runner> {
-        if let RunPlatform::Docker(container) = &pip.runs_on {
-            pip.runs_on = RunPlatform::Docker(Box::new(container.start(cfg).await?));
-        }
+        let platform = match &pip.runs_on {
+            RunsOn::Machine => TargetPlatform::Machine(Box::new(Machine::new(lg.clone())?)),
+            RunsOn::Docker(img) => TargetPlatform::Container(Box::new(Container::new(img, cfg.clone(), lg.clone()).await?)),
+        };
         Ok(Runner {
             ex,
             lg,
             pip,
             cm,
             vars,
+            platform
         })
     }
 
@@ -105,8 +112,8 @@ impl Runner {
                         from, to
                     ));
                 }
-                match &self.pip.runs_on {
-                    RunPlatform::Docker(container) => {
+                match &self.platform {
+                    TargetPlatform::Container(container) => {
                         let result = if method == PUSH {
                             container.copy_into(&from, &to).await
                         } else {
@@ -116,7 +123,7 @@ impl Runner {
                             result?;
                         }
                     }
-                    RunPlatform::Local(machine) => {
+                    TargetPlatform::Machine(machine) => {
                         let result = if method == PUSH {
                             machine.copy_into(&from, &to)
                         } else {
@@ -164,13 +171,13 @@ impl Runner {
         self.cm.check_stop_signal()?;
         for command in step.commands.iter() {
             let command_with_vars = self.apply_variables(&command);
-            match &self.pip.runs_on {
-                RunPlatform::Docker(container) => {
+            match &self.platform {
+                TargetPlatform::Container(container) => {
                     container
                         .sh(&step.working_dir, &command_with_vars, &self.cm)
                         .await?
                 }
-                RunPlatform::Local(machine) => machine.sh(&step.working_dir, &command_with_vars)?,
+                TargetPlatform::Machine(machine) => machine.sh(&step.working_dir, &command_with_vars)?,
             }
             self.cm.check_stop_signal()?;
         }
@@ -178,8 +185,9 @@ impl Runner {
     }
 
     async fn dispose(&self) -> Result<()> {
-        if let RunPlatform::Docker(container) = &self.pip.runs_on {
-            container.dispose().await?;
+        match &self.platform {
+            TargetPlatform::Machine(machine) => machine.dispose()?,
+            TargetPlatform::Container(container) => container.dispose().await?,
         }
         Ok(())
     }
@@ -193,7 +201,7 @@ impl Runner {
     ) -> RecursiveFuture {
         Box::pin(async move {
             let config = Rc::new(BldConfig::load()?);
-            let pip = Pipeline::parse(&src, lg.clone())?;
+            let pip = Pipeline::parse(&src)?;
             let mut runner = Runner::new(Rc::clone(&config), ex, lg, pip, cm, vars).await?;
 
             runner.persist_start();

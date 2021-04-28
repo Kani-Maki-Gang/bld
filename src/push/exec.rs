@@ -2,7 +2,6 @@ use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::{exec_post, headers};
 use crate::helpers::term::print_error;
-use crate::persist::NullLogger;
 use crate::run::Pipeline;
 use crate::types::{PushInfo, Result};
 use clap::ArgMatches;
@@ -10,7 +9,7 @@ use std::collections::HashSet;
 
 fn build_payload(name: String) -> Result<HashSet<(String, String)>> {
     let src = Pipeline::read(&name)?;
-    let pipeline = Pipeline::parse(&src, NullLogger::atom())?;
+    let pipeline = Pipeline::parse(&src)?;
     let mut set = HashSet::new();
     set.insert((name, src));
     for step in pipeline.steps.iter() {

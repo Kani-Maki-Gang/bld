@@ -78,26 +78,15 @@ impl Container {
         Ok(info.id)
     }
 
-    pub fn new(img: &str, lg: Arc<Mutex<dyn Logger>>) -> Self {
-        Self {
-            config: None,
-            img: img.to_string(),
-            client: None,
-            id: None,
-            lg,
-        }
-    }
-
-    pub async fn start(&self, config: Rc<BldConfig>) -> Result<Self> {
-        let mut lg = self.lg.clone();
-        let client = Container::docker(&config)?;
-        let id = Container::create(&client, &self.img, &mut lg).await?;
+    pub async fn new(img: &str, cfg: Rc<BldConfig>, lg: Arc<Mutex<dyn Logger>>) -> Result<Self> {
+        let client = Container::docker(&cfg)?;
+        let id = Container::create(&client, &img, &mut lg.clone()).await?;
         Ok(Self {
-            config: Some(config),
-            img: self.img.to_string(),
+            config: Some(cfg),
+            img: img.to_string(),
             client: Some(client),
             id: Some(id),
-            lg: self.lg.clone(),
+            lg,
         })
     }
 
@@ -128,10 +117,11 @@ impl Container {
     ) -> Result<()> {
         let client = self.get_client()?;
         let id = self.get_id()?;
-        let input = match working_dir {
-            Some(wd) => format!("cd {} && {}", &wd, input),
-            None => input.to_string(),
-        };
+        let input = working_dir
+            .as_ref()
+            .map(|wd| format!("cd {} && {}", &wd, input))
+            .or_else(|| Some(input.to_string()))
+            .unwrap();
         let cmd = vec!["bash", "-c", &input];
         let options = ExecContainerOptions::builder()
             .cmd(cmd)

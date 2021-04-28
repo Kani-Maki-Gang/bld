@@ -1,27 +1,28 @@
-pub static VERSION: &str = "0.1";
-pub static TOOL_DIR: &str = ".bld";
-pub static DB_NAME: &str = "bld-server.db";
-pub static PUSH: &str = "push";
-pub static GET: &str = "get";
-pub static VAR_TOKEN: &str = "bld:var:";
+pub const VERSION: &str = "0.1";
+pub const TOOL_DIR: &str = ".bld";
+pub const DB_NAME: &str = "bld-server.db";
+pub const PUSH: &str = "push";
+pub const GET: &str = "get";
+pub const VAR_TOKEN: &str = "bld:var:";
 
-pub static TOOL_DEFAULT_PIPELINE: &str = "default";
-pub static TOOL_DEFAULT_PIPELINE_FILE: &str = "default.yaml";
-pub static TOOL_DEFAULT_CONFIG: &str = "config";
-pub static TOOL_DEFAULT_CONFIG_FILE: &str = "config.yaml";
+pub const TOOL_DEFAULT_PIPELINE: &str = "default";
+pub const TOOL_DEFAULT_PIPELINE_FILE: &str = "default.yaml";
+pub const TOOL_DEFAULT_CONFIG: &str = "config";
+pub const TOOL_DEFAULT_CONFIG_FILE: &str = "config.yaml";
 
-pub static LOCAL_SERVER_MODE: bool = false;
-pub static LOCAL_SERVER_HOST: &str = "127.0.0.1";
-pub static LOCAL_SERVER_PORT: i64 = 6080;
-pub static LOCAL_LOGS: &str = ".bld/logs";
-pub static LOCAL_DB: &str = ".bld/db";
-pub static LOCAL_DOCKER_URL: &str = "tcp://127.0.0.1:2376";
-pub static REMOTE_SERVER_NAME: &str = "demo_server";
-pub static REMOTE_SERVER_HOST: &str = "127.0.0.1";
-pub static REMOTE_SERVER_PORT: i64 = 6080;
-pub static REMOTE_SERVER_OAUTH2: &str = ".bld/oauth2";
+pub const LOCAL_SERVER_MODE: bool = false;
+pub const LOCAL_SERVER_HOST: &str = "127.0.0.1";
+pub const LOCAL_SERVER_PORT: i64 = 6080;
+pub const LOCAL_LOGS: &str = ".bld/logs";
+pub const LOCAL_DB: &str = ".bld/db";
+pub const LOCAL_DOCKER_URL: &str = "tcp://127.0.0.1:2376";
+pub const LOCAL_MACHINE_TMP_DIR: &str = ".bld/tmp";
+pub const REMOTE_SERVER_NAME: &str = "demo_server";
+pub const REMOTE_SERVER_HOST: &str = "127.0.0.1";
+pub const REMOTE_SERVER_PORT: i64 = 6080;
+pub const REMOTE_SERVER_OAUTH2: &str = ".bld/oauth2";
 
-pub static DEFAULT_PIPELINE_CONTENT: &str = r"name: Default Pipeline
+pub const DEFAULT_PIPELINE_CONTENT: &str = r"name: Default Pipeline
 runs-on: machine
 steps: 
 - name: echo 
