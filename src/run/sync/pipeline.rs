@@ -86,6 +86,7 @@ impl Artifacts {
 pub struct Pipeline {
     pub name: Option<String>,
     pub runs_on: RunsOn,
+    pub dispose: bool,
     pub variables: Vec<Variable>,
     pub artifacts: Vec<Artifacts>,
     pub steps: Vec<BuildStep>,
@@ -116,14 +117,13 @@ impl Pipeline {
     }
 
     pub fn load(yaml: &Yaml) -> Result<Self> {
-        let name = yaml["name"].as_str().map(|n| n.to_string());
-        let runs_on = match yaml["runs-on"].as_str() {
-            Some("machine") | None => RunsOn::Machine,
-            Some(target) => RunsOn::Docker(target.to_string()),
-        };
         Ok(Self {
-            name,
-            runs_on,
+            name: yaml["name"].as_str().map(|n| n.to_string()),
+            runs_on: match yaml["runs-on"].as_str() {
+                Some("machine") | None => RunsOn::Machine,
+                Some(target) => RunsOn::Docker(target.to_string()),
+            },
+            dispose: yaml["dispose"].as_bool().or_else(|| Some(true)).unwrap(),
             variables: Self::variables(yaml)?,
             artifacts: Self::artifacts(yaml),
             steps: Self::steps(yaml),

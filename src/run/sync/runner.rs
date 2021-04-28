@@ -189,9 +189,11 @@ impl Runner {
     }
 
     async fn dispose(&self) -> Result<()> {
-        match &self.platform {
-            TargetPlatform::Machine(machine) => machine.dispose()?,
-            TargetPlatform::Container(container) => container.dispose().await?,
+        if self.pip.dispose {
+            match &self.platform {
+                TargetPlatform::Machine(machine) => machine.dispose()?,
+                TargetPlatform::Container(container) => container.dispose().await?,
+            }
         }
         Ok(())
     }
