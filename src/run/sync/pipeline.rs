@@ -1,12 +1,24 @@
 use crate::config::definitions::TOOL_DIR;
 use crate::helpers::errors::err_variable_in_yaml;
 use crate::path;
-use crate::persist::Logger;
-use crate::run::{Container, Machine, RunPlatform};
 use crate::types::{BldError, Result, EMPTY_YAML_VEC};
+use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 use yaml_rust::{Yaml, YamlLoader};
+
+pub enum RunsOn {
+    Machine,
+    Docker(String),
+}
+
+impl Display for RunsOn {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Machine => write!(f, "machine"),
+            Self::Docker(image) => write!(f, "docker [ {} ]", image),
+        }
+    }
+}
 
 pub struct Variable {
     pub name: String,
@@ -73,7 +85,8 @@ impl Artifacts {
 
 pub struct Pipeline {
     pub name: Option<String>,
-    pub runs_on: RunPlatform,
+    pub runs_on: RunsOn,
+    pub dispose: bool,
     pub variables: Vec<Variable>,
     pub artifacts: Vec<Artifacts>,
     pub steps: Vec<BuildStep>,
@@ -93,25 +106,24 @@ impl Pipeline {
         Ok(std::fs::read_to_string(path)?)
     }
 
-    pub fn parse(src: &str, logger: Arc<Mutex<dyn Logger>>) -> Result<Pipeline> {
+    pub fn parse(src: &str) -> Result<Pipeline> {
         let yaml = YamlLoader::load_from_str(&src)?;
         if yaml.is_empty() {
             return Err(BldError::YamlError("invalid yaml".to_string()));
         }
         let entry = yaml[0].clone();
-        let pipeline = Pipeline::load(&entry, logger)?;
+        let pipeline = Pipeline::load(&entry)?;
         Ok(pipeline)
     }
 
-    pub fn load(yaml: &Yaml, logger: Arc<Mutex<dyn Logger>>) -> Result<Self> {
-        let name = yaml["name"].as_str().map(|n| n.to_string());
-        let runs_on = match yaml["runs-on"].as_str() {
-            Some("machine") | None => RunPlatform::Local(Machine::new(logger)?),
-            Some(target) => RunPlatform::Docker(Box::new(Container::new(target, logger))),
-        };
+    pub fn load(yaml: &Yaml) -> Result<Self> {
         Ok(Self {
-            name,
-            runs_on,
+            name: yaml["name"].as_str().map(|n| n.to_string()),
+            runs_on: match yaml["runs-on"].as_str() {
+                Some("machine") | None => RunsOn::Machine,
+                Some(target) => RunsOn::Docker(target.to_string()),
+            },
+            dispose: yaml["dispose"].as_bool().or_else(|| Some(true)).unwrap(),
             variables: Self::variables(yaml)?,
             artifacts: Self::artifacts(yaml),
             steps: Self::steps(yaml),

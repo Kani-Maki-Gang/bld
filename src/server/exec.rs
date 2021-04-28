@@ -1,15 +1,10 @@
 use crate::config::BldConfig;
 use crate::helpers::term::print_info;
-use crate::server::{auth_redirect, hist, list, push, stop, ws_exec, ws_monit, PipelinePool};
+use crate::server::{auth_redirect, hist, home, list, push, stop, ws_exec, ws_monit, PipelinePool};
 use crate::types::Result;
 use actix::{Arbiter, System};
-use actix_web::{get, middleware, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{middleware, web, App, HttpServer};
 use clap::ArgMatches;
-
-#[get("/")]
-async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Bld server running")
-}
 
 async fn start(config: BldConfig, host: &str, port: i64) -> Result<()> {
     print_info(&format!("starting bld server at {}:{}", host, port))?;
@@ -22,7 +17,7 @@ async fn start(config: BldConfig, host: &str, port: i64) -> Result<()> {
             .app_data(pool_data.clone())
             .app_data(config_data.clone())
             .wrap(middleware::Logger::default())
-            .service(hello)
+            .service(home)
             .service(auth_redirect)
             .service(hist)
             .service(list)

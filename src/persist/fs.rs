@@ -58,6 +58,7 @@ impl Logger for FileLogger {
 pub struct NullLogger;
 
 impl NullLogger {
+    #[allow(dead_code)]
     pub fn atom() -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self))
     }
