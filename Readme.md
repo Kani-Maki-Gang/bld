@@ -11,6 +11,7 @@ Command | Description
 ------- | -----------
 config  | Lists bld's configuration.
 init    | Initializes the bld configuration.
+inspect | Inspects the contents of a pipeline on a bld server.
 hist    | Fetches execution history of pipelines on a bld server.
 login   | Initiates the login process for a bld server
 ls      | Lists pipelines in a bld server.
@@ -49,6 +50,22 @@ bld run -p pipeline_name -s server_name
 
 # Command to run a pipeline on a server with variables.
 bld run -p pipeline_name -s server_name -v VARIABLE1=value1 VARIABLE2=value2
+
+# Command to list pipelines of a server
+bld ls
+bld ls -s server_name
+
+# Command that prints the history of runned pipelines
+bld hist
+bld hist -s server_name
+
+# Command to monitor the execution of a pipeline or see the output of older runs
+bld monit
+bld monit -p pipeline_name -s server_name
+
+# Command to inspect the contents of a pipeline on a server
+bld inspect
+bld inspect -p pipeline_name -s server_name
 ```
 
 # Pipeline examples
