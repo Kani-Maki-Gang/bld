@@ -1,4 +1,4 @@
-use crate::run::socket::ExecutePipelineSocketMessage;
+use crate::types::ExecInfo;
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, AsyncContext, Context, Handler, StreamHandler, System};
 use actix_codec::Framed;
@@ -9,11 +9,11 @@ use bytes::Bytes;
 use futures::stream::SplitSink;
 use std::time::Duration;
 
-pub struct ExecutePipelineSocketClient {
+pub struct ExecClient {
     writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>,
 }
 
-impl ExecutePipelineSocketClient {
+impl ExecClient {
     pub fn new(writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>) -> Self {
         Self { writer }
     }
@@ -26,7 +26,7 @@ impl ExecutePipelineSocketClient {
     }
 }
 
-impl Actor for ExecutePipelineSocketClient {
+impl Actor for ExecClient {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Context<Self>) {
@@ -38,15 +38,17 @@ impl Actor for ExecutePipelineSocketClient {
     }
 }
 
-impl Handler<ExecutePipelineSocketMessage> for ExecutePipelineSocketClient {
+impl Handler<ExecInfo> for ExecClient {
     type Result = ();
 
-    fn handle(&mut self, msg: ExecutePipelineSocketMessage, _ctx: &mut Self::Context) {
-        let _ = self.writer.write(Message::Text(msg.0));
+    fn handle(&mut self, msg: ExecInfo, _ctx: &mut Self::Context) {
+        if let Ok(msg) = serde_json::to_string(&msg) {
+            let _ = self.writer.write(Message::Text(msg));
+        }
     }
 }
 
-impl StreamHandler<Result<Frame, WsProtocolError>> for ExecutePipelineSocketClient {
+impl StreamHandler<Result<Frame, WsProtocolError>> for ExecClient {
     fn handle(&mut self, msg: Result<Frame, WsProtocolError>, _: &mut Context<Self>) {
         match msg {
             Ok(Frame::Text(bt)) => println!("{}", String::from_utf8_lossy(&bt[..])),
@@ -60,4 +62,4 @@ impl StreamHandler<Result<Frame, WsProtocolError>> for ExecutePipelineSocketClie
     }
 }
 
-impl WriteHandler<WsProtocolError> for ExecutePipelineSocketClient {}
+impl WriteHandler<WsProtocolError> for ExecClient {}

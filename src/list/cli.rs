@@ -6,7 +6,7 @@ pub fn command() -> App<'static, 'static> {
         .short("s")
         .long("server")
         .takes_value(true)
-        .help("the name of the server from which to fetch pipeline information");
+        .help("The name of the server from which to fetch pipeline information");
     SubCommand::with_name("ls")
         .about("Lists information of pipelines in a bld server")
         .version(VERSION)

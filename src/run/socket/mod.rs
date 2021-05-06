@@ -1,14 +1,12 @@
 mod client;
-mod messages;
 
 pub use client::*;
-pub use messages::*;
 
 use crate::config::BldConfig;
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::headers;
 use crate::helpers::term::print_error;
-use crate::run::socket::{ExecutePipelineSocketClient, ExecutePipelineSocketMessage};
+use crate::run::socket::ExecClient;
 use crate::types::{ExecInfo, Result};
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
 use awc::Client;
@@ -33,16 +31,15 @@ async fn remote_invoke(server: String, detach: bool, data: ExecInfo) -> Result<b
     }
     let (_, framed) = client.connect().await?;
     let (sink, stream) = framed.split();
-    let addr = ExecutePipelineSocketClient::create(|ctx| {
-        ExecutePipelineSocketClient::add_stream(stream, ctx);
-        ExecutePipelineSocketClient::new(SinkWrite::new(sink, ctx))
+    let addr = ExecClient::create(|ctx| {
+        ExecClient::add_stream(stream, ctx);
+        ExecClient::new(SinkWrite::new(sink, ctx))
     });
-    let data = serde_json::to_string(&data)?;
     if detach {
-        addr.do_send(ExecutePipelineSocketMessage(data));
+        addr.do_send(data);
         Ok(true)
     } else {
-        let _ = addr.send(ExecutePipelineSocketMessage(data)).await;
+        let _ = addr.send(data).await;
         Ok(false)
     }
 }

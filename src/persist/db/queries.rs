@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-pub static CREATE_TABLE_PIPELINE_QUERY: &str = r"
+pub const CREATE_TABLE_PIPELINE_QUERY: &str = r"
     create table pipeline (
         id nvarchar(50) primary key not null,
         name nvarchar(250) not null,
@@ -11,23 +11,36 @@ pub static CREATE_TABLE_PIPELINE_QUERY: &str = r"
     )
 ";
 
-pub static SELECT_PIPELINES_QUERY: &str = r"
+pub const SELECT_PIPELINES_QUERY: &str = r"
     select *
     from pipeline
 ";
 
-pub static SELECT_PIPELINE_BY_ID_QUERY: &str = r"
+pub const SELECT_PIPELINE_BY_ID_QUERY: &str = r"
     select * 
     from pipeline 
     where id = ? 
 ";
 
-pub static INSERT_PIPELINE_QUERY: &str = r"
+pub const SELECT_LAST_INVOKED_PIPELINE: &str = r"
+    select *
+    from pipeline
+    order by start_date_time desc
+    limit 1
+";
+
+pub const SELECT_PIPELINE_BY_NAME_QUERY: &str = r"
+    select *
+    from pipeline
+    where name = ?
+";
+
+pub const INSERT_PIPELINE_QUERY: &str = r"
     insert into pipeline
     values (?, ?, ?, ?, ?, ?)
 ";
 
-pub static UPDATE_PIPELINE_QUERY: &str = r"
+pub const UPDATE_PIPELINE_QUERY: &str = r"
     update pipeline 
     set running = ?, end_date_time = ?
     where id = ?

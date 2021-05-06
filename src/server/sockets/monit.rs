@@ -2,7 +2,7 @@ use crate::config::BldConfig;
 use crate::path;
 use crate::persist::{Database, FileScanner, Scanner};
 use crate::server::User;
-use crate::types::{BldError, Result};
+use crate::types::{BldError, MonitInfo, Result};
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
@@ -65,16 +65,27 @@ impl MonitorPipelineSocket {
         }
     }
 
-    fn dependencies(&mut self, id: &str) -> Result<()> {
+    fn dependencies(&mut self, data: &str) -> Result<()> {
+        let data = serde_json::from_str::<MonitInfo>(data)?;
         let config = self.config.get_ref();
         let mut db = Database::connect(&config.local.db)?;
-        db.load(id);
+
+        if data.last {
+            db.load_last();
+        } else if let Some(id) = data.id {
+            db.load(&id);
+        } else if let Some(name) = data.name {
+            db.load_by_name(&name);
+        } else {
+            return Err(BldError::Other("pipeline not found".to_string()));
+        }
+
         let pipeline = match &db.pipeline {
             Some(pipeline) => pipeline,
             None => return Err(BldError::Other("pipeline not found".to_string())),
         };
 
-        self.id = id.to_string();
+        self.id = pipeline.id.clone();
 
         let path = path![
             &config.local.logs,

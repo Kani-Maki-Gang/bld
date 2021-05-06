@@ -1,4 +1,4 @@
-use crate::monit::MonitorPipelineSocketMessage;
+use crate::types::MonitInfo;
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, AsyncContext, Context, Handler, StreamHandler, System};
 use actix_codec::Framed;
@@ -9,11 +9,11 @@ use bytes::Bytes;
 use futures::stream::SplitSink;
 use std::time::Duration;
 
-pub struct MonitorPipelineSocketClient {
+pub struct MonitClient {
     writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>,
 }
 
-impl MonitorPipelineSocketClient {
+impl MonitClient {
     pub fn new(writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>) -> Self {
         Self { writer }
     }
@@ -26,7 +26,7 @@ impl MonitorPipelineSocketClient {
     }
 }
 
-impl Actor for MonitorPipelineSocketClient {
+impl Actor for MonitClient {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Context<Self>) {
@@ -38,15 +38,17 @@ impl Actor for MonitorPipelineSocketClient {
     }
 }
 
-impl Handler<MonitorPipelineSocketMessage> for MonitorPipelineSocketClient {
+impl Handler<MonitInfo> for MonitClient {
     type Result = ();
 
-    fn handle(&mut self, msg: MonitorPipelineSocketMessage, _ctx: &mut Self::Context) {
-        let _ = self.writer.write(Message::Text(msg.0));
+    fn handle(&mut self, msg: MonitInfo, _ctx: &mut Self::Context) {
+        if let Ok(text) = serde_json::to_string(&msg) {
+            let _ = self.writer.write(Message::Text(text));
+        }
     }
 }
 
-impl StreamHandler<Result<Frame, WsProtocolError>> for MonitorPipelineSocketClient {
+impl StreamHandler<Result<Frame, WsProtocolError>> for MonitClient {
     fn handle(&mut self, msg: Result<Frame, WsProtocolError>, _: &mut Context<Self>) {
         match msg {
             Ok(Frame::Text(bt)) => println!("{}", String::from_utf8_lossy(&bt)),
@@ -60,4 +62,4 @@ impl StreamHandler<Result<Frame, WsProtocolError>> for MonitorPipelineSocketClie
     }
 }
 
-impl WriteHandler<WsProtocolError> for MonitorPipelineSocketClient {}
+impl WriteHandler<WsProtocolError> for MonitClient {}

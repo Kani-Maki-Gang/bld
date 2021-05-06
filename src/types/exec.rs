@@ -1,7 +1,9 @@
+use actix::Message;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Message)]
+#[rtype(result = "()")]
 pub struct ExecInfo {
     pub name: String,
     pub variables: Option<HashMap<String, String>>,
