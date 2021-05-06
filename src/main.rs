@@ -3,6 +3,7 @@ mod config;
 mod helpers;
 mod hist;
 mod init;
+mod inspect;
 mod list;
 mod monit;
 mod os;
@@ -24,6 +25,7 @@ fn main() {
         .subcommands(vec![
             auth::command(),
             init::command(),
+            inspect::command(),
             hist::command(),
             config::command(),
             run::command(),
@@ -38,6 +40,7 @@ fn main() {
     let result = match matches.subcommand() {
         ("login", Some(matches)) => auth::exec(matches),
         ("init", Some(matches)) => init::exec(matches),
+        ("inspect", Some(matches)) => inspect::exec(matches),
         ("hist", Some(matches)) => hist::exec(matches),
         ("config", Some(matches)) => config::exec(matches),
         ("run", Some(matches)) => run::exec(matches),

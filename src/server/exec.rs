@@ -1,6 +1,6 @@
 use crate::config::BldConfig;
 use crate::helpers::term::print_info;
-use crate::server::{auth_redirect, hist, home, list, push, stop, ws_exec, ws_monit, PipelinePool};
+use crate::server::{auth_redirect, hist, home, list, push, stop, inspect, ws_exec, ws_monit, PipelinePool};
 use crate::types::Result;
 use actix::{Arbiter, System};
 use actix_web::{middleware, web, App, HttpServer};
@@ -23,6 +23,7 @@ async fn start(config: BldConfig, host: &str, port: i64) -> Result<()> {
             .service(list)
             .service(push)
             .service(stop)
+            .service(inspect)
             .service(web::resource("/ws-exec/").route(web::get().to(ws_exec)))
             .service(web::resource("/ws-monit").route(web::get().to(ws_monit)))
     })
