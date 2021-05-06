@@ -53,8 +53,7 @@ impl PipelineModel {
     }
 
     pub fn select_last(connection: &SqliteConnection) -> Option<Self> {
-        let query = sql_query(SELECT_LAST_INVOKED_PIPELINE)
-            .load::<Self>(connection);
+        let query = sql_query(SELECT_LAST_INVOKED_PIPELINE).load::<Self>(connection);
         if query.is_err() {
             return None;
         }

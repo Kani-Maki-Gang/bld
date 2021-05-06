@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use actix::Message;
+use serde::{Deserialize, Serialize};
 
 #[derive(Default, Serialize, Deserialize, Message)]
 #[rtype(result = "()")]
