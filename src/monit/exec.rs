@@ -2,15 +2,15 @@ use crate::config::BldConfig;
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::headers;
 use crate::helpers::term::print_error;
-use crate::monit::{MonitorPipelineSocketClient, MonitorPipelineSocketMessage};
-use crate::types::Result;
+use crate::monit::MonitClient;
+use crate::types::{MonitInfo, Result};
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
 use awc::Client;
 use clap::ArgMatches;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
 
-struct MonitorConnectionInfo {
+struct MonitConnectionInfo {
     host: String,
     port: i64,
     headers: HashMap<String, String>,
@@ -18,7 +18,7 @@ struct MonitorConnectionInfo {
     pip_name: Option<String>,
 }
 
-async fn remote_invoke(info: MonitorConnectionInfo) -> Result<()> {
+async fn remote_invoke(info: MonitConnectionInfo) -> Result<()> {
     let url = format!("http://{}:{}/ws-monit", info.host, info.port);
     let mut client = Client::new().ws(url);
     for (key, value) in info.headers.iter() {
@@ -26,16 +26,16 @@ async fn remote_invoke(info: MonitorConnectionInfo) -> Result<()> {
     }
     let (_, framed) = client.connect().await?;
     let (sink, stream) = framed.split();
-    let addr = MonitorPipelineSocketClient::create(|ctx| {
-        MonitorPipelineSocketClient::add_stream(stream, ctx);
-        MonitorPipelineSocketClient::new(SinkWrite::new(sink, ctx))
+    let addr = MonitClient::create(|ctx| {
+        MonitClient::add_stream(stream, ctx);
+        MonitClient::new(SinkWrite::new(sink, ctx))
     });
-    addr.send(MonitorPipelineSocketMessage(info.pip_id, info.pip_name))
+    addr.send(MonitInfo::new(info.pip_id, info.pip_name))
         .await?;
     Ok(())
 }
 
-fn exec_request(info: MonitorConnectionInfo) {
+fn exec_request(info: MonitConnectionInfo) {
     let system = System::new("bld-monit");
     Arbiter::spawn(async move {
         if let Err(e) = remote_invoke(info).await {
@@ -58,7 +58,7 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
         },
         None => (&srv.name, &srv.auth),
     };
-    exec_request(MonitorConnectionInfo {
+    exec_request(MonitConnectionInfo {
         host: srv.host.to_string(),
         port: srv.port,
         headers: headers(name, auth)?,

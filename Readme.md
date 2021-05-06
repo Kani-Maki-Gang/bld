@@ -23,10 +23,9 @@ stop    | Stops a running pipeline on a server.
 
 # Usage
 ```bash
-# Examples of the various commands that bld exposes. In most commands that target
-# a server, if a name is not provided the first server entry in the config file is selected.
-# Additionaly when a command requires a pipeline name, if not provided it will target the 
-# default pipeline.
+# Examples of the various commands that bld exposes. In most commands that target a server, 
+# if a name is not provided the first server entry in the config file is selected. Additionaly 
+# when a command requires a pipeline name, if not provided it will target the default pipeline.
 
 # Command to create the .bld directory and a default pipeline.
 bld init 
