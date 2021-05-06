@@ -70,7 +70,9 @@ impl MonitorPipelineSocket {
         let config = self.config.get_ref();
         let mut db = Database::connect(&config.local.db)?;
 
-        if let Some(id) = data.id {
+        if data.last {
+            db.load_last();
+        } else if let Some(id) = data.id {
             db.load(&id);
         } else if let Some(name) = data.name {
             db.load_by_name(&name);

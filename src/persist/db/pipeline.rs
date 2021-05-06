@@ -52,6 +52,15 @@ impl PipelineModel {
         query.unwrap().pop()
     }
 
+    pub fn select_last(connection: &SqliteConnection) -> Option<Self> {
+        let query = sql_query(SELECT_LAST_INVOKED_PIPELINE)
+            .load::<Self>(connection);
+        if query.is_err() {
+            return None;
+        }
+        query.unwrap().pop()
+    }
+
     pub fn insert(connection: &SqliteConnection, pipeline: &Self) -> Result<()> {
         sql_query(INSERT_PIPELINE_QUERY)
             .bind::<Text, _>(&pipeline.id)

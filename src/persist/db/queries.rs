@@ -22,6 +22,13 @@ pub const SELECT_PIPELINE_BY_ID_QUERY: &str = r"
     where id = ? 
 ";
 
+pub const SELECT_LAST_INVOKED_PIPELINE: &str = r"
+    select *
+    from pipeline
+    order by start_date_time desc
+    limit 1
+";
+
 pub const SELECT_PIPELINE_BY_NAME_QUERY: &str = r"
     select *
     from pipeline

@@ -12,6 +12,7 @@ use std::convert::From;
 use std::error::Error;
 use std::io;
 use std::marker::{Send, Sync};
+use std::str::ParseBoolError;
 use yaml_rust::scanner::ScanError;
 
 pub type Result<T> = std::result::Result<T, BldError>;
@@ -20,6 +21,7 @@ pub enum BldError {
     ActixError(String),
     DieselError(String),
     IoError(String),
+    ParseError(String),
     SerdeError(String),
     ShipliftError(String),
     YamlError(String),
@@ -122,12 +124,19 @@ impl<T: 'static + Sync + Send + Error>
     }
 }
 
+impl From<ParseBoolError> for BldError {
+    fn from(error: ParseBoolError) -> Self {
+        Self::ParseError(error.to_string())
+    }
+}
+
 impl std::string::ToString for BldError {
     fn to_string(&self) -> String {
         match self {
             Self::ActixError(a) => a.to_string(),
             Self::DieselError(d) => d.to_string(),
             Self::IoError(i) => i.to_string(),
+            Self::ParseError(p) => p.to_string(),
             Self::SerdeError(s) => s.to_string(),
             Self::ShipliftError(s) => s.to_string(),
             Self::YamlError(y) => y.to_string(),

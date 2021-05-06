@@ -51,6 +51,10 @@ impl Database {
         self.pipeline = PipelineModel::select_by_name(&self.connection, name);
     }
 
+    pub fn load_last(&mut self) {
+        self.pipeline = PipelineModel::select_last(&self.connection);
+    }
+
     pub fn add(&mut self, id: &str, name: &str, user: &str) -> Result<()> {
         let pipeline = PipelineModel {
             id: id.to_string(),

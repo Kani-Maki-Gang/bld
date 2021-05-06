@@ -16,6 +16,7 @@ struct MonitConnectionInfo {
     headers: HashMap<String, String>,
     pip_id: Option<String>,
     pip_name: Option<String>,
+    pip_last: bool,
 }
 
 async fn remote_invoke(info: MonitConnectionInfo) -> Result<()> {
@@ -30,7 +31,7 @@ async fn remote_invoke(info: MonitConnectionInfo) -> Result<()> {
         MonitClient::add_stream(stream, ctx);
         MonitClient::new(SinkWrite::new(sink, ctx))
     });
-    addr.send(MonitInfo::new(info.pip_id, info.pip_name))
+    addr.send(MonitInfo::new(info.pip_id, info.pip_name, info.pip_last))
         .await?;
     Ok(())
 }
@@ -50,6 +51,7 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
     let config = BldConfig::load()?;
     let pip_id = matches.value_of("pipeline-id").map(|x| x.to_string());
     let pip_name = matches.value_of("pipeline").map(|x| x.to_string());
+    let pip_last = matches.is_present("last");
     let srv = config.remote.server_or_first(matches.value_of("server"))?;
     let (name, auth) = match &srv.same_auth_as {
         Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
@@ -64,6 +66,7 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
         headers: headers(name, auth)?,
         pip_id,
         pip_name,
+        pip_last,
     });
     Ok(())
 }

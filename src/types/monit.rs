@@ -6,10 +6,11 @@ use actix::Message;
 pub struct MonitInfo {
     pub id: Option<String>,
     pub name: Option<String>,
+    pub last: bool,
 }
 
 impl MonitInfo {
-    pub fn new(id: Option<String>, name: Option<String>) -> Self {
-        Self { id, name }
+    pub fn new(id: Option<String>, name: Option<String>, last: bool) -> Self {
+        Self { id, name, last }
     }
 }
