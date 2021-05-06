@@ -50,7 +50,7 @@ impl Machine {
         let os_name = os::name();
         let current_dir = working_dir
             .as_ref()
-            .or_else(|| Some(&self.tmp_dir))
+            .or(Some(&self.tmp_dir))
             .unwrap()
             .to_string();
         let current_dir = if Path::new(&current_dir).is_relative() {

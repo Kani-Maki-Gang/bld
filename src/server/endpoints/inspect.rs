@@ -1,5 +1,5 @@
-use crate::path;
 use crate::config::definitions;
+use crate::path;
 use crate::server::User;
 use crate::types::Result;
 use actix_web::{get, web, HttpResponse, Responder};
@@ -24,8 +24,8 @@ pub async fn inspect(user: Option<User>, path: web::Path<(String,)>) -> impl Res
 
 fn inspect_pipeline(name: &str) -> Result<String> {
     let path = path![
-        std::env::current_dir()?, 
-        definitions::TOOL_DIR, 
+        std::env::current_dir()?,
+        definitions::TOOL_DIR,
         format!("{}.yaml", name)
     ];
     Ok(std::fs::read_to_string(path)?)

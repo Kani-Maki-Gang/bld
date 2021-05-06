@@ -123,7 +123,7 @@ impl Pipeline {
                 Some("machine") | None => RunsOn::Machine,
                 Some(target) => RunsOn::Docker(target.to_string()),
             },
-            dispose: yaml["dispose"].as_bool().or_else(|| Some(true)).unwrap(),
+            dispose: yaml["dispose"].as_bool().or(Some(true)).unwrap(),
             variables: Self::variables(yaml)?,
             artifacts: Self::artifacts(yaml),
             steps: Self::steps(yaml),

@@ -1,6 +1,8 @@
 use crate::config::BldConfig;
 use crate::helpers::term::print_info;
-use crate::server::{auth_redirect, hist, home, list, push, stop, inspect, ws_exec, ws_monit, PipelinePool};
+use crate::server::{
+    auth_redirect, hist, home, inspect, list, push, stop, ws_exec, ws_monit, PipelinePool,
+};
 use crate::types::Result;
 use actix::{Arbiter, System};
 use actix_web::{middleware, web, App, HttpServer};
