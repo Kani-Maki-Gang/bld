@@ -5,21 +5,21 @@ pub fn command() -> App<'static, 'static> {
     let pipeline = Arg::with_name("pipeline")
         .short("p")
         .long("pipeline")
-        .help("path to pipeline script")
+        .help("Path to pipeline script")
         .takes_value(true);
     let server = Arg::with_name("server")
         .short("s")
         .long("server")
-        .help("the name of the server to run the pipeline")
+        .help("The name of the server to run the pipeline")
         .takes_value(true);
     let detach = Arg::with_name("detach")
         .short("d")
         .long("detach")
-        .help("detaches from the run execution (for server mode runs)");
+        .help("Detaches from the run execution (for server mode runs)");
     let variables = Arg::with_name("variables")
         .short("v")
         .long("variables")
-        .help("define values for variables of a pipeline")
+        .help("Define values for variables of a pipeline")
         .multiple(true)
         .takes_value(true);
     SubCommand::with_name("run")

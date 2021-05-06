@@ -44,7 +44,11 @@ impl Database {
     }
 
     pub fn load(&mut self, id: &str) {
-        self.pipeline = PipelineModel::select_by_id(&self.connection, &id);
+        self.pipeline = PipelineModel::select_by_id(&self.connection, id);
+    }
+
+    pub fn load_by_name(&mut self, name: &str) {
+        self.pipeline = PipelineModel::select_by_name(&self.connection, name);
     }
 
     pub fn add(&mut self, id: &str, name: &str, user: &str) -> Result<()> {

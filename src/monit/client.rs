@@ -1,4 +1,5 @@
 use crate::monit::MonitorPipelineSocketMessage;
+use crate::types::MonitInfo;
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, AsyncContext, Context, Handler, StreamHandler, System};
 use actix_codec::Framed;
@@ -42,7 +43,9 @@ impl Handler<MonitorPipelineSocketMessage> for MonitorPipelineSocketClient {
     type Result = ();
 
     fn handle(&mut self, msg: MonitorPipelineSocketMessage, _ctx: &mut Self::Context) {
-        let _ = self.writer.write(Message::Text(msg.0));
+        if let Ok(text) = serde_json::to_string(&MonitInfo::new(msg.0, msg.1)) {
+            let _ = self.writer.write(Message::Text(text));
+        }
     }
 }
 

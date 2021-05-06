@@ -1,4 +1,4 @@
-use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, BldConfig};
+use crate::config::BldConfig;
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::headers;
 use crate::helpers::term::print_error;
@@ -14,7 +14,8 @@ struct MonitorConnectionInfo {
     host: String,
     port: i64,
     headers: HashMap<String, String>,
-    id: String,
+    pip_id: Option<String>,
+    pip_name: Option<String>,
 }
 
 async fn remote_invoke(info: MonitorConnectionInfo) -> Result<()> {
@@ -29,7 +30,7 @@ async fn remote_invoke(info: MonitorConnectionInfo) -> Result<()> {
         MonitorPipelineSocketClient::add_stream(stream, ctx);
         MonitorPipelineSocketClient::new(SinkWrite::new(sink, ctx))
     });
-    addr.send(MonitorPipelineSocketMessage(info.id)).await?;
+    addr.send(MonitorPipelineSocketMessage(info.pip_id, info.pip_name)).await?;
     Ok(())
 }
 
@@ -46,11 +47,12 @@ fn exec_request(info: MonitorConnectionInfo) {
 
 pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
     let config = BldConfig::load()?;
-    let id = matches
+    let pip_id = matches
         .value_of("pipeline-id")
-        .or(Some(TOOL_DEFAULT_PIPELINE))
-        .unwrap()
-        .to_string();
+        .map(|x| x.to_string());
+    let pip_name = matches
+        .value_of("pipeline")
+        .map(|x| x.to_string());
     let srv = config.remote.server_or_first(matches.value_of("server"))?;
     let (name, auth) = match &srv.same_auth_as {
         Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
@@ -63,7 +65,8 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
         host: srv.host.to_string(),
         port: srv.port,
         headers: headers(name, auth)?,
-        id,
+        pip_id,
+        pip_name,
     });
     Ok(())
 }
