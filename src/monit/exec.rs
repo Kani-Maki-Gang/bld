@@ -30,7 +30,8 @@ async fn remote_invoke(info: MonitorConnectionInfo) -> Result<()> {
         MonitorPipelineSocketClient::add_stream(stream, ctx);
         MonitorPipelineSocketClient::new(SinkWrite::new(sink, ctx))
     });
-    addr.send(MonitorPipelineSocketMessage(info.pip_id, info.pip_name)).await?;
+    addr.send(MonitorPipelineSocketMessage(info.pip_id, info.pip_name))
+        .await?;
     Ok(())
 }
 
@@ -47,12 +48,8 @@ fn exec_request(info: MonitorConnectionInfo) {
 
 pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
     let config = BldConfig::load()?;
-    let pip_id = matches
-        .value_of("pipeline-id")
-        .map(|x| x.to_string());
-    let pip_name = matches
-        .value_of("pipeline")
-        .map(|x| x.to_string());
+    let pip_id = matches.value_of("pipeline-id").map(|x| x.to_string());
+    let pip_name = matches.value_of("pipeline").map(|x| x.to_string());
     let srv = config.remote.server_or_first(matches.value_of("server"))?;
     let (name, auth) = match &srv.same_auth_as {
         Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
