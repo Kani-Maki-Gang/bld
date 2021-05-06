@@ -23,6 +23,11 @@ stop    | Stops a running pipeline on a server.
 
 # Usage
 ```bash
+# Examples of the various commands that bld exposes. In most commands that target
+# a server, if a name is not provided the first server entry in the config file is selected.
+# Additionaly when a command requires a pipeline name, if not provided it will target the 
+# default pipeline.
+
 # Command to create the .bld directory and a default pipeline.
 bld init 
 
@@ -43,12 +48,9 @@ bld init -s
 bld server
 
 # Command to push a local pipeline file to a server.
-bld push
-bld push -p pipeline_name
 bld push -p pipeline_name -s server_name
 
 # Command to run a pipeline on a server.
-bld run -p pipeline_name
 bld run -p pipeline_name -s server_name
 
 # Command to run a pipeline on a server with variables.
@@ -64,16 +66,13 @@ bld hist -s server_name
 
 # Command to monitor the execution of a pipeline or see the output of older runs
 bld monit
-bld monit -i pipeline_id
 bld monit -i pipeline_id -s server_name
 
 # Command to monit a pipeline's execution output of its last run.
-bld monit -p pipeline_name
 bld monit -p pipeline_name -s server_name
 
 # Command to inspect the contents of a pipeline on a server
 bld inspect
-bld inspect -p pipeline_name
 bld inspect -p pipeline_name -s server_name
 ```
 
