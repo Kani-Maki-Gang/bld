@@ -31,7 +31,7 @@ pub fn exec(matches: &ArgMatches<'_>) -> Result<()> {
     match matches.value_of("server") {
         Some(server) => run::on_server(pipeline, vars, server.to_string(), detach),
         None => {
-            let mut rt = Runtime::new()?;
+            let rt = Runtime::new()?;
             rt.block_on(async {
                 Runner::from_file(
                     pipeline,

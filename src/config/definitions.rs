@@ -13,6 +13,7 @@ pub const TOOL_DEFAULT_CONFIG_FILE: &str = "config.yaml";
 pub const LOCAL_SERVER_MODE: bool = false;
 pub const LOCAL_SERVER_HOST: &str = "127.0.0.1";
 pub const LOCAL_SERVER_PORT: i64 = 6080;
+pub const LOCAL_HA_MODE: bool = false;
 pub const LOCAL_LOGS: &str = ".bld/logs";
 pub const LOCAL_DB: &str = ".bld/db";
 pub const LOCAL_DOCKER_URL: &str = "tcp://127.0.0.1:2376";
@@ -34,12 +35,19 @@ pub fn default_server_config() -> String {
     format!(
         r"local:
     server-mode: {} 
+    ha-mode: {}
     host: {}
     port: {}
     logs: {}
     db: {}
     docker-url: {}",
-        true, LOCAL_SERVER_HOST, LOCAL_SERVER_PORT, LOCAL_LOGS, LOCAL_DB, LOCAL_DOCKER_URL
+        true, 
+        LOCAL_SERVER_HOST,
+        LOCAL_HA_MODE,
+        LOCAL_SERVER_PORT, 
+        LOCAL_LOGS, 
+        LOCAL_DB, 
+        LOCAL_DOCKER_URL
     )
 }
 

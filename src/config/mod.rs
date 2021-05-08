@@ -42,8 +42,8 @@ impl BldConfig {
                 })
             }
             Err(_) => Ok(Self {
-                local: BldLocalConfig::default(),
-                remote: BldRemoteConfig::default(),
+                local: Default::default(),
+                remote: Default::default(),
             }),
         }
     }

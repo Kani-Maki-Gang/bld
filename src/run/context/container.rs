@@ -92,8 +92,7 @@ impl Container {
 
     pub async fn copy_from(&self, from: &str, to: &str) -> Result<()> {
         let client = self.get_client()?;
-        let id = self.get_id()?;
-        let container = client.containers().get(&id);
+        let container = client.containers().get(self.get_id()?);
         let bytes = container.copy_from(Path::new(from)).try_concat().await?;
         let mut archive = Archive::new(&bytes[..]);
         archive.unpack(Path::new(to))?;
@@ -102,8 +101,7 @@ impl Container {
 
     pub async fn copy_into(&self, from: &str, to: &str) -> Result<()> {
         let client = self.get_client()?;
-        let id = self.get_id()?;
-        let container = client.containers().get(&id);
+        let container = client.containers().get(self.get_id()?);
         let content = std::fs::read(from)?;
         container.copy_file_into(to, &content).await?;
         Ok(())
@@ -128,7 +126,7 @@ impl Container {
             .attach_stdout(true)
             .attach_stderr(true)
             .build();
-        let container = client.containers().get(&id);
+        let container = client.containers().get(id);
         let mut exec_iter = container.exec(&options);
         while let Some(result) = exec_iter.next().await {
             cm.check_stop_signal()?;

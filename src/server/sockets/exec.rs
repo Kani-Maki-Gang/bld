@@ -35,7 +35,7 @@ struct PipelineInfo {
 impl PipelineInfo {
     pub fn spawn(self) {
         thread::spawn(move || {
-            if let Ok(mut rt) = Runtime::new() {
+            if let Ok(rt) = Runtime::new() {
                 rt.block_on(async move {
                     if let Err(e) =
                         Runner::from_file(self.name, self.ex, self.lg, self.cm, self.vars)

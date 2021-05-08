@@ -9,12 +9,6 @@ pub struct BldRemoteConfig {
 }
 
 impl BldRemoteConfig {
-    pub fn default() -> Self {
-        Self {
-            servers: Vec::<BldServerConfig>::new(),
-        }
-    }
-
     pub fn load(yaml: &Yaml) -> Result<Self> {
         let servers = yaml["remote"]
             .as_vec()
@@ -43,6 +37,14 @@ impl BldRemoteConfig {
         match name {
             Some(name) => self.server(name),
             None => self.nth_server(0),
+        }
+    }
+}
+
+impl Default for BldRemoteConfig {
+    fn default() -> Self {
+        Self {
+            servers: Vec::<BldServerConfig>::new(),
         }
     }
 }
