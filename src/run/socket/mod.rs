@@ -30,6 +30,7 @@ async fn remote_invoke(server: String, detach: bool, data: ExecInfo) -> Result<b
         client = client.header(&key[..], &value[..]);
     }
     let (_, framed) = client.connect().await?;
+    println!("connected");
     let (sink, stream) = framed.split();
     let addr = ExecClient::create(|ctx| {
         ExecClient::add_stream(stream, ctx);

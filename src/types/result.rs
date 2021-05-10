@@ -3,13 +3,16 @@ use actix_http::client::SendRequestError;
 use actix_http::error::PayloadError;
 use actix_http::http::uri::InvalidUri;
 use actix_web::client::WsClientError;
+use async_raft::error::InitializeError;
 use diesel::ConnectionError;
 use oauth2::basic::BasicErrorResponseType;
 use oauth2::reqwest::Error as ReqError;
 use oauth2::url::ParseError;
 use oauth2::{RequestTokenError, StandardErrorResponse};
+use serde::{Serialize, Deserialize};
 use std::convert::From;
 use std::error::Error;
+use std::fmt::{self, Display};
 use std::io;
 use std::marker::{Send, Sync};
 use std::str::ParseBoolError;
@@ -17,11 +20,13 @@ use yaml_rust::scanner::ScanError;
 
 pub type Result<T> = std::result::Result<T, BldError>;
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum BldError {
     ActixError(String),
     DieselError(String),
     IoError(String),
     ParseError(String),
+    RaftError(String),
     SerdeError(String),
     ShipliftError(String),
     YamlError(String),
@@ -130,18 +135,28 @@ impl From<ParseBoolError> for BldError {
     }
 }
 
-impl std::string::ToString for BldError {
-    fn to_string(&self) -> String {
-        match self {
+impl From<InitializeError> for BldError {
+    fn from(error: InitializeError) -> Self {
+        Self::RaftError(error.to_string())
+    }
+}
+
+impl Display for BldError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let txt = match self {
             Self::ActixError(a) => a.to_string(),
             Self::DieselError(d) => d.to_string(),
             Self::IoError(i) => i.to_string(),
             Self::ParseError(p) => p.to_string(),
+            Self::RaftError(r) => r.to_string(),
             Self::SerdeError(s) => s.to_string(),
             Self::ShipliftError(s) => s.to_string(),
             Self::YamlError(y) => y.to_string(),
             Self::OAuth2(o) => o.to_string(),
             Self::Other(o) => o.to_string(),
-        }
+        };
+        write!(f, "{}", txt)
     }
 }
+
+impl Error for BldError {}

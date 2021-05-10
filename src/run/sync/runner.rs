@@ -73,9 +73,9 @@ impl Runner {
     fn info(&self) {
         let mut logger = self.lg.lock().unwrap();
         if let Some(name) = &self.pip.name {
-            logger.dumpln(&format!("Pipeline: {}", name));
+            logger.dumpln(&format!("[bld] Pipeline: {}", name));
         }
-        logger.dumpln(&format!("Runs on: {}", self.pip.runs_on));
+        logger.dumpln(&format!("[bld] Runs on: {}", self.pip.runs_on));
     }
 
     fn apply_variables(&self, command: &str) -> String {
@@ -110,7 +110,7 @@ impl Runner {
                 {
                     let mut logger = self.lg.lock().unwrap();
                     logger.dumpln(&format!(
-                        "Copying artifacts from: {} into container to: {}",
+                        "[bld] Copying artifacts from: {} into container to: {}",
                         from, to
                     ));
                 }
@@ -153,7 +153,7 @@ impl Runner {
     async fn step(&self, step: &BuildStep) -> Result<()> {
         if let Some(name) = &step.name {
             let mut logger = self.lg.lock().unwrap();
-            logger.info(&format!("Step: {}", name));
+            logger.info(&format!("[bld] Step: {}", name));
         }
         let comm = match &self.cm {
             Some(comm) => Some(comm.clone()),
