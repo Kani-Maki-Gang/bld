@@ -17,8 +17,8 @@ impl AuthCommand {
 
 impl BldCommand for AuthCommand {
     fn id(&self) -> &'static str {
-        LOGIN 
-    } 
+        LOGIN
+    }
 
     fn interface(&self) -> App<'static, 'static> {
         let server = Arg::with_name(SERVER)

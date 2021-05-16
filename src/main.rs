@@ -1,8 +1,8 @@
 mod auth;
 mod config;
 mod helpers;
-mod hist;
 mod high_avail;
+mod hist;
 mod init;
 mod inspect;
 mod list;
@@ -22,7 +22,7 @@ use clap::App;
 fn main() {
     let commands = vec![
         auth::AuthCommand::boxed(),
-        config::ConfigCommand::boxed(), 
+        config::ConfigCommand::boxed(),
         hist::HistCommand::boxed(),
         init::InitCommand::boxed(),
         inspect::InspectCommand::boxed(),
@@ -37,10 +37,12 @@ fn main() {
     let cli = App::new("Bld")
         .version(VERSION)
         .about("A simple CI/CD")
-        .subcommands(commands
-            .iter()
-            .map(|c| c.interface())
-            .collect::<Vec<App<'static, 'static>>>())
+        .subcommands(
+            commands
+                .iter()
+                .map(|c| c.interface())
+                .collect::<Vec<App<'static, 'static>>>(),
+        )
         .get_matches();
 
     let result = match cli.subcommand() {
@@ -49,7 +51,7 @@ fn main() {
             .find(|c| c.id() == id)
             .map(|c| c.exec(matches))
             .unwrap_or_else(|| Ok(())),
-        _ => Ok(())
+        _ => Ok(()),
     };
 
     if let Err(e) = result {

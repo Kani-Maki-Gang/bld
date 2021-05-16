@@ -10,7 +10,6 @@ pub const TOOL_DEFAULT_PIPELINE_FILE: &str = "default.yaml";
 pub const TOOL_DEFAULT_CONFIG: &str = "config";
 pub const TOOL_DEFAULT_CONFIG_FILE: &str = "config.yaml";
 
-pub const LOCAL_SERVER_MODE: bool = false;
 pub const LOCAL_SERVER_HOST: &str = "127.0.0.1";
 pub const LOCAL_SERVER_PORT: i64 = 6080;
 pub const LOCAL_HA_MODE: bool = false;
@@ -34,36 +33,24 @@ steps:
 pub fn default_server_config() -> String {
     format!(
         r"local:
-    server-mode: {} 
     ha-mode: {}
     host: {}
     port: {}
     logs: {}
     db: {}
     docker-url: {}",
-        true, 
-        LOCAL_SERVER_HOST,
-        LOCAL_HA_MODE,
-        LOCAL_SERVER_PORT, 
-        LOCAL_LOGS, 
-        LOCAL_DB, 
-        LOCAL_DOCKER_URL
+        LOCAL_HA_MODE, LOCAL_SERVER_HOST, LOCAL_SERVER_PORT, LOCAL_LOGS, LOCAL_DB, LOCAL_DOCKER_URL
     )
 }
 
 pub fn default_client_config() -> String {
     format!(
         r"local:
-    server-mode: {} 
     docker-url: {}
 remote:
     - server: {}
       host: {}
       port: {}",
-        LOCAL_SERVER_MODE,
-        LOCAL_DOCKER_URL,
-        REMOTE_SERVER_NAME,
-        REMOTE_SERVER_HOST,
-        REMOTE_SERVER_PORT
+        LOCAL_DOCKER_URL, REMOTE_SERVER_NAME, REMOTE_SERVER_HOST, REMOTE_SERVER_PORT
     )
 }

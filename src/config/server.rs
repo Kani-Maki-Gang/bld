@@ -1,5 +1,6 @@
 use crate::config::{Auth, OAuth2Info};
 use crate::types::Result;
+use async_raft::NodeId;
 use yaml_rust::Yaml;
 
 #[derive(Debug)]
@@ -7,6 +8,7 @@ pub struct BldServerConfig {
     pub name: String,
     pub host: String,
     pub port: i64,
+    pub node_id: Option<NodeId>,
     pub auth: Auth,
     pub same_auth_as: Option<String>,
 }
@@ -24,6 +26,7 @@ impl BldServerConfig {
         let port = yaml["port"]
             .as_i64()
             .ok_or("Server entry must define a port")?;
+        let node_id = yaml["node-id"].as_i64().map(|n| n as NodeId);
         let auth = match yaml["auth"]["method"].as_str() {
             Some("ldap") => Auth::Ldap,
             Some("oauth2") => Auth::OAuth2(OAuth2Info::load(&host, port, &yaml["auth"])?),
@@ -34,6 +37,7 @@ impl BldServerConfig {
             name,
             host,
             port,
+            node_id,
             auth,
             same_auth_as,
         })

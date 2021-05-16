@@ -23,7 +23,7 @@ impl RunCommand {
 
 impl BldCommand for RunCommand {
     fn id(&self) -> &'static str {
-        RUN 
+        RUN
     }
 
     fn interface(&self) -> App<'static, 'static> {

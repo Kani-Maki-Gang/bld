@@ -1,5 +1,5 @@
-mod command;
 mod client;
+mod command;
 
-pub use command::*;
 pub use client::*;
+pub use command::*;

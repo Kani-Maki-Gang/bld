@@ -1,12 +1,15 @@
 use crate::config::{definitions::VERSION, BldConfig};
 use crate::helpers::term::print_info;
+use crate::high_avail::HighAvail;
 use crate::server::{
-    auth_redirect, hist, home, inspect, list, push, stop, ws_exec, ws_monit, PipelinePool,
+    auth_redirect, hist, home, inspect, list, push, stop, ws_exec, ws_high_avail, ws_monit,
+    PipelinePool,
 };
 use crate::types::{BldCommand, Result};
 use actix::{Arbiter, System};
 use actix_web::{middleware, web, App, HttpServer};
 use clap::{App as ClapApp, Arg, ArgMatches, SubCommand};
+use std::env::set_var;
 
 static SERVER: &str = "server";
 static HOST: &str = "host";
@@ -21,14 +24,16 @@ impl ServerCommand {
 
     async fn start(config: BldConfig, host: &str, port: i64) -> Result<()> {
         print_info(&format!("starting bld server at {}:{}", host, port))?;
-        let config_data = web::Data::new(config);
-        let pool_data = web::Data::new(PipelinePool::new());
-        std::env::set_var("RUST_LOG", "actix_server=info,actix_wev=info");
+        let high_avail = web::Data::new(HighAvail::new(&config).await?);
+        let config = web::Data::new(config);
+        let pool = web::Data::new(PipelinePool::new());
+        set_var("RUST_LOG", "actix_server=info,actix_wev=info");
         env_logger::init();
         HttpServer::new(move || {
             App::new()
-                .app_data(pool_data.clone())
-                .app_data(config_data.clone())
+                .app_data(pool.clone())
+                .app_data(config.clone())
+                .app_data(high_avail.clone())
                 .wrap(middleware::Logger::default())
                 .service(home)
                 .service(auth_redirect)
@@ -39,6 +44,7 @@ impl ServerCommand {
                 .service(inspect)
                 .service(web::resource("/ws-exec/").route(web::get().to(ws_exec)))
                 .service(web::resource("/ws-monit/").route(web::get().to(ws_monit)))
+                .service(web::resource("/ws-ha/").route(web::get().to(ws_high_avail)))
         })
         .bind(format!("{}:{}", host, port))?
         .run()

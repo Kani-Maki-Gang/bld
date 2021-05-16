@@ -3,13 +3,13 @@ use actix_http::client::SendRequestError;
 use actix_http::error::PayloadError;
 use actix_http::http::uri::InvalidUri;
 use actix_web::client::WsClientError;
-use async_raft::error::InitializeError;
+use async_raft::error::{ConfigError, InitializeError};
 use diesel::ConnectionError;
 use oauth2::basic::BasicErrorResponseType;
 use oauth2::reqwest::Error as ReqError;
 use oauth2::url::ParseError;
 use oauth2::{RequestTokenError, StandardErrorResponse};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::convert::From;
 use std::error::Error;
 use std::fmt::{self, Display};
@@ -138,6 +138,18 @@ impl From<ParseBoolError> for BldError {
 impl From<InitializeError> for BldError {
     fn from(error: InitializeError) -> Self {
         Self::RaftError(error.to_string())
+    }
+}
+
+impl From<ConfigError> for BldError {
+    fn from(error: ConfigError) -> Self {
+        Self::RaftError(error.to_string())
+    }
+}
+
+impl From<String> for BldError {
+    fn from(error: String) -> Self {
+        Self::Other(error)
     }
 }
 

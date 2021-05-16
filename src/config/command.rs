@@ -1,6 +1,5 @@
 use crate::config::{
-    definitions::VERSION, Auth, AuthValidation, BldConfig, 
-    BldLocalConfig, BldRemoteConfig,
+    definitions::VERSION, Auth, AuthValidation, BldConfig, BldLocalConfig, BldRemoteConfig,
 };
 use crate::helpers::term;
 use crate::types::{BldCommand, Result};
@@ -19,7 +18,6 @@ impl ConfigCommand {
 
     fn list_locals(local: &BldLocalConfig) -> Result<()> {
         term::print_info("Local configuration:")?;
-        println!("- server-mode: {}", local.server_mode);
         match &local.auth {
             AuthValidation::OAuth2(url) => {
                 println!("- auth:");
@@ -32,6 +30,8 @@ impl ConfigCommand {
             }
             _ => {}
         }
+        println!("- ha-mode: {}", local.ha_mode);
+        println!("- node-id: {:?}", local.node_id);
         println!("- host: {}", local.host);
         println!("- port: {}", local.port);
         println!("- logs: {}", local.logs);
