@@ -38,7 +38,11 @@ impl HighAvailThread {
             rt.block_on(async {
                 let raft_config = Arc::new(Config::build("raft-group".into()).validate().unwrap());
                 let ids: HashSet<NodeId> = agents.iter().map(|a| a.id()).collect();
-                let network = Arc::new(HighAvailRouter::new(raft_config.clone(), agents));
+                let network = Arc::new(
+                    HighAvailRouter::new(raft_config.clone(), agents)
+                        .await
+                        .unwrap(),
+                );
                 let store = Arc::new(HighAvailStore::new(agent.id()));
                 let raft = Arc::new(HighAvailRaft::new(
                     agent.id(),

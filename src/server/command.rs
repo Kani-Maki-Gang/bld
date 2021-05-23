@@ -2,8 +2,8 @@ use crate::config::{definitions::VERSION, BldConfig};
 use crate::helpers::term::print_info;
 use crate::high_avail::HighAvail;
 use crate::server::{
-    auth_redirect, hist, home, inspect, list, push, stop, ws_exec, ws_high_avail, ws_monit,
-    PipelinePool,
+    auth_redirect, ha_append_entries, ha_install_snapshot, ha_vote, hist, home, inspect, list,
+    push, stop, ws_exec, ws_high_avail, ws_monit, PipelinePool,
 };
 use crate::types::{BldCommand, Result};
 use actix::{Arbiter, System};
@@ -27,7 +27,7 @@ impl ServerCommand {
         let high_avail = web::Data::new(HighAvail::new(&config).await?);
         let config = web::Data::new(config);
         let pool = web::Data::new(PipelinePool::new());
-        set_var("RUST_LOG", "actix_server=info,actix_wev=info");
+        set_var("RUST_LOG", "actix_server=info,actix_web=trace");
         env_logger::init();
         HttpServer::new(move || {
             App::new()
@@ -35,6 +35,9 @@ impl ServerCommand {
                 .app_data(config.clone())
                 .app_data(high_avail.clone())
                 .wrap(middleware::Logger::default())
+                .service(ha_append_entries)
+                .service(ha_install_snapshot)
+                .service(ha_vote)
                 .service(home)
                 .service(auth_redirect)
                 .service(hist)
