@@ -27,7 +27,7 @@ impl ServerCommand {
         let high_avail = web::Data::new(HighAvail::new(&config).await?);
         let config = web::Data::new(config);
         let pool = web::Data::new(PipelinePool::new());
-        set_var("RUST_LOG", "actix_server=info,actix_web=trace");
+        set_var("RUST_LOG", "actix_server=info,actix_web=debug");
         env_logger::init();
         HttpServer::new(move || {
             App::new()

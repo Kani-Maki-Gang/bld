@@ -51,10 +51,10 @@ impl OAuth2Info {
         Ok(Box::new(Self {
             auth_url,
             token_url,
+            redirect_url,
             client_id,
             client_secret,
             scopes,
-            redirect_url,
         }))
     }
 }

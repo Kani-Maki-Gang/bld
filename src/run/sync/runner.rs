@@ -155,7 +155,7 @@ impl Runner {
             let mut logger = self.lg.lock().unwrap();
             logger.info(&format!("[bld] Step: {}", name));
         }
-        let comm = self.cm.as_ref().map(|c| c.clone());
+        let comm = self.cm.as_ref().cloned();
         if let Some(call) = &step.call {
             Runner::from_file(
                 call.clone(),

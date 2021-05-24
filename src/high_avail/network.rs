@@ -53,12 +53,9 @@ impl RaftNetwork<AgentRequest> for HighAvailRouter {
         target: NodeId,
         rpc: AppendEntriesRequest<AgentRequest>,
     ) -> Result<AppendEntriesResponse> {
-        let _res = self.post("/ha/appendEntries", target, rpc);
-        Ok(AppendEntriesResponse {
-            term: 0,
-            success: false,
-            conflict_opt: None,
-        })
+        let res = self.post("/ha/appendEntries", target, rpc)?;
+        dbg!(&res);
+        Ok(serde_json::from_str(&res)?)
     }
 
     async fn install_snapshot(
@@ -66,15 +63,12 @@ impl RaftNetwork<AgentRequest> for HighAvailRouter {
         target: NodeId,
         rpc: InstallSnapshotRequest,
     ) -> Result<InstallSnapshotResponse> {
-        let _res = self.post("/ha/installSnapshot", target, rpc);
-        Ok(InstallSnapshotResponse { term: 0 })
+        let res = self.post("/ha/installSnapshot", target, rpc)?;
+        Ok(serde_json::from_str(&res)?)
     }
 
     async fn vote(&self, target: NodeId, rpc: VoteRequest) -> Result<VoteResponse> {
-        let _res = self.post("/ha/vote", target, rpc);
-        Ok(VoteResponse {
-            term: 0,
-            vote_granted: false,
-        })
+        let res = self.post("/ha/vote", target, rpc)?;
+        Ok(serde_json::from_str(&res)?)
     }
 }

@@ -77,8 +77,8 @@ impl Artifacts {
             method,
             from,
             to,
-            after,
             ignore_errors,
+            after,
         }
     }
 }
