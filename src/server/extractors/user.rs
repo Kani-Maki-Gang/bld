@@ -1,4 +1,3 @@
-use anyhow::anyhow;
 use crate::config::{AuthValidation, BldConfig};
 use actix_http::error::ErrorUnauthorized;
 use actix_web::client::Client;
@@ -6,6 +5,7 @@ use actix_web::dev::Payload;
 use actix_web::http::HeaderValue;
 use actix_web::web::Data;
 use actix_web::{Error, FromRequest, HttpRequest};
+use anyhow::anyhow;
 use awc::http::StatusCode;
 use futures::Future;
 use futures_util::future::FutureExt;

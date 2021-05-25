@@ -1,8 +1,8 @@
+use crate::cli::BldCommand;
 use crate::config::{
     definitions::VERSION, Auth, AuthValidation, BldConfig, BldLocalConfig, BldRemoteConfig,
 };
 use crate::helpers::term;
-use crate::cli::BldCommand;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 static CONFIG: &str = "config";

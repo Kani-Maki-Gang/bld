@@ -1,12 +1,12 @@
+use crate::cli::BldCommand;
 use crate::config::{definitions::VERSION, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::headers;
 use crate::helpers::term::print_error;
 use crate::monit::MonitClient;
-use crate::cli::BldCommand;
 use crate::monit::MonitInfo;
-use anyhow::anyhow;
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
+use anyhow::anyhow;
 use awc::Client;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::stream::StreamExt;
@@ -40,10 +40,7 @@ impl MonitCommand {
         for (key, value) in info.headers.iter() {
             client = client.header(&key[..], &value[..]);
         }
-        let (_, framed) = client
-            .connect()
-            .await
-            .map_err(|e| anyhow!(e.to_string()))?;
+        let (_, framed) = client.connect().await.map_err(|e| anyhow!(e.to_string()))?;
         let (sink, stream) = framed.split();
         let addr = MonitClient::create(|ctx| {
             MonitClient::add_stream(stream, ctx);

@@ -1,10 +1,10 @@
+use crate::cli::BldCommand;
 use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::{exec_post, headers};
 use crate::helpers::term::print_error;
-use crate::run::Pipeline;
-use crate::cli::BldCommand;
 use crate::push::PushInfo;
+use crate::run::Pipeline;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashSet;
 

@@ -1,8 +1,8 @@
-use anyhow::anyhow;
+use crate::cli::BldCommand;
 use crate::config::{definitions::VERSION, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::{exec_post, headers};
-use crate::cli::BldCommand;
+use anyhow::anyhow;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 static STOP: &str = "stop";
@@ -42,7 +42,10 @@ impl BldCommand for StopCommand {
 
     fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
         let config = BldConfig::load()?;
-        let id = matches.value_of(ID).ok_or_else(|| anyhow!("id is mandatory"))?.to_string();
+        let id = matches
+            .value_of(ID)
+            .ok_or_else(|| anyhow!("id is mandatory"))?
+            .to_string();
         let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
         let (name, auth) = match &srv.same_auth_as {
             Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {

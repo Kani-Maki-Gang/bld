@@ -1,9 +1,9 @@
 #![allow(dead_code)]
-use anyhow::anyhow;
 use crate::config::definitions::DB_NAME;
 use crate::path;
 use crate::persist::Execution;
 use crate::persist::PipelineModel;
+use anyhow::anyhow;
 use diesel::sqlite::SqliteConnection;
 use diesel::Connection;
 use std::path::PathBuf;

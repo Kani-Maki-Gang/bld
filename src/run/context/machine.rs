@@ -1,8 +1,8 @@
-use anyhow::anyhow;
 use crate::config::definitions::LOCAL_MACHINE_TMP_DIR;
 use crate::os::{self, OSname};
 use crate::path;
 use crate::persist::Logger;
+use anyhow::anyhow;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};

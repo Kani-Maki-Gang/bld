@@ -1,12 +1,12 @@
-use anyhow::anyhow;
 use crate::config::BldConfig;
+use crate::monit::MonitInfo;
 use crate::path;
 use crate::persist::{Database, FileScanner, Scanner};
 use crate::server::User;
-use crate::monit::MonitInfo;
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
+use anyhow::anyhow;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -79,7 +79,10 @@ impl MonitorPipelineSocket {
             return Err(anyhow!("pipeline not found"));
         }
 
-        let pipeline = db.pipeline.as_ref().ok_or_else(|| anyhow!("pipeline not found"))?;
+        let pipeline = db
+            .pipeline
+            .as_ref()
+            .ok_or_else(|| anyhow!("pipeline not found"))?;
 
         self.id = pipeline.id.clone();
 

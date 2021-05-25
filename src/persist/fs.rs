@@ -1,5 +1,5 @@
-use anyhow::anyhow;
 use crate::persist::{Logger, Scanner};
+use anyhow::anyhow;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;

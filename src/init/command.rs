@@ -1,8 +1,8 @@
-use anyhow::anyhow;
+use crate::cli::BldCommand;
 use crate::config::definitions;
 use crate::helpers::term::print_info;
 use crate::path;
-use crate::cli::BldCommand;
+use anyhow::anyhow;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::fs;
 use std::path::Component::Normal;

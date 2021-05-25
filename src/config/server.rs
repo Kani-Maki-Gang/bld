@@ -1,5 +1,5 @@
-use anyhow::anyhow;
 use crate::config::{Auth, OAuth2Info};
+use anyhow::anyhow;
 use async_raft::NodeId;
 use yaml_rust::Yaml;
 

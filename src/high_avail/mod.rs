@@ -8,15 +8,15 @@ pub use agent::*;
 pub use network::*;
 pub use storage::*;
 
-use anyhow::anyhow;
 use crate::config::BldConfig;
 use crate::helpers::term::print_error;
+use anyhow::anyhow;
 use async_raft::config::Config;
+use async_raft::error::RaftError;
 use async_raft::raft::{
     AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest, InstallSnapshotResponse,
-    Raft, VoteRequest, VoteResponse
+    Raft, VoteRequest, VoteResponse,
 };
-use async_raft::error::RaftError;
 use async_raft::NodeId;
 use std::collections::HashSet;
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -55,12 +55,21 @@ impl HighAvailThread {
         // This cannot be done normally because this function is called from an actix_web runtime.
         thread::spawn(move || {
             let _ = Runtime::new().map(|rt| {
-                if let Err(e) = rt.block_on(Self::raft_thread(agent, agents, raft_request_rx, raft_response_tx)) {
+                if let Err(e) = rt.block_on(Self::raft_thread(
+                    agent,
+                    agents,
+                    raft_request_rx,
+                    raft_response_tx,
+                )) {
                     let _ = print_error(&e.to_string());
                 }
             });
         });
-        Ok(Self { node_id, raft_request_tx, raft_response_rx })
+        Ok(Self {
+            node_id,
+            raft_request_tx,
+            raft_response_rx,
+        })
     }
 
     pub fn node_id(&self) -> NodeId {
@@ -71,12 +80,17 @@ impl HighAvailThread {
         &self.raft_request_tx
     }
 
-    pub fn raft_response_rx(&self) -> &Receiver<(Uuid, Result<HighAvailThreadResponse, RaftError>)> {
+    pub fn raft_response_rx(
+        &self,
+    ) -> &Receiver<(Uuid, Result<HighAvailThreadResponse, RaftError>)> {
         &self.raft_response_rx
     }
 
     fn agent_info(config: &BldConfig) -> anyhow::Result<(Agent, HashSet<Agent>)> {
-        let node_id = config.local.node_id.ok_or_else(|| anyhow!("node_id not found"))?;
+        let node_id = config
+            .local
+            .node_id
+            .ok_or_else(|| anyhow!("node_id not found"))?;
         let agent = Agent::new(node_id, &config.local.host, config.local.port);
         let mut agents = HashSet::new();
         for server in config.remote.servers.iter() {
@@ -90,18 +104,14 @@ impl HighAvailThread {
     }
 
     async fn raft_thread(
-        agent: Agent, 
-        agents: HashSet<Agent>, 
-        raft_req_rx: Receiver<(Uuid, HighAvailThreadRequest)>, 
-        raft_resp_tx: Sender<(Uuid, Result<HighAvailThreadResponse, RaftError>)>)
-    -> anyhow::Result<()>
-    {
+        agent: Agent,
+        agents: HashSet<Agent>,
+        raft_req_rx: Receiver<(Uuid, HighAvailThreadRequest)>,
+        raft_resp_tx: Sender<(Uuid, Result<HighAvailThreadResponse, RaftError>)>,
+    ) -> anyhow::Result<()> {
         let raft_config = Arc::new(Config::build("raft-group".into()).validate()?);
         let ids: HashSet<NodeId> = agents.iter().map(|a| a.id()).collect();
-        let network = Arc::new(
-            HighAvailRouter::new(raft_config.clone(), agents)
-                .await?
-        );
+        let network = Arc::new(HighAvailRouter::new(raft_config.clone(), agents).await?);
         let store = Arc::new(HighAvailStore::new(agent.id()));
         let raft = Arc::new(HighAvailRaft::new(
             agent.id(),
@@ -127,10 +137,7 @@ impl HighAvailThread {
                     let _ = raft_resp_tx.send((id, resp));
                 }
                 (id, HighAvailThreadRequest::Vote(req)) => {
-                    let resp = raft
-                        .vote(req)
-                        .await
-                        .map(HighAvailThreadResponse::Vote);
+                    let resp = raft.vote(req).await.map(HighAvailThreadResponse::Vote);
                     let _ = raft_resp_tx.send((id, resp));
                 }
             }

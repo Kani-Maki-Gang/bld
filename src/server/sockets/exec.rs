@@ -1,14 +1,14 @@
-use anyhow::anyhow;
 use crate::config::BldConfig;
 use crate::helpers::term;
 use crate::path;
 use crate::persist::{Database, FileLogger, FileScanner, Scanner};
+use crate::run::socket::messages::ExecInfo;
 use crate::run::{Pipeline, Runner};
 use crate::server::{PipelinePool, User};
-use crate::run::socket::messages::ExecInfo;
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
+use anyhow::anyhow;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};

@@ -1,7 +1,7 @@
-use anyhow::anyhow;
 use crate::config::BldConfig;
-use crate::run::CheckStopSignal;
 use crate::persist::Logger;
+use crate::run::CheckStopSignal;
+use anyhow::anyhow;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
 use shiplift::tty::TtyChunk;
@@ -45,7 +45,11 @@ impl Container {
         Ok(host)
     }
 
-    async fn pull(client: &Docker, image: &str, logger: &mut Arc<Mutex<dyn Logger>>) -> anyhow::Result<()> {
+    async fn pull(
+        client: &Docker,
+        image: &str,
+        logger: &mut Arc<Mutex<dyn Logger>>,
+    ) -> anyhow::Result<()> {
         let options = ImageListOptions::builder().filter_name(image).build();
         let images = client.images().list(&options).await?;
         if images.is_empty() {
@@ -79,7 +83,11 @@ impl Container {
         Ok(info.id)
     }
 
-    pub async fn new(img: &str, cfg: Rc<BldConfig>, lg: Arc<Mutex<dyn Logger>>) -> anyhow::Result<Self> {
+    pub async fn new(
+        img: &str,
+        cfg: Rc<BldConfig>,
+        lg: Arc<Mutex<dyn Logger>>,
+    ) -> anyhow::Result<Self> {
         let client = Container::docker(&cfg)?;
         let id = Container::create(&client, &img, &mut lg.clone()).await?;
         Ok(Self {

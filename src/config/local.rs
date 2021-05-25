@@ -1,6 +1,6 @@
-use anyhow::anyhow;
 use crate::config::definitions;
 use crate::config::AuthValidation;
+use anyhow::anyhow;
 use async_raft::NodeId;
 use yaml_rust::Yaml;
 

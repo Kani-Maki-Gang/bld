@@ -1,7 +1,7 @@
+use crate::cli::BldCommand;
 use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION};
 use crate::persist::{NullExec, ShellLogger};
 use crate::run::{self, Runner};
-use crate::cli::BldCommand;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashMap;
 use std::sync::Arc;

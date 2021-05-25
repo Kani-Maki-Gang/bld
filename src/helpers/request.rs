@@ -19,9 +19,8 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::rc::Rc;
 
-type ServerResponse = ClientResponse<
-    Decompress<Payload<Pin<Box<dyn Stream<Item = Result<Bytes, PayloadError>>>>>>,
->;
+type ServerResponse =
+    ClientResponse<Decompress<Payload<Pin<Box<dyn Stream<Item = Result<Bytes, PayloadError>>>>>>>;
 
 fn handle_body(body: &Result<Bytes, PayloadError>) -> String {
     match body {

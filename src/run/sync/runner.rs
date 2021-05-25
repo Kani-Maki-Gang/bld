@@ -1,7 +1,7 @@
 use crate::config::definitions::{GET, PUSH, VAR_TOKEN};
 use crate::config::BldConfig;
-use crate::run::CheckStopSignal;
 use crate::persist::{Execution, Logger, NullExec};
+use crate::run::CheckStopSignal;
 use crate::run::{BuildStep, Container, Machine, Pipeline, RunsOn};
 use std::collections::HashMap;
 use std::future::Future;

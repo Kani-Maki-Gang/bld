@@ -7,8 +7,8 @@ use crate::helpers::request::headers;
 use crate::helpers::term::print_error;
 use crate::run::socket::client::ExecClient;
 use crate::run::socket::messages::ExecInfo;
-use anyhow::anyhow;
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
+use anyhow::anyhow;
 use awc::Client;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
@@ -29,10 +29,7 @@ async fn remote_invoke(server: String, detach: bool, data: ExecInfo) -> anyhow::
     for (key, value) in headers.iter() {
         client = client.header(&key[..], &value[..]);
     }
-    let (_, framed) = client
-        .connect()
-        .await
-        .map_err(|e| anyhow!(e.to_string()))?;
+    let (_, framed) = client.connect().await.map_err(|e| anyhow!(e.to_string()))?;
     println!("connected");
     let (sink, stream) = framed.split();
     let addr = ExecClient::create(|ctx| {

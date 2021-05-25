@@ -24,7 +24,7 @@ pub async fn ha_append_entries(
                     Err(e) => HttpResponse::BadRequest().body(e.to_string()),
                     Ok(HighAvailThreadResponse::AppendEntries(r)) => HttpResponse::Ok().json(r),
                     Ok(_) => break,
-                }
+                };
             }
         }
     }
@@ -52,7 +52,7 @@ pub async fn ha_install_snapshot(
                     Err(e) => HttpResponse::BadRequest().body(e.to_string()),
                     Ok(HighAvailThreadResponse::InstallSnapshot(r)) => HttpResponse::Ok().json(r),
                     Ok(_) => break,
-                }
+                };
             }
         }
     }
@@ -60,10 +60,7 @@ pub async fn ha_install_snapshot(
 }
 
 #[post("/ha/vote")]
-pub async fn ha_vote(
-    body: web::Json<VoteRequest>,
-    ha: web::Data<HighAvail>,
-) -> impl Responder {
+pub async fn ha_vote(body: web::Json<VoteRequest>, ha: web::Data<HighAvail>) -> impl Responder {
     let body = body.into_inner();
     if let HighAvail::Enabled(th) = ha.get_ref() {
         let id = Uuid::new_v4();
@@ -80,7 +77,7 @@ pub async fn ha_vote(
                     Err(e) => HttpResponse::BadRequest().body(e.to_string()),
                     Ok(HighAvailThreadResponse::Vote(r)) => HttpResponse::Ok().json(r),
                     Ok(_) => break,
-                }
+                };
             }
         }
     }

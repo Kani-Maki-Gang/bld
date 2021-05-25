@@ -1,6 +1,6 @@
-use anyhow::anyhow;
 use crate::config::definitions;
 use crate::config::OAuth2Info;
+use anyhow::anyhow;
 use oauth2::basic::BasicClient;
 use oauth2::reqwest::http_client;
 use oauth2::{AuthorizationCode, CsrfToken, PkceCodeChallenge, TokenResponse};
@@ -71,10 +71,15 @@ impl Login for OAuth2Info {
         let code = AuthorizationCode::new(stdin_with_label("code")?);
         let state = CsrfToken::new(stdin_with_label("state")?);
         if state.secret() != csrf_token.secret() {
-            return Err(anyhow!("state token not the one expected. operation is aborted"));
+            return Err(anyhow!(
+                "state token not the one expected. operation is aborted"
+            ));
         }
 
-        let token_res = client.exchange_code(code).request(http_client).map_err(|e| anyhow!(e))?;
+        let token_res = client
+            .exchange_code(code)
+            .request(http_client)
+            .map_err(|e| anyhow!(e))?;
         persist_access_token(server, token_res.access_token().secret())?;
         Ok(String::new())
     }

@@ -1,6 +1,6 @@
 mod auth;
-mod config;
 mod cli;
+mod config;
 mod helpers;
 mod high_avail;
 mod hist;

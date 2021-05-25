@@ -1,7 +1,7 @@
-use anyhow::anyhow;
 use crate::config::definitions::TOOL_DIR;
 use crate::helpers::errors::err_variable_in_yaml;
 use crate::path;
+use anyhow::anyhow;
 use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
 use yaml_rust::{Yaml, YamlLoader};
