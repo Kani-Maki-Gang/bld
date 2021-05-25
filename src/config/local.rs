@@ -61,7 +61,7 @@ impl BldLocalConfig {
             Some("oauth2") => AuthValidation::OAuth2(
                 yaml["auth"]["validation-url"]
                     .as_str()
-                    .ok_or(anyhow!("no validation url found for auth in config"))?
+                    .ok_or_else(|| anyhow!("no validation url found for auth in config"))?
                     .to_string(),
             ),
             _ => AuthValidation::None,

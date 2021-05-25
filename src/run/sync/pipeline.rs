@@ -173,8 +173,7 @@ impl Pipeline {
                 let call = step["call"].as_str().map(|p| p.to_string());
                 let commands: Vec<String> = step["exec"]
                     .as_vec()
-                    .or(Some(&Vec::<Yaml>::new()))
-                    .unwrap()
+                    .unwrap_or(&Vec::<Yaml>::new())
                     .iter()
                     .map(|c| c["sh"].as_str().or(Some("")).unwrap().to_string())
                     .filter(|c| !c.is_empty())

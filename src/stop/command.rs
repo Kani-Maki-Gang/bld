@@ -42,7 +42,7 @@ impl BldCommand for StopCommand {
 
     fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
         let config = BldConfig::load()?;
-        let id = matches.value_of(ID).ok_or(anyhow!("id is mandatory"))?.to_string();
+        let id = matches.value_of(ID).ok_or_else(|| anyhow!("id is mandatory"))?.to_string();
         let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
         let (name, auth) = match &srv.same_auth_as {
             Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {

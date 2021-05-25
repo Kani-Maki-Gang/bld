@@ -11,8 +11,7 @@ impl BldRemoteConfig {
     pub fn load(yaml: &Yaml) -> anyhow::Result<Self> {
         let servers = yaml["remote"]
             .as_vec()
-            .or(Some(&Vec::<Yaml>::new()))
-            .unwrap()
+            .unwrap_or(&Vec::<Yaml>::new())
             .iter()
             .map(|s| BldServerConfig::load(s))
             .filter(|s| s.is_ok())

@@ -54,11 +54,10 @@ impl HighAvailThread {
         // Creating a new thread in order to create the needed tokio runtime.
         // This cannot be done normally because this function is called from an actix_web runtime.
         thread::spawn(move || {
-            let _ = Runtime::new().and_then(|rt| {
+            let _ = Runtime::new().map(|rt| {
                 if let Err(e) = rt.block_on(Self::raft_thread(agent, agents, raft_request_rx, raft_response_tx)) {
                     let _ = print_error(&e.to_string());
                 }
-                Ok(())
             });
         });
         Ok(Self { node_id, raft_request_tx, raft_response_rx })
@@ -77,13 +76,13 @@ impl HighAvailThread {
     }
 
     fn agent_info(config: &BldConfig) -> anyhow::Result<(Agent, HashSet<Agent>)> {
-        let node_id = config.local.node_id.ok_or(anyhow!("node_id not found"))?;
+        let node_id = config.local.node_id.ok_or_else(|| anyhow!("node_id not found"))?;
         let agent = Agent::new(node_id, &config.local.host, config.local.port);
         let mut agents = HashSet::new();
         for server in config.remote.servers.iter() {
             let node_id = server
                 .node_id
-                .ok_or(anyhow!("server: {}, node_id not found", server.name))?;
+                .ok_or_else(|| anyhow!("server: {}, node_id not found", server.name))?;
             agents.insert(Agent::new(node_id, &server.host, server.port));
         }
         agents.insert(agent.clone());

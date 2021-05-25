@@ -17,15 +17,15 @@ impl BldServerConfig {
     pub fn load(yaml: &Yaml) -> anyhow::Result<Self> {
         let name = yaml["server"]
             .as_str()
-            .ok_or(anyhow!("Server entry must have a name"))?
+            .ok_or_else(|| anyhow!("Server entry must have a name"))?
             .to_string();
         let host = yaml["host"]
             .as_str()
-            .ok_or(anyhow!("Server entry must define a host address"))?
+            .ok_or_else(|| anyhow!("Server entry must define a host address"))?
             .to_string();
         let port = yaml["port"]
             .as_i64()
-            .ok_or(anyhow!("Server entry must define a port"))?;
+            .ok_or_else(|| anyhow!("Server entry must define a port"))?;
         let node_id = yaml["node-id"].as_i64().map(|n| n as NodeId);
         let auth = match yaml["auth"]["method"].as_str() {
             Some("ldap") => Auth::Ldap,

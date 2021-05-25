@@ -17,31 +17,30 @@ impl OAuth2Info {
         let auth_url = AuthUrl::new(
             yaml["auth-url"]
                 .as_str()
-                .ok_or(anyhow!("No auth url found in config"))?
+                .ok_or_else(|| anyhow!("No auth url found in config"))?
                 .to_string(),
         )?;
         let token_url = TokenUrl::new(
             yaml["token-url"]
                 .as_str()
-                .ok_or(anyhow!("No token url found in config"))?
+                .ok_or_else(|| anyhow!("No token url found in config"))?
                 .to_string(),
         )?;
         let client_id = ClientId::new(
             yaml["client-id"]
                 .as_str()
-                .ok_or(anyhow!("No client id found in config"))?
+                .ok_or_else(|| anyhow!("No client id found in config"))?
                 .to_string(),
         );
         let client_secret = ClientSecret::new(
             yaml["client-secret"]
                 .as_str()
-                .ok_or(anyhow!("No client secret found in config"))?
+                .ok_or_else(|| anyhow!("No client secret found in config"))?
                 .to_string(),
         );
         let scopes = yaml["scopes"]
             .as_vec()
-            .or(Some(&Vec::<Yaml>::new()))
-            .unwrap()
+            .unwrap_or(&Vec::<Yaml>::new())
             .iter()
             .map(|y| y.as_str())
             .filter(|y| y.is_some())

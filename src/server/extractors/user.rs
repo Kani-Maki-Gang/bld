@@ -49,8 +49,7 @@ fn get_bearer(request: &HttpRequest) -> String {
     request
         .headers()
         .get("Authorization")
-        .or(Some(&HeaderValue::from_static("")))
-        .unwrap()
+        .unwrap_or(&HeaderValue::from_static(""))
         .to_str()
         .unwrap()
         .to_string()

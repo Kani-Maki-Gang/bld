@@ -79,7 +79,7 @@ impl MonitorPipelineSocket {
             return Err(anyhow!("pipeline not found"));
         }
 
-        let pipeline = db.pipeline.as_ref().ok_or(anyhow!("pipeline not found"))?;
+        let pipeline = db.pipeline.as_ref().ok_or_else(|| anyhow!("pipeline not found"))?;
 
         self.id = pipeline.id.clone();
 
