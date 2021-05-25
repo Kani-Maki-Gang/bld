@@ -1,7 +1,7 @@
 use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION};
 use crate::persist::{NullExec, ShellLogger};
 use crate::run::{self, Runner};
-use crate::types::BldCommand;
+use crate::cli::BldCommand;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -75,7 +75,7 @@ impl BldCommand for RunCommand {
             .or_else(|| Some(HashMap::new()))
             .unwrap();
         match matches.value_of("server") {
-            Some(server) => run::on_server(pipeline, vars, server.to_string(), detach),
+            Some(server) => run::socket::on_server(pipeline, vars, server.to_string(), detach),
             None => {
                 let rt = Runtime::new()?;
                 rt.block_on(async {

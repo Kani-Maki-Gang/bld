@@ -3,7 +3,8 @@ use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::{exec_post, headers};
 use crate::helpers::term::print_error;
 use crate::run::Pipeline;
-use crate::types::{BldCommand, PushInfo};
+use crate::cli::BldCommand;
+use crate::push::PushInfo;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashSet;
 

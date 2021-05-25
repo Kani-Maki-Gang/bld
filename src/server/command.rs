@@ -5,7 +5,7 @@ use crate::server::{
     auth_redirect, ha_append_entries, ha_install_snapshot, ha_vote, hist, home, inspect, list,
     push, stop, ws_exec, ws_high_avail, ws_monit, PipelinePool,
 };
-use crate::types::BldCommand;
+use crate::cli::BldCommand;
 use actix::{Arbiter, System};
 use actix_web::{middleware, web, App, HttpServer};
 use clap::{App as ClapApp, Arg, ArgMatches, SubCommand};

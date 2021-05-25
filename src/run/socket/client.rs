@@ -1,4 +1,4 @@
-use crate::types::ExecInfo;
+use crate::run::socket::ExecInfo;
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, AsyncContext, Context, Handler, StreamHandler, System};
 use actix_codec::Framed;

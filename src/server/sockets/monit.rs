@@ -3,7 +3,7 @@ use crate::config::BldConfig;
 use crate::path;
 use crate::persist::{Database, FileScanner, Scanner};
 use crate::server::User;
-use crate::types::MonitInfo;
+use crate::monit::MonitInfo;
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;

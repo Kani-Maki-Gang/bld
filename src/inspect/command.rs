@@ -1,7 +1,7 @@
 use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::{exec_get, headers};
-use crate::types::BldCommand;
+use crate::cli::BldCommand;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 static INSPECT: &str = "inspect";

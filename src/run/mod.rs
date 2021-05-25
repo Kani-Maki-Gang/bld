@@ -1,9 +1,10 @@
 mod command;
 mod context;
-mod socket;
+mod recv;
+pub mod socket;
 mod sync;
 
 pub use command::*;
 use context::*;
-use socket::*;
+use recv::*;
 pub use sync::*;

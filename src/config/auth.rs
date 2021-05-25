@@ -1,5 +1,4 @@
 use anyhow::anyhow;
-use crate::types::EMPTY_YAML_VEC;
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, Scope, TokenUrl};
 use yaml_rust::Yaml;
 
@@ -41,7 +40,7 @@ impl OAuth2Info {
         );
         let scopes = yaml["scopes"]
             .as_vec()
-            .or(Some(&EMPTY_YAML_VEC))
+            .or(Some(&Vec::<Yaml>::new()))
             .unwrap()
             .iter()
             .map(|y| y.as_str())

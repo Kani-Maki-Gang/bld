@@ -2,7 +2,6 @@ use anyhow::anyhow;
 use crate::config::definitions::TOOL_DIR;
 use crate::helpers::errors::err_variable_in_yaml;
 use crate::path;
-use crate::types::EMPTY_YAML_VEC;
 use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
 use yaml_rust::{Yaml, YamlLoader};
@@ -174,7 +173,7 @@ impl Pipeline {
                 let call = step["call"].as_str().map(|p| p.to_string());
                 let commands: Vec<String> = step["exec"]
                     .as_vec()
-                    .or(Some(&EMPTY_YAML_VEC))
+                    .or(Some(&Vec::<Yaml>::new()))
                     .unwrap()
                     .iter()
                     .map(|c| c["sh"].as_str().or(Some("")).unwrap().to_string())

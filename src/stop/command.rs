@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use crate::config::{definitions::VERSION, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::{exec_post, headers};
-use crate::types::BldCommand;
+use crate::cli::BldCommand;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 static STOP: &str = "stop";

@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use crate::config::definitions;
 use crate::helpers::term::print_info;
 use crate::path;
-use crate::types::BldCommand;
+use crate::cli::BldCommand;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::fs;
 use std::path::Component::Normal;

@@ -1,7 +1,7 @@
 use crate::auth::Login;
 use crate::config::{definitions::VERSION, Auth, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
-use crate::types::BldCommand;
+use crate::cli::BldCommand;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 static LOGIN: &str = "login";

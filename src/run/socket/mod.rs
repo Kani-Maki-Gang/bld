@@ -1,13 +1,12 @@
 mod client;
-
-pub use client::*;
+pub mod messages;
 
 use crate::config::BldConfig;
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::headers;
 use crate::helpers::term::print_error;
-use crate::run::socket::ExecClient;
-use crate::types::ExecInfo;
+use crate::run::socket::client::ExecClient;
+use crate::run::socket::messages::ExecInfo;
 use anyhow::anyhow;
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
 use awc::Client;

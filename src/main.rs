@@ -1,5 +1,6 @@
 mod auth;
 mod config;
+mod cli;
 mod helpers;
 mod high_avail;
 mod hist;
@@ -13,7 +14,6 @@ mod push;
 mod run;
 mod server;
 mod stop;
-mod types;
 
 use crate::config::definitions::VERSION;
 use crate::helpers::term::print_error;

@@ -5,7 +5,7 @@ use crate::path;
 use crate::persist::{Database, FileLogger, FileScanner, Scanner};
 use crate::run::{Pipeline, Runner};
 use crate::server::{PipelinePool, User};
-use crate::types::ExecInfo;
+use crate::run::socket::messages::ExecInfo;
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;

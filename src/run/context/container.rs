@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use crate::config::BldConfig;
+use crate::run::CheckStopSignal;
 use crate::persist::Logger;
-use crate::types::CheckStopSignal;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
 use shiplift::tty::TtyChunk;
