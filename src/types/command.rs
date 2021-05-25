@@ -1,4 +1,3 @@
-use crate::types::Result;
 use clap::{App, ArgMatches};
 
 pub trait BldCommand {
@@ -6,5 +5,5 @@ pub trait BldCommand {
 
     fn interface(&self) -> App<'static, 'static>;
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> Result<()>;
+    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()>;
 }

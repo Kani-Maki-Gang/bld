@@ -1,7 +1,7 @@
 use crate::auth::Login;
 use crate::config::{definitions::VERSION, Auth, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
-use crate::types::{BldCommand, Result};
+use crate::types::BldCommand;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 static LOGIN: &str = "login";
@@ -32,7 +32,7 @@ impl BldCommand for AuthCommand {
             .args(&[server])
     }
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> Result<()> {
+    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
         let config = BldConfig::load()?;
         let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
         let (name, auth) = match &srv.same_auth_as {

@@ -1,5 +1,4 @@
 use crate::persist::db::queries::*;
-use crate::types::Result;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sql_types::{Bool, Text};
 use diesel::sqlite::SqliteConnection;
@@ -22,12 +21,12 @@ pub struct PipelineModel {
 }
 
 impl PipelineModel {
-    pub fn create(connection: &SqliteConnection) -> Result<()> {
+    pub fn create(connection: &SqliteConnection) -> anyhow::Result<()> {
         sql_query(CREATE_TABLE_PIPELINE_QUERY).execute(connection)?;
         Ok(())
     }
 
-    pub fn select_all(connection: &SqliteConnection) -> Result<Vec<Self>> {
+    pub fn select_all(connection: &SqliteConnection) -> anyhow::Result<Vec<Self>> {
         let res = sql_query(SELECT_PIPELINES_QUERY).load::<Self>(connection)?;
         Ok(res)
     }
@@ -60,7 +59,7 @@ impl PipelineModel {
         query.unwrap().pop()
     }
 
-    pub fn insert(connection: &SqliteConnection, pipeline: &Self) -> Result<()> {
+    pub fn insert(connection: &SqliteConnection, pipeline: &Self) -> anyhow::Result<()> {
         sql_query(INSERT_PIPELINE_QUERY)
             .bind::<Text, _>(&pipeline.id)
             .bind::<Text, _>(&pipeline.name)
@@ -77,7 +76,7 @@ impl PipelineModel {
         id: &str,
         running: bool,
         end_date_time: &str,
-    ) -> Result<()> {
+    ) -> anyhow::Result<()> {
         sql_query(UPDATE_PIPELINE_QUERY)
             .bind::<Bool, _>(running)
             .bind::<Text, _>(end_date_time)

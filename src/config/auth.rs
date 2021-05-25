@@ -1,4 +1,5 @@
-use crate::types::{Result, EMPTY_YAML_VEC};
+use anyhow::anyhow;
+use crate::types::EMPTY_YAML_VEC;
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, Scope, TokenUrl};
 use yaml_rust::Yaml;
 
@@ -13,29 +14,29 @@ pub struct OAuth2Info {
 }
 
 impl OAuth2Info {
-    pub fn load(host: &str, port: i64, yaml: &Yaml) -> Result<Box<Self>> {
+    pub fn load(host: &str, port: i64, yaml: &Yaml) -> anyhow::Result<Box<Self>> {
         let auth_url = AuthUrl::new(
             yaml["auth-url"]
                 .as_str()
-                .ok_or("No auth url found in config")?
+                .ok_or(anyhow!("No auth url found in config"))?
                 .to_string(),
         )?;
         let token_url = TokenUrl::new(
             yaml["token-url"]
                 .as_str()
-                .ok_or("No token url found in config")?
+                .ok_or(anyhow!("No token url found in config"))?
                 .to_string(),
         )?;
         let client_id = ClientId::new(
             yaml["client-id"]
                 .as_str()
-                .ok_or("No client id found in config")?
+                .ok_or(anyhow!("No client id found in config"))?
                 .to_string(),
         );
         let client_secret = ClientSecret::new(
             yaml["client-secret"]
                 .as_str()
-                .ok_or("No client secret found in config")?
+                .ok_or(anyhow!("No client secret found in config"))?
                 .to_string(),
         );
         let scopes = yaml["scopes"]

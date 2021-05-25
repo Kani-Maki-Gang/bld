@@ -1,6 +1,6 @@
+use anyhow::anyhow;
 use crate::config::definitions;
 use crate::config::OAuth2Info;
-use crate::types::{BldError, Result};
 use oauth2::basic::BasicClient;
 use oauth2::reqwest::http_client;
 use oauth2::{AuthorizationCode, CsrfToken, PkceCodeChallenge, TokenResponse};
@@ -20,7 +20,7 @@ fn oauth2_input_summary() {
     println!("After logging in input both the provided code and state here.");
 }
 
-fn persist_access_token(server: &str, token: &str) -> Result<()> {
+fn persist_access_token(server: &str, token: &str) -> anyhow::Result<()> {
     let mut path = PathBuf::new();
     path.push(definitions::REMOTE_SERVER_OAUTH2);
     if !path.is_dir() {
@@ -35,7 +35,7 @@ fn persist_access_token(server: &str, token: &str) -> Result<()> {
     Ok(())
 }
 
-fn stdin_with_label(label: &str) -> Result<String> {
+fn stdin_with_label(label: &str) -> anyhow::Result<String> {
     let mut value = String::new();
     println!("{}: ", label);
     stdin().read_line(&mut value)?;
@@ -43,11 +43,11 @@ fn stdin_with_label(label: &str) -> Result<String> {
 }
 
 pub trait Login {
-    fn login(&self, server: &str) -> Result<String>;
+    fn login(&self, server: &str) -> anyhow::Result<String>;
 }
 
 impl Login for OAuth2Info {
-    fn login(&self, server: &str) -> Result<String> {
+    fn login(&self, server: &str) -> anyhow::Result<String> {
         let client = BasicClient::new(
             self.client_id.clone(),
             Some(self.client_secret.clone()),
@@ -71,11 +71,10 @@ impl Login for OAuth2Info {
         let code = AuthorizationCode::new(stdin_with_label("code")?);
         let state = CsrfToken::new(stdin_with_label("state")?);
         if state.secret() != csrf_token.secret() {
-            let message = String::from("state token not the one expected. operation is aborted");
-            return Err(BldError::Other(message));
+            return Err(anyhow!("state token not the one expected. operation is aborted"));
         }
 
-        let token_res = client.exchange_code(code).request(http_client)?;
+        let token_res = client.exchange_code(code).request(http_client).map_err(|e| anyhow!(e))?;
         persist_access_token(server, token_res.access_token().secret())?;
         Ok(String::new())
     }

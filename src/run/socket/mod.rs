@@ -7,13 +7,14 @@ use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::headers;
 use crate::helpers::term::print_error;
 use crate::run::socket::ExecClient;
-use crate::types::{ExecInfo, Result};
+use crate::types::ExecInfo;
+use anyhow::anyhow;
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
 use awc::Client;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
 
-async fn remote_invoke(server: String, detach: bool, data: ExecInfo) -> Result<bool> {
+async fn remote_invoke(server: String, detach: bool, data: ExecInfo) -> anyhow::Result<bool> {
     let config = BldConfig::load()?;
     let srv = config.remote.server(&server)?;
     let (srv_name, auth) = match &srv.same_auth_as {
@@ -29,7 +30,10 @@ async fn remote_invoke(server: String, detach: bool, data: ExecInfo) -> Result<b
     for (key, value) in headers.iter() {
         client = client.header(&key[..], &value[..]);
     }
-    let (_, framed) = client.connect().await?;
+    let (_, framed) = client
+        .connect()
+        .await
+        .map_err(|e| anyhow!(e.to_string()))?;
     println!("connected");
     let (sink, stream) = framed.split();
     let addr = ExecClient::create(|ctx| {
@@ -50,7 +54,7 @@ pub fn on_server(
     vars: HashMap<String, String>,
     server: String,
     detach: bool,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     let system = System::new("bld");
     let data = ExecInfo::new(&name, Some(vars));
     Arbiter::spawn(async move {

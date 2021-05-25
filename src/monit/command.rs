@@ -3,7 +3,8 @@ use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::headers;
 use crate::helpers::term::print_error;
 use crate::monit::MonitClient;
-use crate::types::{BldCommand, MonitInfo, Result};
+use crate::types::{BldCommand, MonitInfo};
+use anyhow::anyhow;
 use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
 use awc::Client;
 use clap::{App, Arg, ArgMatches, SubCommand};
@@ -32,13 +33,16 @@ impl MonitCommand {
         Box::new(Self)
     }
 
-    async fn request(info: MonitConnectionInfo) -> Result<()> {
+    async fn request(info: MonitConnectionInfo) -> anyhow::Result<()> {
         let url = format!("http://{}:{}/ws-monit", info.host, info.port);
         let mut client = Client::new().ws(url);
         for (key, value) in info.headers.iter() {
             client = client.header(&key[..], &value[..]);
         }
-        let (_, framed) = client.connect().await?;
+        let (_, framed) = client
+            .connect()
+            .await
+            .map_err(|e| anyhow!(e.to_string()))?;
         let (sink, stream) = framed.split();
         let addr = MonitClient::create(|ctx| {
             MonitClient::add_stream(stream, ctx);
@@ -92,7 +96,7 @@ impl BldCommand for MonitCommand {
             .args(&vec![pipeline_id, pipeline, server, last])
     }
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> Result<()> {
+    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
         let config = BldConfig::load()?;
         let pip_id = matches.value_of(PIPELINE_ID).map(|x| x.to_string());
         let pip_name = matches.value_of(PIPELINE).map(|x| x.to_string());

@@ -8,8 +8,9 @@ pub use agent::*;
 pub use network::*;
 pub use storage::*;
 
+use anyhow::anyhow;
 use crate::config::BldConfig;
-use crate::types::Result;
+use crate::helpers::term::print_error;
 use async_raft::config::Config;
 use async_raft::raft::{
     AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest, InstallSnapshotResponse,
@@ -21,7 +22,6 @@ use std::collections::HashSet;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::result::Result as StdResult;
 use tokio::runtime::Runtime;
 use uuid::Uuid;
 
@@ -42,18 +42,25 @@ pub enum HighAvailThreadResponse {
 pub struct HighAvailThread {
     node_id: NodeId,
     raft_request_tx: Sender<(Uuid, HighAvailThreadRequest)>,
-    raft_response_rx: Receiver<(Uuid, StdResult<HighAvailThreadResponse, RaftError>)>,
+    raft_response_rx: Receiver<(Uuid, Result<HighAvailThreadResponse, RaftError>)>,
 }
 
 impl HighAvailThread {
-    pub async fn new(config: &BldConfig) -> Result<Self> {
-        let (agent, agents) = Self::agent_info(config).unwrap();
+    pub async fn new(config: &BldConfig) -> anyhow::Result<Self> {
+        let (agent, agents) = Self::agent_info(config)?;
         let node_id = agent.id();
         let (raft_request_tx, raft_request_rx) = channel();
         let (raft_response_tx, raft_response_rx) = channel();
         // Creating a new thread in order to create the needed tokio runtime.
         // This cannot be done normally because this function is called from an actix_web runtime.
-        thread::spawn(move || Self::raft_thread(agent, agents, raft_request_rx, raft_response_tx));
+        thread::spawn(move || {
+            let _ = Runtime::new().and_then(|rt| {
+                if let Err(e) = rt.block_on(Self::raft_thread(agent, agents, raft_request_rx, raft_response_tx)) {
+                    let _ = print_error(&e.to_string());
+                }
+                Ok(())
+            });
+        });
         Ok(Self { node_id, raft_request_tx, raft_response_rx })
     }
 
@@ -65,72 +72,71 @@ impl HighAvailThread {
         &self.raft_request_tx
     }
 
-    pub fn raft_response_rx(&self) -> &Receiver<(Uuid, StdResult<HighAvailThreadResponse, RaftError>)> {
+    pub fn raft_response_rx(&self) -> &Receiver<(Uuid, Result<HighAvailThreadResponse, RaftError>)> {
         &self.raft_response_rx
     }
 
-    fn agent_info(config: &BldConfig) -> Result<(Agent, HashSet<Agent>)> {
-        let node_id = config.local.node_id.ok_or("node_id not found")?;
+    fn agent_info(config: &BldConfig) -> anyhow::Result<(Agent, HashSet<Agent>)> {
+        let node_id = config.local.node_id.ok_or(anyhow!("node_id not found"))?;
         let agent = Agent::new(node_id, &config.local.host, config.local.port);
         let mut agents = HashSet::new();
         for server in config.remote.servers.iter() {
             let node_id = server
                 .node_id
-                .ok_or(format!("server: {}, node_id not found", server.name))?;
+                .ok_or(anyhow!("server: {}, node_id not found", server.name))?;
             agents.insert(Agent::new(node_id, &server.host, server.port));
         }
         agents.insert(agent.clone());
         Ok((agent, agents))
     }
 
-    fn raft_thread(
+    async fn raft_thread(
         agent: Agent, 
         agents: HashSet<Agent>, 
         raft_req_rx: Receiver<(Uuid, HighAvailThreadRequest)>, 
-        raft_resp_tx: Sender<(Uuid, StdResult<HighAvailThreadResponse, RaftError>)>) {
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
-            let raft_config = Arc::new(Config::build("raft-group".into()).validate().unwrap());
-            let ids: HashSet<NodeId> = agents.iter().map(|a| a.id()).collect();
-            let network = Arc::new(
-                HighAvailRouter::new(raft_config.clone(), agents)
-                    .await
-                    .unwrap(),
-            );
-            let store = Arc::new(HighAvailStore::new(agent.id()));
-            let raft = Arc::new(HighAvailRaft::new(
-                agent.id(),
-                raft_config.clone(),
-                network.clone(),
-                store.clone(),
-            ));
-            raft.initialize(ids).await.unwrap();
-            while let Ok(message) = raft_req_rx.recv() {
-                match message {
-                    (id, HighAvailThreadRequest::AppendEntries(req)) => {
-                        let resp = raft
-                            .append_entries(req)
-                            .await
-                            .map(HighAvailThreadResponse::AppendEntries);
-                        let _ = raft_resp_tx.send((id, resp));
-                    }
-                    (id, HighAvailThreadRequest::InstallSnapshot(req)) => {
-                        let resp = raft
-                            .install_snapshot(req)
-                            .await
-                            .map(HighAvailThreadResponse::InstallSnapshot);
-                        let _ = raft_resp_tx.send((id, resp));
-                    }
-                    (id, HighAvailThreadRequest::Vote(req)) => {
-                        let resp = raft
-                            .vote(req)
-                            .await
-                            .map(HighAvailThreadResponse::Vote);
-                        let _ = raft_resp_tx.send((id, resp));
-                    }
+        raft_resp_tx: Sender<(Uuid, Result<HighAvailThreadResponse, RaftError>)>)
+    -> anyhow::Result<()>
+    {
+        let raft_config = Arc::new(Config::build("raft-group".into()).validate()?);
+        let ids: HashSet<NodeId> = agents.iter().map(|a| a.id()).collect();
+        let network = Arc::new(
+            HighAvailRouter::new(raft_config.clone(), agents)
+                .await?
+        );
+        let store = Arc::new(HighAvailStore::new(agent.id()));
+        let raft = Arc::new(HighAvailRaft::new(
+            agent.id(),
+            raft_config.clone(),
+            network.clone(),
+            store.clone(),
+        ));
+        raft.initialize(ids).await?;
+        while let Ok(message) = raft_req_rx.recv() {
+            match message {
+                (id, HighAvailThreadRequest::AppendEntries(req)) => {
+                    let resp = raft
+                        .append_entries(req)
+                        .await
+                        .map(HighAvailThreadResponse::AppendEntries);
+                    let _ = raft_resp_tx.send((id, resp));
+                }
+                (id, HighAvailThreadRequest::InstallSnapshot(req)) => {
+                    let resp = raft
+                        .install_snapshot(req)
+                        .await
+                        .map(HighAvailThreadResponse::InstallSnapshot);
+                    let _ = raft_resp_tx.send((id, resp));
+                }
+                (id, HighAvailThreadRequest::Vote(req)) => {
+                    let resp = raft
+                        .vote(req)
+                        .await
+                        .map(HighAvailThreadResponse::Vote);
+                    let _ = raft_resp_tx.send((id, resp));
                 }
             }
-        });
+        }
+        Ok(())
     }
 }
 
@@ -140,7 +146,7 @@ pub enum HighAvail {
 }
 
 impl HighAvail {
-    pub async fn new(config: &BldConfig) -> Result<Self> {
+    pub async fn new(config: &BldConfig) -> anyhow::Result<Self> {
         Ok(match config.local.ha_mode {
             true => Self::Enabled(Mutex::new(HighAvailThread::new(config).await?)),
             false => Self::Disabled,

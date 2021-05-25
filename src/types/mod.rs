@@ -4,7 +4,6 @@ mod exec;
 mod monit;
 mod push;
 mod recv;
-mod result;
 
 pub use auth::*;
 pub use command::*;
@@ -12,7 +11,6 @@ pub use exec::*;
 pub use monit::*;
 pub use push::*;
 pub use recv::*;
-pub use result::*;
 
 use yaml_rust::Yaml;
 

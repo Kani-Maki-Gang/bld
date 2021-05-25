@@ -2,7 +2,6 @@ use crate::config::definitions::REMOTE_SERVER_OAUTH2;
 use crate::config::Auth;
 use crate::helpers::term::print_error;
 use crate::path;
-use crate::types::Result;
 use actix::{Arbiter, System};
 use actix_http::Payload;
 use actix_web::client::Client;
@@ -20,12 +19,11 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::rc::Rc;
 
-type StdResult<T, V> = std::result::Result<T, V>;
 type ServerResponse = ClientResponse<
-    Decompress<Payload<Pin<Box<dyn Stream<Item = StdResult<Bytes, PayloadError>>>>>>,
+    Decompress<Payload<Pin<Box<dyn Stream<Item = Result<Bytes, PayloadError>>>>>>,
 >;
 
-fn handle_body(body: &StdResult<Bytes, PayloadError>) -> String {
+fn handle_body(body: &Result<Bytes, PayloadError>) -> String {
     match body {
         Ok(b) => String::from_utf8_lossy(&b).to_string(),
         Err(e) => e.to_string(),
@@ -55,7 +53,7 @@ async fn parse_response(resp: &mut ServerResponse) -> String {
     }
 }
 
-pub fn headers(server: &str, auth: &Auth) -> Result<HashMap<String, String>> {
+pub fn headers(server: &str, auth: &Auth) -> anyhow::Result<HashMap<String, String>> {
     let mut headers = HashMap::new();
     if let Auth::OAuth2(_info) = auth {
         if let Ok(token) = fs::read_to_string(path![REMOTE_SERVER_OAUTH2, server]) {

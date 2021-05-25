@@ -1,5 +1,5 @@
+use anyhow::anyhow;
 use crate::config::{AuthValidation, BldConfig};
-use crate::types::{BldError, Result};
 use actix_http::error::ErrorUnauthorized;
 use actix_web::client::Client;
 use actix_web::dev::Payload;
@@ -10,8 +10,6 @@ use awc::http::StatusCode;
 use futures::Future;
 use futures_util::future::FutureExt;
 use std::pin::Pin;
-
-type StdResult<T, V> = std::result::Result<T, V>;
 
 #[derive(Debug)]
 pub struct User {
@@ -28,7 +26,7 @@ impl User {
 
 impl FromRequest for User {
     type Error = Error;
-    type Future = Pin<Box<dyn Future<Output = StdResult<Self, Self::Error>>>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>;
     type Config = ();
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
@@ -58,7 +56,7 @@ fn get_bearer(request: &HttpRequest) -> String {
         .to_string()
 }
 
-async fn oauth2_validate(url: &str, bearer: &str) -> Result<User> {
+async fn oauth2_validate(url: &str, bearer: &str) -> anyhow::Result<User> {
     let client = Client::default();
     let mut resp = client
         .get(url)
@@ -66,13 +64,17 @@ async fn oauth2_validate(url: &str, bearer: &str) -> Result<User> {
         .header("Authorization", bearer)
         .send()
         .await;
-    let body = resp.as_mut()?.body().await?;
-    match resp?.status() {
+    let body = resp
+        .as_mut()
+        .map_err(|e| anyhow!(e.to_string()))?
+        .body()
+        .await?;
+    match resp.map_err(|e| anyhow!(e.to_string()))?.status() {
         StatusCode::OK => {
             let body = String::from_utf8_lossy(&body).to_string();
             let value: serde_json::Value = serde_json::from_str(&body)?;
             Ok(User::new(&value["login"].to_string()))
         }
-        _ => Err(BldError::Other("could not authenticate user".to_string())),
+        _ => Err(anyhow!("could not authenticate user")),
     }
 }

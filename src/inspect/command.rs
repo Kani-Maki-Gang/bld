@@ -1,7 +1,7 @@
 use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::{exec_get, headers};
-use crate::types::{BldCommand, Result};
+use crate::types::BldCommand;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 static INSPECT: &str = "inspect";
@@ -38,12 +38,11 @@ impl BldCommand for InspectCommand {
             .args(&[pipeline, server])
     }
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> Result<()> {
+    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
         let config = BldConfig::load()?;
         let pip = matches
             .value_of(PIPELINE)
-            .or(Some(TOOL_DEFAULT_PIPELINE))
-            .unwrap()
+            .unwrap_or(TOOL_DEFAULT_PIPELINE)
             .to_string();
         let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
         let (name, auth) = match &srv.same_auth_as {

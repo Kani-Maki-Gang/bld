@@ -2,7 +2,7 @@ use crate::config::definitions::{GET, PUSH, VAR_TOKEN};
 use crate::config::BldConfig;
 use crate::persist::{Execution, Logger, NullExec};
 use crate::run::{BuildStep, Container, Machine, Pipeline, RunsOn};
-use crate::types::{CheckStopSignal, Result};
+use crate::types::CheckStopSignal;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -10,7 +10,7 @@ use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 
-type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
+type RecursiveFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>>>>;
 type AtomicExec = Arc<Mutex<dyn Execution>>;
 type AtomicLog = Arc<Mutex<dyn Logger>>;
 type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
@@ -38,7 +38,7 @@ impl Runner {
         pip: Pipeline,
         cm: Option<AtomicRecv>,
         vars: AtomicVars,
-    ) -> Result<Runner> {
+    ) -> anyhow::Result<Runner> {
         let platform = match &pip.runs_on {
             RunsOn::Machine => TargetPlatform::Machine(Box::new(Machine::new(lg.clone())?)),
             RunsOn::Docker(img) => TargetPlatform::Container(Box::new(
@@ -97,7 +97,7 @@ impl Runner {
         command_with_vars
     }
 
-    async fn artifacts(&self, name: &Option<String>) -> Result<()> {
+    async fn artifacts(&self, name: &Option<String>) -> anyhow::Result<()> {
         for artifact in self.pip.artifacts.iter().filter(|a| &a.after == name) {
             let can_continue = (artifact.method == Some(PUSH.to_string())
                 || artifact.method == Some(GET.to_string()))
@@ -141,7 +141,7 @@ impl Runner {
         Ok(())
     }
 
-    async fn steps(&mut self) -> Result<()> {
+    async fn steps(&mut self) -> anyhow::Result<()> {
         for step in self.pip.steps.iter() {
             self.step(&step).await?;
             self.artifacts(&step.name).await?;
@@ -150,7 +150,7 @@ impl Runner {
         Ok(())
     }
 
-    async fn step(&self, step: &BuildStep) -> Result<()> {
+    async fn step(&self, step: &BuildStep) -> anyhow::Result<()> {
         if let Some(name) = &step.name {
             let mut logger = self.lg.lock().unwrap();
             logger.info(&format!("[bld] Step: {}", name));
@@ -185,7 +185,7 @@ impl Runner {
         Ok(())
     }
 
-    async fn dispose(&self) -> Result<()> {
+    async fn dispose(&self) -> anyhow::Result<()> {
         if self.pip.dispose {
             match &self.platform {
                 TargetPlatform::Machine(machine) => machine.dispose()?,

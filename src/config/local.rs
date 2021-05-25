@@ -1,6 +1,6 @@
+use anyhow::anyhow;
 use crate::config::definitions;
 use crate::config::AuthValidation;
-use crate::types::Result;
 use async_raft::NodeId;
 use yaml_rust::Yaml;
 
@@ -17,36 +17,30 @@ pub struct BldLocalConfig {
 }
 
 impl BldLocalConfig {
-    pub fn load(yaml: &Yaml) -> Result<Self> {
+    pub fn load(yaml: &Yaml) -> anyhow::Result<Self> {
         let local_yaml = &yaml["local"];
         let ha_mode = local_yaml["ha-mode"]
             .as_bool()
-            .or(Some(definitions::LOCAL_HA_MODE))
-            .unwrap();
+            .unwrap_or(definitions::LOCAL_HA_MODE);
         let node_id = local_yaml["node-id"].as_i64().map(|n| n as NodeId);
         let host = local_yaml["host"]
             .as_str()
-            .or(Some(definitions::LOCAL_SERVER_HOST))
-            .unwrap()
+            .unwrap_or(definitions::LOCAL_SERVER_HOST)
             .to_string();
         let port = local_yaml["port"]
             .as_i64()
-            .or(Some(definitions::LOCAL_SERVER_PORT))
-            .unwrap();
+            .unwrap_or(definitions::LOCAL_SERVER_PORT);
         let logs = local_yaml["logs"]
             .as_str()
-            .or(Some(definitions::LOCAL_LOGS))
-            .unwrap()
+            .unwrap_or(definitions::LOCAL_LOGS)
             .to_string();
         let db = local_yaml["db"]
             .as_str()
-            .or(Some(definitions::LOCAL_DB))
-            .unwrap()
+            .unwrap_or(definitions::LOCAL_DB)
             .to_string();
         let docker_url = local_yaml["docker-url"]
             .as_str()
-            .or(Some(definitions::LOCAL_DOCKER_URL))
-            .unwrap()
+            .unwrap_or(definitions::LOCAL_DOCKER_URL)
             .to_string();
         let auth = BldLocalConfig::auth_load(local_yaml)?;
         Ok(Self {
@@ -61,13 +55,13 @@ impl BldLocalConfig {
         })
     }
 
-    fn auth_load(yaml: &Yaml) -> Result<AuthValidation> {
+    fn auth_load(yaml: &Yaml) -> anyhow::Result<AuthValidation> {
         let auth_validation = match yaml["auth"]["method"].as_str() {
             Some("ldap") => AuthValidation::Ldap,
             Some("oauth2") => AuthValidation::OAuth2(
                 yaml["auth"]["validation-url"]
                     .as_str()
-                    .ok_or("no validation url found for auth in config")?
+                    .ok_or(anyhow!("no validation url found for auth in config"))?
                     .to_string(),
             ),
             _ => AuthValidation::None,

@@ -12,7 +12,6 @@ pub use remote::*;
 pub use server::*;
 
 use crate::path;
-use crate::types::Result;
 use std::path::PathBuf;
 use yaml_rust::YamlLoader;
 
@@ -23,7 +22,7 @@ pub struct BldConfig {
 }
 
 impl BldConfig {
-    pub fn load() -> Result<Self> {
+    pub fn load() -> anyhow::Result<Self> {
         let path = path![
             std::env::current_dir()?,
             definitions::TOOL_DIR,

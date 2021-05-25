@@ -5,7 +5,7 @@ use crate::server::{
     auth_redirect, ha_append_entries, ha_install_snapshot, ha_vote, hist, home, inspect, list,
     push, stop, ws_exec, ws_high_avail, ws_monit, PipelinePool,
 };
-use crate::types::{BldCommand, Result};
+use crate::types::BldCommand;
 use actix::{Arbiter, System};
 use actix_web::{middleware, web, App, HttpServer};
 use clap::{App as ClapApp, Arg, ArgMatches, SubCommand};
@@ -22,7 +22,7 @@ impl ServerCommand {
         Box::new(Self)
     }
 
-    async fn start(config: BldConfig, host: &str, port: i64) -> Result<()> {
+    async fn start(config: BldConfig, host: &str, port: i64) -> anyhow::Result<()> {
         print_info(&format!("starting bld server at {}:{}", host, port))?;
         let high_avail = web::Data::new(HighAvail::new(&config).await?);
         let config = web::Data::new(config);
@@ -55,7 +55,7 @@ impl ServerCommand {
         Ok(())
     }
 
-    pub fn spawn(config: BldConfig, host: String, port: i64) -> Result<()> {
+    pub fn spawn(config: BldConfig, host: String, port: i64) -> anyhow::Result<()> {
         let system = System::new("bld-server");
         Arbiter::spawn(async move {
             let _ = Self::start(config, &host, port).await;
@@ -87,7 +87,7 @@ impl BldCommand for ServerCommand {
             .args(&[host, port])
     }
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> Result<()> {
+    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
         let config = BldConfig::load()?;
         let host = matches
             .value_of("host")

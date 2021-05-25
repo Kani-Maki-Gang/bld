@@ -1,15 +1,14 @@
+use anyhow::anyhow;
 use crate::config::BldConfig;
 use crate::path;
 use crate::persist::{Database, FileScanner, Scanner};
 use crate::server::User;
-use crate::types::{BldError, MonitInfo, Result};
+use crate::types::MonitInfo;
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-
-type StdResult<T, V> = std::result::Result<T, V>;
 
 pub struct MonitorPipelineSocket {
     hb: Instant,
@@ -65,7 +64,7 @@ impl MonitorPipelineSocket {
         }
     }
 
-    fn dependencies(&mut self, data: &str) -> Result<()> {
+    fn dependencies(&mut self, data: &str) -> anyhow::Result<()> {
         let data = serde_json::from_str::<MonitInfo>(data)?;
         let config = self.config.get_ref();
         let mut db = Database::connect(&config.local.db)?;
@@ -77,13 +76,10 @@ impl MonitorPipelineSocket {
         } else if let Some(name) = data.name {
             db.load_by_name(&name);
         } else {
-            return Err(BldError::Other("pipeline not found".to_string()));
+            return Err(anyhow!("pipeline not found"));
         }
 
-        let pipeline = match &db.pipeline {
-            Some(pipeline) => pipeline,
-            None => return Err(BldError::Other("pipeline not found".to_string())),
-        };
+        let pipeline = db.pipeline.as_ref().ok_or(anyhow!("pipeline not found"))?;
 
         self.id = pipeline.id.clone();
 
@@ -114,8 +110,8 @@ impl Actor for MonitorPipelineSocket {
     }
 }
 
-impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for MonitorPipelineSocket {
-    fn handle(&mut self, msg: StdResult<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MonitorPipelineSocket {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(txt)) => {
                 if let Err(e) = self.dependencies(&txt) {
@@ -145,7 +141,7 @@ pub async fn ws_monit(
     req: HttpRequest,
     stream: web::Payload,
     config: web::Data<BldConfig>,
-) -> StdResult<HttpResponse, Error> {
+) -> Result<HttpResponse, Error> {
     if user.is_none() {
         return Err(ErrorUnauthorized(""));
     }

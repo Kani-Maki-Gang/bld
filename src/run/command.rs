@@ -1,7 +1,7 @@
 use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION};
 use crate::persist::{NullExec, ShellLogger};
 use crate::run::{self, Runner};
-use crate::types::{BldCommand, Result};
+use crate::types::BldCommand;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -53,7 +53,7 @@ impl BldCommand for RunCommand {
             .args(&[pipeline, server, detach, variables])
     }
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> Result<()> {
+    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
         let pipeline = matches
             .value_of("pipeline")
             .or(Some(TOOL_DEFAULT_PIPELINE))

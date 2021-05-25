@@ -1,10 +1,11 @@
+use anyhow::anyhow;
 use crate::config::BldConfig;
 use crate::helpers::term;
 use crate::path;
 use crate::persist::{Database, FileLogger, FileScanner, Scanner};
 use crate::run::{Pipeline, Runner};
 use crate::server::{PipelinePool, User};
-use crate::types::{BldError, ExecInfo, Result};
+use crate::types::ExecInfo;
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
@@ -17,7 +18,6 @@ use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use uuid::Uuid;
 
-type StdResult<T, V> = std::result::Result<T, V>;
 type AtomicDb = Arc<Mutex<Database>>;
 type AtomicFs = Arc<Mutex<FileLogger>>;
 type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
@@ -104,12 +104,12 @@ impl ExecutePipelineSocket {
         }
     }
 
-    fn get_info(&mut self, data: &str) -> Result<PipelineInfo> {
+    fn get_info(&mut self, data: &str) -> anyhow::Result<PipelineInfo> {
         let info = serde_json::from_str::<ExecInfo>(data)?;
         let path = Pipeline::get_path(&info.name)?;
         if !path.is_file() {
             let message = String::from("pipeline file not found");
-            return Err(BldError::IoError(message));
+            return Err(anyhow!(message));
         }
 
         let id = Uuid::new_v4().to_string();
@@ -164,8 +164,8 @@ impl Actor for ExecutePipelineSocket {
     }
 }
 
-impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for ExecutePipelineSocket {
-    fn handle(&mut self, msg: StdResult<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSocket {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(txt)) => {
                 match self.get_info(&txt) {
@@ -201,7 +201,7 @@ pub async fn ws_exec(
     stream: web::Payload,
     config: web::Data<BldConfig>,
     pool: web::Data<PipelinePool>,
-) -> StdResult<HttpResponse, Error> {
+) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{:?}", req);
     let res = ws::start(ExecutePipelineSocket::new(user, config, pool), &req, stream);

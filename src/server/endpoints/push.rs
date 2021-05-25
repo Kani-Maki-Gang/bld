@@ -1,6 +1,6 @@
 use crate::run::Pipeline;
 use crate::server::User;
-use crate::types::{PushInfo, Result};
+use crate::types::PushInfo;
 use actix_web::{post, web, HttpResponse, Responder};
 use std::fs::{remove_file, File};
 use std::io::Write;
@@ -17,7 +17,7 @@ pub async fn push(user: Option<User>, info: web::Json<Vec<PushInfo>>) -> impl Re
     }
 }
 
-pub fn push_pipelines(info: Vec<PushInfo>) -> Result<()> {
+pub fn push_pipelines(info: Vec<PushInfo>) -> anyhow::Result<()> {
     for entry in info.iter() {
         let path = Pipeline::get_path(&entry.name)?;
         if path.is_file() {

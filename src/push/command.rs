@@ -3,7 +3,7 @@ use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::{exec_post, headers};
 use crate::helpers::term::print_error;
 use crate::run::Pipeline;
-use crate::types::{BldCommand, PushInfo, Result};
+use crate::types::{BldCommand, PushInfo};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashSet;
 
@@ -18,7 +18,7 @@ impl PushCommand {
         Box::new(Self)
     }
 
-    fn build_payload(name: String) -> Result<HashSet<(String, String)>> {
+    fn build_payload(name: String) -> anyhow::Result<HashSet<(String, String)>> {
         let src = Pipeline::read(&name)?;
         let pipeline = Pipeline::parse(&src)?;
         let mut set = HashSet::new();
@@ -57,12 +57,11 @@ impl BldCommand for PushCommand {
             .args(&[pipeline, server])
     }
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> Result<()> {
+    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
         let config = BldConfig::load()?;
         let pip = matches
             .value_of(PIPELINE)
-            .or(Some(TOOL_DEFAULT_PIPELINE))
-            .unwrap()
+            .unwrap_or(TOOL_DEFAULT_PIPELINE)
             .to_string();
         let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
         let (name, auth) = match &srv.same_auth_as {
