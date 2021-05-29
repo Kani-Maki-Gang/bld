@@ -78,11 +78,11 @@ impl Runner {
         logger.dumpln(&format!("[bld] Runs on: {}", self.pip.runs_on));
     }
 
-    fn apply_variables(&self, command: &str) -> String {
-        let mut command_with_vars = String::from(command);
+    fn apply_variables(&self, txt: &str) -> String {
+        let mut txt_with_vars = String::from(txt);
         for (key, value) in self.vars.iter() {
             let full_name = format!("{}{}", VAR_TOKEN, &key);
-            command_with_vars = command_with_vars.replace(&full_name, &value);
+            txt_with_vars = txt_with_vars.replace(&full_name, &value);
         }
         for variable in self.pip.variables.iter() {
             let full_name = format!("{}{}", VAR_TOKEN, &variable.name);
@@ -92,9 +92,9 @@ impl Runner {
                 .map(|d| d.to_string())
                 .or_else(|| Some(String::new()))
                 .unwrap();
-            command_with_vars = command_with_vars.replace(&full_name, &value);
+            txt_with_vars = txt_with_vars.replace(&full_name, &value);
         }
-        command_with_vars
+        txt_with_vars
     }
 
     async fn artifacts(&self, name: &Option<String>) -> anyhow::Result<()> {
@@ -104,9 +104,9 @@ impl Runner {
                 && artifact.from.is_some()
                 && artifact.to.is_some();
             if can_continue {
-                let method = artifact.method.as_ref().unwrap();
-                let from = artifact.from.as_ref().unwrap();
-                let to = artifact.to.as_ref().unwrap();
+                let method = self.apply_variables(artifact.method.as_ref().unwrap());
+                let from = self.apply_variables(artifact.from.as_ref().unwrap());
+                let to = self.apply_variables(artifact.to.as_ref().unwrap());
                 {
                     let mut logger = self.lg.lock().unwrap();
                     logger.dumpln(&format!(
