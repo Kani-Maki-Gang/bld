@@ -2,10 +2,10 @@ use crate::run::socket::ExecInfo;
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, AsyncContext, Context, Handler, StreamHandler, System};
 use actix_codec::Framed;
+use actix_web::web::Bytes;
 use awc::error::WsProtocolError;
 use awc::ws::{Codec, Frame, Message};
 use awc::BoxedSocket;
-use bytes::Bytes;
 use futures::stream::SplitSink;
 use std::time::Duration;
 

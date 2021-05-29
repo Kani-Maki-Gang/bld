@@ -15,30 +15,30 @@ opt-level = 3
 debug = false
 
 [dependencies]
-clap = "2.33.1"
-yaml-rust = "0.4.4"
-futures-util = "0.3.5"
+clap = "2.33.3"
+yaml-rust = "0.4.5"
+futures-util = "0.3.15"
 shiplift = "0.7.0"
-termcolor = "1.1.0"
+termcolor = "1.1.2"
 actix-web = { version = "3.1.0", features = ["openssl"] }
 actix-web-actors = "3.0.0"
 actix = "0.10.0"
 awc = "2.0.0"
-bytes = "0.5.6"
-futures = "0.3.5"
+bytes = "1.0.1"
+futures = "0.3.15"
 actix-codec = "0.3.0"
-env_logger = "0.8.1"
-tokio = { version = "1.0", features = ["full"] }
-serde_json = "1.0.59"
-diesel = { version = "1.4.5", features = ["sqlite"] }
-uuid = { version = "0.8.1", features = ["v4"] }
+env_logger = "0.8.3"
+tokio = { version = "1.6.1", features = ["full"] }
+serde_json = "1.0.64"
+diesel = { version = "1.4.6", features = ["sqlite"] }
+uuid = { version = "0.8.2", features = ["v4"] }
 actix-http = "2.1.0"
-serde = "1.0.117"
-oauth2 = { version = "3.0.0", features = ["futures-03"] }
-serde_derive = "1.0.118"
+serde = "1.0.126"
+oauth2 = "4.0.0"
+serde_derive = "1.0.126"
 actix-service = "1.0.6"
 chrono = "0.4.19"
-tar = "0.4.32"
-async-raft = "0.6.0"
+tar = "0.4.35"
+async-raft = "0.6.1"
 async-trait = "0.1.50"
 anyhow = "1.0.40"

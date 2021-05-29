@@ -2,6 +2,7 @@ use crate::auth::Login;
 use crate::cli::BldCommand;
 use crate::config::{definitions::VERSION, Auth, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
+use crate::helpers::term;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 static LOGIN: &str = "login";
@@ -42,8 +43,16 @@ impl BldCommand for AuthCommand {
             },
             None => (&srv.name, &srv.auth),
         };
-        if let Auth::OAuth2(info) = auth {
-            info.login(name)?;
+        match auth {
+            Auth::OAuth2(info) => {
+                info.login(name)?;
+            }
+            Auth::Ldap => {
+                term::print_error("unsupported authentication method ldap")?;
+            }
+            Auth::None => {
+                term::print_error("no authentication method setup")?;
+            }
         }
         Ok(())
     }

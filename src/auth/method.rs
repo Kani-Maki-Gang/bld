@@ -54,7 +54,7 @@ impl Login for OAuth2Info {
             self.auth_url.clone(),
             Some(self.token_url.clone()),
         )
-        .set_redirect_url(self.redirect_url.clone());
+        .set_redirect_uri(self.redirect_url.clone());
         let (pkce_challenge, _pkce_verifier) = PkceCodeChallenge::new_random_sha256();
         let mut auth_url = client
             .authorize_url(CsrfToken::new_random)
