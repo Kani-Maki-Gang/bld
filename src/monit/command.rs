@@ -35,7 +35,7 @@ impl MonitCommand {
     }
 
     async fn request(info: MonitConnectionInfo) -> anyhow::Result<()> {
-        let url = format!("http://{}:{}/ws-monit", info.host, info.port);
+        let url = format!("http://{}:{}/ws-monit/", info.host, info.port);
         let mut client = Client::new().ws(url);
         for (key, value) in info.headers.iter() {
             client = client.header(&key[..], &value[..]);
