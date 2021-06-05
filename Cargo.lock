@@ -453,7 +453,6 @@ dependencies = [
  "actix",
  "actix-codec",
  "actix-http",
- "actix-service",
  "actix-web",
  "actix-web-actors",
  "anyhow",
