@@ -12,6 +12,7 @@ pub use remote::*;
 pub use server::*;
 
 use crate::path;
+use tracing::debug;
 use std::path::PathBuf;
 use yaml_rust::YamlLoader;
 
@@ -28,6 +29,7 @@ impl BldConfig {
             definitions::TOOL_DIR,
             format!("{}.yaml", definitions::TOOL_DEFAULT_CONFIG)
         ];
+        debug!("loading config file from: {}", &path.display());
         match std::fs::read_to_string(&path) {
             Ok(content) => {
                 let yaml = YamlLoader::load_from_str(&content)?;

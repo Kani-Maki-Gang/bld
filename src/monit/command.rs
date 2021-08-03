@@ -11,6 +11,7 @@ use awc::Client;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::stream::StreamExt;
 use std::collections::HashMap;
+use tracing::debug;
 
 static MONIT: &str = "monit";
 static PIPELINE_ID: &str = "pipeline-id";
@@ -36,6 +37,7 @@ impl MonitCommand {
 
     async fn request(info: MonitConnectionInfo) -> anyhow::Result<()> {
         let url = format!("http://{}:{}/ws-monit/", info.host, info.port);
+        debug!("establishing web socket connection on {}", url);
         let mut client = Client::new().ws(url);
         for (key, value) in info.headers.iter() {
             client = client.header(&key[..], &value[..]);
@@ -46,6 +48,7 @@ impl MonitCommand {
             MonitClient::add_stream(stream, ctx);
             MonitClient::new(SinkWrite::new(sink, ctx))
         });
+        debug!("sending data over: {:?} {:?} {}", info.pip_id, info.pip_name, info.pip_last);
         addr.send(MonitInfo::new(info.pip_id, info.pip_name, info.pip_last))
             .await?;
         Ok(())
@@ -53,6 +56,7 @@ impl MonitCommand {
 
     fn spawn(info: MonitConnectionInfo) {
         let system = System::new("bld-monit");
+        debug!("spawing actix system: bld-monit");
         Arbiter::spawn(async move {
             if let Err(e) = Self::request(info).await {
                 let _ = print_error(&e.to_string());
@@ -100,6 +104,14 @@ impl BldCommand for MonitCommand {
         let pip_name = matches.value_of(PIPELINE).map(|x| x.to_string());
         let pip_last = matches.is_present(LAST);
         let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
+        debug!(
+            "running {} subcommand with --pipeline-id: {:?}, --pipeline: {:?}, --server: {}, --last: {}",
+            MONIT,
+            pip_id,
+            pip_name,
+            srv.name,
+            pip_last
+        );
         let (name, auth) = match &srv.same_auth_as {
             Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
                 Some(srv) => (&srv.name, &srv.auth),

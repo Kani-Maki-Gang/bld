@@ -6,6 +6,7 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
+use tracing::debug;
 
 static RUN: &str = "run";
 static PIPELINE: &str = "pipeline";
@@ -75,8 +76,23 @@ impl BldCommand for RunCommand {
             .or_else(|| Some(HashMap::new()))
             .unwrap();
         match matches.value_of("server") {
-            Some(server) => run::socket::on_server(pipeline, vars, server.to_string(), detach),
+            Some(server) => {
+                debug!(
+                    "running {} subcommand with --pipeline: {}, --variables: {:?}, --server: {}", 
+                    RUN,
+                    pipeline,
+                    vars,
+                    server.to_string()
+                );
+                run::socket::on_server(pipeline, vars, server.to_string(), detach)
+            }
             None => {
+                debug!(
+                    "running {} subcommand with --pipeline: {}, --variables: {:?}", 
+                    RUN,
+                    pipeline,
+                    vars
+                );
                 let rt = Runtime::new()?;
                 rt.block_on(async {
                     Runner::from_file(

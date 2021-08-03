@@ -2,6 +2,7 @@ use crate::config::definitions;
 use crate::config::AuthValidation;
 use anyhow::anyhow;
 use async_raft::NodeId;
+use tracing::debug;
 use yaml_rust::Yaml;
 
 #[derive(Debug)]
@@ -43,7 +44,7 @@ impl BldLocalConfig {
             .unwrap_or(definitions::LOCAL_DOCKER_URL)
             .to_string();
         let auth = BldLocalConfig::auth_load(local_yaml)?;
-        Ok(Self {
+        let instance = Self {
             ha_mode,
             node_id,
             host,
@@ -52,7 +53,9 @@ impl BldLocalConfig {
             db,
             auth,
             docker_url,
-        })
+        };
+        instance.debug_info();
+        Ok(instance)
     }
 
     fn auth_load(yaml: &Yaml) -> anyhow::Result<AuthValidation> {
@@ -67,6 +70,24 @@ impl BldLocalConfig {
             _ => AuthValidation::None,
         };
         Ok(auth_validation)
+    }
+
+    fn debug_info(&self) {
+        debug!("loaded local configuration");
+        debug!("ha-mode: {}", self.ha_mode);
+        debug!("node-id: {:?}", self.node_id);
+        debug!("host: {}", self.host);
+        debug!("port: {}", self.port);
+        debug!("logs: {}", self.logs);
+        debug!("db: {}", self.db);
+        debug!("docker-url: {}", self.docker_url);
+        match &self.auth {
+            AuthValidation::OAuth2(url) => {
+                debug!("auth > method: oauth2");
+                debug!("auth > validation-url: {}", url);
+            }
+            _ => {},
+        }
     }
 }
 

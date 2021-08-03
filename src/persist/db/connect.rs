@@ -8,6 +8,7 @@ use diesel::sqlite::SqliteConnection;
 use diesel::Connection;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use tracing::debug;
 
 fn no_pipeline_instance() -> anyhow::Result<()> {
     Err(anyhow!("no pipeline instance"))
@@ -28,8 +29,10 @@ impl Database {
         let path_buf = path![db, DB_NAME];
         let path_str = path_buf.as_path().display().to_string();
         let is_new = !path_buf.is_file();
+        debug!("establishing sqlite connection");
         let connection = SqliteConnection::establish(&path_str)?;
         if is_new {
+            debug!("creating database");
             Database::initialize(&connection)?;
         }
         Ok(Self {
@@ -44,14 +47,23 @@ impl Database {
 
     pub fn load(&mut self, id: &str) {
         self.pipeline = PipelineModel::select_by_id(&self.connection, id);
+        if let Some(pip) = self.pipeline.as_ref() {
+            debug!("loaded pipeline with id: {}, name: {}", pip.id, pip.name);
+        }
     }
 
     pub fn load_by_name(&mut self, name: &str) {
         self.pipeline = PipelineModel::select_by_name(&self.connection, name);
+        if let Some(pip) = self.pipeline.as_ref() {
+            debug!("loaded pipeline with id: {}, name: {}", pip.id, pip.name);
+        }
     }
 
     pub fn load_last(&mut self) {
         self.pipeline = PipelineModel::select_last(&self.connection);
+        if let Some(pip) = self.pipeline.as_ref() {
+            debug!("loaded pipeline with id: {}, name: {}", pip.id, pip.name);
+        }
     }
 
     pub fn add(&mut self, id: &str, name: &str, user: &str) -> anyhow::Result<()> {
@@ -64,6 +76,7 @@ impl Database {
             end_date_time: String::new(),
         };
         PipelineModel::insert(&self.connection, &pipeline)?;
+        debug!("created new pipeline entry for id: {}, name: {}, user: {}", id, name, user);
         self.pipeline = Some(pipeline);
         Ok(())
     }
@@ -86,6 +99,13 @@ impl Execution for Database {
                 }
                 pip.running = running;
                 pip.end_date_time = end_date_time;
+                debug!(
+                    "updated pipeline of id: {}, name: {} with new values running: {}, end_date_time: {}", 
+                    pip.id, 
+                    pip.name, 
+                    pip.running, 
+                    pip.end_date_time
+                );
                 Ok(())
             }
             None => no_pipeline_instance(),

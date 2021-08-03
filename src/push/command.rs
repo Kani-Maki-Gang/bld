@@ -7,6 +7,7 @@ use crate::push::PushInfo;
 use crate::run::Pipeline;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashSet;
+use tracing::debug;
 
 static PUSH: &str = "push";
 static PIPELINE: &str = "pipeline";
@@ -65,6 +66,7 @@ impl BldCommand for PushCommand {
             .unwrap_or(TOOL_DEFAULT_PIPELINE)
             .to_string();
         let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
+        debug!("running {} subcommand with --server: {}", PUSH, srv.name);
         let (name, auth) = match &srv.same_auth_as {
             Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
                 Some(srv) => (&srv.name, &srv.auth),
@@ -84,6 +86,7 @@ impl BldCommand for PushCommand {
                     .collect();
                 let url = format!("http://{}:{}/push", srv.host, srv.port);
                 let headers = headers(name, auth)?;
+                debug!("sending http request to {}", url);
                 exec_post(sys, url, headers, data);
             }
             Err(e) => {

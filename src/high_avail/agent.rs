@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use async_raft::{AppData, AppDataResponse, NodeId};
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};

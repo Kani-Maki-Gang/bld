@@ -7,6 +7,7 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use std::fs;
 use std::path::Component::Normal;
 use std::path::{Path, PathBuf};
+use tracing::debug;
 
 static INIT: &str = "init";
 static SERVER: &str = "server";
@@ -102,6 +103,7 @@ impl BldCommand for InitCommand {
         let build_dir_exists = Self::build_dir_exists()?;
         if !build_dir_exists {
             let is_server = matches.is_present(SERVER);
+            debug!("running {} subcommand with --server: {}", INIT, is_server);
             return Self::create_build_dir()
                 .and_then(|_| Self::create_logs_dir(is_server))
                 .and_then(|_| Self::create_db_dir(is_server))

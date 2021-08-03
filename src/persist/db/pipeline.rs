@@ -3,6 +3,7 @@ use diesel::query_dsl::RunQueryDsl;
 use diesel::sql_types::{Bool, Text};
 use diesel::sqlite::SqliteConnection;
 use diesel::{sql_query, Queryable, QueryableByName};
+use tracing::debug;
 
 #[derive(Debug, Queryable, QueryableByName)]
 pub struct PipelineModel {
@@ -22,16 +23,19 @@ pub struct PipelineModel {
 
 impl PipelineModel {
     pub fn create(connection: &SqliteConnection) -> anyhow::Result<()> {
+        debug!("executing query {}", CREATE_TABLE_PIPELINE_QUERY);
         sql_query(CREATE_TABLE_PIPELINE_QUERY).execute(connection)?;
         Ok(())
     }
 
     pub fn select_all(connection: &SqliteConnection) -> anyhow::Result<Vec<Self>> {
+        debug!("executing query {}", SELECT_PIPELINES_QUERY);
         let res = sql_query(SELECT_PIPELINES_QUERY).load::<Self>(connection)?;
         Ok(res)
     }
 
     pub fn select_by_id(connection: &SqliteConnection, id: &str) -> Option<Self> {
+        debug!("executing query {}", SELECT_PIPELINE_BY_ID_QUERY);
         let query = sql_query(SELECT_PIPELINE_BY_ID_QUERY)
             .bind::<Text, _>(id)
             .load::<Self>(connection);
@@ -42,6 +46,7 @@ impl PipelineModel {
     }
 
     pub fn select_by_name(connection: &SqliteConnection, name: &str) -> Option<Self> {
+        debug!("executing query {}", SELECT_PIPELINE_BY_NAME_QUERY);
         let query = sql_query(SELECT_PIPELINE_BY_NAME_QUERY)
             .bind::<Text, _>(name)
             .load::<Self>(connection);
@@ -52,6 +57,7 @@ impl PipelineModel {
     }
 
     pub fn select_last(connection: &SqliteConnection) -> Option<Self> {
+        debug!("executing query {}", SELECT_LAST_INVOKED_PIPELINE);
         let query = sql_query(SELECT_LAST_INVOKED_PIPELINE).load::<Self>(connection);
         if query.is_err() {
             return None;
@@ -60,6 +66,7 @@ impl PipelineModel {
     }
 
     pub fn insert(connection: &SqliteConnection, pipeline: &Self) -> anyhow::Result<()> {
+        debug!("executing query {}", INSERT_PIPELINE_QUERY);
         sql_query(INSERT_PIPELINE_QUERY)
             .bind::<Text, _>(&pipeline.id)
             .bind::<Text, _>(&pipeline.name)
@@ -77,6 +84,7 @@ impl PipelineModel {
         running: bool,
         end_date_time: &str,
     ) -> anyhow::Result<()> {
+        debug!("executing query {}", UPDATE_PIPELINE_QUERY);
         sql_query(UPDATE_PIPELINE_QUERY)
             .bind::<Bool, _>(running)
             .bind::<Text, _>(end_date_time)

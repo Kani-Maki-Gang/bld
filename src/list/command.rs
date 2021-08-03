@@ -3,6 +3,7 @@ use crate::config::{definitions::VERSION, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::{exec_get, headers};
 use clap::{App, Arg, ArgMatches, SubCommand};
+use tracing::debug;
 
 static LIST: &str = "ls";
 static SERVER: &str = "server";
@@ -35,6 +36,7 @@ impl BldCommand for ListCommand {
     fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
         let config = BldConfig::load()?;
         let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
+        debug!("running {} subcommand with --server: {}", LIST, srv.name);
         let (name, auth) = match &srv.same_auth_as {
             Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
                 Some(srv) => (&srv.name, &srv.auth),
@@ -45,6 +47,7 @@ impl BldCommand for ListCommand {
         let sys = String::from("bld-ls");
         let url = format!("http://{}:{}/list", srv.host, srv.port);
         let headers = headers(name, auth)?;
+        debug!("sending http request to {}", url);
         exec_get(sys, url, headers);
         Ok(())
     }

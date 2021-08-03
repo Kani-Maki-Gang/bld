@@ -1,6 +1,5 @@
 use crate::cli::BldCommand;
 use crate::config::{definitions::VERSION, BldConfig};
-use crate::helpers::term::print_info;
 use crate::high_avail::HighAvail;
 use crate::server::{
     auth_redirect, ha_append_entries, ha_install_snapshot, ha_vote, hist, home, inspect, list,
@@ -9,6 +8,7 @@ use crate::server::{
 use actix::{Arbiter, System};
 use actix_web::{middleware, web, App, HttpServer};
 use clap::{App as ClapApp, Arg, ArgMatches, SubCommand};
+use tracing::{debug, info};
 use std::env::set_var;
 
 static SERVER: &str = "server";
@@ -23,12 +23,11 @@ impl ServerCommand {
     }
 
     async fn start(config: BldConfig, host: &str, port: i64) -> anyhow::Result<()> {
-        print_info(&format!("starting bld server at {}:{}", host, port))?;
+        info!("starting bld server at {}:{}", host, port);
         let high_avail = web::Data::new(HighAvail::new(&config).await?);
         let config = web::Data::new(config);
         let pool = web::Data::new(PipelinePool::new());
         set_var("RUST_LOG", "actix_server=info,actix_web=debug");
-        env_logger::init();
         HttpServer::new(move || {
             App::new()
                 .app_data(pool.clone())
@@ -57,6 +56,7 @@ impl ServerCommand {
 
     pub fn spawn(config: BldConfig, host: String, port: i64) -> anyhow::Result<()> {
         let system = System::new("bld-server");
+        debug!("starting actix system: bld-server");
         Arbiter::spawn(async move {
             let _ = Self::start(config, &host, port).await;
         });
@@ -98,6 +98,7 @@ impl BldCommand for ServerCommand {
             .value_of("port")
             .map(|port| port.parse::<i64>().unwrap_or(config.local.port))
             .unwrap_or(config.local.port);
+        debug!("running {} subcommand with --host: {} --port: {}", SERVER, &host, &port);
         Self::spawn(config, host, port)?;
         Ok(())
     }

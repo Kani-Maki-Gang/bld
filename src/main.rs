@@ -17,7 +17,21 @@ mod stop;
 
 use crate::config::definitions::VERSION;
 use crate::helpers::term::print_error;
-use clap::App;
+use clap::{App, Arg, ArgMatches};
+use tracing_subscriber::filter::LevelFilter;
+
+fn tracing_level(matches: &ArgMatches<'_>) -> LevelFilter {
+    match matches.occurrences_of("v") {
+        0 => LevelFilter::INFO,
+        1 | _ => LevelFilter::DEBUG,
+    }
+}
+
+fn tracing(matches: &ArgMatches<'_>) { 
+    tracing_subscriber::fmt()
+        .with_max_level(tracing_level(matches))
+        .init()
+}
 
 fn main() {
     let commands = vec![
@@ -43,7 +57,16 @@ fn main() {
                 .map(|c| c.interface())
                 .collect::<Vec<App<'static, 'static>>>(),
         )
+        .arg(
+            Arg::with_name("v")
+                .short("v")
+                .multiple(true)
+                .required(false)
+                .help("Sets the level of verbosity")
+        )
         .get_matches();
+
+    tracing(&cli);
 
     let result = match cli.subcommand() {
         (id, Some(matches)) => commands

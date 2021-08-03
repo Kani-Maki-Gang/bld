@@ -24,7 +24,7 @@ impl FileLogger {
     }
 
     fn write(&mut self, text: &str) {
-        if let Err(e) = write!(self.file_handle, "{}", text) {
+        if let Err(e) = writeln!(self.file_handle, "{}", text) {
             eprintln!("Couldn't write to file: {}", e);
         }
     }
