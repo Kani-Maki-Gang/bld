@@ -81,12 +81,9 @@ impl BldLocalConfig {
         debug!("logs: {}", self.logs);
         debug!("db: {}", self.db);
         debug!("docker-url: {}", self.docker_url);
-        match &self.auth {
-            AuthValidation::OAuth2(url) => {
-                debug!("auth > method: oauth2");
-                debug!("auth > validation-url: {}", url);
-            }
-            _ => {},
+        if let AuthValidation::OAuth2(url) = &self.auth {
+            debug!("auth > method: oauth2");
+            debug!("auth > validation-url: {}", url);
         }
     }
 }

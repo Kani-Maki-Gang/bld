@@ -47,12 +47,15 @@ impl BldCommand for AuthCommand {
         };
         return match auth {
             Auth::OAuth2(info) => {
-                debug!("starting login process for server: {} with oauth2 method", name);
+                debug!(
+                    "starting login process for server: {} with oauth2 method",
+                    name
+                );
                 info.login(name)?;
                 Ok(())
             }
             Auth::Ldap => Err(anyhow!("unsupported authentication method ldap")),
             Auth::None => Err(anyhow!("no authentication method setup")),
-        }
+        };
     }
 }

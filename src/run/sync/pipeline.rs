@@ -107,7 +107,7 @@ impl Pipeline {
     }
 
     pub fn parse(src: &str) -> anyhow::Result<Pipeline> {
-        let yaml = YamlLoader::load_from_str(&src)?;
+        let yaml = YamlLoader::load_from_str(src)?;
         if yaml.is_empty() {
             return Err(anyhow!("invalid yaml"));
         }

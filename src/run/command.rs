@@ -78,7 +78,7 @@ impl BldCommand for RunCommand {
         match matches.value_of("server") {
             Some(server) => {
                 debug!(
-                    "running {} subcommand with --pipeline: {}, --variables: {:?}, --server: {}", 
+                    "running {} subcommand with --pipeline: {}, --variables: {:?}, --server: {}",
                     RUN,
                     pipeline,
                     vars,
@@ -88,10 +88,8 @@ impl BldCommand for RunCommand {
             }
             None => {
                 debug!(
-                    "running {} subcommand with --pipeline: {}, --variables: {:?}", 
-                    RUN,
-                    pipeline,
-                    vars
+                    "running {} subcommand with --pipeline: {}, --variables: {:?}",
+                    RUN, pipeline, vars
                 );
                 let rt = Runtime::new()?;
                 rt.block_on(async {

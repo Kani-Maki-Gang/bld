@@ -48,7 +48,10 @@ impl MonitCommand {
             MonitClient::add_stream(stream, ctx);
             MonitClient::new(SinkWrite::new(sink, ctx))
         });
-        debug!("sending data over: {:?} {:?} {}", info.pip_id, info.pip_name, info.pip_last);
+        debug!(
+            "sending data over: {:?} {:?} {}",
+            info.pip_id, info.pip_name, info.pip_last
+        );
         addr.send(MonitInfo::new(info.pip_id, info.pip_name, info.pip_last))
             .await?;
         Ok(())

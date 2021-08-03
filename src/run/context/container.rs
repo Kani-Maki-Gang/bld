@@ -77,7 +77,7 @@ impl Container {
         logger: &mut Arc<Mutex<dyn Logger>>,
     ) -> anyhow::Result<String> {
         Container::pull(client, image, logger).await?;
-        let options = ContainerOptions::builder(&image).tty(true).build();
+        let options = ContainerOptions::builder(image).tty(true).build();
         let info = client.containers().create(&options).await?;
         client.containers().get(&info.id).start().await?;
         Ok(info.id)
@@ -89,7 +89,7 @@ impl Container {
         lg: Arc<Mutex<dyn Logger>>,
     ) -> anyhow::Result<Self> {
         let client = Container::docker(&cfg)?;
-        let id = Container::create(&client, &img, &mut lg.clone()).await?;
+        let id = Container::create(&client, img, &mut lg.clone()).await?;
         Ok(Self {
             config: Some(cfg),
             img: img.to_string(),

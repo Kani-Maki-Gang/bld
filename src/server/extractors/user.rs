@@ -31,10 +31,10 @@ impl FromRequest for User {
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let config = req.app_data::<Data<BldConfig>>().unwrap().clone();
-        let bearer = get_bearer(&req);
+        let bearer = get_bearer(req);
         async move {
             if let AuthValidation::OAuth2(url) = &config.get_ref().local.auth {
-                return match oauth2_validate(&url, &bearer).await {
+                return match oauth2_validate(url, &bearer).await {
                     Ok(user) => Ok(user),
                     Err(_) => Err(ErrorUnauthorized("")),
                 };

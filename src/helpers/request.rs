@@ -24,7 +24,7 @@ type ServerResponse =
 
 fn handle_body(body: &Result<Bytes, PayloadError>) -> String {
     match body {
-        Ok(b) => String::from_utf8_lossy(&b).to_string(),
+        Ok(b) => String::from_utf8_lossy(b).to_string(),
         Err(e) => e.to_string(),
     }
 }

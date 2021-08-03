@@ -76,7 +76,10 @@ impl Database {
             end_date_time: String::new(),
         };
         PipelineModel::insert(&self.connection, &pipeline)?;
-        debug!("created new pipeline entry for id: {}, name: {}, user: {}", id, name, user);
+        debug!(
+            "created new pipeline entry for id: {}, name: {}, user: {}",
+            id, name, user
+        );
         self.pipeline = Some(pipeline);
         Ok(())
     }
@@ -101,9 +104,9 @@ impl Execution for Database {
                 pip.end_date_time = end_date_time;
                 debug!(
                     "updated pipeline of id: {}, name: {} with new values running: {}, end_date_time: {}", 
-                    pip.id, 
-                    pip.name, 
-                    pip.running, 
+                    pip.id,
+                    pip.name,
+                    pip.running,
                     pip.end_date_time
                 );
                 Ok(())

@@ -23,11 +23,11 @@ use tracing_subscriber::filter::LevelFilter;
 fn tracing_level(matches: &ArgMatches<'_>) -> LevelFilter {
     match matches.occurrences_of("v") {
         0 => LevelFilter::INFO,
-        1 | _ => LevelFilter::DEBUG,
+        _ => LevelFilter::DEBUG,
     }
 }
 
-fn tracing(matches: &ArgMatches<'_>) { 
+fn tracing(matches: &ArgMatches<'_>) {
     tracing_subscriber::fmt()
         .with_max_level(tracing_level(matches))
         .init()
@@ -62,7 +62,7 @@ fn main() {
                 .short("v")
                 .multiple(true)
                 .required(false)
-                .help("Sets the level of verbosity")
+                .help("Sets the level of verbosity"),
         )
         .get_matches();
 

@@ -12,8 +12,8 @@ pub use remote::*;
 pub use server::*;
 
 use crate::path;
-use tracing::debug;
 use std::path::PathBuf;
+use tracing::debug;
 use yaml_rust::YamlLoader;
 
 #[derive(Debug)]
@@ -36,8 +36,8 @@ impl BldConfig {
                 let yaml = &yaml[0];
 
                 Ok(Self {
-                    local: BldLocalConfig::load(&yaml)?,
-                    remote: BldRemoteConfig::load(&yaml)?,
+                    local: BldLocalConfig::load(yaml)?,
+                    remote: BldRemoteConfig::load(yaml)?,
                 })
             }
             Err(_) => Ok(Self {

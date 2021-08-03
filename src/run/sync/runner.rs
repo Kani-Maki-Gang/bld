@@ -82,7 +82,7 @@ impl Runner {
         let mut txt_with_vars = String::from(txt);
         for (key, value) in self.vars.iter() {
             let full_name = format!("{}{}", VAR_TOKEN, &key);
-            txt_with_vars = txt_with_vars.replace(&full_name, &value);
+            txt_with_vars = txt_with_vars.replace(&full_name, value);
         }
         for variable in self.pip.variables.iter() {
             let full_name = format!("{}{}", VAR_TOKEN, &variable.name);
@@ -143,7 +143,7 @@ impl Runner {
 
     async fn steps(&mut self) -> anyhow::Result<()> {
         for step in self.pip.steps.iter() {
-            self.step(&step).await?;
+            self.step(step).await?;
             self.artifacts(&step.name).await?;
             self.cm.check_stop_signal()?;
         }
@@ -169,7 +169,7 @@ impl Runner {
         }
         self.cm.check_stop_signal()?;
         for command in step.commands.iter() {
-            let command_with_vars = self.apply_variables(&command);
+            let command_with_vars = self.apply_variables(command);
             match &self.platform {
                 TargetPlatform::Container(container) => {
                     container

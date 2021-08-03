@@ -8,8 +8,8 @@ use crate::server::{
 use actix::{Arbiter, System};
 use actix_web::{middleware, web, App, HttpServer};
 use clap::{App as ClapApp, Arg, ArgMatches, SubCommand};
-use tracing::{debug, info};
 use std::env::set_var;
+use tracing::{debug, info};
 
 static SERVER: &str = "server";
 static HOST: &str = "host";
@@ -98,7 +98,10 @@ impl BldCommand for ServerCommand {
             .value_of("port")
             .map(|port| port.parse::<i64>().unwrap_or(config.local.port))
             .unwrap_or(config.local.port);
-        debug!("running {} subcommand with --host: {} --port: {}", SERVER, &host, &port);
+        debug!(
+            "running {} subcommand with --host: {} --port: {}",
+            SERVER, &host, &port
+        );
         Self::spawn(config, host, port)?;
         Ok(())
     }

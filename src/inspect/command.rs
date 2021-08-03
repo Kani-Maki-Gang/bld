@@ -46,7 +46,10 @@ impl BldCommand for InspectCommand {
             .unwrap_or(TOOL_DEFAULT_PIPELINE)
             .to_string();
         let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
-        debug!("running {} subcommand with --pipeline: {} -- server: {}", INSPECT, pip, srv.name);
+        debug!(
+            "running {} subcommand with --pipeline: {} -- server: {}",
+            INSPECT, pip, srv.name
+        );
         let (name, auth) = match &srv.same_auth_as {
             Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
                 Some(srv) => (&srv.name, &srv.auth),
