@@ -1,7 +1,7 @@
 use crate::config::BldConfig;
 use crate::helpers::term;
 use crate::path;
-use crate::persist::{Database, FileLogger, FileScanner, Scanner};
+use crate::persist::{ConnectionPool, FileLogger, FileScanner, Scanner, PipelineModel, PipelineExecWrapper};
 use crate::run::socket::messages::ExecInfo;
 use crate::run::{Pipeline, Runner};
 use crate::server::{PipelinePool, User};
@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use uuid::Uuid;
 
-type AtomicDb = Arc<Mutex<Database>>;
+type AtomicEx = Arc<Mutex<PipelineExecWrapper>>;
 type AtomicFs = Arc<Mutex<FileLogger>>;
 type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
 
@@ -26,7 +26,7 @@ struct PipelineInfo {
     pool: web::Data<PipelinePool>,
     id: String,
     name: String,
-    ex: AtomicDb,
+    ex: AtomicEx,
     lg: AtomicFs,
     cm: Option<AtomicRecv>,
     vars: Arc<HashMap<String, String>>,
@@ -56,22 +56,24 @@ impl PipelineInfo {
 
 pub struct ExecutePipelineSocket {
     hb: Instant,
-    user: User,
+    pip_pool: web::Data<PipelinePool>,
+    db_pool: web::Data<ConnectionPool>,
     config: web::Data<BldConfig>,
-    exec: Option<AtomicDb>,
+    user: User,
+    exec: Option<AtomicEx>,
     scanner: Option<FileScanner>,
-    pool: web::Data<PipelinePool>,
 }
 
 impl ExecutePipelineSocket {
-    pub fn new(user: User, config: web::Data<BldConfig>, pool: web::Data<PipelinePool>) -> Self {
+    pub fn new(user: User, pip_pool: web::Data<PipelinePool>, db_pool: web::Data<ConnectionPool>, config: web::Data<BldConfig>) -> Self {
         Self {
             hb: Instant::now(),
-            user,
+            pip_pool,
+            db_pool,
             config,
+            user,
             exec: None,
             scanner: None,
-            pool,
         }
     }
 
@@ -96,10 +98,8 @@ impl ExecutePipelineSocket {
     fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
         if let Some(exec) = act.exec.as_mut() {
             let exec = exec.lock().unwrap();
-            if let Some(pipeline) = &exec.pipeline {
-                if !pipeline.running {
-                    ctx.stop();
-                }
+            if !exec.pipeline.running {
+                ctx.stop();
             }
         }
     }
@@ -118,22 +118,22 @@ impl ExecutePipelineSocket {
             .display()
             .to_string();
 
-        let mut db = Database::connect(&config.local.db)?;
-        db.add(&id, &info.name, &self.user.name)?;
+        let connection = self.db_pool.get()?;
+        let pipeline = PipelineModel::insert(&connection, &id, &info.name, &self.user.name)?;
 
-        let ex = Arc::new(Mutex::new(db));
+        let ex = Arc::new(Mutex::new(PipelineExecWrapper::new(&self.db_pool, pipeline)?));
         let (tx, rx) = mpsc::channel::<bool>();
         let rx = Arc::new(Mutex::new(rx));
         {
-            let mut pool = self.pool.senders.lock().unwrap();
+            let mut pool = self.pip_pool.senders.lock().unwrap();
             pool.insert(id.clone(), tx);
         }
 
         let info = PipelineInfo {
-            pool: self.pool.clone(),
+            pool: self.pip_pool.clone(),
             id,
             name: info.name,
-            ex,
+            ex: Arc::clone(&ex),
             lg: Arc::new(Mutex::new(FileLogger::new(&logs)?)),
             cm: Some(rx),
             vars: match info.variables {
@@ -142,7 +142,7 @@ impl ExecutePipelineSocket {
             },
         };
 
-        self.exec = Some(info.ex.clone());
+        self.exec = Some(ex);
         self.scanner = Some(FileScanner::new(&logs)?);
 
         Ok(info)
@@ -199,12 +199,13 @@ pub async fn ws_exec(
     user: Option<User>,
     req: HttpRequest,
     stream: web::Payload,
+    pip_pool: web::Data<PipelinePool>,
+    db_pool: web::Data<ConnectionPool>,
     config: web::Data<BldConfig>,
-    pool: web::Data<PipelinePool>,
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{:?}", req);
-    let res = ws::start(ExecutePipelineSocket::new(user, config, pool), &req, stream);
+    let res = ws::start(ExecutePipelineSocket::new(user, pip_pool, db_pool, config), &req, stream);
     println!("{:?}", res);
     res
 }

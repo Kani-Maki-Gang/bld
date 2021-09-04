@@ -1,11 +1,11 @@
 #![allow(dead_code)]
 use crate::config::definitions::DB_NAME;
 use crate::path;
-use crate::persist::Execution;
-use crate::persist::PipelineModel;
+use crate::persist::{Execution, PipelineModel, run_migrations};
 use anyhow::anyhow;
 use diesel::sqlite::SqliteConnection;
 use diesel::Connection;
+use diesel::r2d2::{Pool, PooledConnection, ConnectionManager};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tracing::debug;
@@ -14,105 +14,55 @@ fn no_pipeline_instance() -> anyhow::Result<()> {
     Err(anyhow!("no pipeline instance"))
 }
 
-pub struct Database {
-    pub pipeline: Option<PipelineModel>,
-    connection: SqliteConnection,
+pub type ConnectionPool = Pool<ConnectionManager<SqliteConnection>>;
+
+pub fn new_connection_pool(db: &str) -> anyhow::Result<ConnectionPool> {
+    let path = path![db, DB_NAME].as_path().display().to_string();
+    debug!("establishing sqlite connection");
+    let connection = SqliteConnection::establish(&path)?;
+    debug!("running migrations");
+    run_migrations(&connection)?;
+    debug!("creating new connection pool");
+    Ok(Pool::new(ConnectionManager::<SqliteConnection>::new(path))?)
 }
 
-impl Database {
-    fn initialize(conn: &SqliteConnection) -> anyhow::Result<()> {
-        PipelineModel::create(conn)?;
-        Ok(())
-    }
+pub struct PipelineExecWrapper {
+    pub pipeline: PipelineModel,
+    pub connection: PooledConnection<ConnectionManager<SqliteConnection>>,
+}
 
-    pub fn connect(db: &str) -> anyhow::Result<Self> {
-        let path_buf = path![db, DB_NAME];
-        let path_str = path_buf.as_path().display().to_string();
-        let is_new = !path_buf.is_file();
-        debug!("establishing sqlite connection");
-        let connection = SqliteConnection::establish(&path_str)?;
-        if is_new {
-            debug!("creating database");
-            Database::initialize(&connection)?;
-        }
+impl PipelineExecWrapper {
+    pub fn new(pool: &ConnectionPool, pipeline: PipelineModel) -> anyhow::Result<Self> {
         Ok(Self {
-            connection,
-            pipeline: None,
+            pipeline,
+            connection: pool.get()?,
         })
     }
-
-    pub fn all(&self) -> anyhow::Result<Vec<PipelineModel>> {
-        PipelineModel::select_all(&self.connection)
-    }
-
-    pub fn load(&mut self, id: &str) {
-        self.pipeline = PipelineModel::select_by_id(&self.connection, id);
-        if let Some(pip) = self.pipeline.as_ref() {
-            debug!("loaded pipeline with id: {}, name: {}", pip.id, pip.name);
-        }
-    }
-
-    pub fn load_by_name(&mut self, name: &str) {
-        self.pipeline = PipelineModel::select_by_name(&self.connection, name);
-        if let Some(pip) = self.pipeline.as_ref() {
-            debug!("loaded pipeline with id: {}, name: {}", pip.id, pip.name);
-        }
-    }
-
-    pub fn load_last(&mut self) {
-        self.pipeline = PipelineModel::select_last(&self.connection);
-        if let Some(pip) = self.pipeline.as_ref() {
-            debug!("loaded pipeline with id: {}, name: {}", pip.id, pip.name);
-        }
-    }
-
-    pub fn add(&mut self, id: &str, name: &str, user: &str) -> anyhow::Result<()> {
-        let pipeline = PipelineModel {
-            id: id.to_string(),
-            name: name.to_string(),
-            running: false,
-            user: user.to_string(),
-            start_date_time: chrono::Utc::now().to_string(),
-            end_date_time: String::new(),
-        };
-        PipelineModel::insert(&self.connection, &pipeline)?;
-        debug!(
-            "created new pipeline entry for id: {}, name: {}, user: {}",
-            id, name, user
-        );
-        self.pipeline = Some(pipeline);
-        Ok(())
-    }
 }
 
-impl Execution for Database {
+impl Execution for PipelineExecWrapper {
     fn update(&mut self, running: bool) -> anyhow::Result<()> {
-        match self.pipeline.as_mut() {
-            Some(mut pip) => {
-                let end_date_time = match running {
-                    true => String::new(),
-                    false => chrono::Utc::now().to_string(),
-                };
-                match PipelineModel::update(&self.connection, &pip.id, running, &end_date_time) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        eprintln!("{}", e.to_string());
-                        return Err(anyhow!("could not update pipeline model"));
-                    }
-                }
-                pip.running = running;
-                pip.end_date_time = end_date_time;
-                debug!(
-                    "updated pipeline of id: {}, name: {} with new values running: {}, end_date_time: {}", 
-                    pip.id,
-                    pip.name,
-                    pip.running,
-                    pip.end_date_time
-                );
-                Ok(())
+        let end_date_time = match running {
+            true => String::new(),
+            false => chrono::Utc::now().to_string(),
+        };
+        match PipelineModel::update(&self.connection, &self.pipeline.id, running, &end_date_time) {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("{}", e.to_string());
+                return Err(anyhow!("could not update pipeline model"));
             }
-            None => no_pipeline_instance(),
         }
+        self.pipeline.running = running;
+        self.pipeline.end_date_time = end_date_time;
+        debug!(
+            "updated pipeline of id: {}, name: {} with new values running: {}, end_date_time: {}", 
+            self.pipeline.id,
+            self.pipeline.name,
+            self.pipeline.running,
+            self.pipeline.end_date_time
+        );
+        Ok(())
     }
 }
 

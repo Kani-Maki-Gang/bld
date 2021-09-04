@@ -1,6 +1,7 @@
 use crate::cli::BldCommand;
 use crate::config::{definitions::VERSION, BldConfig};
 use crate::high_avail::HighAvail;
+use crate::persist::new_connection_pool;
 use crate::server::{
     auth_redirect, ha_append_entries, ha_install_snapshot, ha_vote, hist, home, inspect, list,
     push, stop, ws_exec, ws_high_avail, ws_monit, PipelinePool,
@@ -24,13 +25,15 @@ impl ServerCommand {
 
     async fn start(config: BldConfig, host: &str, port: i64) -> anyhow::Result<()> {
         info!("starting bld server at {}:{}", host, port);
+        let pip_pool = web::Data::new(PipelinePool::new());
+        let db_pool = web::Data::new(new_connection_pool(&config.local.db)?);
         let high_avail = web::Data::new(HighAvail::new(&config).await?);
         let config = web::Data::new(config);
-        let pool = web::Data::new(PipelinePool::new());
         set_var("RUST_LOG", "actix_server=info,actix_web=debug");
         HttpServer::new(move || {
             App::new()
-                .app_data(pool.clone())
+                .app_data(pip_pool.clone())
+                .app_data(db_pool.clone())
                 .app_data(config.clone())
                 .app_data(high_avail.clone())
                 .wrap(middleware::Logger::default())

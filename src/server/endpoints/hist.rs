@@ -1,23 +1,22 @@
-use crate::config::BldConfig;
-use crate::persist::Database;
+use crate::persist::{ConnectionPool, PipelineModel};
 use crate::server::User;
 use actix_web::{get, web, HttpResponse, Responder};
 
 #[get("/hist")]
-pub async fn hist((user, config): (Option<User>, web::Data<BldConfig>)) -> impl Responder {
+pub async fn hist((user, db_pool): (Option<User>, web::Data<ConnectionPool>)) -> impl Responder {
     if user.is_none() {
         return HttpResponse::Unauthorized().body("");
     }
 
-    match history_info(config.get_ref()) {
+    match history_info(db_pool.get_ref()) {
         Ok(ls) => HttpResponse::Ok().body(ls),
         Err(_) => HttpResponse::BadRequest().body(""),
     }
 }
 
-fn history_info(config: &BldConfig) -> anyhow::Result<String> {
-    let db = Database::connect(&config.local.db)?;
-    let pipelines = db.all()?;
+fn history_info(db_pool: &ConnectionPool) -> anyhow::Result<String> {
+    let connection = db_pool.get()?;
+    let pipelines = PipelineModel::select_all(&connection).unwrap_or_else(|| vec![]);
     let info = pipelines
         .iter()
         .map(|p| p.to_string())
