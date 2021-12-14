@@ -29,67 +29,60 @@ struct InsertPipelineModel<'a> {
 }
 
 impl PipelineModel {
-    pub fn select_all(connection: &SqliteConnection) -> Option<Vec<Self>> {
+    pub fn select_all(connection: &SqliteConnection) -> anyhow::Result<Vec<Self>> {
         debug!("loading all pipelines from the database");
         pipelines
             .load::<Self>(connection)
-            .map(|p| Some(p))
-            .unwrap_or_else(|e| {
+            .map_err(|e| {
                 debug!("could not load pipelines due to: {}", e);
-                None
+                anyhow!(e)
             })
     }
 
-    pub fn select_by_id(connection: &SqliteConnection, pip_id: &str) -> Option<Self> {
+    pub fn select_by_id(connection: &SqliteConnection, pip_id: &str) -> anyhow::Result<Self> {
         debug!("loading pipeline with id: {} from the database", pip_id);
-        let result = pipelines
+        pipelines
             .filter(id.eq(pip_id))
-            .load::<Self>(connection);
-        let pipeline = result
-            .map(|mut p| p.pop())
-            .unwrap_or_else(|e| {
+            .first::<Self>(connection)
+            .map(|p| {
+                debug!("loaded pipeline with id: {}, name: {}", p.id, p.name);
+                p
+            })
+            .map_err(|e| {
                 debug!("could not load pipeline due to: {}", e);
-                None
-            });
-        if let Some(pip) = pipeline.as_ref() {
-            debug!("loaded pipeline with id: {}, name: {}", pip.id, pip.name);
-        }
-        pipeline
+                anyhow!(e)
+            })
     }
 
-    pub fn select_by_name(connection: &SqliteConnection, pip_name: &str) -> Option<Self> {
+    pub fn select_by_name(connection: &SqliteConnection, pip_name: &str) -> anyhow::Result<Self> {
         debug!("loading pipeline with name: {} from the database", pip_name);
-        let result = pipelines
+        pipelines
             .filter(name.eq(pip_name))
-            .load::<Self>(connection);
-        let pipeline = result
-            .map(|mut p| p.pop())
-            .unwrap_or_else(|e| {
+            .first::<Self>(connection)
+            .map(|p| {
+                debug!("loaded pipeline with id: {}, name: {}", p.id, p.name);
+                p
+            })
+            .map_err(|e| {
                 debug!("could not load pipeline due to: {}", e);
-                None
-            });
-        if let Some(pip) = pipeline.as_ref() {
-            debug!("loaded pipeline with id: {}, name: {}", pip.id, pip.name);
-        }
-        pipeline
+                anyhow!(e)
+            })
     }
 
-    pub fn select_last(connection: &SqliteConnection) -> Option<Self> {
+    pub fn select_last(connection: &SqliteConnection) -> anyhow::Result<Self> {
         debug!("loading the last invoked pipeline from the database");
-        let result = pipelines
+        pipelines
             .order_by(start_date_time)
             .limit(1)
-            .load::<Self>(connection);
-        let pipeline = result
-            .map(|mut p| p.pop())
-            .unwrap_or_else(|e| {
+            .first::<Self>(connection)
+            .map(|p| {
+                debug!("loaded pipeline with id: {}, name: {}", p.id, p.name);
+                p
+            })
+            .map_err(|e| {
                 debug!("could not load pipeline due to: {}", e);
-                None
-            });
-        if let Some(pip) = pipeline.as_ref() {
-            debug!("loaded pipeline with id: {}, name: {}", pip.id, pip.name);
-        }
-        pipeline
+                anyhow!(e)
+            })
     }
 
     pub fn insert(connection: &SqliteConnection, pip_id: &str, pip_name: &str, pip_user: &str) -> anyhow::Result<PipelineModel> {

@@ -50,11 +50,11 @@ impl MonitorPipelineSocket {
     fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
         if let Ok(connection) = act.db_pool.get() {
             match PipelineModel::select_by_id(&connection, &act.id) {
-                Some(PipelineModel { running: false, .. }) => ctx.stop(),
-                None => {
+                Ok(PipelineModel { running: false, .. }) => ctx.stop(),
+                Err(_) => {
                     ctx.text("internal server error");
                     ctx.stop();
-                }
+                },
                 _ => {}
             }
         }
@@ -74,7 +74,7 @@ impl MonitorPipelineSocket {
         } else {
             return Err(anyhow!("pipeline not found"));
         }
-        .ok_or_else(|| anyhow!("pipeline not found"))?;
+        .map_err(|_| anyhow!("pipeline not found"))?;
 
         self.id = pipeline.id.clone();
 

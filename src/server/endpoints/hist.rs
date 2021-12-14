@@ -16,7 +16,7 @@ pub async fn hist((user, db_pool): (Option<User>, web::Data<ConnectionPool>)) ->
 
 fn history_info(db_pool: &ConnectionPool) -> anyhow::Result<String> {
     let connection = db_pool.get()?;
-    let pipelines = PipelineModel::select_all(&connection).unwrap_or_else(|| vec![]);
+    let pipelines = PipelineModel::select_all(&connection).unwrap_or_else(|_| vec![]);
     let info = pipelines
         .iter()
         .map(|p| p.to_string())
