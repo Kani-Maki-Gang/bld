@@ -28,6 +28,16 @@ table! {
 }
 
 table! {
+    ha_log (id) {
+        id -> Double,
+        term -> Double,
+        idx -> Double,
+        payload_type -> Text,
+        payload -> Text,
+    }
+}
+
+table! {
     ha_state_machine (id) {
         id -> Text,
         last_applied_log -> Double,
@@ -54,6 +64,7 @@ allow_tables_to_appear_in_same_query!(
     ha_client_serial_responses,
     ha_client_status,
     ha_hard_state,
+    ha_log,
     ha_state_machine,
     pipelines,
 );
