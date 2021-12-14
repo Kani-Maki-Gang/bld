@@ -20,6 +20,14 @@ table! {
 }
 
 table! {
+    ha_hard_state (id) {
+        id -> Text,
+        current_term -> Double,
+        voted_for -> Nullable<Double>,
+    }
+}
+
+table! {
     ha_state_machine (id) {
         id -> Text,
         last_applied_log -> Double,
@@ -45,6 +53,7 @@ joinable!(ha_client_status -> ha_state_machine (state_machine_id));
 allow_tables_to_appear_in_same_query!(
     ha_client_serial_responses,
     ha_client_status,
+    ha_hard_state,
     ha_state_machine,
     pipelines,
 );
