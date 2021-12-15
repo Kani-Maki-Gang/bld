@@ -11,15 +11,17 @@ use tracing::debug;
 
 #[derive(Debug, Queryable)]
 pub struct HighAvailLogModel {
-    pub id: f64,
-    pub term: f64,
-    pub idx: f64,
+    pub id: i32,
+    pub term: i32,
+    pub idx: i32,
     pub payload_type: String,
     pub payload: String,
+    pub date_created: String,
+    pub date_updated: String,
 }
 
 impl HighAvailLogModel {
-    pub fn select(conn: &SqliteConnection, lg_id: f64) -> anyhow::Result<Self> {
+    pub fn select(conn: &SqliteConnection, lg_id: i32) -> anyhow::Result<Self> {
         debug!("loading high availability log model with id: {}", lg_id);
         ha_log
             .filter(id.eq(lg_id))

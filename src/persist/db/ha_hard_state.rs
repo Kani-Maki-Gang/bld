@@ -12,8 +12,10 @@ use tracing::debug;
 #[derive(Debug, Queryable)]
 pub struct HighAvailHardStateModel {
     pub id: String,
-    pub current_term: f64,
-    pub voted_for: Option<f64>,
+    pub current_term: i32,
+    pub voted_for: Option<i32>,
+    pub date_created: String,
+    pub date_updated: String,
 }
 
 impl HighAvailHardStateModel {

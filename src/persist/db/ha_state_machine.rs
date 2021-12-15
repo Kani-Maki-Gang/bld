@@ -11,7 +11,7 @@ use tracing::debug;
 #[table_name = "ha_state_machine"]
 pub struct HighAvailStateMachineModel {
     pub id: String,
-    pub last_applied_log: f64,
+    pub last_applied_log: i32,
     pub date_created: String,
     pub date_updated: String,
 }

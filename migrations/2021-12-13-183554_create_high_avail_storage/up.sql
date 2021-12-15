@@ -1,7 +1,7 @@
 -- Your SQL goes here
 create table ha_state_machine (
   id nvarchar(50) primary key not null,
-  last_applied_log NUMERIC not null,
+  last_applied_log int not null,
   date_created nvarchar(100) not null,
   date_updated nvarchar(100) not null
 );
