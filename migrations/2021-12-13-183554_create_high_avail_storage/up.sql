@@ -13,7 +13,7 @@ begin
 end;
 
 create table ha_client_serial_responses (
-  id integer primary key autoincrement not null,
+  id integer primary key not null,
   state_machine_id integer not null,
   serial integer not null,
   response text,
@@ -29,7 +29,7 @@ begin
 end;
 
 create table ha_client_status (
-  id integer primary key autoincrement not null,
+  id integer primary key not null,
   state_machine_id integer not null,
   status text not null,
   date_created text default current_timestamp not null,

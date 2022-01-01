@@ -1,7 +1,7 @@
 use crate::config::BldConfig;
 use crate::helpers::term;
 use crate::path;
-use crate::persist::{ConnectionPool, FileLogger, FileScanner, Scanner, PipelineModel, PipelineExecWrapper};
+use crate::persist::{FileLogger, FileScanner, Scanner, PipelineModel, PipelineExecWrapper};
 use crate::run::socket::messages::ExecInfo;
 use crate::run::{Pipeline, Runner};
 use crate::server::{PipelinePool, User};
@@ -9,6 +9,8 @@ use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use anyhow::anyhow;
+use diesel::sqlite::SqliteConnection;
+use diesel::r2d2::{Pool, ConnectionManager};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
@@ -57,7 +59,7 @@ impl PipelineInfo {
 pub struct ExecutePipelineSocket {
     hb: Instant,
     pip_pool: web::Data<PipelinePool>,
-    db_pool: web::Data<ConnectionPool>,
+    db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     config: web::Data<BldConfig>,
     user: User,
     exec: Option<AtomicEx>,
@@ -65,7 +67,7 @@ pub struct ExecutePipelineSocket {
 }
 
 impl ExecutePipelineSocket {
-    pub fn new(user: User, pip_pool: web::Data<PipelinePool>, db_pool: web::Data<ConnectionPool>, config: web::Data<BldConfig>) -> Self {
+    pub fn new(user: User, pip_pool: web::Data<PipelinePool>, db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>, config: web::Data<BldConfig>) -> Self {
         Self {
             hb: Instant::now(),
             pip_pool,
@@ -200,7 +202,7 @@ pub async fn ws_exec(
     req: HttpRequest,
     stream: web::Payload,
     pip_pool: web::Data<PipelinePool>,
-    db_pool: web::Data<ConnectionPool>,
+    db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     config: web::Data<BldConfig>,
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;

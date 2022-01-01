@@ -1,25 +1,27 @@
 use crate::config::BldConfig;
 use crate::monit::MonitInfo;
 use crate::path;
-use crate::persist::{ConnectionPool, FileScanner, Scanner, PipelineModel};
+use crate::persist::{FileScanner, Scanner, PipelineModel};
 use crate::server::User;
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use anyhow::anyhow;
+use diesel::sqlite::SqliteConnection;
+use diesel::r2d2::{Pool, ConnectionManager};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 pub struct MonitorPipelineSocket {
     hb: Instant,
     id: String,
-    db_pool: web::Data<ConnectionPool>,
+    db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     config: web::Data<BldConfig>,
     scanner: Option<FileScanner>,
 }
 
 impl MonitorPipelineSocket {
-    pub fn new(db_pool: web::Data<ConnectionPool>, config: web::Data<BldConfig>) -> Self {
+    pub fn new(db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>, config: web::Data<BldConfig>) -> Self {
         Self {
             hb: Instant::now(),
             id: String::new(),
@@ -134,7 +136,7 @@ pub async fn ws_monit(
     user: Option<User>,
     req: HttpRequest,
     stream: web::Payload,
-    db_pool: web::Data<ConnectionPool>,
+    db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     config: web::Data<BldConfig>,
 ) -> Result<HttpResponse, Error> {
     if user.is_none() {

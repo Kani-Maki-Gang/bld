@@ -5,7 +5,7 @@ use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
 use diesel::prelude::*;
 use diesel::{Identifiable, Insertable, Queryable};
-use tracing::debug;
+use tracing::{debug, error};
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize, Identifiable, Queryable)]
@@ -21,32 +21,19 @@ pub struct HighAvailSnapshot {
 #[derive(Debug, Insertable)]
 #[table_name = "ha_snapshot"]
 pub struct InsertHighAvailSnapshot {
+    pub id: i32,
     pub term: i32,
     pub data: Vec<u8>,
 }
 
 impl InsertHighAvailSnapshot {
-    pub fn new(sn_term: i32, sn_data: Vec<u8>) -> Self {
+    pub fn new(sn_id: i32, sn_term: i32, sn_data: Vec<u8>) -> Self {
         Self {
+            id: sn_id,
             term: sn_term,
             data: sn_data,
         }
     }
-}
-
-pub fn select_by_id(conn: &SqliteConnection, sn_id: i32) -> anyhow::Result<HighAvailSnapshot> {
-    debug!("loading high availability snapshot with id: {}", sn_id);
-    ha_snapshot
-        .filter(id.eq(sn_id))
-        .first(conn)
-        .map(|sn| {
-            debug!("loaded snapshot with id: {} successfully", sn_id);
-            sn
-        })
-        .map_err(|e| {
-            debug!("could not load high availability snapshot due to: {}", e);
-            anyhow!(e)
-        })
 }
 
 pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailSnapshot> {
@@ -59,7 +46,7 @@ pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailSnapshot>
             sn
         })
         .map_err(|e| {
-            debug!("could not load high availability snapshot due to: {}", e);
+            error!("could not load high availability snapshot due to: {}", e);
             anyhow!(e)
         })
 }
@@ -71,7 +58,7 @@ pub fn insert(conn: &SqliteConnection, model: InsertHighAvailSnapshot) -> anyhow
             .values(&model)
             .execute(conn)
             .map_err(|e| {
-                debug!("could not insert high availability snapshot due to: {}", e);
+                error!("could not insert high availability snapshot due to: {}", e);
                 anyhow!(e)
             })
             .and_then(|_| {

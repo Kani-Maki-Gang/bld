@@ -1,6 +1,6 @@
 -- Your SQL goes here
 create table ha_snapshot (
-  id integer primary key autoincrement not null,
+  id integer primary key not null,
   term int not null,
   data blob not null,
   date_created text default current_timestamp not null,

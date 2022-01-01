@@ -26,16 +26,16 @@ impl ServerCommand {
     async fn start(config: BldConfig, host: &str, port: i64) -> anyhow::Result<()> {
         info!("starting bld server at {}:{}", host, port);
         let pip_pool = web::Data::new(PipelinePool::new());
-        let db_pool = web::Data::new(new_connection_pool(&config.local.db)?);
-        let high_avail = web::Data::new(HighAvail::new(&config).await?);
+        let db_pool = new_connection_pool(&config.local.db)?;
+        let high_avail = web::Data::new(HighAvail::new(&config, db_pool.clone()).await?);
         let config = web::Data::new(config);
         set_var("RUST_LOG", "actix_server=info,actix_web=debug");
         HttpServer::new(move || {
             App::new()
                 .app_data(pip_pool.clone())
-                .app_data(db_pool.clone())
                 .app_data(config.clone())
                 .app_data(high_avail.clone())
+                .data(db_pool.clone())
                 .wrap(middleware::Logger::default())
                 .service(ha_append_entries)
                 .service(ha_install_snapshot)

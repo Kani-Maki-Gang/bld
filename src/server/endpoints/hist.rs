@@ -1,9 +1,11 @@
-use crate::persist::{ConnectionPool, PipelineModel};
+use crate::persist::PipelineModel;
 use crate::server::User;
+use diesel::sqlite::SqliteConnection;
+use diesel::r2d2::{Pool, ConnectionManager};
 use actix_web::{get, web, HttpResponse, Responder};
 
 #[get("/hist")]
-pub async fn hist((user, db_pool): (Option<User>, web::Data<ConnectionPool>)) -> impl Responder {
+pub async fn hist((user, db_pool): (Option<User>, web::Data<Pool<ConnectionManager<SqliteConnection>>>)) -> impl Responder {
     if user.is_none() {
         return HttpResponse::Unauthorized().body("");
     }
@@ -14,7 +16,7 @@ pub async fn hist((user, db_pool): (Option<User>, web::Data<ConnectionPool>)) ->
     }
 }
 
-fn history_info(db_pool: &ConnectionPool) -> anyhow::Result<String> {
+fn history_info(db_pool: &Pool<ConnectionManager<SqliteConnection>>) -> anyhow::Result<String> {
     let connection = db_pool.get()?;
     let pipelines = PipelineModel::select_all(&connection).unwrap_or_else(|_| vec![]);
     let info = pipelines

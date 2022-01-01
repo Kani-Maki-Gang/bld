@@ -6,7 +6,7 @@ use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
 use diesel::prelude::*;
 use diesel::{Associations, Identifiable, Insertable, Queryable};
-use tracing::debug;
+use tracing::{debug, error};
 
 #[derive(Debug, Associations, Identifiable, Queryable)]
 #[belongs_to(HighAvailSnapshot, foreign_key = "snapshot_id")]
@@ -43,7 +43,7 @@ pub fn select(conn: &SqliteConnection, sn: &HighAvailSnapshot) -> anyhow::Result
             mc
         })
         .map_err(|e| {
-            debug!("could not load high availability members after consensus due to: {}", e);
+            error!("could not load high availability members after consensus due to: {}", e);
             anyhow!(e)
         })
 }
@@ -59,7 +59,7 @@ pub fn select_last_rows(conn: &SqliteConnection, rows: i64) -> anyhow::Result<Ve
             mc
         })
         .map_err(|e| {
-            debug!("could not load high availability members after consensus due to: {}", e);
+            error!("could not load high availability members after consensus due to: {}", e);
             anyhow!(e)
         })
 }
@@ -71,7 +71,7 @@ pub fn insert_many(conn: &SqliteConnection, models: Vec<InsertHighAvailMembersAf
             .values(&models)
             .execute(conn)
             .map_err(|e| {
-                debug!("could not insert high availability members after consensus due to: {}", e);
+                error!("could not insert high availability members after consensus due to: {}", e);
                 anyhow!(e)
             })
             .and_then(|rows| {

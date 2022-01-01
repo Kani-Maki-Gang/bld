@@ -5,7 +5,7 @@ use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
 use diesel::prelude::*;
 use diesel::{Identifiable, Insertable, Queryable};
-use tracing::debug;
+use tracing::{debug, error};
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize, Identifiable, Insertable, Queryable)]
@@ -26,7 +26,7 @@ pub fn select_first(conn: &SqliteConnection) -> anyhow::Result<HighAvailStateMac
             sm
         })
         .map_err(|e| {
-            debug!("could not load high availability state machine due to: {}", e);
+            error!("could not load high availability state machine due to: {}", e);
             anyhow!(e)
         })
 }
@@ -41,7 +41,7 @@ pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailStateMach
             sm
         })
         .map_err(|e| {
-            debug!("could not load high availability state machine due to: {}", e);
+            error!("could not load high availability state machine due to: {}", e);
             anyhow!(e)
         })
 }
@@ -51,8 +51,12 @@ pub fn select_by_id(conn: &SqliteConnection, sm_id: i32) -> anyhow::Result<HighA
     ha_state_machine
         .filter(id.eq(sm_id))
         .first(conn)
+        .map(|sm| {
+            debug!("loaded high availability state machine successfully");
+            sm
+        })
         .map_err(|e| {
-            debug!("could not load high availability state machine due to: {}", e);
+            error!("could not load high availability state machine due to: {}", e);
             anyhow!(e)
         })
 }
@@ -64,7 +68,7 @@ pub fn insert(conn: &SqliteConnection, sm_last_applied_log: i32) -> anyhow::Resu
             .values(last_applied_log.eq(sm_last_applied_log))
             .execute(conn)
             .map_err(|e| {
-                debug!("could not insert high availability state machine due to: {}", e);
+                error!("could not insert high availability state machine due to: {}", e);
                 anyhow!(e)
             })
             .and_then(|_| {
@@ -78,10 +82,10 @@ pub fn update(conn: &SqliteConnection, sm_id: i32, sm_last_applied_log: i32) -> 
     debug!("updating high availability state machine with id: {}", sm_id);
     conn.transaction(|| {
         diesel::update(ha_state_machine.filter(id.eq(sm_id)))
-            .set(last_applied_log.eq(last_applied_log))
+            .set(last_applied_log.eq(sm_last_applied_log))
             .execute(conn)
             .map_err(|e| {
-                debug!("could not update high availability state machine due to: {}", e);
+                error!("could not update high availability state machine due to: {}", e);
                 anyhow!(e)
             })
             .and_then(|_| {

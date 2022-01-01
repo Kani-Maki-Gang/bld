@@ -6,7 +6,7 @@ use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
 use diesel::prelude::*;
 use diesel::{Associations, Identifiable, Insertable, Queryable};
-use tracing::debug;
+use tracing::{debug, error};
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize, Identifiable, Queryable, Associations)]
@@ -24,33 +24,21 @@ pub struct HighAvailClientSerialResponses {
 #[derive(Debug, Insertable)]
 #[table_name = "ha_client_serial_responses"]
 pub struct InsertHighAvailClientSerialResponses<'a> {
+    pub id: i32,
     pub state_machine_id: i32,
     pub serial: i32,
     pub response: Option<&'a str>
 }
 
 impl<'a> InsertHighAvailClientSerialResponses<'a> {
-    pub fn new(csr_sm_id: i32, csr_serial: i32, csr_response: Option<&'a str>) -> Self {
+    pub fn new(csr_id: i32, csr_sm_id: i32, csr_serial: i32, csr_response: Option<&'a str>) -> Self {
         Self {
+            id: csr_id,
             state_machine_id: csr_sm_id,
             serial: csr_serial,
             response: csr_response,
         }
     }
-}
-
-pub fn select(conn: &SqliteConnection, sm: &HighAvailStateMachine) -> anyhow::Result<Vec<HighAvailClientSerialResponses>> {
-    debug!("loading high availability client serial responses for state machine: {}", sm.id);
-    HighAvailClientSerialResponses::belonging_to(sm)
-        .load(conn)
-        .map(|sr| {
-            debug!("loaded serial responses successfully");
-            sr
-        })
-        .map_err(|e| {
-            debug!("could not load client serial responses due to: {}", e);
-            anyhow!(e)
-        })
 }
 
 pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailClientSerialResponses> {
@@ -63,7 +51,7 @@ pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailClientSer
             csr
         })
         .map_err(|e| {
-            debug!("could not load high availability client serial response due to: {}", e);
+            error!("could not load high availability client serial response due to: {}", e);
             anyhow!(e)
         })
 }
@@ -78,7 +66,7 @@ pub fn select_by_id(conn: &SqliteConnection, csr_id: i32) -> anyhow::Result<High
             csr
         })
         .map_err(|e| {
-            debug!("could not load high availability client serial response due to: {}", e);
+            error!("could not load high availability client serial response due to: {}", e);
             anyhow!(e)
         })
 }
@@ -90,7 +78,7 @@ pub fn insert(conn: &SqliteConnection, model: InsertHighAvailClientSerialRespons
             .values(model)
             .execute(conn)
             .map_err(|e| {
-                debug!("could not insert high availability client serial response due to: {}", e);
+                error!("could not insert high availability client serial response due to: {}", e);
                 anyhow!(e)
             })
             .and_then(|_| {

@@ -18,6 +18,8 @@ use async_raft::raft::{
     Raft, VoteRequest, VoteResponse,
 };
 use async_raft::NodeId;
+use diesel::sqlite::SqliteConnection;
+use diesel::r2d2::{Pool, ConnectionManager};
 use std::collections::HashSet;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -46,7 +48,7 @@ pub struct HighAvailThread {
 }
 
 impl HighAvailThread {
-    pub async fn new(config: &BldConfig) -> anyhow::Result<Self> {
+    pub async fn new(config: &BldConfig, pool: Pool<ConnectionManager<SqliteConnection>>) -> anyhow::Result<Self> {
         let (agent, agents) = Self::agent_info(config)?;
         let node_id = agent.id();
         let (raft_request_tx, raft_request_rx) = channel();
@@ -56,6 +58,7 @@ impl HighAvailThread {
         thread::spawn(move || {
             let _ = Runtime::new().map(|rt| {
                 if let Err(e) = rt.block_on(Self::raft_thread(
+                    pool,
                     agent,
                     agents,
                     raft_request_rx,
@@ -104,6 +107,7 @@ impl HighAvailThread {
     }
 
     async fn raft_thread(
+        pool: Pool<ConnectionManager<SqliteConnection>>,
         agent: Agent,
         agents: HashSet<Agent>,
         raft_req_rx: Receiver<(Uuid, HighAvailThreadRequest)>,
@@ -112,8 +116,9 @@ impl HighAvailThread {
         let raft_config = Arc::new(Config::build("raft-group".into()).validate()?);
         let ids: HashSet<NodeId> = agents.iter().map(|a| a.id()).collect();
         let network = Arc::new(HighAvailRouter::new(raft_config.clone(), agents).await?);
-        let store = Arc::new(HighAvailStore::new(agent.id()));
+        let store = Arc::new(HighAvailStore::new(pool, agent.id())?);
         let raft = Arc::new(HighAvailRaft::new(
+
             agent.id(),
             raft_config.clone(),
             network.clone(),
@@ -152,9 +157,9 @@ pub enum HighAvail {
 }
 
 impl HighAvail {
-    pub async fn new(config: &BldConfig) -> anyhow::Result<Self> {
+    pub async fn new(config: &BldConfig, pool: Pool<ConnectionManager<SqliteConnection>>) -> anyhow::Result<Self> {
         Ok(match config.local.ha_mode {
-            true => Self::Enabled(Mutex::new(HighAvailThread::new(config).await?)),
+            true => Self::Enabled(Mutex::new(HighAvailThread::new(config, pool).await?)),
             false => Self::Disabled,
         })
     }
