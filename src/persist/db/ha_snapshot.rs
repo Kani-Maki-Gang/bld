@@ -1,17 +1,16 @@
-#![allow(dead_code, unused_imports)]
-
 use crate::persist::db::schema::ha_snapshot;
 use crate::persist::db::schema::ha_snapshot::dsl::*;
 use anyhow::anyhow;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
 use diesel::prelude::*;
-use diesel::{Identifiable, Queryable};
+use diesel::{Identifiable, Insertable, Queryable};
 use tracing::debug;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Identifiable, Queryable)]
+#[derive(Debug, Serialize, Deserialize, Identifiable, Queryable)]
 #[table_name = "ha_snapshot"]
-pub struct HighAvailSnapshotModel {
+pub struct HighAvailSnapshot {
     pub id: i32,
     pub term: i32,
     pub data: Vec<u8>,
@@ -19,19 +18,65 @@ pub struct HighAvailSnapshotModel {
     pub date_updated: String,
 }
 
-impl HighAvailSnapshotModel {
-    pub fn select(conn: &SqliteConnection, sn_id: i32) -> anyhow::Result<Self> {
-        debug!("loading high availability snapshot with id: {}", sn_id);
-        ha_snapshot
-            .filter(id.eq(sn_id))
-            .first::<Self>(conn)
-            .map(|sn| {
-                debug!("loaded snapshot with id: {} successfully", sn_id);
-                sn
-            })
+#[derive(Debug, Insertable)]
+#[table_name = "ha_snapshot"]
+pub struct InsertHighAvailSnapshot {
+    pub term: i32,
+    pub data: Vec<u8>,
+}
+
+impl InsertHighAvailSnapshot {
+    pub fn new(sn_term: i32, sn_data: Vec<u8>) -> Self {
+        Self {
+            term: sn_term,
+            data: sn_data,
+        }
+    }
+}
+
+pub fn select_by_id(conn: &SqliteConnection, sn_id: i32) -> anyhow::Result<HighAvailSnapshot> {
+    debug!("loading high availability snapshot with id: {}", sn_id);
+    ha_snapshot
+        .filter(id.eq(sn_id))
+        .first(conn)
+        .map(|sn| {
+            debug!("loaded snapshot with id: {} successfully", sn_id);
+            sn
+        })
+        .map_err(|e| {
+            debug!("could not load high availability snapshot due to: {}", e);
+            anyhow!(e)
+        })
+}
+
+pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailSnapshot> {
+    debug!("loading the last entry high availability snapshot");
+    ha_snapshot
+        .order(id.desc())
+        .first(conn)
+        .map(|sn| {
+            debug!("loaded high availability snapshot successfully");
+            sn
+        })
+        .map_err(|e| {
+            debug!("could not load high availability snapshot due to: {}", e);
+            anyhow!(e)
+        })
+}
+
+pub fn insert(conn: &SqliteConnection, model: InsertHighAvailSnapshot) -> anyhow::Result<HighAvailSnapshot> {
+    debug!("inserting high availability snapshot: {:?}", model);
+    conn.transaction(|| {
+        diesel::insert_into(ha_snapshot)
+            .values(&model)
+            .execute(conn)
             .map_err(|e| {
-                debug!("could not load high availability snapshot due to: {}", e);
+                debug!("could not insert high availability snapshot due to: {}", e);
                 anyhow!(e)
             })
-    }
+            .and_then(|_| {
+                debug!("inserted high availability snapshot successfully");
+                select_last(conn)
+            })
+    })
 }

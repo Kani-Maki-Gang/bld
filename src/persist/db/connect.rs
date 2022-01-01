@@ -4,7 +4,6 @@ use crate::path;
 use crate::persist::{Execution, PipelineModel, run_migrations};
 use anyhow::anyhow;
 use diesel::sqlite::SqliteConnection;
-use diesel::Connection;
 use diesel::r2d2::{Pool, PooledConnection, ConnectionManager};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -14,16 +13,15 @@ fn no_pipeline_instance() -> anyhow::Result<()> {
     Err(anyhow!("no pipeline instance"))
 }
 
-pub type ConnectionPool = Pool<ConnectionManager<SqliteConnection>>;
-
-pub fn new_connection_pool(db: &str) -> anyhow::Result<ConnectionPool> {
+pub fn new_connection_pool(db: &str) -> anyhow::Result<Pool<ConnectionManager<SqliteConnection>>> {
     let path = path![db, DB_NAME].as_path().display().to_string();
-    debug!("establishing sqlite connection");
-    let connection = SqliteConnection::establish(&path)?;
+    debug!("creating sqlite connection pool");
+    let manager = ConnectionManager::<SqliteConnection>::new(path);
+    let pool = Pool::builder().build(manager)?;
     debug!("running migrations");
-    run_migrations(&connection)?;
-    debug!("creating new connection pool");
-    Ok(Pool::new(ConnectionManager::<SqliteConnection>::new(path))?)
+    let conn = pool.get()?;
+    run_migrations(&conn)?;
+    Ok(pool)
 }
 
 pub struct PipelineExecWrapper {
@@ -32,7 +30,7 @@ pub struct PipelineExecWrapper {
 }
 
 impl PipelineExecWrapper {
-    pub fn new(pool: &ConnectionPool, pipeline: PipelineModel) -> anyhow::Result<Self> {
+    pub fn new(pool: &Pool<ConnectionManager<SqliteConnection>>, pipeline: PipelineModel) -> anyhow::Result<Self> {
         Ok(Self {
             pipeline,
             connection: pool.get()?,
@@ -46,13 +44,7 @@ impl Execution for PipelineExecWrapper {
             true => String::new(),
             false => chrono::Utc::now().to_string(),
         };
-        match PipelineModel::update(&self.connection, &self.pipeline.id, running, &end_date_time) {
-            Ok(_) => {}
-            Err(e) => {
-                eprintln!("{}", e.to_string());
-                return Err(anyhow!("could not update pipeline model"));
-            }
-        }
+        PipelineModel::update(&self.connection, &self.pipeline.id, running, &end_date_time)?;
         self.pipeline.running = running;
         self.pipeline.end_date_time = end_date_time;
         debug!(

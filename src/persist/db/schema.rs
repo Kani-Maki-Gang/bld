@@ -1,9 +1,9 @@
 table! {
     ha_client_serial_responses (id) {
-        id -> Text,
-        state_machine_id -> Text,
-        serial -> Text,
-        previous -> Nullable<Text>,
+        id -> Integer,
+        state_machine_id -> Integer,
+        serial -> Integer,
+        response -> Nullable<Text>,
         date_created -> Text,
         date_updated -> Text,
     }
@@ -11,9 +11,9 @@ table! {
 
 table! {
     ha_client_status (id) {
-        id -> Text,
-        state_machine_id -> Text,
-        status -> Nullable<Text>,
+        id -> Integer,
+        state_machine_id -> Integer,
+        status -> Text,
         date_created -> Text,
         date_updated -> Text,
     }
@@ -21,7 +21,7 @@ table! {
 
 table! {
     ha_hard_state (id) {
-        id -> Text,
+        id -> Integer,
         current_term -> Integer,
         voted_for -> Nullable<Integer>,
         date_created -> Text,
@@ -33,7 +33,6 @@ table! {
     ha_log (id) {
         id -> Integer,
         term -> Integer,
-        idx -> Integer,
         payload_type -> Text,
         payload -> Text,
         date_created -> Text,
@@ -71,7 +70,7 @@ table! {
 
 table! {
     ha_state_machine (id) {
-        id -> Text,
+        id -> Integer,
         last_applied_log -> Integer,
         date_created -> Text,
         date_updated -> Text,
