@@ -2,7 +2,7 @@ use crate::config::BldServerConfig;
 use crate::helpers::errors::{err_no_server_in_config, err_server_not_in_config};
 use yaml_rust::Yaml;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BldRemoteConfig {
     pub servers: Vec<BldServerConfig>,
 }
@@ -13,7 +13,7 @@ impl BldRemoteConfig {
             .as_vec()
             .unwrap_or(&Vec::<Yaml>::new())
             .iter()
-            .map(|s| BldServerConfig::load(s))
+            .map(BldServerConfig::load)
             .filter(|s| s.is_ok())
             .map(|s| s.ok().unwrap())
             .collect();
@@ -35,14 +35,6 @@ impl BldRemoteConfig {
         match name {
             Some(name) => self.server(name),
             None => self.nth_server(0),
-        }
-    }
-}
-
-impl Default for BldRemoteConfig {
-    fn default() -> Self {
-        Self {
-            servers: Vec::<BldServerConfig>::new(),
         }
     }
 }

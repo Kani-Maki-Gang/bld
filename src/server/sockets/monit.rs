@@ -25,7 +25,7 @@ impl MonitorPipelineSocket {
         Self {
             hb: Instant::now(),
             id: String::new(),
-            db_pool: db_pool.clone(),
+            db_pool,
             config,
             scanner: None,
         }

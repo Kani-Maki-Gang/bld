@@ -118,7 +118,6 @@ impl HighAvailThread {
         let network = Arc::new(HighAvailRouter::new(raft_config.clone(), agents).await?);
         let store = Arc::new(HighAvailStore::new(pool, agent.id())?);
         let raft = Arc::new(HighAvailRaft::new(
-
             agent.id(),
             raft_config.clone(),
             network.clone(),

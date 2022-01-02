@@ -84,8 +84,8 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
             .and_then(|log| {
                 serde_json::from_str::<EntryPayload<AgentRequest>>(&log.payload)
                     .map(|p| match p {
-                        EntryPayload::ConfigChange(cfg) => cfg.membership.clone(),
-                        EntryPayload::SnapshotPointer(snap) => snap.membership.clone(),
+                        EntryPayload::ConfigChange(cfg) => cfg.membership,
+                        EntryPayload::SnapshotPointer(snap) => snap.membership,
                         _ => MembershipConfig::new_initial(self.id),
                     })
                     .map_err(|e| anyhow!(e))
@@ -144,8 +144,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
                 }),
                 Err(_) => None
             })
-            .filter(|e| e.is_some())
-            .map(|e| e.unwrap())
+            .flatten()
             .collect();
         if entries.len() as u64 == (stop - start) {
             Ok(entries)
@@ -189,7 +188,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
 
         if let Ok(csr) = ha_client_serial_responses::select_by_id(&conn, id) {
             if csr.serial as u64 == data.serial() {
-                return Ok(AgentResponse::new(csr.response.clone()));
+                return Ok(AgentResponse::new(csr.response));
             }
         }
 
@@ -226,11 +225,11 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
 
             let previous = match ha_client_status::select_by_id(&conn, id) {
                 Ok(old_cs) => {
-                    ha_client_status::update(&conn, id, &status)?;
+                    ha_client_status::update(&conn, id, status)?;
                     Some(old_cs.status)
                 }
                 Err(_) => {
-                    let cs = InsertHighAvailClientStatus::new(id, sm.id, &status);
+                    let cs = InsertHighAvailClientStatus::new(id, sm.id, status);
                     ha_client_status::insert(&conn, cs)?;
                     None
                 }
@@ -291,7 +290,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
         Ok(CurrentSnapshotData {
             term: term as u64,
             index: sm.last_applied_log as u64,
-            membership: membership_config.clone(),
+            membership: membership_config,
             snapshot: Box::new(Cursor::new(snapshot_bytes)),
         })
     }
@@ -323,7 +322,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
                     index, 
                     term, 
                     id,
-                    membership_config.clone());
+                    membership_config);
             match &delete_through {
                 Some(through) => ha_log::delete_until_id(&conn, *through as i32)?,
                 None => ha_log::delete(&conn)?,

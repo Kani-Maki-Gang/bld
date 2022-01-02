@@ -5,6 +5,7 @@ use crate::server::User;
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
+use tracing::debug;
 use std::time::{Duration, Instant};
 
 type StdResult<T, V> = std::result::Result<T, V>;
@@ -70,6 +71,7 @@ pub async fn ws_high_avail(
     stream: web::Payload,
     config: web::Data<BldConfig>,
 ) -> StdResult<HttpResponse, Error> {
+    debug!("starting high avail web socket");
     if user.is_none() {
         return Err(ErrorUnauthorized(""));
     }
