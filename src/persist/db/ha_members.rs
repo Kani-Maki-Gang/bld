@@ -1,10 +1,10 @@
-use crate::persist::ha_snapshot::HighAvailSnapshot;
 use crate::persist::db::schema::ha_members;
 use crate::persist::db::schema::ha_members::dsl::*;
+use crate::persist::ha_snapshot::HighAvailSnapshot;
 use anyhow::anyhow;
+use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
-use diesel::prelude::*;
 use diesel::{Associations, Identifiable, Insertable, Queryable};
 use tracing::{debug, error};
 
@@ -22,7 +22,7 @@ pub struct HighAvailMembers {
 #[table_name = "ha_members"]
 pub struct InsertHighAvailMembers {
     pub id: i32,
-    pub snapshot_id: i32
+    pub snapshot_id: i32,
 }
 
 impl InsertHighAvailMembers {
@@ -34,12 +34,21 @@ impl InsertHighAvailMembers {
     }
 }
 
-pub fn select(conn: &SqliteConnection, sn: &HighAvailSnapshot) -> anyhow::Result<Vec<HighAvailMembers>> {
-    debug!("loading high availability members of snapshot with id: {}", sn.id);
-    HighAvailMembers::belonging_to(sn) 
+pub fn select(
+    conn: &SqliteConnection,
+    sn: &HighAvailSnapshot,
+) -> anyhow::Result<Vec<HighAvailMembers>> {
+    debug!(
+        "loading high availability members of snapshot with id: {}",
+        sn.id
+    );
+    HighAvailMembers::belonging_to(sn)
         .load(conn)
         .map(|m| {
-            debug!("loaded high availability members of snapshot with id: {} successfully", sn.id);
+            debug!(
+                "loaded high availability members of snapshot with id: {} successfully",
+                sn.id
+            );
             m
         })
         .map_err(|e| {
@@ -48,7 +57,10 @@ pub fn select(conn: &SqliteConnection, sn: &HighAvailSnapshot) -> anyhow::Result
         })
 }
 
-pub fn select_last_rows(conn: &SqliteConnection, rows: i64) -> anyhow::Result<Vec<HighAvailMembers>> {
+pub fn select_last_rows(
+    conn: &SqliteConnection,
+    rows: i64,
+) -> anyhow::Result<Vec<HighAvailMembers>> {
     debug!("loading last {} rows of high availability members", rows);
     ha_members
         .order(id.desc())
@@ -64,7 +76,10 @@ pub fn select_last_rows(conn: &SqliteConnection, rows: i64) -> anyhow::Result<Ve
         })
 }
 
-pub fn insert_many(conn: &SqliteConnection, models: Vec<InsertHighAvailMembers>) -> anyhow::Result<Vec<HighAvailMembers>> {
+pub fn insert_many(
+    conn: &SqliteConnection,
+    models: Vec<InsertHighAvailMembers>,
+) -> anyhow::Result<Vec<HighAvailMembers>> {
     debug!("inserting multiple high availability members");
     conn.transaction(|| {
         diesel::insert_into(ha_members)

@@ -1,13 +1,13 @@
-use crate::persist::ha_state_machine::HighAvailStateMachine;
 use crate::persist::db::schema::ha_client_status;
 use crate::persist::db::schema::ha_client_status::dsl::*;
+use crate::persist::ha_state_machine::HighAvailStateMachine;
 use anyhow::anyhow;
+use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
-use diesel::prelude::*;
 use diesel::{Associations, Identifiable, Insertable, Queryable};
+use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
-use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize, Identifiable, Queryable, Associations)]
 #[belongs_to(HighAvailStateMachine, foreign_key = "state_machine_id")]
@@ -48,13 +48,19 @@ pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailClientSta
             cs
         })
         .map_err(|e| {
-            error!("could not load high availability client status due to: {}", e);
+            error!(
+                "could not load high availability client status due to: {}",
+                e
+            );
             anyhow!(e)
         })
 }
 
 pub fn select_by_id(conn: &SqliteConnection, cs_id: i32) -> anyhow::Result<HighAvailClientStatus> {
-    debug!("loading high availability client status model with id: {}", cs_id);
+    debug!(
+        "loading high availability client status model with id: {}",
+        cs_id
+    );
     ha_client_status
         .filter(id.eq(cs_id))
         .first(conn)
@@ -63,19 +69,31 @@ pub fn select_by_id(conn: &SqliteConnection, cs_id: i32) -> anyhow::Result<HighA
             cs
         })
         .map_err(|e| {
-            error!("could not load high availability client status due to: {}", e);
+            error!(
+                "could not load high availability client status due to: {}",
+                e
+            );
             anyhow!(e)
         })
 }
 
-pub fn insert(conn: &SqliteConnection, model: InsertHighAvailClientStatus) -> anyhow::Result<HighAvailClientStatus> {
-    debug!("inserting high availability client status with status: {} for state machine: {}", model.status, model.state_machine_id);
+pub fn insert(
+    conn: &SqliteConnection,
+    model: InsertHighAvailClientStatus,
+) -> anyhow::Result<HighAvailClientStatus> {
+    debug!(
+        "inserting high availability client status with status: {} for state machine: {}",
+        model.status, model.state_machine_id
+    );
     conn.transaction(|| {
         diesel::insert_into(ha_client_status)
             .values(model)
             .execute(conn)
             .map_err(|e| {
-                error!("could not insert high availability client status due to: {}", e);
+                error!(
+                    "could not insert high availability client status due to: {}",
+                    e
+                );
                 anyhow!(e)
             })
             .and_then(|_| {
@@ -85,14 +103,24 @@ pub fn insert(conn: &SqliteConnection, model: InsertHighAvailClientStatus) -> an
     })
 }
 
-pub fn update(conn: &SqliteConnection, cs_id: i32, cs_status: &str) -> anyhow::Result<HighAvailClientStatus> {
-    debug!("updating high availability client status: {} with status: {}", cs_id, cs_status);
+pub fn update(
+    conn: &SqliteConnection,
+    cs_id: i32,
+    cs_status: &str,
+) -> anyhow::Result<HighAvailClientStatus> {
+    debug!(
+        "updating high availability client status: {} with status: {}",
+        cs_id, cs_status
+    );
     conn.transaction(|| {
         diesel::update(ha_client_status.filter(id.eq(cs_id)))
             .set(status.eq(cs_status))
             .execute(conn)
             .map_err(|e| {
-                error!("could not update high availability client status due to: {}", e);
+                error!(
+                    "could not update high availability client status due to: {}",
+                    e
+                );
                 anyhow!(e)
             })
             .and_then(|_| {

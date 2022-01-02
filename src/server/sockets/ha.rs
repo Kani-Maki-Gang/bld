@@ -5,8 +5,8 @@ use crate::server::User;
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use tracing::debug;
 use std::time::{Duration, Instant};
+use tracing::debug;
 
 type StdResult<T, V> = std::result::Result<T, V>;
 

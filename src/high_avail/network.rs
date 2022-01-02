@@ -11,10 +11,10 @@ use async_raft::raft::{
 };
 use async_raft::NodeId;
 use async_trait::async_trait;
-use tracing::debug;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use tracing::debug;
 
 pub struct HighAvailRouter {
     config: Arc<Config>,
@@ -54,7 +54,10 @@ impl RaftNetwork<AgentRequest> for HighAvailRouter {
         rpc: AppendEntriesRequest<AgentRequest>,
     ) -> anyhow::Result<AppendEntriesResponse> {
         let res = self.post("/ha/appendEntries", target, rpc)?;
-        debug!("sent append entries request to node: {} with result: {}", target, res);
+        debug!(
+            "sent append entries request to node: {} with result: {}",
+            target, res
+        );
         Ok(serde_json::from_str(&res)?)
     }
 
@@ -64,7 +67,10 @@ impl RaftNetwork<AgentRequest> for HighAvailRouter {
         rpc: InstallSnapshotRequest,
     ) -> anyhow::Result<InstallSnapshotResponse> {
         let res = self.post("/ha/installSnapshot", target, rpc)?;
-        debug!("sent install snapshot request to node: {} with result: {}", target, res);
+        debug!(
+            "sent install snapshot request to node: {} with result: {}",
+            target, res
+        );
         Ok(serde_json::from_str(&res)?)
     }
 

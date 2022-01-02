@@ -1,11 +1,16 @@
 use crate::persist::PipelineModel;
 use crate::server::User;
-use diesel::sqlite::SqliteConnection;
-use diesel::r2d2::{Pool, ConnectionManager};
 use actix_web::{get, web, HttpResponse, Responder};
+use diesel::r2d2::{ConnectionManager, Pool};
+use diesel::sqlite::SqliteConnection;
 
 #[get("/hist")]
-pub async fn hist((user, db_pool): (Option<User>, web::Data<Pool<ConnectionManager<SqliteConnection>>>)) -> impl Responder {
+pub async fn hist(
+    (user, db_pool): (
+        Option<User>,
+        web::Data<Pool<ConnectionManager<SqliteConnection>>>,
+    ),
+) -> impl Responder {
     if user.is_none() {
         return HttpResponse::Unauthorized().body("");
     }

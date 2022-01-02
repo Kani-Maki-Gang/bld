@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 use crate::config::definitions::DB_NAME;
 use crate::path;
-use crate::persist::{Execution, PipelineModel, run_migrations};
+use crate::persist::{run_migrations, Execution, PipelineModel};
 use anyhow::anyhow;
+use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel::sqlite::SqliteConnection;
-use diesel::r2d2::{Pool, PooledConnection, ConnectionManager};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tracing::debug;
@@ -30,7 +30,10 @@ pub struct PipelineExecWrapper {
 }
 
 impl PipelineExecWrapper {
-    pub fn new(pool: &Pool<ConnectionManager<SqliteConnection>>, pipeline: PipelineModel) -> anyhow::Result<Self> {
+    pub fn new(
+        pool: &Pool<ConnectionManager<SqliteConnection>>,
+        pipeline: PipelineModel,
+    ) -> anyhow::Result<Self> {
         Ok(Self {
             pipeline,
             connection: pool.get()?,
@@ -48,7 +51,7 @@ impl Execution for PipelineExecWrapper {
         self.pipeline.running = running;
         self.pipeline.end_date_time = end_date_time;
         debug!(
-            "updated pipeline of id: {}, name: {} with new values running: {}, end_date_time: {}", 
+            "updated pipeline of id: {}, name: {} with new values running: {}, end_date_time: {}",
             self.pipeline.id,
             self.pipeline.name,
             self.pipeline.running,

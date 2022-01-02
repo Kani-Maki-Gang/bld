@@ -1,11 +1,11 @@
 use crate::persist::db::schema::ha_log;
 use crate::persist::db::schema::ha_log::dsl::*;
 use anyhow::anyhow;
-use async_raft::AppData;
 use async_raft::raft::{Entry, EntryPayload};
+use async_raft::AppData;
+use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
-use diesel::prelude::*;
 use diesel::{Insertable, Queryable};
 use tracing::{debug, error};
 
@@ -165,8 +165,14 @@ pub fn select_first_by_date_created_desc(conn: &SqliteConnection) -> anyhow::Res
         })
 }
 
-pub fn select_config_greater_than_id(conn: &SqliteConnection, lg_id: i32) -> anyhow::Result<HighAvailLog> {
-    debug!("loading high availability logs with greater id than: {}", lg_id);
+pub fn select_config_greater_than_id(
+    conn: &SqliteConnection,
+    lg_id: i32,
+) -> anyhow::Result<HighAvailLog> {
+    debug!(
+        "loading high availability logs with greater id than: {}",
+        lg_id
+    );
     ha_log
         .filter(id.gt(lg_id).and(payload_type.eq(CONFIG_CHANGE)))
         .first(conn)
@@ -192,19 +198,25 @@ pub fn insert(conn: &SqliteConnection, model: InsertHighAvailLog) -> anyhow::Res
             })
             .and_then(|_| {
                 debug!("high availability log inserted successfully");
-                select_last(conn) 
+                select_last(conn)
             })
     })
 }
 
-pub fn insert_many(conn: &SqliteConnection, models: Vec<InsertHighAvailLog>) -> anyhow::Result<Vec<HighAvailLog>> {
+pub fn insert_many(
+    conn: &SqliteConnection,
+    models: Vec<InsertHighAvailLog>,
+) -> anyhow::Result<Vec<HighAvailLog>> {
     debug!("inserting multiple high availability log entries");
     conn.transaction(|| {
         diesel::insert_into(ha_log)
             .values(models)
             .execute(conn)
             .map_err(|e| {
-                error!("could not insert multiple high availability logs due to: {}", e);
+                error!(
+                    "could not insert multiple high availability logs due to: {}",
+                    e
+                );
                 anyhow!(e)
             })
             .and_then(|rows| {
@@ -231,13 +243,19 @@ pub fn delete_by_ids(conn: &SqliteConnection, lg_ids: Vec<i32>) -> anyhow::Resul
         .execute(conn)
         .map(|_| debug!("deleted high availability log entries successfully"))
         .map_err(|e| {
-            error!("could not delete high availability log entries due to: {}", e);
+            error!(
+                "could not delete high availability log entries due to: {}",
+                e
+            );
             anyhow!(e)
         })
 }
 
 pub fn delete_from_id(conn: &SqliteConnection, lg_id: i32) -> anyhow::Result<()> {
-    debug!("deleting high availability log entries starting from id: {}", lg_id);
+    debug!(
+        "deleting high availability log entries starting from id: {}",
+        lg_id
+    );
     diesel::delete(ha_log.filter(id.ge(lg_id)))
         .execute(conn)
         .map(|_| debug!("deleted high availability log entry successfully"))
@@ -248,7 +266,10 @@ pub fn delete_from_id(conn: &SqliteConnection, lg_id: i32) -> anyhow::Result<()>
 }
 
 pub fn delete_until_id(conn: &SqliteConnection, lg_id: i32) -> anyhow::Result<()> {
-    debug!("deleting high availability logs less than equal to: {}", lg_id);
+    debug!(
+        "deleting high availability logs less than equal to: {}",
+        lg_id
+    );
     diesel::delete(ha_log.filter(id.le(lg_id)))
         .execute(conn)
         .map(|_| debug!("deleted high availability logs successfully"))

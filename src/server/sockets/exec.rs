@@ -1,7 +1,7 @@
 use crate::config::BldConfig;
 use crate::helpers::term;
 use crate::path;
-use crate::persist::{FileLogger, FileScanner, Scanner, PipelineModel, PipelineExecWrapper};
+use crate::persist::{FileLogger, FileScanner, PipelineExecWrapper, PipelineModel, Scanner};
 use crate::run::socket::messages::ExecInfo;
 use crate::run::{Pipeline, Runner};
 use crate::server::{PipelinePool, User};
@@ -9,8 +9,8 @@ use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use anyhow::anyhow;
+use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use diesel::r2d2::{Pool, ConnectionManager};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
@@ -67,7 +67,12 @@ pub struct ExecutePipelineSocket {
 }
 
 impl ExecutePipelineSocket {
-    pub fn new(user: User, pip_pool: web::Data<PipelinePool>, db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>, config: web::Data<BldConfig>) -> Self {
+    pub fn new(
+        user: User,
+        pip_pool: web::Data<PipelinePool>,
+        db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
+        config: web::Data<BldConfig>,
+    ) -> Self {
         Self {
             hb: Instant::now(),
             pip_pool,
@@ -123,7 +128,10 @@ impl ExecutePipelineSocket {
         let connection = self.db_pool.get()?;
         let pipeline = PipelineModel::insert(&connection, &id, &info.name, &self.user.name)?;
 
-        let ex = Arc::new(Mutex::new(PipelineExecWrapper::new(&self.db_pool, pipeline)?));
+        let ex = Arc::new(Mutex::new(PipelineExecWrapper::new(
+            &self.db_pool,
+            pipeline,
+        )?));
         let (tx, rx) = mpsc::channel::<bool>();
         let rx = Arc::new(Mutex::new(rx));
         {
@@ -207,7 +215,11 @@ pub async fn ws_exec(
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{:?}", req);
-    let res = ws::start(ExecutePipelineSocket::new(user, pip_pool, db_pool, config), &req, stream);
+    let res = ws::start(
+        ExecutePipelineSocket::new(user, pip_pool, db_pool, config),
+        &req,
+        stream,
+    );
     println!("{:?}", res);
     res
 }

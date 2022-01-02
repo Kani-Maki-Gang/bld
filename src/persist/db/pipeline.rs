@@ -1,9 +1,9 @@
 use crate::persist::db::schema::pipelines;
 use crate::persist::db::schema::pipelines::dsl::*;
 use anyhow::anyhow;
+use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
-use diesel::prelude::*;
 use diesel::Queryable;
 use tracing::{debug, error};
 
@@ -18,7 +18,7 @@ pub struct PipelineModel {
 }
 
 #[derive(Insertable)]
-#[table_name="pipelines"]
+#[table_name = "pipelines"]
 struct InsertPipelineModel<'a> {
     pub id: &'a str,
     pub name: &'a str,
@@ -89,7 +89,12 @@ impl PipelineModel {
             })
     }
 
-    pub fn insert(connection: &SqliteConnection, pip_id: &str, pip_name: &str, pip_user: &str) -> anyhow::Result<PipelineModel> {
+    pub fn insert(
+        connection: &SqliteConnection,
+        pip_id: &str,
+        pip_name: &str,
+        pip_user: &str,
+    ) -> anyhow::Result<PipelineModel> {
         debug!("inserting new pipeline to the database");
         let pipeline = InsertPipelineModel {
             id: pip_id,
@@ -124,8 +129,9 @@ impl PipelineModel {
         pip_end_date_time: &str,
     ) -> anyhow::Result<()> {
         debug!(
-            "updating pipeline id: {} with values running: {}, end_date_time: {}", 
-            pip_id, pip_running, pip_end_date_time);
+            "updating pipeline id: {} with values running: {}, end_date_time: {}",
+            pip_id, pip_running, pip_end_date_time
+        );
         connection.transaction(|| {
             diesel::update(pipelines.filter(id.eq(pip_id)))
                 .set((running.eq(pip_running), end_date_time.eq(pip_end_date_time)))

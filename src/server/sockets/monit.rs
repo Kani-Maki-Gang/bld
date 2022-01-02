@@ -1,14 +1,14 @@
 use crate::config::BldConfig;
 use crate::monit::MonitInfo;
 use crate::path;
-use crate::persist::{FileScanner, Scanner, PipelineModel};
+use crate::persist::{FileScanner, PipelineModel, Scanner};
 use crate::server::User;
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use anyhow::anyhow;
+use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use diesel::r2d2::{Pool, ConnectionManager};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -21,7 +21,10 @@ pub struct MonitorPipelineSocket {
 }
 
 impl MonitorPipelineSocket {
-    pub fn new(db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>, config: web::Data<BldConfig>) -> Self {
+    pub fn new(
+        db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
+        config: web::Data<BldConfig>,
+    ) -> Self {
         Self {
             hb: Instant::now(),
             id: String::new(),
@@ -56,7 +59,7 @@ impl MonitorPipelineSocket {
                 Err(_) => {
                     ctx.text("internal server error");
                     ctx.stop();
-                },
+                }
                 _ => {}
             }
         }

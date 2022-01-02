@@ -18,8 +18,8 @@ use async_raft::raft::{
     Raft, VoteRequest, VoteResponse,
 };
 use async_raft::NodeId;
+use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use diesel::r2d2::{Pool, ConnectionManager};
 use std::collections::HashSet;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -48,7 +48,10 @@ pub struct HighAvailThread {
 }
 
 impl HighAvailThread {
-    pub async fn new(config: &BldConfig, pool: Pool<ConnectionManager<SqliteConnection>>) -> anyhow::Result<Self> {
+    pub async fn new(
+        config: &BldConfig,
+        pool: Pool<ConnectionManager<SqliteConnection>>,
+    ) -> anyhow::Result<Self> {
         let (agent, agents) = Self::agent_info(config)?;
         let node_id = agent.id();
         let (raft_request_tx, raft_request_rx) = channel();
@@ -156,7 +159,10 @@ pub enum HighAvail {
 }
 
 impl HighAvail {
-    pub async fn new(config: &BldConfig, pool: Pool<ConnectionManager<SqliteConnection>>) -> anyhow::Result<Self> {
+    pub async fn new(
+        config: &BldConfig,
+        pool: Pool<ConnectionManager<SqliteConnection>>,
+    ) -> anyhow::Result<Self> {
         Ok(match config.local.ha_mode {
             true => Self::Enabled(Mutex::new(HighAvailThread::new(config, pool).await?)),
             false => Self::Disabled,

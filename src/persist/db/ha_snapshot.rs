@@ -1,12 +1,12 @@
 use crate::persist::db::schema::ha_snapshot;
 use crate::persist::db::schema::ha_snapshot::dsl::*;
 use anyhow::anyhow;
+use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
-use diesel::prelude::*;
 use diesel::{Identifiable, Insertable, Queryable};
+use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
-use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize, Identifiable, Queryable)]
 #[table_name = "ha_snapshot"]
@@ -51,7 +51,10 @@ pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailSnapshot>
         })
 }
 
-pub fn insert(conn: &SqliteConnection, model: InsertHighAvailSnapshot) -> anyhow::Result<HighAvailSnapshot> {
+pub fn insert(
+    conn: &SqliteConnection,
+    model: InsertHighAvailSnapshot,
+) -> anyhow::Result<HighAvailSnapshot> {
     debug!("inserting high availability snapshot: {:?}", model);
     conn.transaction(|| {
         diesel::insert_into(ha_snapshot)
