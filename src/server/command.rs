@@ -6,8 +6,7 @@ use crate::server::{
     auth_redirect, ha_append_entries, ha_install_snapshot, ha_vote, hist, home, inspect, list,
     push, stop, ws_exec, ws_high_avail, ws_monit, PipelinePool,
 };
-use actix::{Arbiter, System};
-use actix_web::{middleware, web, App, HttpServer};
+use actix_web::{middleware, web, App, HttpServer, rt::System};
 use clap::{App as ClapApp, Arg, ArgMatches, SubCommand};
 use std::env::set_var;
 use tracing::{debug, info};
@@ -25,9 +24,10 @@ impl ServerCommand {
 
     async fn start(config: BldConfig, host: &str, port: i64) -> anyhow::Result<()> {
         info!("starting bld server at {}:{}", host, port);
-        let pip_pool = web::Data::new(PipelinePool::new());
         let db_pool = new_connection_pool(&config.local.db)?;
+        let pip_pool = web::Data::new(PipelinePool::new());
         let high_avail = web::Data::new(HighAvail::new(&config, db_pool.clone()).await?);
+        let db_pool = web::Data::new(db_pool);
         let config = web::Data::new(config);
         set_var("RUST_LOG", "actix_server=info,actix_web=debug");
         HttpServer::new(move || {
@@ -35,7 +35,7 @@ impl ServerCommand {
                 .app_data(pip_pool.clone())
                 .app_data(config.clone())
                 .app_data(high_avail.clone())
-                .data(db_pool.clone())
+                .app_data(db_pool.clone())
                 .wrap(middleware::Logger::default())
                 .service(ha_append_entries)
                 .service(ha_install_snapshot)
@@ -58,12 +58,10 @@ impl ServerCommand {
     }
 
     pub fn spawn(config: BldConfig, host: String, port: i64) -> anyhow::Result<()> {
-        let system = System::new("bld-server");
-        debug!("starting actix system: bld-server");
-        Arbiter::spawn(async move {
+        debug!("starting actix system");
+        System::new().block_on(async move {
             let _ = Self::start(config, &host, port).await;
         });
-        system.run()?;
         Ok(())
     }
 }

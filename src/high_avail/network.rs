@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::helpers::request::http_post;
+use crate::helpers::request;
 use crate::high_avail::{Agent, AgentRequest};
 use anyhow::anyhow;
 use async_raft::config::Config;
@@ -35,14 +35,13 @@ impl HighAvailRouter {
         Ok(agent)
     }
 
-    fn post<T>(&self, sub_url: &str, target: NodeId, body: T) -> anyhow::Result<String>
+    async fn post<T>(&self, sub_url: &str, target: NodeId, body: T) -> anyhow::Result<String>
     where
         T: 'static + Serialize,
     {
         let agent = self.agent(&target)?;
-        let sys = String::from("bld-raft-net");
         let url = format!("http://{}:{}{}", agent.host(), agent.port(), sub_url);
-        Ok(http_post(sys, url, HashMap::new(), body))
+        request::post(url, HashMap::new(), body).await
     }
 }
 
@@ -53,7 +52,7 @@ impl RaftNetwork<AgentRequest> for HighAvailRouter {
         target: NodeId,
         rpc: AppendEntriesRequest<AgentRequest>,
     ) -> anyhow::Result<AppendEntriesResponse> {
-        let res = self.post("/ha/appendEntries", target, rpc)?;
+        let res = self.post("/ha/appendEntries", target, rpc).await?;
         debug!(
             "sent append entries request to node: {} with result: {}",
             target, res
@@ -66,7 +65,7 @@ impl RaftNetwork<AgentRequest> for HighAvailRouter {
         target: NodeId,
         rpc: InstallSnapshotRequest,
     ) -> anyhow::Result<InstallSnapshotResponse> {
-        let res = self.post("/ha/installSnapshot", target, rpc)?;
+        let res = self.post("/ha/installSnapshot", target, rpc).await?;
         debug!(
             "sent install snapshot request to node: {} with result: {}",
             target, res
@@ -75,7 +74,7 @@ impl RaftNetwork<AgentRequest> for HighAvailRouter {
     }
 
     async fn vote(&self, target: NodeId, rpc: VoteRequest) -> anyhow::Result<VoteResponse> {
-        let res = self.post("/ha/vote", target, rpc)?;
+        let res = self.post("/ha/vote", target, rpc).await?;
         debug!("sent vote request to node: {} with result: {}", target, res);
         Ok(serde_json::from_str(&res)?)
     }

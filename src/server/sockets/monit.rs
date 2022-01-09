@@ -47,7 +47,7 @@ impl MonitorPipelineSocket {
         if let Some(scanner) = act.scanner.as_mut() {
             let content = scanner.fetch();
             for line in content.iter() {
-                ctx.text(line);
+                ctx.text(line.to_string());
             }
         }
     }
@@ -99,7 +99,7 @@ impl Actor for MonitorPipelineSocket {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_interval(Duration::from_secs(1), |act, ctx| {
+        ctx.run_interval(Duration::from_millis(500), |act, ctx| {
             MonitorPipelineSocket::heartbeat(act, ctx);
             MonitorPipelineSocket::scan(act, ctx);
         });

@@ -1,15 +1,16 @@
 use crate::config::{AuthValidation, BldConfig};
-use actix_http::error::ErrorUnauthorized;
-use actix_web::client::Client;
+use crate::helpers::request;
+use actix_web::error::ErrorUnauthorized;
 use actix_web::dev::Payload;
-use actix_web::http::HeaderValue;
+use actix_web::http::header::HeaderValue;
 use actix_web::web::Data;
 use actix_web::{Error, FromRequest, HttpRequest};
 use anyhow::anyhow;
-use awc::http::StatusCode;
 use futures::Future;
 use futures_util::future::FutureExt;
+use std::collections::HashMap;
 use std::pin::Pin;
+use tracing::error;
 
 #[derive(Debug)]
 pub struct User {
@@ -27,14 +28,13 @@ impl User {
 impl FromRequest for User {
     type Error = Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>;
-    type Config = ();
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let config = req.app_data::<Data<BldConfig>>().unwrap().clone();
         let bearer = get_bearer(req);
         async move {
             if let AuthValidation::OAuth2(url) = &config.get_ref().local.auth {
-                return match oauth2_validate(url, &bearer).await {
+                return match oauth2_validate(url.to_string(), bearer).await {
                     Ok(user) => Ok(user),
                     Err(_) => Err(ErrorUnauthorized("")),
                 };
@@ -55,25 +55,15 @@ fn get_bearer(request: &HttpRequest) -> String {
         .to_string()
 }
 
-async fn oauth2_validate(url: &str, bearer: &str) -> anyhow::Result<User> {
-    let client = Client::default();
-    let mut resp = client
-        .get(url)
-        .header("User-Agent", "Bld")
-        .header("Authorization", bearer)
-        .send()
-        .await;
-    let body = resp
-        .as_mut()
-        .map_err(|e| anyhow!(e.to_string()))?
-        .body()
-        .await?;
-    match resp.map_err(|e| anyhow!(e.to_string()))?.status() {
-        StatusCode::OK => {
-            let body = String::from_utf8_lossy(&body).to_string();
-            let value: serde_json::Value = serde_json::from_str(&body)?;
-            Ok(User::new(&value["login"].to_string()))
-        }
-        _ => Err(anyhow!("could not authenticate user")),
-    }
+async fn oauth2_validate(url: String, bearer: String) -> anyhow::Result<User> {
+    let mut headers = HashMap::new();
+    headers.insert("Authorization".to_string(), bearer);
+    let res = request::get(url.to_string(), headers)
+        .await
+        .map_err(|e| {
+            error!("authorization check failed to remote server with: {}", e);
+            anyhow!("could not authenticate user")
+        })?;
+    let value: serde_json::Value = serde_json::from_str(&res)?;
+    Ok(User::new(&value["login"].to_string()))
 }

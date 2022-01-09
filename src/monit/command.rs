@@ -2,10 +2,10 @@ use crate::cli::BldCommand;
 use crate::config::{definitions::VERSION, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::headers;
-use crate::helpers::term::print_error;
 use crate::monit::MonitClient;
 use crate::monit::MonitInfo;
-use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
+use actix::{io::SinkWrite, Actor, StreamHandler};
+use actix_web::rt::System;
 use anyhow::anyhow;
 use awc::Client;
 use clap::{App, Arg, ArgMatches, SubCommand};
@@ -33,40 +33,6 @@ pub struct MonitCommand;
 impl MonitCommand {
     pub fn boxed() -> Box<dyn BldCommand> {
         Box::new(Self)
-    }
-
-    async fn request(info: MonitConnectionInfo) -> anyhow::Result<()> {
-        let url = format!("http://{}:{}/ws-monit/", info.host, info.port);
-        debug!("establishing web socket connection on {}", url);
-        let mut client = Client::new().ws(url);
-        for (key, value) in info.headers.iter() {
-            client = client.header(&key[..], &value[..]);
-        }
-        let (_, framed) = client.connect().await.map_err(|e| anyhow!(e.to_string()))?;
-        let (sink, stream) = framed.split();
-        let addr = MonitClient::create(|ctx| {
-            MonitClient::add_stream(stream, ctx);
-            MonitClient::new(SinkWrite::new(sink, ctx))
-        });
-        debug!(
-            "sending data over: {:?} {:?} {}",
-            info.pip_id, info.pip_name, info.pip_last
-        );
-        addr.send(MonitInfo::new(info.pip_id, info.pip_name, info.pip_last))
-            .await?;
-        Ok(())
-    }
-
-    fn spawn(info: MonitConnectionInfo) {
-        let system = System::new("bld-monit");
-        debug!("spawing actix system: bld-monit");
-        Arbiter::spawn(async move {
-            if let Err(e) = Self::request(info).await {
-                let _ = print_error(&e.to_string());
-                System::current().stop();
-            }
-        });
-        let _ = system.run();
     }
 }
 
@@ -122,14 +88,43 @@ impl BldCommand for MonitCommand {
             },
             None => (&srv.name, &srv.auth),
         };
-        Self::spawn(MonitConnectionInfo {
+        spawn(MonitConnectionInfo {
             host: srv.host.to_string(),
             port: srv.port,
             headers: headers(name, auth)?,
             pip_id,
             pip_name,
             pip_last,
-        });
-        Ok(())
+        })
     }
+}
+
+async fn request(info: MonitConnectionInfo) -> anyhow::Result<()> {
+    let url = format!("http://{}:{}/ws-monit/", info.host, info.port);
+    debug!("establishing web socket connection on {}", url);
+    let mut client = Client::new().ws(url);
+    for (key, value) in info.headers.iter() {
+        client = client.header(&key[..], &value[..]);
+    }
+    let (_, framed) = client.connect().await.map_err(|e| anyhow!(e.to_string()))?;
+    let (sink, stream) = framed.split();
+    let addr = MonitClient::create(|ctx| {
+        MonitClient::add_stream(stream, ctx);
+        MonitClient::new(SinkWrite::new(sink, ctx))
+    });
+    debug!(
+        "sending data over: {:?} {:?} {}",
+        info.pip_id, info.pip_name, info.pip_last
+    );
+    addr.send(MonitInfo::new(info.pip_id, info.pip_name, info.pip_last))
+        .await?;
+    Ok(())
+}
+
+fn spawn(info: MonitConnectionInfo) ->anyhow::Result<()> {
+    debug!("spawing actix system");
+    let sys = System::new();
+    let res = sys.block_on(request(info));
+    sys.run()?;
+    res
 }

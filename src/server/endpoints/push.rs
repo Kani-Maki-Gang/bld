@@ -12,8 +12,8 @@ pub async fn push(user: Option<User>, info: web::Json<Vec<PushInfo>>) -> impl Re
     }
 
     match push_pipelines(info.into_inner()) {
-        Ok(()) => HttpResponse::Ok().body(&String::new()),
-        Err(e) => HttpResponse::BadRequest().body(&e.to_string()),
+        Ok(()) => HttpResponse::Ok().body(""),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
 

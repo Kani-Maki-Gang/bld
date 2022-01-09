@@ -43,16 +43,16 @@ impl Handler<MonitInfo> for MonitClient {
 
     fn handle(&mut self, msg: MonitInfo, _ctx: &mut Self::Context) {
         if let Ok(text) = serde_json::to_string(&msg) {
-            let _ = self.writer.write(Message::Text(text));
+            let _ = self.writer.write(Message::Text(text.into()));
         }
     }
 }
 
 impl StreamHandler<Result<Frame, WsProtocolError>> for MonitClient {
-    fn handle(&mut self, msg: Result<Frame, WsProtocolError>, _: &mut Context<Self>) {
+    fn handle(&mut self, msg: Result<Frame, WsProtocolError>, ctx: &mut Context<Self>) {
         match msg {
             Ok(Frame::Text(bt)) => println!("{}", String::from_utf8_lossy(&bt)),
-            Ok(Frame::Close(_)) => System::current().stop(),
+            Ok(Frame::Close(_)) => ctx.stop(),
             _ => {}
         }
     }

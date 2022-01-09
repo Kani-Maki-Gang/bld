@@ -13,7 +13,7 @@ use crate::persist::ha_members_after_consensus::{
 };
 use crate::persist::ha_snapshot::{self, HighAvailSnapshot, InsertHighAvailSnapshot};
 use crate::persist::ha_state_machine::{self, HighAvailStateMachine};
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use async_raft::raft::{Entry, EntryPayload, MembershipConfig};
 use async_raft::storage::{CurrentSnapshotData, HardState, InitialState, RaftStorage};
 use async_raft::NodeId;
@@ -27,6 +27,7 @@ use std::fmt::{self, Display};
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use tracing::debug;
 
 const ERR_INCONSISTENT_LOG: &str =
     "a query was received which was expecting data to be in place which does not exist in the log";
@@ -76,6 +77,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
     type ShutdownError = ShutdownError;
 
     async fn get_membership_config(&self) -> anyhow::Result<MembershipConfig> {
+        debug!("getting membership config");
         let conn = self.pool.get()?;
         ha_log::select_by_payload_type(&conn)
             .and_then(|log| {
@@ -91,6 +93,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
     }
 
     async fn get_initial_state(&self) -> anyhow::Result<InitialState> {
+        debug!("getting initial state");
         let conn = self.pool.get()?;
         let membership = self.get_membership_config().await?;
         let sm = self.sm.read().await;
@@ -116,8 +119,9 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
     }
 
     async fn save_hard_state(&self, hs: &HardState) -> anyhow::Result<()> {
+        debug!("saving hard state");
         let conn = self.pool.get()?;
-        *self.hs.write().await = match &*self.hs.read().await {
+        let model = match &*self.hs.read().await {
             Some(x) => ha_hard_state::update(
                 &conn,
                 x.id,
@@ -127,6 +131,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
             .ok(),
             None => ha_hard_state::insert(&conn, hs.into()).ok(),
         };
+        *self.hs.write().await = model;
         Ok(())
     }
 
@@ -135,6 +140,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
         start: u64,
         stop: u64,
     ) -> anyhow::Result<Vec<Entry<AgentRequest>>> {
+        debug!("getting log entries");
         if start > stop {
             return Ok(vec![]);
         }
@@ -164,6 +170,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
     }
 
     async fn delete_logs_from(&self, start: u64, stop: Option<u64>) -> anyhow::Result<()> {
+        debug!("deleting logs from: {} to {:?}", start, stop);
         if stop.as_ref().map(|stop| &start > stop).unwrap_or(false) {
             return Ok(());
         }
@@ -178,11 +185,13 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
     }
 
     async fn append_entry_to_log(&self, entry: &Entry<AgentRequest>) -> anyhow::Result<()> {
+        debug!("appending entries to log");
         let conn = self.pool.get()?;
         ha_log::insert(&conn, entry.into()).map(|_| ())
     }
 
     async fn replicate_to_log(&self, entries: &[Entry<AgentRequest>]) -> anyhow::Result<()> {
+        debug!("replicating to log");
         let conn = self.pool.get()?;
         ha_log::insert_many(&conn, entries.iter().map(|e| e.into()).collect()).map(|_| ())
     }
@@ -192,6 +201,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
         index: &u64,
         data: &AgentRequest,
     ) -> anyhow::Result<AgentResponse> {
+        debug!("applying entry to state machine");
         let id = data.id().parse::<i32>()?;
         let status = data.status().to_string();
         let conn = self.pool.get()?;
@@ -232,6 +242,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
         &self,
         entries: &[(&u64, &AgentRequest)],
     ) -> anyhow::Result<()> {
+        debug!("replicating to state machine");
         let conn = self.pool.get()?;
         let mut sm = self.sm.write().await;
         for (index, data) in entries {
@@ -269,6 +280,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
     }
 
     async fn do_log_compaction(&self) -> anyhow::Result<CurrentSnapshotData<Self::Snapshot>> {
+        debug!("doing log compaction");
         let conn = self.pool.get()?;
         let sm = self.sm.read().await;
         let data = serde_json::to_vec(&*sm)?;
@@ -333,6 +345,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
     }
 
     async fn create_snapshot(&self) -> anyhow::Result<(String, Box<Self::Snapshot>)> {
+        debug!("creating snapshot");
         Ok((String::from(""), Box::new(Cursor::new(Vec::new()))))
     }
 
@@ -344,6 +357,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
         id: String,
         snapshot: Box<Self::Snapshot>,
     ) -> anyhow::Result<()> {
+        debug!("finalizing snapshot installation");
         let conn = self.pool.get()?;
         let new_snapshot =
             serde_json::from_slice::<HighAvailSnapshot>(snapshot.get_ref().as_slice())?;
@@ -382,6 +396,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
     async fn get_current_snapshot(
         &self,
     ) -> anyhow::Result<Option<CurrentSnapshotData<Self::Snapshot>>> {
+        debug!("getting current snapshot");
         match &*self.current_snapshot.read().await {
             Some(snapshot) => {
                 let conn = self.pool.get()?;
@@ -396,7 +411,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
                         .map(|m| m.id as NodeId)
                         .collect(),
                 );
-                Ok(Some(CurrentSnapshotData {
+                let current = CurrentSnapshotData {
                     index: snapshot.id as u64,
                     term: snapshot.term as u64,
                     membership: MembershipConfig {
@@ -404,9 +419,14 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
                         members_after_consensus,
                     },
                     snapshot: Box::new(Cursor::new(reader)),
-                }))
+                };
+                debug!("index: {}, term: {}, membership: {:?}, snapshot: {:?}", current.index, current.term, current.membership, current.snapshot);
+                Ok(Some(current))
             }
-            None => Ok(None),
+            None => {
+                debug!("None");
+                Ok(None)
+            }
         }
     }
 }

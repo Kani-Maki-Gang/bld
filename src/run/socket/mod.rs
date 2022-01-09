@@ -1,32 +1,30 @@
 mod client;
 pub mod messages;
 
-use crate::config::BldConfig;
-use crate::helpers::errors::auth_for_server_invalid;
-use crate::helpers::request::headers;
-use crate::helpers::term::print_error;
 use crate::run::socket::client::ExecClient;
 use crate::run::socket::messages::ExecInfo;
-use actix::{io::SinkWrite, Actor, Arbiter, StreamHandler, System};
+use actix::{io::SinkWrite, Actor, StreamHandler};
+use actix_web::rt::System;
 use anyhow::anyhow;
 use awc::Client;
 use futures::stream::StreamExt;
+use tracing::debug;
 use std::collections::HashMap;
 
-async fn remote_invoke(server: String, detach: bool, data: ExecInfo) -> anyhow::Result<bool> {
-    let config = BldConfig::load()?;
-    let srv = config.remote.server(&server)?;
-    let (srv_name, auth) = match &srv.same_auth_as {
-        Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
-            Some(srv) => (&srv.name, &srv.auth),
-            None => return auth_for_server_invalid().map(|_| false),
-        },
-        None => (&srv.name, &srv.auth),
-    };
-    let url = format!("http://{}:{}/ws-exec/", srv.host, srv.port);
-    let headers = headers(srv_name, auth)?;
+pub struct ExecConnectionInfo {
+    pub host: String,
+    pub port: i64,
+    pub headers: HashMap<String, String>,
+    pub detach: bool,
+    pub pipeline: String,
+    pub variables: HashMap<String, String>,
+}
+
+async fn remote_invoke(info: ExecConnectionInfo) -> anyhow::Result<()> {
+    let url = format!("http://{}:{}/ws-exec/", info.host, info.port);
+    debug!("establishing web socker connection on {}", url);
     let mut client = Client::new().ws(url);
-    for (key, value) in headers.iter() {
+    for (key, value) in info.headers.iter() {
         client = client.header(&key[..], &value[..]);
     }
     let (_, framed) = client.connect().await.map_err(|e| anyhow!(e.to_string()))?;
@@ -35,33 +33,19 @@ async fn remote_invoke(server: String, detach: bool, data: ExecInfo) -> anyhow::
         ExecClient::add_stream(stream, ctx);
         ExecClient::new(SinkWrite::new(sink, ctx))
     });
-    if detach {
-        addr.do_send(data);
-        Ok(true)
+    debug!("sending data over: {:?} {:?}", info.pipeline, info.variables); 
+    if info.detach {
+        addr.do_send(ExecInfo::new(&info.pipeline, Some(info.variables.clone())));
     } else {
-        let _ = addr.send(data).await;
-        Ok(false)
+        addr.send(ExecInfo::new(&info.pipeline, Some(info.variables.clone()))).await?;
     }
+    Ok(())
 }
 
-pub fn on_server(
-    name: String,
-    vars: HashMap<String, String>,
-    server: String,
-    detach: bool,
-) -> anyhow::Result<()> {
-    let system = System::new("bld");
-    let data = ExecInfo::new(&name, Some(vars));
-    Arbiter::spawn(async move {
-        match remote_invoke(server, detach, data).await {
-            Ok(true) => System::current().stop(),
-            Err(e) => {
-                let _ = print_error(&e.to_string());
-                System::current().stop();
-            }
-            _ => {}
-        }
-    });
-    let _ = system.run();
-    Ok(())
+pub fn on_server(info: ExecConnectionInfo) -> anyhow::Result<()> {
+    debug!("spawing actix system");
+    let sys = System::new();
+    let res = sys.block_on(remote_invoke(info));
+    sys.run()?;
+    res
 }

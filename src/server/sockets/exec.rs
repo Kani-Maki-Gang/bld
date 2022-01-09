@@ -1,5 +1,4 @@
 use crate::config::BldConfig;
-use crate::helpers::term;
 use crate::path;
 use crate::persist::{FileLogger, FileScanner, PipelineExecWrapper, PipelineModel, Scanner};
 use crate::run::socket::messages::ExecInfo;
@@ -18,6 +17,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
+use tracing::error;
 use uuid::Uuid;
 
 type AtomicEx = Arc<Mutex<PipelineExecWrapper>>;
@@ -37,21 +37,23 @@ struct PipelineInfo {
 impl PipelineInfo {
     pub fn spawn(self) {
         thread::spawn(move || {
-            if let Ok(rt) = Runtime::new() {
-                rt.block_on(async move {
-                    if let Err(e) =
-                        Runner::from_file(self.name, self.ex, self.lg, self.cm, self.vars)
-                            .await
-                            .await
-                    {
-                        let _ = term::print_error(&e.to_string());
-                    }
-                    {
-                        let mut pool = self.pool.senders.lock().unwrap();
-                        pool.remove(&self.id);
-                    }
-                });
+            let rt = Runtime::new();
+            if rt.is_err() {
+                return;
             }
+            let rt = rt.unwrap();
+            rt.block_on(async move {
+                if let Err(e) = Runner::from_file(self.name, self.ex, self.lg, self.cm, self.vars)
+                    .await
+                    .await
+                {
+                    error!("runner returned error: {}", e);
+                }
+                {
+                    let mut pool = self.pool.senders.lock().unwrap();
+                    pool.remove(&self.id);
+                }
+            });
         });
     }
 }
@@ -97,7 +99,7 @@ impl ExecutePipelineSocket {
         if let Some(scanner) = act.scanner.as_mut() {
             let content = scanner.fetch();
             for line in content.iter() {
-                ctx.text(line);
+                ctx.text(line.to_string());
             }
         }
     }
@@ -179,11 +181,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSo
         match msg {
             Ok(ws::Message::Text(txt)) => {
                 match self.get_info(&txt) {
-                    Ok(pipeline_info) => {
-                        pipeline_info.spawn();
+                    Ok(info) => {
+                        info.spawn();
                     }
                     Err(e) => {
-                        eprintln!("{}", e.to_string());
+                        error!("{}", e.to_string());
                         ctx.text("Unable to run pipeline");
                         ctx.stop();
                     }

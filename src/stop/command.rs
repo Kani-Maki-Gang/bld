@@ -1,7 +1,8 @@
 use crate::cli::BldCommand;
 use crate::config::{definitions::VERSION, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
-use crate::helpers::request::{exec_post, headers};
+use crate::helpers::request;
+use actix_web::rt::System;
 use anyhow::anyhow;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
@@ -54,10 +55,13 @@ impl BldCommand for StopCommand {
             },
             None => (&srv.name, &srv.auth),
         };
-        let sys = String::from("bld-stop");
         let url = format!("http://{}:{}/stop", srv.host, srv.port);
-        let headers = headers(name, auth)?;
-        exec_post(sys, url, headers, id);
-        Ok(())
+        let headers = request::headers(name, auth)?;
+        System::new().block_on(async move {
+            request::post(url, headers, id).await.map(|r| {
+                println!("{}", r);
+                ()
+            })
+        })
     }
 }

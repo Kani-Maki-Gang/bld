@@ -1,7 +1,7 @@
-use crate::high_avail::{AgentRequest, HighAvail, HighAvailThreadRequest, HighAvailThreadResponse};
+use crate::high_avail::{AgentRequest, HighAvail};
 use actix_web::{post, web, HttpResponse, Responder};
 use async_raft::raft::{AppendEntriesRequest, InstallSnapshotRequest, VoteRequest};
-use uuid::Uuid;
+use tracing::{debug, error};
 
 #[post("/ha/appendEntries")]
 pub async fn ha_append_entries(
@@ -10,22 +10,10 @@ pub async fn ha_append_entries(
 ) -> impl Responder {
     let body = body.into_inner();
     if let HighAvail::Enabled(th) = ha.get_ref() {
-        let id = Uuid::new_v4();
-        let send = {
-            let req = HighAvailThreadRequest::AppendEntries(body);
-            th.lock().unwrap().raft_request_tx().send((id, req))
-        };
-        if send.is_err() {
-            return HttpResponse::BadRequest().body("unable to append entries");
-        }
-        while let Ok((resp_id, resp)) = th.lock().unwrap().raft_response_rx().recv() {
-            if resp_id == id {
-                return match resp {
-                    Err(e) => HttpResponse::BadRequest().body(e.to_string()),
-                    Ok(HighAvailThreadResponse::AppendEntries(r)) => HttpResponse::Ok().json(r),
-                    Ok(_) => break,
-                };
-            }
+        let raft = th.raft();
+        return match raft.append_entries(body).await {
+            Ok(r) => HttpResponse::Ok().json(r),
+            Err(e) => HttpResponse::BadRequest().body(e.to_string()),
         }
     }
     HttpResponse::BadRequest().body("server is not running is high availability mode")
@@ -38,23 +26,10 @@ pub async fn ha_install_snapshot(
 ) -> impl Responder {
     let body = body.into_inner();
     if let HighAvail::Enabled(th) = ha.get_ref() {
-        let id = Uuid::new_v4();
-        let send = {
-            let req = HighAvailThreadRequest::InstallSnapshot(body);
-            th.lock().unwrap().raft_request_tx().send((id, req))
+        return match th.raft().install_snapshot(body).await {
+            Ok(r) => HttpResponse::Ok().json(r),
+            Err(e) => HttpResponse::BadRequest().body(e.to_string()),
         };
-        if send.is_err() {
-            return HttpResponse::BadRequest().body("unable to install snapshot");
-        }
-        while let Ok((resp_id, resp)) = th.lock().unwrap().raft_response_rx().recv() {
-            if resp_id == id {
-                return match resp {
-                    Err(e) => HttpResponse::BadRequest().body(e.to_string()),
-                    Ok(HighAvailThreadResponse::InstallSnapshot(r)) => HttpResponse::Ok().json(r),
-                    Ok(_) => break,
-                };
-            }
-        }
     }
     HttpResponse::BadRequest().body("server is not running is high availability mode")
 }
@@ -63,23 +38,16 @@ pub async fn ha_install_snapshot(
 pub async fn ha_vote(body: web::Json<VoteRequest>, ha: web::Data<HighAvail>) -> impl Responder {
     let body = body.into_inner();
     if let HighAvail::Enabled(th) = ha.get_ref() {
-        let id = Uuid::new_v4();
-        let send = {
-            let req = HighAvailThreadRequest::Vote(body);
-            th.lock().unwrap().raft_request_tx().send((id, req))
-        };
-        if send.is_err() {
-            return HttpResponse::BadRequest().body("unable to install snapshot");
-        }
-        while let Ok((resp_id, resp)) = th.lock().unwrap().raft_response_rx().recv() {
-            if resp_id == id {
-                return match resp {
-                    Err(e) => HttpResponse::BadRequest().body(e.to_string()),
-                    Ok(HighAvailThreadResponse::Vote(r)) => HttpResponse::Ok().json(r),
-                    Ok(_) => break,
-                };
+        return match th.raft().vote(body).await { 
+            Ok(r) => {
+                debug!("vote with response: {:?}", r);
+                HttpResponse::Ok().json(r)
             }
-        }
+            Err(e) => {
+                error!("vote with error: {}", e);
+                HttpResponse::BadRequest().body(e.to_string())
+            }
+        };
     }
     HttpResponse::BadRequest().body("server is not running is high availability mode")
 }

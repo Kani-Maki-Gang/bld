@@ -1,7 +1,8 @@
 use crate::cli::BldCommand;
 use crate::config::{definitions::VERSION, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
-use crate::helpers::request::{exec_get, headers};
+use crate::helpers::request;
+use actix_web::rt::System;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use tracing::debug;
 
@@ -44,11 +45,16 @@ impl BldCommand for HistCommand {
             },
             None => (&srv.name, &srv.auth),
         };
-        let sys = String::from("bld-hist");
         let url = format!("http://{}:{}/hist", srv.host, srv.port);
-        let headers = headers(name, auth)?;
+        let headers = request::headers(name, auth)?;
         debug!("sending http request to {}", url);
-        exec_get(sys, url, headers);
-        Ok(())
+        System::new().block_on(async move {
+            request::get(url, headers)
+                .await
+                .map(|r| {
+                    println!("{}", r);
+                    ()
+                })
+        })
     }
 }

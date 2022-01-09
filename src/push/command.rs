@@ -1,11 +1,11 @@
 use crate::cli::BldCommand;
 use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
-use crate::helpers::request::{exec_post, headers};
-use crate::helpers::term::print_error;
+use crate::helpers::request;
 use crate::push::PushInfo;
 use crate::run::Pipeline;
 use clap::{App, Arg, ArgMatches, SubCommand};
+use actix_web::rt::System;
 use std::collections::HashSet;
 use tracing::debug;
 
@@ -18,22 +18,6 @@ pub struct PushCommand;
 impl PushCommand {
     pub fn boxed() -> Box<dyn BldCommand> {
         Box::new(Self)
-    }
-
-    fn build_payload(name: String) -> anyhow::Result<HashSet<(String, String)>> {
-        let src = Pipeline::read(&name)?;
-        let pipeline = Pipeline::parse(&src)?;
-        let mut set = HashSet::new();
-        set.insert((name, src));
-        for step in pipeline.steps.iter() {
-            if let Some(pipeline) = &step.call {
-                let subset = Self::build_payload(pipeline.to_string())?;
-                for entry in subset {
-                    set.insert(entry);
-                }
-            }
-        }
-        Ok(set)
     }
 }
 
@@ -60,39 +44,58 @@ impl BldCommand for PushCommand {
     }
 
     fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
-        let config = BldConfig::load()?;
-        let pip = matches
-            .value_of(PIPELINE)
-            .unwrap_or(TOOL_DEFAULT_PIPELINE)
-            .to_string();
-        let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
-        debug!("running {} subcommand with --server: {}", PUSH, srv.name);
-        let (name, auth) = match &srv.same_auth_as {
-            Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
-                Some(srv) => (&srv.name, &srv.auth),
-                None => return auth_for_server_invalid(),
-            },
-            None => (&srv.name, &srv.auth),
-        };
-        match Self::build_payload(pip) {
-            Ok(payload) => {
-                let sys = String::from("bld-push");
-                let data: Vec<PushInfo> = payload
-                    .iter()
-                    .map(|(n, s)| {
-                        println!("Pushing {}...", n);
-                        PushInfo::new(n, s)
-                    })
-                    .collect();
-                let url = format!("http://{}:{}/push", srv.host, srv.port);
-                let headers = headers(name, auth)?;
-                debug!("sending http request to {}", url);
-                exec_post(sys, url, headers, data);
-            }
-            Err(e) => {
-                let _ = print_error(&e.to_string());
-            }
-        }
-        Ok(())
+        System::new().block_on(async move {
+            do_push(matches).await
+        })
     }
 }
+
+async fn do_push(matches: &ArgMatches<'_>) -> anyhow::Result<()> {
+    let config = BldConfig::load()?;
+    let pip = matches
+        .value_of(PIPELINE)
+        .unwrap_or(TOOL_DEFAULT_PIPELINE)
+        .to_string();
+    let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
+    debug!("running {} subcommand with --server: {}", PUSH, srv.name);
+    let (name, auth) = match &srv.same_auth_as {
+        Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
+            Some(srv) => (&srv.name, &srv.auth),
+            None => return auth_for_server_invalid(),
+        },
+        None => (&srv.name, &srv.auth),
+    };
+    let payload = build_payload(pip)?;
+    let data: Vec<PushInfo> = payload
+        .iter()
+        .map(|(n, s)| {
+            println!("Pushing {}...", n);
+            PushInfo::new(n, s)
+        })
+        .collect();
+    let url = format!("http://{}:{}/push", srv.host, srv.port);
+    let headers = request::headers(name, auth)?;
+    debug!("sending http request to {}", url);
+    request::post(url, headers, data).await.map(|r| {
+        println!("{}", r);
+        ()
+    })
+}
+
+fn build_payload(name: String) -> anyhow::Result<HashSet<(String, String)>> {
+    let src = Pipeline::read(&name)?;
+    let pipeline = Pipeline::parse(&src)?;
+    let mut set = HashSet::new();
+    set.insert((name, src));
+    for step in pipeline.steps.iter() {
+        if let Some(pipeline) = &step.call {
+            let subset = build_payload(pipeline.to_string())?;
+            for entry in subset {
+                set.insert(entry);
+            }
+        }
+    }
+    Ok(set)
+}
+
+

@@ -1,7 +1,9 @@
 use crate::cli::BldCommand;
-use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION};
+use crate::config::{BldConfig, definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION};
+use crate::helpers::errors::auth_for_server_invalid;
+use crate::helpers::request::headers;
 use crate::persist::{NullExec, ShellLogger};
-use crate::run::{self, Runner};
+use crate::run::{self, Runner, socket::ExecConnectionInfo};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -55,6 +57,7 @@ impl BldCommand for RunCommand {
     }
 
     fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
+        let config = BldConfig::load()?;
         let pipeline = matches
             .value_of("pipeline")
             .or(Some(TOOL_DEFAULT_PIPELINE))
@@ -77,6 +80,14 @@ impl BldCommand for RunCommand {
             .unwrap();
         match matches.value_of("server") {
             Some(server) => {
+                let srv = config.remote.server(&server)?;
+                let (srv_name, auth) = match &srv.same_auth_as {
+                    Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
+                        Some(srv) => (&srv.name, &srv.auth),
+                        None => return auth_for_server_invalid(),
+                    },
+                    None => (&srv.name, &srv.auth),
+                };
                 debug!(
                     "running {} subcommand with --pipeline: {}, --variables: {:?}, --server: {}",
                     RUN,
@@ -84,7 +95,14 @@ impl BldCommand for RunCommand {
                     vars,
                     server.to_string()
                 );
-                run::socket::on_server(pipeline, vars, server.to_string(), detach)
+                run::socket::on_server(ExecConnectionInfo {
+                    host: srv.host.clone(),
+                    port: srv.port,
+                    headers: headers(srv_name, auth)?,
+                    detach,
+                    pipeline, 
+                    variables: vars
+                })
             }
             None => {
                 debug!(
