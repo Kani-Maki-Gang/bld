@@ -84,7 +84,7 @@ table! {
         running -> Bool,
         user -> Text,
         start_date_time -> Text,
-        end_date_time -> Text,
+        end_date_time -> Nullable<Text>,
     }
 }
 

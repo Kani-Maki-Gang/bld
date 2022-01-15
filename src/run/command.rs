@@ -2,7 +2,7 @@ use crate::cli::BldCommand;
 use crate::config::{BldConfig, definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION};
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::headers;
-use crate::persist::{NullExec, ShellLogger};
+use crate::persist::{EmptyExec, ShellLogger};
 use crate::run::{self, Runner, socket::ExecConnectionInfo};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashMap;
@@ -113,7 +113,7 @@ impl BldCommand for RunCommand {
                 rt.block_on(async {
                     Runner::from_file(
                         pipeline,
-                        NullExec::atom(),
+                        EmptyExec::atom(),
                         ShellLogger::atom(),
                         None,
                         Arc::new(vars),

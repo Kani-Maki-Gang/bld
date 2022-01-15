@@ -8,10 +8,9 @@ pub mod ha_members_after_consensus;
 pub mod ha_snapshot;
 pub mod ha_state_machine;
 mod migrations;
-mod pipeline;
+pub mod pipeline;
 mod schema;
 
 pub use connect::*;
 pub use migrations::*;
-pub use pipeline::*;
 pub use schema::*;

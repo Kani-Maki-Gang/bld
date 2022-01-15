@@ -1,6 +1,6 @@
 use crate::config::definitions::{GET, PUSH, VAR_TOKEN};
 use crate::config::BldConfig;
-use crate::persist::{Execution, Logger, NullExec};
+use crate::persist::{Execution, Logger, EmptyExec};
 use crate::run::CheckStopSignal;
 use crate::run::{BuildStep, Container, Machine, Pipeline, RunsOn};
 use std::collections::HashMap;
@@ -159,7 +159,7 @@ impl Runner {
         if let Some(call) = &step.call {
             Runner::from_file(
                 call.clone(),
-                NullExec::atom(),
+                EmptyExec::atom(),
                 self.lg.clone(),
                 comm,
                 self.vars.clone(),

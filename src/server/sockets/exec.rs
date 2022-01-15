@@ -1,6 +1,7 @@
 use crate::config::BldConfig;
 use crate::path;
-use crate::persist::{FileLogger, FileScanner, PipelineExecWrapper, PipelineModel, Scanner};
+use crate::persist::{FileLogger, FileScanner, PipelineExecWrapper, Scanner};
+use crate::persist::pipeline;
 use crate::run::socket::messages::ExecInfo;
 use crate::run::{Pipeline, Runner};
 use crate::server::{PipelinePool, User};
@@ -128,7 +129,7 @@ impl ExecutePipelineSocket {
             .to_string();
 
         let connection = self.db_pool.get()?;
-        let pipeline = PipelineModel::insert(&connection, &id, &info.name, &self.user.name)?;
+        let pipeline = pipeline::insert(&connection, &id, &info.name, &self.user.name)?;
 
         let ex = Arc::new(Mutex::new(PipelineExecWrapper::new(
             &self.db_pool,

@@ -1,7 +1,8 @@
 use crate::config::BldConfig;
 use crate::monit::MonitInfo;
 use crate::path;
-use crate::persist::{FileScanner, PipelineModel, Scanner};
+use crate::persist::{FileScanner, Scanner};
+use crate::persist::pipeline::{self, Pipeline};
 use crate::server::User;
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
@@ -54,8 +55,8 @@ impl MonitorPipelineSocket {
 
     fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
         if let Ok(connection) = act.db_pool.get() {
-            match PipelineModel::select_by_id(&connection, &act.id) {
-                Ok(PipelineModel { running: false, .. }) => ctx.stop(),
+            match pipeline::select_by_id(&connection, &act.id) {
+                Ok(Pipeline { running: false, .. }) => ctx.stop(),
                 Err(_) => {
                     ctx.text("internal server error");
                     ctx.stop();
@@ -71,11 +72,11 @@ impl MonitorPipelineSocket {
         let connection = self.db_pool.get()?;
 
         let pipeline = if data.last {
-            PipelineModel::select_last(&connection)
+            pipeline::select_last(&connection)
         } else if let Some(id) = data.id {
-            PipelineModel::select_by_id(&connection, &id)
+            pipeline::select_by_id(&connection, &id)
         } else if let Some(name) = data.name {
-            PipelineModel::select_by_name(&connection, &name)
+            pipeline::select_by_name(&connection, &name)
         } else {
             return Err(anyhow!("pipeline not found"));
         }

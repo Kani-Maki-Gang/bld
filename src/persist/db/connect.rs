@@ -1,13 +1,16 @@
 #![allow(dead_code)]
 use crate::config::definitions::DB_NAME;
 use crate::path;
-use crate::persist::{run_migrations, Execution, PipelineModel};
+use crate::persist::{run_migrations, Execution};
+use crate::persist::pipeline::{self, Pipeline};
 use anyhow::anyhow;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel::sqlite::SqliteConnection;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tracing::debug;
+
+const EMPTY: String = String::new();
 
 fn no_pipeline_instance() -> anyhow::Result<()> {
     Err(anyhow!("no pipeline instance"))
@@ -25,14 +28,14 @@ pub fn new_connection_pool(db: &str) -> anyhow::Result<Pool<ConnectionManager<Sq
 }
 
 pub struct PipelineExecWrapper {
-    pub pipeline: PipelineModel,
+    pub pipeline: Pipeline,
     pub connection: PooledConnection<ConnectionManager<SqliteConnection>>,
 }
 
 impl PipelineExecWrapper {
     pub fn new(
         pool: &Pool<ConnectionManager<SqliteConnection>>,
-        pipeline: PipelineModel,
+        pipeline: Pipeline,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             pipeline,
@@ -43,33 +46,27 @@ impl PipelineExecWrapper {
 
 impl Execution for PipelineExecWrapper {
     fn update(&mut self, running: bool) -> anyhow::Result<()> {
-        let end_date_time = match running {
-            true => String::new(),
-            false => chrono::Utc::now().to_string(),
-        };
-        PipelineModel::update(&self.connection, &self.pipeline.id, running, &end_date_time)?;
-        self.pipeline.running = running;
-        self.pipeline.end_date_time = end_date_time;
+        self.pipeline = pipeline::update(&self.connection, &self.pipeline.id, running)?;
         debug!(
             "updated pipeline of id: {}, name: {} with new values running: {}, end_date_time: {}",
             self.pipeline.id,
             self.pipeline.name,
             self.pipeline.running,
-            self.pipeline.end_date_time
+            self.pipeline.end_date_time.as_ref().unwrap_or(&EMPTY)
         );
         Ok(())
     }
 }
 
-pub struct NullExec;
+pub struct EmptyExec;
 
-impl NullExec {
+impl EmptyExec {
     pub fn atom() -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self))
     }
 }
 
-impl Execution for NullExec {
+impl Execution for EmptyExec {
     fn update(&mut self, _running: bool) -> anyhow::Result<()> {
         Ok(())
     }
