@@ -76,7 +76,6 @@ async fn do_push(matches: &ArgMatches<'_>) -> anyhow::Result<()> {
     debug!("sending http request to {}", url);
     request::post(url, headers, data).await.map(|r| {
         println!("{}", r);
-        ()
     })
 }
 

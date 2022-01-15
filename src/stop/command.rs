@@ -60,7 +60,6 @@ impl BldCommand for StopCommand {
         System::new().block_on(async move {
             request::post(url, headers, id).await.map(|r| {
                 println!("{}", r);
-                ()
             })
         })
     }

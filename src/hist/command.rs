@@ -51,7 +51,6 @@ impl BldCommand for HistCommand {
         System::new().block_on(async move {
             request::get(url, headers).await.map(|r| {
                 println!("{}", r);
-                ()
             })
         })
     }

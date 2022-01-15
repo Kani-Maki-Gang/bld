@@ -80,7 +80,7 @@ impl BldCommand for RunCommand {
             .unwrap();
         match matches.value_of("server") {
             Some(server) => {
-                let srv = config.remote.server(&server)?;
+                let srv = config.remote.server(server)?;
                 let (srv_name, auth) = match &srv.same_auth_as {
                     Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
                         Some(srv) => (&srv.name, &srv.auth),
