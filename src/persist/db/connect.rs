@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 use crate::config::definitions::DB_NAME;
 use crate::path;
-use crate::persist::{run_migrations, Execution};
 use crate::persist::pipeline::{self, Pipeline};
+use crate::persist::{run_migrations, Execution};
 use anyhow::anyhow;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel::sqlite::SqliteConnection;

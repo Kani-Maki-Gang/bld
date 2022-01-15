@@ -1,6 +1,6 @@
 use crate::config::definitions::{GET, PUSH, VAR_TOKEN};
 use crate::config::BldConfig;
-use crate::persist::{Execution, Logger, EmptyExec};
+use crate::persist::{EmptyExec, Execution, Logger};
 use crate::run::CheckStopSignal;
 use crate::run::{BuildStep, Container, Machine, Pipeline, RunsOn};
 use std::collections::HashMap;

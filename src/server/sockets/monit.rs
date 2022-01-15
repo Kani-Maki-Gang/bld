@@ -1,8 +1,8 @@
 use crate::config::BldConfig;
 use crate::monit::MonitInfo;
 use crate::path;
-use crate::persist::{FileScanner, Scanner};
 use crate::persist::pipeline::{self, Pipeline};
+use crate::persist::{FileScanner, Scanner};
 use crate::server::User;
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};

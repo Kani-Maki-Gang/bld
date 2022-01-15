@@ -49,12 +49,10 @@ impl BldCommand for HistCommand {
         let headers = request::headers(name, auth)?;
         debug!("sending http request to {}", url);
         System::new().block_on(async move {
-            request::get(url, headers)
-                .await
-                .map(|r| {
-                    println!("{}", r);
-                    ()
-                })
+            request::get(url, headers).await.map(|r| {
+                println!("{}", r);
+                ()
+            })
         })
     }
 }

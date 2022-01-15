@@ -1,9 +1,9 @@
 use crate::cli::BldCommand;
-use crate::config::{BldConfig, definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION};
+use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::headers;
 use crate::persist::{EmptyExec, ShellLogger};
-use crate::run::{self, Runner, socket::ExecConnectionInfo};
+use crate::run::{self, socket::ExecConnectionInfo, Runner};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -100,8 +100,8 @@ impl BldCommand for RunCommand {
                     port: srv.port,
                     headers: headers(srv_name, auth)?,
                     detach,
-                    pipeline, 
-                    variables: vars
+                    pipeline,
+                    variables: vars,
                 })
             }
             None => {

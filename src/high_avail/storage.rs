@@ -420,7 +420,10 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
                     },
                     snapshot: Box::new(Cursor::new(reader)),
                 };
-                debug!("index: {}, term: {}, membership: {:?}, snapshot: {:?}", current.index, current.term, current.membership, current.snapshot);
+                debug!(
+                    "index: {}, term: {}, membership: {:?}, snapshot: {:?}",
+                    current.index, current.term, current.membership, current.snapshot
+                );
                 Ok(Some(current))
             }
             None => {

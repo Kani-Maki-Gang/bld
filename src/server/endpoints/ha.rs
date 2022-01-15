@@ -14,7 +14,7 @@ pub async fn ha_append_entries(
         return match raft.append_entries(body).await {
             Ok(r) => HttpResponse::Ok().json(r),
             Err(e) => HttpResponse::BadRequest().body(e.to_string()),
-        }
+        };
     }
     HttpResponse::BadRequest().body("server is not running is high availability mode")
 }
@@ -38,7 +38,7 @@ pub async fn ha_install_snapshot(
 pub async fn ha_vote(body: web::Json<VoteRequest>, ha: web::Data<HighAvail>) -> impl Responder {
     let body = body.into_inner();
     if let HighAvail::Enabled(th) = ha.get_ref() {
-        return match th.raft().vote(body).await { 
+        return match th.raft().vote(body).await {
             Ok(r) => {
                 debug!("vote with response: {:?}", r);
                 HttpResponse::Ok().json(r)

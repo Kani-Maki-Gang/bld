@@ -121,7 +121,7 @@ pub fn insert(
 pub fn update(
     conn: &SqliteConnection,
     pip_id: &str,
-    pip_running: bool
+    pip_running: bool,
 ) -> anyhow::Result<Pipeline> {
     debug!(
         "updating pipeline id: {} with values running: {}",

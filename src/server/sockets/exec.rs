@@ -1,7 +1,7 @@
 use crate::config::BldConfig;
 use crate::path;
-use crate::persist::{FileLogger, FileScanner, PipelineExecWrapper, Scanner};
 use crate::persist::pipeline;
+use crate::persist::{FileLogger, FileScanner, PipelineExecWrapper, Scanner};
 use crate::run::socket::messages::ExecInfo;
 use crate::run::{Pipeline, Runner};
 use crate::server::{PipelinePool, User};

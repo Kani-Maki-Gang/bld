@@ -29,11 +29,18 @@ pub async fn get(url: String, headers: HashMap<String, String>) -> anyhow::Resul
     let response = request.send().await?;
     match response.status() {
         StatusCode::OK => response.text().await.map_err(|e| anyhow!(e)),
-        st => Err(anyhow!("http request returned failed with status code: {}", st.to_string())),
+        st => Err(anyhow!(
+            "http request returned failed with status code: {}",
+            st.to_string()
+        )),
     }
 }
 
-pub async fn post<T>(url: String, headers: HashMap<String, String>, body: T) -> anyhow::Result<String>
+pub async fn post<T>(
+    url: String,
+    headers: HashMap<String, String>,
+    body: T,
+) -> anyhow::Result<String>
 where
     T: 'static + Serialize,
 {
@@ -46,6 +53,9 @@ where
     let response = request.json(&body).send().await?;
     match response.status() {
         StatusCode::OK => response.text().await.map_err(|e| anyhow!(e)),
-        st => Err(anyhow!("http request returned failed with status code: {}", st.to_string())),
+        st => Err(anyhow!(
+            "http request returned failed with status code: {}",
+            st.to_string()
+        )),
     }
 }

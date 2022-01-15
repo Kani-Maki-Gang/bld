@@ -8,8 +8,8 @@ use actix_web::rt::System;
 use anyhow::anyhow;
 use awc::Client;
 use futures::stream::StreamExt;
-use tracing::debug;
 use std::collections::HashMap;
+use tracing::debug;
 
 pub struct ExecConnectionInfo {
     pub host: String,
@@ -33,11 +33,15 @@ async fn remote_invoke(info: ExecConnectionInfo) -> anyhow::Result<()> {
         ExecClient::add_stream(stream, ctx);
         ExecClient::new(SinkWrite::new(sink, ctx))
     });
-    debug!("sending data over: {:?} {:?}", info.pipeline, info.variables); 
+    debug!(
+        "sending data over: {:?} {:?}",
+        info.pipeline, info.variables
+    );
     if info.detach {
         addr.do_send(ExecInfo::new(&info.pipeline, Some(info.variables.clone())));
     } else {
-        addr.send(ExecInfo::new(&info.pipeline, Some(info.variables.clone()))).await?;
+        addr.send(ExecInfo::new(&info.pipeline, Some(info.variables.clone())))
+            .await?;
     }
     Ok(())
 }

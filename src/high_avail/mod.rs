@@ -51,17 +51,9 @@ impl HighAvailThread {
         let ids = agents.iter().map(|a| a.id()).collect::<HashSet<NodeId>>();
         let network = Arc::new(HighAvailRouter::new(raft_config.clone(), agents).await?);
         let store = Arc::new(HighAvailStore::new(pool, agent.id())?);
-        let raft = HighAvailRaft::new(
-            agent.id(),
-            raft_config,
-            network,
-            store,
-        );
+        let raft = HighAvailRaft::new(agent.id(), raft_config, network, store);
         raft.initialize(ids).await.map_err(|e| anyhow!(e))?;
-        Ok(Self {
-            node_id,
-            raft,
-        })
+        Ok(Self { node_id, raft })
     }
 
     pub fn node_id(&self) -> NodeId {

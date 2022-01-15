@@ -121,7 +121,7 @@ async fn request(info: MonitConnectionInfo) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn spawn(info: MonitConnectionInfo) ->anyhow::Result<()> {
+fn spawn(info: MonitConnectionInfo) -> anyhow::Result<()> {
     debug!("spawing actix system");
     let sys = System::new();
     let res = sys.block_on(request(info));

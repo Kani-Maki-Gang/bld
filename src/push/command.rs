@@ -4,8 +4,8 @@ use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request;
 use crate::push::PushInfo;
 use crate::run::Pipeline;
-use clap::{App, Arg, ArgMatches, SubCommand};
 use actix_web::rt::System;
+use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashSet;
 use tracing::debug;
 
@@ -44,9 +44,7 @@ impl BldCommand for PushCommand {
     }
 
     fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
-        System::new().block_on(async move {
-            do_push(matches).await
-        })
+        System::new().block_on(async move { do_push(matches).await })
     }
 }
 
@@ -97,5 +95,3 @@ fn build_payload(name: String) -> anyhow::Result<HashSet<(String, String)>> {
     }
     Ok(set)
 }
-
-

@@ -1,7 +1,7 @@
 use crate::config::{AuthValidation, BldConfig};
 use crate::helpers::request;
-use actix_web::error::ErrorUnauthorized;
 use actix_web::dev::Payload;
+use actix_web::error::ErrorUnauthorized;
 use actix_web::http::header::HeaderValue;
 use actix_web::web::Data;
 use actix_web::{Error, FromRequest, HttpRequest};
@@ -58,12 +58,10 @@ fn get_bearer(request: &HttpRequest) -> String {
 async fn oauth2_validate(url: String, bearer: String) -> anyhow::Result<User> {
     let mut headers = HashMap::new();
     headers.insert("Authorization".to_string(), bearer);
-    let res = request::get(url.to_string(), headers)
-        .await
-        .map_err(|e| {
-            error!("authorization check failed to remote server with: {}", e);
-            anyhow!("could not authenticate user")
-        })?;
+    let res = request::get(url.to_string(), headers).await.map_err(|e| {
+        error!("authorization check failed to remote server with: {}", e);
+        anyhow!("could not authenticate user")
+    })?;
     let value: serde_json::Value = serde_json::from_str(&res)?;
     Ok(User::new(&value["login"].to_string()))
 }
