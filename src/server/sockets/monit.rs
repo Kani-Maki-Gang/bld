@@ -1,32 +1,37 @@
 use crate::config::BldConfig;
+use crate::monit::MonitInfo;
 use crate::path;
-use crate::persist::{Database, FileScanner, Scanner};
+use crate::persist::pipeline::{self, Pipeline};
+use crate::persist::{FileScanner, Scanner};
 use crate::server::User;
-use crate::types::{BldError, MonitInfo, Result};
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
+use anyhow::anyhow;
+use diesel::r2d2::{ConnectionManager, Pool};
+use diesel::sqlite::SqliteConnection;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-
-type StdResult<T, V> = std::result::Result<T, V>;
 
 pub struct MonitorPipelineSocket {
     hb: Instant,
     id: String,
+    db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     config: web::Data<BldConfig>,
     scanner: Option<FileScanner>,
-    db: Option<Database>,
 }
 
 impl MonitorPipelineSocket {
-    pub fn new(config: web::Data<BldConfig>) -> Self {
+    pub fn new(
+        db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
+        config: web::Data<BldConfig>,
+    ) -> Self {
         Self {
-            config,
             hb: Instant::now(),
             id: String::new(),
+            db_pool,
+            config,
             scanner: None,
-            db: None,
         }
     }
 
@@ -43,47 +48,39 @@ impl MonitorPipelineSocket {
         if let Some(scanner) = act.scanner.as_mut() {
             let content = scanner.fetch();
             for line in content.iter() {
-                ctx.text(line);
+                ctx.text(line.to_string());
             }
         }
     }
 
     fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
-        if let Some(db) = act.db.as_mut() {
-            db.load(&act.id);
-            match &db.pipeline {
-                Some(pipeline) => {
-                    if !pipeline.running {
-                        ctx.stop();
-                    }
-                }
-                None => {
+        if let Ok(connection) = act.db_pool.get() {
+            match pipeline::select_by_id(&connection, &act.id) {
+                Ok(Pipeline { running: false, .. }) => ctx.stop(),
+                Err(_) => {
                     ctx.text("internal server error");
                     ctx.stop();
                 }
+                _ => {}
             }
         }
     }
 
-    fn dependencies(&mut self, data: &str) -> Result<()> {
+    fn dependencies(&mut self, data: &str) -> anyhow::Result<()> {
         let data = serde_json::from_str::<MonitInfo>(data)?;
         let config = self.config.get_ref();
-        let mut db = Database::connect(&config.local.db)?;
+        let connection = self.db_pool.get()?;
 
-        if data.last {
-            db.load_last();
+        let pipeline = if data.last {
+            pipeline::select_last(&connection)
         } else if let Some(id) = data.id {
-            db.load(&id);
+            pipeline::select_by_id(&connection, &id)
         } else if let Some(name) = data.name {
-            db.load_by_name(&name);
+            pipeline::select_by_name(&connection, &name)
         } else {
-            return Err(BldError::Other("pipeline not found".to_string()));
+            return Err(anyhow!("pipeline not found"));
         }
-
-        let pipeline = match &db.pipeline {
-            Some(pipeline) => pipeline,
-            None => return Err(BldError::Other("pipeline not found".to_string())),
-        };
+        .map_err(|_| anyhow!("pipeline not found"))?;
 
         self.id = pipeline.id.clone();
 
@@ -95,7 +92,6 @@ impl MonitorPipelineSocket {
         .to_string();
 
         self.scanner = Some(FileScanner::new(&path)?);
-        self.db = Some(db);
         Ok(())
     }
 }
@@ -104,7 +100,7 @@ impl Actor for MonitorPipelineSocket {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_interval(Duration::from_secs(1), |act, ctx| {
+        ctx.run_interval(Duration::from_millis(500), |act, ctx| {
             MonitorPipelineSocket::heartbeat(act, ctx);
             MonitorPipelineSocket::scan(act, ctx);
         });
@@ -114,8 +110,8 @@ impl Actor for MonitorPipelineSocket {
     }
 }
 
-impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for MonitorPipelineSocket {
-    fn handle(&mut self, msg: StdResult<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MonitorPipelineSocket {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(txt)) => {
                 if let Err(e) = self.dependencies(&txt) {
@@ -144,14 +140,14 @@ pub async fn ws_monit(
     user: Option<User>,
     req: HttpRequest,
     stream: web::Payload,
+    db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     config: web::Data<BldConfig>,
-) -> StdResult<HttpResponse, Error> {
+) -> Result<HttpResponse, Error> {
     if user.is_none() {
         return Err(ErrorUnauthorized(""));
     }
-
     println!("{:?}", req);
-    let res = ws::start(MonitorPipelineSocket::new(config), &req, stream);
+    let res = ws::start(MonitorPipelineSocket::new(db_pool, config), &req, stream);
     println!("{:?}", res);
     res
 }

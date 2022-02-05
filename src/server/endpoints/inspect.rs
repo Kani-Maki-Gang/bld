@@ -1,7 +1,6 @@
 use crate::config::definitions;
 use crate::path;
 use crate::server::User;
-use crate::types::Result;
 use actix_web::{get, web, HttpResponse, Responder};
 use std::path::PathBuf;
 
@@ -22,7 +21,7 @@ pub async fn inspect(user: Option<User>, path: web::Path<(String,)>) -> impl Res
     }
 }
 
-fn inspect_pipeline(name: &str) -> Result<String> {
+fn inspect_pipeline(name: &str) -> anyhow::Result<String> {
     let path = path![
         std::env::current_dir()?,
         definitions::TOOL_DIR,

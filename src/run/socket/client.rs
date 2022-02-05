@@ -1,11 +1,11 @@
-use crate::types::ExecInfo;
+use crate::run::socket::ExecInfo;
 use actix::io::{SinkWrite, WriteHandler};
-use actix::{Actor, ActorContext, AsyncContext, Context, Handler, StreamHandler, System};
+use actix::{Actor, ActorContext, AsyncContext, Context, Handler, StreamHandler};
 use actix_codec::Framed;
+use actix_web::{rt::System, web::Bytes};
 use awc::error::WsProtocolError;
 use awc::ws::{Codec, Frame, Message};
 use awc::BoxedSocket;
-use bytes::Bytes;
 use futures::stream::SplitSink;
 use std::time::Duration;
 
@@ -34,7 +34,9 @@ impl Actor for ExecClient {
     }
 
     fn stopped(&mut self, _: &mut Context<Self>) {
-        System::current().stop();
+        if let Some(current) = System::try_current() {
+            current.stop();
+        }
     }
 }
 
@@ -43,16 +45,16 @@ impl Handler<ExecInfo> for ExecClient {
 
     fn handle(&mut self, msg: ExecInfo, _ctx: &mut Self::Context) {
         if let Ok(msg) = serde_json::to_string(&msg) {
-            let _ = self.writer.write(Message::Text(msg));
+            let _ = self.writer.write(Message::Text(msg.into()));
         }
     }
 }
 
 impl StreamHandler<Result<Frame, WsProtocolError>> for ExecClient {
-    fn handle(&mut self, msg: Result<Frame, WsProtocolError>, _: &mut Context<Self>) {
+    fn handle(&mut self, msg: Result<Frame, WsProtocolError>, ctx: &mut Context<Self>) {
         match msg {
             Ok(Frame::Text(bt)) => println!("{}", String::from_utf8_lossy(&bt[..])),
-            Ok(Frame::Close(_)) => System::current().stop(),
+            Ok(Frame::Close(_)) => ctx.stop(),
             _ => {}
         }
     }

@@ -1,13 +1,12 @@
 use crate::persist::{Logger, Scanner};
-use crate::types::{BldError, Result};
+use anyhow::anyhow;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-fn file_not_found() -> Result<FileScanner> {
-    let message = String::from("file not found");
-    Err(BldError::Other(message))
+fn file_not_found() -> anyhow::Result<FileScanner> {
+    Err(anyhow!("file not found"))
 }
 
 pub struct FileLogger {
@@ -15,7 +14,7 @@ pub struct FileLogger {
 }
 
 impl FileLogger {
-    pub fn new(file_path: &str) -> Result<Self> {
+    pub fn new(file_path: &str) -> anyhow::Result<Self> {
         let path = Path::new(file_path);
         let file_handle = match path.is_file() {
             true => File::open(&path)?,
@@ -25,7 +24,7 @@ impl FileLogger {
     }
 
     fn write(&mut self, text: &str) {
-        if let Err(e) = write!(self.file_handle, "{}", text) {
+        if let Err(e) = writeln!(self.file_handle, "{}", text) {
             eprintln!("Couldn't write to file: {}", e);
         }
     }
@@ -80,7 +79,7 @@ pub struct FileScanner {
 }
 
 impl FileScanner {
-    pub fn new(path: &str) -> Result<Self> {
+    pub fn new(path: &str) -> anyhow::Result<Self> {
         let fpath = Path::new(path);
         let file_handle = match fpath.is_file() {
             true => File::open(path)?,

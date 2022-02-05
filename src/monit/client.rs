@@ -1,11 +1,11 @@
-use crate::types::MonitInfo;
+use crate::monit::MonitInfo;
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, AsyncContext, Context, Handler, StreamHandler, System};
 use actix_codec::Framed;
+use actix_web::web::Bytes;
 use awc::error::WsProtocolError;
 use awc::ws::{Codec, Frame, Message};
 use awc::BoxedSocket;
-use bytes::Bytes;
 use futures::stream::SplitSink;
 use std::time::Duration;
 
@@ -43,16 +43,16 @@ impl Handler<MonitInfo> for MonitClient {
 
     fn handle(&mut self, msg: MonitInfo, _ctx: &mut Self::Context) {
         if let Ok(text) = serde_json::to_string(&msg) {
-            let _ = self.writer.write(Message::Text(text));
+            let _ = self.writer.write(Message::Text(text.into()));
         }
     }
 }
 
 impl StreamHandler<Result<Frame, WsProtocolError>> for MonitClient {
-    fn handle(&mut self, msg: Result<Frame, WsProtocolError>, _: &mut Context<Self>) {
+    fn handle(&mut self, msg: Result<Frame, WsProtocolError>, ctx: &mut Context<Self>) {
         match msg {
             Ok(Frame::Text(bt)) => println!("{}", String::from_utf8_lossy(&bt)),
-            Ok(Frame::Close(_)) => System::current().stop(),
+            Ok(Frame::Close(_)) => ctx.stop(),
             _ => {}
         }
     }

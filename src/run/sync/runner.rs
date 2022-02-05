@@ -1,8 +1,8 @@
 use crate::config::definitions::{GET, PUSH, VAR_TOKEN};
 use crate::config::BldConfig;
-use crate::persist::{Execution, Logger, NullExec};
+use crate::persist::{EmptyExec, Execution, Logger};
+use crate::run::CheckStopSignal;
 use crate::run::{BuildStep, Container, Machine, Pipeline, RunsOn};
-use crate::types::{CheckStopSignal, Result};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -10,7 +10,7 @@ use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 
-type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
+type RecursiveFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>>>>;
 type AtomicExec = Arc<Mutex<dyn Execution>>;
 type AtomicLog = Arc<Mutex<dyn Logger>>;
 type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
@@ -38,7 +38,7 @@ impl Runner {
         pip: Pipeline,
         cm: Option<AtomicRecv>,
         vars: AtomicVars,
-    ) -> Result<Runner> {
+    ) -> anyhow::Result<Runner> {
         let platform = match &pip.runs_on {
             RunsOn::Machine => TargetPlatform::Machine(Box::new(Machine::new(lg.clone())?)),
             RunsOn::Docker(img) => TargetPlatform::Container(Box::new(
@@ -73,16 +73,16 @@ impl Runner {
     fn info(&self) {
         let mut logger = self.lg.lock().unwrap();
         if let Some(name) = &self.pip.name {
-            logger.dumpln(&format!("Pipeline: {}", name));
+            logger.dumpln(&format!("[bld] Pipeline: {}", name));
         }
-        logger.dumpln(&format!("Runs on: {}", self.pip.runs_on));
+        logger.dumpln(&format!("[bld] Runs on: {}", self.pip.runs_on));
     }
 
     fn apply_variables(&self, txt: &str) -> String {
         let mut txt_with_vars = String::from(txt);
         for (key, value) in self.vars.iter() {
             let full_name = format!("{}{}", VAR_TOKEN, &key);
-            txt_with_vars = txt_with_vars.replace(&full_name, &value);
+            txt_with_vars = txt_with_vars.replace(&full_name, value);
         }
         for variable in self.pip.variables.iter() {
             let full_name = format!("{}{}", VAR_TOKEN, &variable.name);
@@ -97,7 +97,7 @@ impl Runner {
         txt_with_vars
     }
 
-    async fn artifacts(&self, name: &Option<String>) -> Result<()> {
+    async fn artifacts(&self, name: &Option<String>) -> anyhow::Result<()> {
         for artifact in self.pip.artifacts.iter().filter(|a| &a.after == name) {
             let can_continue = (artifact.method == Some(PUSH.to_string())
                 || artifact.method == Some(GET.to_string()))
@@ -110,7 +110,7 @@ impl Runner {
                 {
                     let mut logger = self.lg.lock().unwrap();
                     logger.dumpln(&format!(
-                        "Copying artifacts from: {} into container to: {}",
+                        "[bld] Copying artifacts from: {} into container to: {}",
                         from, to
                     ));
                 }
@@ -141,28 +141,25 @@ impl Runner {
         Ok(())
     }
 
-    async fn steps(&mut self) -> Result<()> {
+    async fn steps(&mut self) -> anyhow::Result<()> {
         for step in self.pip.steps.iter() {
-            self.step(&step).await?;
+            self.step(step).await?;
             self.artifacts(&step.name).await?;
             self.cm.check_stop_signal()?;
         }
         Ok(())
     }
 
-    async fn step(&self, step: &BuildStep) -> Result<()> {
+    async fn step(&self, step: &BuildStep) -> anyhow::Result<()> {
         if let Some(name) = &step.name {
             let mut logger = self.lg.lock().unwrap();
-            logger.info(&format!("Step: {}", name));
+            logger.info(&format!("[bld] Step: {}", name));
         }
-        let comm = match &self.cm {
-            Some(comm) => Some(comm.clone()),
-            None => None,
-        };
+        let comm = self.cm.as_ref().cloned();
         if let Some(call) = &step.call {
             Runner::from_file(
                 call.clone(),
-                NullExec::atom(),
+                EmptyExec::atom(),
                 self.lg.clone(),
                 comm,
                 self.vars.clone(),
@@ -172,7 +169,7 @@ impl Runner {
         }
         self.cm.check_stop_signal()?;
         for command in step.commands.iter() {
-            let command_with_vars = self.apply_variables(&command);
+            let command_with_vars = self.apply_variables(command);
             match &self.platform {
                 TargetPlatform::Container(container) => {
                     container
@@ -188,7 +185,7 @@ impl Runner {
         Ok(())
     }
 
-    async fn dispose(&self) -> Result<()> {
+    async fn dispose(&self) -> anyhow::Result<()> {
         if self.pip.dispose {
             match &self.platform {
                 TargetPlatform::Machine(machine) => machine.dispose()?,

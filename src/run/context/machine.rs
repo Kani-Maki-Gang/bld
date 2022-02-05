@@ -2,15 +2,14 @@ use crate::config::definitions::LOCAL_MACHINE_TMP_DIR;
 use crate::os::{self, OSname};
 use crate::path;
 use crate::persist::Logger;
-use crate::types::{BldError, Result};
+use anyhow::anyhow;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
-fn could_not_spawn_shell() -> Result<()> {
-    let message = String::from("could not spawn shell");
-    Err(BldError::Other(message))
+fn could_not_spawn_shell() -> anyhow::Result<()> {
+    Err(anyhow!("could not spawn shell"))
 }
 
 pub struct Machine {
@@ -19,7 +18,7 @@ pub struct Machine {
 }
 
 impl Machine {
-    pub fn new(lg: Arc<Mutex<dyn Logger>>) -> Result<Self> {
+    pub fn new(lg: Arc<Mutex<dyn Logger>>) -> anyhow::Result<Self> {
         let tmp_path = path![
             std::env::current_dir()?,
             LOCAL_MACHINE_TMP_DIR,
@@ -32,20 +31,20 @@ impl Machine {
         Ok(Self { tmp_dir, lg })
     }
 
-    fn copy(&self, from: &str, to: &str) -> Result<()> {
+    fn copy(&self, from: &str, to: &str) -> anyhow::Result<()> {
         std::fs::copy(Path::new(from), Path::new(to))?;
         Ok(())
     }
 
-    pub fn copy_from(&self, from: &str, to: &str) -> Result<()> {
+    pub fn copy_from(&self, from: &str, to: &str) -> anyhow::Result<()> {
         self.copy(from, to)
     }
 
-    pub fn copy_into(&self, from: &str, to: &str) -> Result<()> {
+    pub fn copy_into(&self, from: &str, to: &str) -> anyhow::Result<()> {
         self.copy(from, to)
     }
 
-    pub fn sh(&self, working_dir: &Option<String>, input: &str) -> Result<()> {
+    pub fn sh(&self, working_dir: &Option<String>, input: &str) -> anyhow::Result<()> {
         let mut logger = self.lg.lock().unwrap();
         let os_name = os::name();
         let current_dir = working_dir
@@ -78,7 +77,7 @@ impl Machine {
         Ok(())
     }
 
-    pub fn dispose(&self) -> Result<()> {
+    pub fn dispose(&self) -> anyhow::Result<()> {
         std::fs::remove_dir_all(&self.tmp_dir)?;
         Ok(())
     }

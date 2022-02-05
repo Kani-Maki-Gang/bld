@@ -73,7 +73,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["server"],
+            "args": ["-v", "server"],
             "cwd": "${workspaceFolder}"
         },
         {

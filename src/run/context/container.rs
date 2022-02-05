@@ -1,6 +1,7 @@
 use crate::config::BldConfig;
 use crate::persist::Logger;
-use crate::types::{BldError, CheckStopSignal, Result};
+use crate::run::CheckStopSignal;
+use anyhow::anyhow;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
 use shiplift::tty::TtyChunk;
@@ -24,27 +25,31 @@ pub struct Container {
 }
 
 impl Container {
-    fn get_client(&self) -> Result<&Docker> {
+    fn get_client(&self) -> anyhow::Result<&Docker> {
         match &self.client {
             Some(client) => Ok(client),
-            None => Err(BldError::Other("container not started".to_string())),
+            None => Err(anyhow!("container not started")),
         }
     }
 
-    fn get_id(&self) -> Result<&str> {
+    fn get_id(&self) -> anyhow::Result<&str> {
         match &self.id {
             Some(id) => Ok(id),
-            None => Err(BldError::Other("container id not found".to_string())),
+            None => Err(anyhow!("container id not found")),
         }
     }
 
-    fn docker(config: &Rc<BldConfig>) -> Result<Docker> {
+    fn docker(config: &Rc<BldConfig>) -> anyhow::Result<Docker> {
         let url = config.local.docker_url.parse()?;
         let host = Docker::host(url);
         Ok(host)
     }
 
-    async fn pull(client: &Docker, image: &str, logger: &mut Arc<Mutex<dyn Logger>>) -> Result<()> {
+    async fn pull(
+        client: &Docker,
+        image: &str,
+        logger: &mut Arc<Mutex<dyn Logger>>,
+    ) -> anyhow::Result<()> {
         let options = ImageListOptions::builder().filter_name(image).build();
         let images = client.images().list(&options).await?;
         if images.is_empty() {
@@ -70,17 +75,21 @@ impl Container {
         client: &Docker,
         image: &str,
         logger: &mut Arc<Mutex<dyn Logger>>,
-    ) -> Result<String> {
+    ) -> anyhow::Result<String> {
         Container::pull(client, image, logger).await?;
-        let options = ContainerOptions::builder(&image).tty(true).build();
+        let options = ContainerOptions::builder(image).tty(true).build();
         let info = client.containers().create(&options).await?;
         client.containers().get(&info.id).start().await?;
         Ok(info.id)
     }
 
-    pub async fn new(img: &str, cfg: Rc<BldConfig>, lg: Arc<Mutex<dyn Logger>>) -> Result<Self> {
+    pub async fn new(
+        img: &str,
+        cfg: Rc<BldConfig>,
+        lg: Arc<Mutex<dyn Logger>>,
+    ) -> anyhow::Result<Self> {
         let client = Container::docker(&cfg)?;
-        let id = Container::create(&client, &img, &mut lg.clone()).await?;
+        let id = Container::create(&client, img, &mut lg.clone()).await?;
         Ok(Self {
             config: Some(cfg),
             img: img.to_string(),
@@ -90,20 +99,18 @@ impl Container {
         })
     }
 
-    pub async fn copy_from(&self, from: &str, to: &str) -> Result<()> {
+    pub async fn copy_from(&self, from: &str, to: &str) -> anyhow::Result<()> {
         let client = self.get_client()?;
-        let id = self.get_id()?;
-        let container = client.containers().get(&id);
+        let container = client.containers().get(self.get_id()?);
         let bytes = container.copy_from(Path::new(from)).try_concat().await?;
         let mut archive = Archive::new(&bytes[..]);
         archive.unpack(Path::new(to))?;
         Ok(())
     }
 
-    pub async fn copy_into(&self, from: &str, to: &str) -> Result<()> {
+    pub async fn copy_into(&self, from: &str, to: &str) -> anyhow::Result<()> {
         let client = self.get_client()?;
-        let id = self.get_id()?;
-        let container = client.containers().get(&id);
+        let container = client.containers().get(self.get_id()?);
         let content = std::fs::read(from)?;
         container.copy_file_into(to, &content).await?;
         Ok(())
@@ -114,7 +121,7 @@ impl Container {
         working_dir: &Option<String>,
         input: &str,
         cm: &Option<AtomicRecv>,
-    ) -> Result<()> {
+    ) -> anyhow::Result<()> {
         let client = self.get_client()?;
         let id = self.get_id()?;
         let input = working_dir
@@ -128,7 +135,7 @@ impl Container {
             .attach_stdout(true)
             .attach_stderr(true)
             .build();
-        let container = client.containers().get(&id);
+        let container = client.containers().get(id);
         let mut exec_iter = container.exec(&options);
         while let Some(result) = exec_iter.next().await {
             cm.check_stop_signal()?;
@@ -136,7 +143,7 @@ impl Container {
                 Ok(TtyChunk::StdOut(bytes)) => String::from_utf8(bytes).unwrap(),
                 Ok(TtyChunk::StdErr(bytes)) => String::from_utf8(bytes).unwrap(),
                 Ok(TtyChunk::StdIn(_)) => unreachable!(),
-                Err(e) => return Err(BldError::ShipliftError(e.to_string())),
+                Err(e) => return Err(anyhow!(e)),
             };
             {
                 let mut logger = self.lg.lock().unwrap();
@@ -147,7 +154,7 @@ impl Container {
         Ok(())
     }
 
-    pub async fn dispose(&self) -> Result<()> {
+    pub async fn dispose(&self) -> anyhow::Result<()> {
         let client = self.get_client()?;
         let id = self.get_id()?;
         client.containers().get(id).stop(None).await?;

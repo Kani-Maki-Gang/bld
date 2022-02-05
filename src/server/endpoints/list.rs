@@ -13,7 +13,7 @@ pub async fn list(user: Option<User>) -> HttpResponse {
         let pips = dir
             .filter(|e| e.is_ok())
             .map(|e| e.unwrap())
-            .filter(|e| is_yaml_file(&e))
+            .filter(is_yaml_file)
             .map(|e| get_file_name(&e))
             .fold(String::new(), |mut acc, n| {
                 let line = format!("{}\n", n);

@@ -1,5 +1,3 @@
-use crate::types::Result;
-
 pub trait Logger {
     fn dump(&mut self, text: &str);
     fn dumpln(&mut self, text: &str);
@@ -12,5 +10,5 @@ pub trait Scanner {
 }
 
 pub trait Execution {
-    fn update(&mut self, is_running: bool) -> Result<()>;
+    fn update(&mut self, is_running: bool) -> anyhow::Result<()>;
 }

@@ -1,7 +1,5 @@
-mod cli;
-mod exec;
+mod command;
 mod method;
 
-pub use cli::*;
-pub use exec::*;
+pub use command::*;
 pub use method::*;

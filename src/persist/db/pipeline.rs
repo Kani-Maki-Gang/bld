@@ -1,101 +1,143 @@
-use crate::persist::db::queries::*;
-use crate::types::Result;
+use crate::persist::db::schema::pipelines;
+use crate::persist::db::schema::pipelines::dsl::*;
+use anyhow::anyhow;
+use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
-use diesel::sql_types::{Bool, Text};
 use diesel::sqlite::SqliteConnection;
-use diesel::{sql_query, Queryable, QueryableByName};
+use diesel::Queryable;
+use tracing::{debug, error};
 
-#[derive(Debug, Queryable, QueryableByName)]
-pub struct PipelineModel {
-    #[sql_type = "Text"]
+#[derive(Debug, Queryable)]
+pub struct Pipeline {
     pub id: String,
-    #[sql_type = "Text"]
     pub name: String,
-    #[sql_type = "Bool"]
     pub running: bool,
-    #[sql_type = "Text"]
     pub user: String,
-    #[sql_type = "Text"]
     pub start_date_time: String,
-    #[sql_type = "Text"]
-    pub end_date_time: String,
+    pub end_date_time: Option<String>,
 }
 
-impl PipelineModel {
-    pub fn create(connection: &SqliteConnection) -> Result<()> {
-        sql_query(CREATE_TABLE_PIPELINE_QUERY).execute(connection)?;
-        Ok(())
-    }
-
-    pub fn select_all(connection: &SqliteConnection) -> Result<Vec<Self>> {
-        let res = sql_query(SELECT_PIPELINES_QUERY).load::<Self>(connection)?;
-        Ok(res)
-    }
-
-    pub fn select_by_id(connection: &SqliteConnection, id: &str) -> Option<Self> {
-        let query = sql_query(SELECT_PIPELINE_BY_ID_QUERY)
-            .bind::<Text, _>(id)
-            .load::<Self>(connection);
-        if query.is_err() {
-            return None;
-        }
-        query.unwrap().pop()
-    }
-
-    pub fn select_by_name(connection: &SqliteConnection, name: &str) -> Option<Self> {
-        let query = sql_query(SELECT_PIPELINE_BY_NAME_QUERY)
-            .bind::<Text, _>(name)
-            .load::<Self>(connection);
-        if query.is_err() {
-            return None;
-        }
-        query.unwrap().pop()
-    }
-
-    pub fn select_last(connection: &SqliteConnection) -> Option<Self> {
-        let query = sql_query(SELECT_LAST_INVOKED_PIPELINE).load::<Self>(connection);
-        if query.is_err() {
-            return None;
-        }
-        query.unwrap().pop()
-    }
-
-    pub fn insert(connection: &SqliteConnection, pipeline: &Self) -> Result<()> {
-        sql_query(INSERT_PIPELINE_QUERY)
-            .bind::<Text, _>(&pipeline.id)
-            .bind::<Text, _>(&pipeline.name)
-            .bind::<Bool, _>(pipeline.running)
-            .bind::<Text, _>(&pipeline.user)
-            .bind::<Text, _>(&pipeline.start_date_time)
-            .bind::<Text, _>(&pipeline.end_date_time)
-            .execute(connection)?;
-        Ok(())
-    }
-
-    pub fn update(
-        connection: &SqliteConnection,
-        id: &str,
-        running: bool,
-        end_date_time: &str,
-    ) -> Result<()> {
-        sql_query(UPDATE_PIPELINE_QUERY)
-            .bind::<Bool, _>(running)
-            .bind::<Text, _>(end_date_time)
-            .bind::<Text, _>(id)
-            .execute(connection)?;
-        Ok(())
-    }
+#[derive(Insertable)]
+#[table_name = "pipelines"]
+struct InsertPipeline<'a> {
+    pub id: &'a str,
+    pub name: &'a str,
+    pub running: bool,
+    pub user: &'a str,
 }
 
-impl ToString for PipelineModel {
-    fn to_string(&self) -> String {
-        let mut info = String::new();
-        info.push_str(&format!("ID: {}\n", self.id));
-        info.push_str(&format!("NAME: {}\n", self.name));
-        info.push_str(&format!("USER: {}\n", self.user));
-        info.push_str(&format!("IS RUNNING: {}\n", self.running));
-        info.push_str(&format!("START TIME: {}\n", self.start_date_time));
-        info.push_str(&format!("END TIME: {}", self.end_date_time));
-        info
-    }
+pub fn select_all(conn: &SqliteConnection) -> anyhow::Result<Vec<Pipeline>> {
+    debug!("loading all pipelines from the database");
+    pipelines
+        .order(start_date_time)
+        .load(conn)
+        .map(|p| {
+            debug!("loaded all pipelines successfully");
+            p
+        })
+        .map_err(|e| {
+            error!("could not load pipelines due to: {}", e);
+            anyhow!(e)
+        })
+}
+
+pub fn select_by_id(conn: &SqliteConnection, pip_id: &str) -> anyhow::Result<Pipeline> {
+    debug!("loading pipeline with id: {} from the database", pip_id);
+    pipelines
+        .filter(id.eq(pip_id))
+        .first(conn)
+        .map(|p| {
+            debug!("loaded pipeline successfully");
+            p
+        })
+        .map_err(|e| {
+            error!("could not load pipeline due to: {}", e);
+            anyhow!(e)
+        })
+}
+
+pub fn select_by_name(conn: &SqliteConnection, pip_name: &str) -> anyhow::Result<Pipeline> {
+    debug!("loading pipeline with name: {} from the database", pip_name);
+    pipelines
+        .filter(name.eq(pip_name))
+        .first(conn)
+        .map(|p| {
+            debug!("loaded pipeline successfully");
+            p
+        })
+        .map_err(|e| {
+            error!("could not load pipeline due to: {}", e);
+            anyhow!(e)
+        })
+}
+
+pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<Pipeline> {
+    debug!("loading the last invoked pipeline from the database");
+    pipelines
+        .order(start_date_time)
+        .limit(1)
+        .first(conn)
+        .map(|p| {
+            debug!("loaded pipeline successfully");
+            p
+        })
+        .map_err(|e| {
+            error!("could not load pipeline due to: {}", e);
+            anyhow!(e)
+        })
+}
+
+pub fn insert(
+    conn: &SqliteConnection,
+    pip_id: &str,
+    pip_name: &str,
+    pip_user: &str,
+) -> anyhow::Result<Pipeline> {
+    debug!("inserting new pipeline to the database");
+    let pipeline = InsertPipeline {
+        id: pip_id,
+        name: pip_name,
+        running: false,
+        user: pip_user,
+    };
+    conn.transaction(|| {
+        diesel::insert_into(pipelines::table)
+            .values(&pipeline)
+            .execute(conn)
+            .map_err(|e| {
+                error!("could not insert pipeline due to: {}", e);
+                anyhow!(e)
+            })
+            .and_then(|_| {
+                debug!(
+                    "created new pipeline entry for id: {}, name: {}, user: {}",
+                    pip_id, pip_name, pip_user
+                );
+                select_by_id(conn, pip_id)
+            })
+    })
+}
+
+pub fn update(
+    conn: &SqliteConnection,
+    pip_id: &str,
+    pip_running: bool,
+) -> anyhow::Result<Pipeline> {
+    debug!(
+        "updating pipeline id: {} with values running: {}",
+        pip_id, pip_running
+    );
+    conn.transaction(|| {
+        diesel::update(pipelines.filter(id.eq(pip_id)))
+            .set(running.eq(pip_running))
+            .execute(conn)
+            .map_err(|e| {
+                error!("could not update pipeline due to: {}", e);
+                anyhow!(e)
+            })
+            .and_then(|_| {
+                debug!("updated pipeline successfully");
+                select_by_id(conn, pip_id)
+            })
+    })
 }

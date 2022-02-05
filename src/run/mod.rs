@@ -1,11 +1,10 @@
-mod cli;
+mod command;
 mod context;
-mod exec;
-mod socket;
+mod recv;
+pub mod socket;
 mod sync;
 
-pub use cli::*;
+pub use command::*;
 use context::*;
-pub use exec::*;
-use socket::*;
+use recv::*;
 pub use sync::*;

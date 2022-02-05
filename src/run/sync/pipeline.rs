@@ -1,7 +1,7 @@
 use crate::config::definitions::TOOL_DIR;
 use crate::helpers::errors::err_variable_in_yaml;
 use crate::path;
-use crate::types::{BldError, Result, EMPTY_YAML_VEC};
+use anyhow::anyhow;
 use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
 use yaml_rust::{Yaml, YamlLoader};
@@ -77,8 +77,8 @@ impl Artifacts {
             method,
             from,
             to,
-            after,
             ignore_errors,
+            after,
         }
     }
 }
@@ -93,7 +93,7 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    pub fn get_path(name: &str) -> Result<PathBuf> {
+    pub fn get_path(name: &str) -> anyhow::Result<PathBuf> {
         Ok(path![
             std::env::current_dir()?,
             TOOL_DIR,
@@ -101,22 +101,22 @@ impl Pipeline {
         ])
     }
 
-    pub fn read(pipeline: &str) -> Result<String> {
+    pub fn read(pipeline: &str) -> anyhow::Result<String> {
         let path = Pipeline::get_path(pipeline)?;
         Ok(std::fs::read_to_string(path)?)
     }
 
-    pub fn parse(src: &str) -> Result<Pipeline> {
-        let yaml = YamlLoader::load_from_str(&src)?;
+    pub fn parse(src: &str) -> anyhow::Result<Pipeline> {
+        let yaml = YamlLoader::load_from_str(src)?;
         if yaml.is_empty() {
-            return Err(BldError::YamlError("invalid yaml".to_string()));
+            return Err(anyhow!("invalid yaml"));
         }
         let entry = yaml[0].clone();
         let pipeline = Pipeline::load(&entry)?;
         Ok(pipeline)
     }
 
-    pub fn load(yaml: &Yaml) -> Result<Self> {
+    pub fn load(yaml: &Yaml) -> anyhow::Result<Self> {
         Ok(Self {
             name: yaml["name"].as_str().map(|n| n.to_string()),
             runs_on: match yaml["runs-on"].as_str() {
@@ -130,7 +130,7 @@ impl Pipeline {
         })
     }
 
-    fn variables(yaml: &Yaml) -> Result<Vec<Variable>> {
+    fn variables(yaml: &Yaml) -> anyhow::Result<Vec<Variable>> {
         let mut variables = Vec::<Variable>::new();
         if let Some(entries) = &yaml["variables"].as_vec() {
             for variable in entries.iter() {
@@ -173,8 +173,7 @@ impl Pipeline {
                 let call = step["call"].as_str().map(|p| p.to_string());
                 let commands: Vec<String> = step["exec"]
                     .as_vec()
-                    .or(Some(&EMPTY_YAML_VEC))
-                    .unwrap()
+                    .unwrap_or(&Vec::<Yaml>::new())
                     .iter()
                     .map(|c| c["sh"].as_str().or(Some("")).unwrap().to_string())
                     .filter(|c| !c.is_empty())

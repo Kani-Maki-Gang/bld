@@ -1,13 +1,16 @@
 use crate::config::BldConfig;
-use crate::helpers::term;
 use crate::path;
-use crate::persist::{Database, FileLogger, FileScanner, Scanner};
+use crate::persist::pipeline;
+use crate::persist::{FileLogger, FileScanner, PipelineExecWrapper, Scanner};
+use crate::run::socket::messages::ExecInfo;
 use crate::run::{Pipeline, Runner};
 use crate::server::{PipelinePool, User};
-use crate::types::{BldError, ExecInfo, Result};
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
+use anyhow::anyhow;
+use diesel::r2d2::{ConnectionManager, Pool};
+use diesel::sqlite::SqliteConnection;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
@@ -15,10 +18,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
+use tracing::error;
 use uuid::Uuid;
 
-type StdResult<T, V> = std::result::Result<T, V>;
-type AtomicDb = Arc<Mutex<Database>>;
+type AtomicEx = Arc<Mutex<PipelineExecWrapper>>;
 type AtomicFs = Arc<Mutex<FileLogger>>;
 type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
 
@@ -26,7 +29,7 @@ struct PipelineInfo {
     pool: web::Data<PipelinePool>,
     id: String,
     name: String,
-    ex: AtomicDb,
+    ex: AtomicEx,
     lg: AtomicFs,
     cm: Option<AtomicRecv>,
     vars: Arc<HashMap<String, String>>,
@@ -35,43 +38,52 @@ struct PipelineInfo {
 impl PipelineInfo {
     pub fn spawn(self) {
         thread::spawn(move || {
-            if let Ok(mut rt) = Runtime::new() {
-                rt.block_on(async move {
-                    if let Err(e) =
-                        Runner::from_file(self.name, self.ex, self.lg, self.cm, self.vars)
-                            .await
-                            .await
-                    {
-                        let _ = term::print_error(&e.to_string());
-                    }
-                    {
-                        let mut pool = self.pool.senders.lock().unwrap();
-                        pool.remove(&self.id);
-                    }
-                });
+            let rt = Runtime::new();
+            if rt.is_err() {
+                return;
             }
+            let rt = rt.unwrap();
+            rt.block_on(async move {
+                if let Err(e) = Runner::from_file(self.name, self.ex, self.lg, self.cm, self.vars)
+                    .await
+                    .await
+                {
+                    error!("runner returned error: {}", e);
+                }
+                {
+                    let mut pool = self.pool.senders.lock().unwrap();
+                    pool.remove(&self.id);
+                }
+            });
         });
     }
 }
 
 pub struct ExecutePipelineSocket {
     hb: Instant,
-    user: User,
+    pip_pool: web::Data<PipelinePool>,
+    db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     config: web::Data<BldConfig>,
-    exec: Option<AtomicDb>,
+    user: User,
+    exec: Option<AtomicEx>,
     scanner: Option<FileScanner>,
-    pool: web::Data<PipelinePool>,
 }
 
 impl ExecutePipelineSocket {
-    pub fn new(user: User, config: web::Data<BldConfig>, pool: web::Data<PipelinePool>) -> Self {
+    pub fn new(
+        user: User,
+        pip_pool: web::Data<PipelinePool>,
+        db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
+        config: web::Data<BldConfig>,
+    ) -> Self {
         Self {
             hb: Instant::now(),
-            user,
+            pip_pool,
+            db_pool,
             config,
+            user,
             exec: None,
             scanner: None,
-            pool,
         }
     }
 
@@ -88,7 +100,7 @@ impl ExecutePipelineSocket {
         if let Some(scanner) = act.scanner.as_mut() {
             let content = scanner.fetch();
             for line in content.iter() {
-                ctx.text(line);
+                ctx.text(line.to_string());
             }
         }
     }
@@ -96,20 +108,18 @@ impl ExecutePipelineSocket {
     fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
         if let Some(exec) = act.exec.as_mut() {
             let exec = exec.lock().unwrap();
-            if let Some(pipeline) = &exec.pipeline {
-                if !pipeline.running {
-                    ctx.stop();
-                }
+            if !exec.pipeline.running {
+                ctx.stop();
             }
         }
     }
 
-    fn get_info(&mut self, data: &str) -> Result<PipelineInfo> {
+    fn get_info(&mut self, data: &str) -> anyhow::Result<PipelineInfo> {
         let info = serde_json::from_str::<ExecInfo>(data)?;
         let path = Pipeline::get_path(&info.name)?;
         if !path.is_file() {
             let message = String::from("pipeline file not found");
-            return Err(BldError::IoError(message));
+            return Err(anyhow!(message));
         }
 
         let id = Uuid::new_v4().to_string();
@@ -118,22 +128,25 @@ impl ExecutePipelineSocket {
             .display()
             .to_string();
 
-        let mut db = Database::connect(&config.local.db)?;
-        db.add(&id, &info.name, &self.user.name)?;
+        let connection = self.db_pool.get()?;
+        let pipeline = pipeline::insert(&connection, &id, &info.name, &self.user.name)?;
 
-        let ex = Arc::new(Mutex::new(db));
+        let ex = Arc::new(Mutex::new(PipelineExecWrapper::new(
+            &self.db_pool,
+            pipeline,
+        )?));
         let (tx, rx) = mpsc::channel::<bool>();
         let rx = Arc::new(Mutex::new(rx));
         {
-            let mut pool = self.pool.senders.lock().unwrap();
+            let mut pool = self.pip_pool.senders.lock().unwrap();
             pool.insert(id.clone(), tx);
         }
 
         let info = PipelineInfo {
-            pool: self.pool.clone(),
+            pool: self.pip_pool.clone(),
             id,
             name: info.name,
-            ex,
+            ex: Arc::clone(&ex),
             lg: Arc::new(Mutex::new(FileLogger::new(&logs)?)),
             cm: Some(rx),
             vars: match info.variables {
@@ -142,7 +155,7 @@ impl ExecutePipelineSocket {
             },
         };
 
-        self.exec = Some(info.ex.clone());
+        self.exec = Some(ex);
         self.scanner = Some(FileScanner::new(&logs)?);
 
         Ok(info)
@@ -164,16 +177,16 @@ impl Actor for ExecutePipelineSocket {
     }
 }
 
-impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for ExecutePipelineSocket {
-    fn handle(&mut self, msg: StdResult<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSocket {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(txt)) => {
                 match self.get_info(&txt) {
-                    Ok(pipeline_info) => {
-                        pipeline_info.spawn();
+                    Ok(info) => {
+                        info.spawn();
                     }
                     Err(e) => {
-                        eprintln!("{}", e.to_string());
+                        error!("{}", e.to_string());
                         ctx.text("Unable to run pipeline");
                         ctx.stop();
                     }
@@ -199,12 +212,17 @@ pub async fn ws_exec(
     user: Option<User>,
     req: HttpRequest,
     stream: web::Payload,
+    pip_pool: web::Data<PipelinePool>,
+    db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     config: web::Data<BldConfig>,
-    pool: web::Data<PipelinePool>,
-) -> StdResult<HttpResponse, Error> {
+) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{:?}", req);
-    let res = ws::start(ExecutePipelineSocket::new(user, config, pool), &req, stream);
+    let res = ws::start(
+        ExecutePipelineSocket::new(user, pip_pool, db_pool, config),
+        &req,
+        stream,
+    );
     println!("{:?}", res);
     res
 }

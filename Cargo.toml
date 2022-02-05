@@ -2,32 +2,45 @@
 name = "bld"
 version = "0.1.0"
 authors = ["Kostas Vlachos <kvl_93@outlook.com>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[profile.dev]
+opt-level = 0
+debug = true
+
+[profile.release]
+opt-level = 3
+debug = false
+
 [dependencies]
-clap = "2.33.1"
-yaml-rust = "0.4.4"
-futures-util = "0.3.5"
-shiplift = { git = "https://github.com/softprops/shiplift.git", branch = "master" } 
-termcolor = "1.1.0"
-actix-web = { version = "3.1.0", features = ["openssl"] }
-actix-web-actors = "3.0.0"
-actix = "0.10.0"
-awc = "2.0.0"
-bytes = "0.5.6"
-futures = "0.3.5"
-actix-codec = "0.3.0"
-env_logger = "0.8.1"
-tokio = { version = "0.2.6", features = ["full"] }
-serde_json = "1.0.59"
-diesel = { version = "1.4.5", features = ["sqlite"] }
-uuid = { version = "0.8.1", features = ["v4"] }
-actix-http = "2.1.0"
-serde = "1.0.117"
-oauth2 = { version = "3.0.0", features = ["futures-03"] }
-serde_derive = "1.0.118"
-actix-service = "1.0.6"
-chrono = "0.4.19"
-tar = "0.4.32"
+clap = "2.33.3"
+yaml-rust = "0.4.5"
+futures-util = "0.3.15"
+shiplift = "0.7.0"
+termcolor = "1.1.2"
+actix = "0.12.0"
+actix-codec = "0.4.1"
+actix-http = "3.0.0-beta.18"
+actix-web = { version = "4.0.0-beta.19", features = ["openssl"] }
+actix-web-actors = "4.0.0-beta.10"
+awc = "3.0.0-beta.18"
+bytes = "1.0.1"
+futures = "0.3.15"
+env_logger = "0.8.3"
+tokio = { version = "1.15", features = ["full"] }
+diesel = { version = "1.4.6", features = ["sqlite", "r2d2"] }
+diesel_migrations = { version = "1.4.0", features = ["sqlite"] }
+uuid = { version = "0.8.2", features = ["v4"] }
+oauth2 = "4.0.0"
+serde = "1.0.126"
+serde_derive = "1.0.126"
+serde_json = "1.0.64"
+tar = "0.4.35"
+async-raft = "0.6.1"
+async-trait = "0.1.50"
+anyhow = "1.0.40"
+tracing = "0.1.26"
+tracing-subscriber = "0.2.19"
+reqwest = { version = "0.11.8", features = ["json"] }
