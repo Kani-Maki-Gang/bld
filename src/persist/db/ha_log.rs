@@ -73,20 +73,6 @@ impl<T: AppData> From<&Entry<T>> for InsertHighAvailLog {
     }
 }
 
-pub fn select(conn: &SqliteConnection) -> anyhow::Result<Vec<HighAvailLog>> {
-    debug!("loading all high availability log entries");
-    ha_log
-        .load(conn)
-        .map(|l| {
-            debug!("loaded high availability log entries successfully");
-            l
-        })
-        .map_err(|e| {
-            error!("could not load high availability logs due to: {}", e);
-            anyhow!(e)
-        })
-}
-
 pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailLog> {
     debug!("loading the last entry of high availability log");
     ha_log
@@ -129,6 +115,21 @@ pub fn select_by_id(conn: &SqliteConnection, lg_id: i32) -> anyhow::Result<HighA
         })
         .map_err(|e| {
             error!("could not load high availability log due to: {}", e);
+            anyhow!(e)
+        })
+}
+
+pub fn select_between_ids(conn: &SqliteConnection, lg_start_id: i32, lg_end_id: i32) -> anyhow::Result<Vec<HighAvailLog>> {
+    debug!("loading high availability logs from id: {} to id: {}", lg_start_id, lg_end_id);
+    ha_log    
+        .filter(id.ge(lg_start_id).and(id.le(lg_end_id)))
+        .load(conn)
+        .map(|l| {
+            debug!("loaded high availability logs successfully");
+            l
+        })
+        .map_err(|e| {
+            error!("could not load high availability logs due to: {}", e);
             anyhow!(e)
         })
 }

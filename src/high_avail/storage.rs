@@ -27,7 +27,7 @@ use std::fmt::{self, Display};
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
-use tracing::debug;
+use tracing::{debug, error};
 
 const ERR_INCONSISTENT_LOG: &str =
     "a query was received which was expecting data to be in place which does not exist in the log";
@@ -147,19 +147,10 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
         let conn = self.pool.get()?;
 
         // TODO: make a query for this filtering.
-        let log = ha_log::select(&conn)?;
-        let entries: Vec<Entry<AgentRequest>> = log[start as usize..stop as usize]
+        let logs = ha_log::select_between_ids(&conn, start as i32, stop as i32)?;
+        let entries: Vec<Entry<AgentRequest>> = logs 
             .iter()
-            .map(
-                |l| match serde_json::from_str::<EntryPayload<AgentRequest>>(&l.payload) {
-                    Ok(payload) => Some(Entry::<AgentRequest> {
-                        term: l.term as u64,
-                        index: l.id as u64,
-                        payload,
-                    }),
-                    Err(_) => None,
-                },
-            )
+            .map(|l| serde_json::from_str::<Entry<AgentRequest>>(&l.payload))
             .flatten()
             .collect();
         if entries.len() as u64 == (stop - start) {
