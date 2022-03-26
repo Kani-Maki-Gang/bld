@@ -59,7 +59,7 @@ impl BldCommand for StopCommand {
         let headers = request::headers(name, auth)?;
         System::new().block_on(async move {
             request::post(url, headers, id).await.map(|r| {
-                println!("{}", r);
+                println!("{r}");
             })
         })
     }

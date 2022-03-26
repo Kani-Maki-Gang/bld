@@ -17,7 +17,7 @@ pub fn stop(
             Err(e) => HttpResponse::BadRequest().body(e.to_string()),
         },
         None => {
-            let message = format!("no pipeline with id {} found", &id);
+            let message = format!("no pipeline with id {id} found");
             HttpResponse::BadRequest().body(message)
         }
     }

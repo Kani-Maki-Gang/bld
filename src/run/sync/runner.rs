@@ -55,8 +55,7 @@ impl RunnerBuilder {
     }
 
     pub fn pipeline_file(self, file: &str) -> anyhow::Result<Self> {
-        let src = Pipeline::read(&file)?;
-        self.pipeline_src(&src)
+        self.pipeline_src(&Pipeline::read(file)?)
     }
 
     pub fn receive(mut self, cm: Option<AtomicRecv>) -> Self {
@@ -74,7 +73,7 @@ impl RunnerBuilder {
             return Err(anyhow!("no bld config instance provided"));
         }
         if self.ex.is_none() {
-            return Err(anyhow!("no executor instance provided")); 
+            return Err(anyhow!("no executor instance provided"));
         }
         if self.lg.is_none() {
             return Err(anyhow!("no logger instance provided"));
@@ -85,7 +84,15 @@ impl RunnerBuilder {
         if self.vars.is_none() {
             return Err(anyhow!("no variables instance provided"));
         }
-        Runner::new(self.cfg.unwrap(), self.ex.unwrap(), self.lg.unwrap(), self.pip.unwrap(), self.cm, self.vars.unwrap()).await
+        Runner::new(
+            self.cfg.unwrap(),
+            self.ex.unwrap(),
+            self.lg.unwrap(),
+            self.pip.unwrap(),
+            self.cm,
+            self.vars.unwrap(),
+        )
+        .await
     }
 }
 
@@ -106,7 +113,7 @@ impl Runner {
         lg: AtomicLog,
         pip: Pipeline,
         cm: Option<AtomicRecv>,
-        vars: AtomicVars
+        vars: AtomicVars,
     ) -> anyhow::Result<Runner> {
         let platform = match &pip.runs_on {
             RunsOn::Machine => TargetPlatform::Machine(Box::new(Machine::new(lg.clone())?)),
@@ -143,7 +150,7 @@ impl Runner {
     fn info(&self) {
         let mut logger = self.lg.lock().unwrap();
         if let Some(name) = &self.pip.name {
-            logger.dumpln(&format!("[bld] Pipeline: {}", name));
+            logger.dumpln(&format!("[bld] Pipeline: {name}"));
         }
         logger.dumpln(&format!("[bld] Runs on: {}", self.pip.runs_on));
     }
@@ -151,11 +158,11 @@ impl Runner {
     fn apply_variables(&self, txt: &str) -> String {
         let mut txt_with_vars = String::from(txt);
         for (key, value) in self.vars.iter() {
-            let full_name = format!("{}{}", VAR_TOKEN, &key);
+            let full_name = format!("{VAR_TOKEN}{key}");
             txt_with_vars = txt_with_vars.replace(&full_name, value);
         }
         for variable in self.pip.variables.iter() {
-            let full_name = format!("{}{}", VAR_TOKEN, &variable.name);
+            let full_name = format!("{VAR_TOKEN}{}", &variable.name);
             let value = variable
                 .default_value
                 .as_ref()
@@ -180,8 +187,7 @@ impl Runner {
                 {
                     let mut logger = self.lg.lock().unwrap();
                     logger.dumpln(&format!(
-                        "[bld] Copying artifacts from: {} into container to: {}",
-                        from, to
+                        "[bld] Copying artifacts from: {from} into container to: {to}",
                     ));
                 }
                 match &self.platform {
@@ -223,13 +229,13 @@ impl Runner {
     async fn step(&self, step: &BuildStep) -> anyhow::Result<()> {
         if let Some(name) = &step.name {
             let mut logger = self.lg.lock().unwrap();
-            logger.info(&format!("[bld] Step: {}", name));
+            logger.info(&format!("[bld] Step: {name}"));
         }
         let comm = self.cm.as_ref().cloned();
         if let Some(call) = &step.call {
             let runner = RunnerBuilder::default()
                 .cfg(self.cfg.clone())
-                .pipeline_file(&call)?
+                .pipeline_file(call)?
                 .exec(EmptyExec::atom())
                 .log(self.lg.clone())
                 .receive(comm)

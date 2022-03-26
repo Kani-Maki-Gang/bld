@@ -148,10 +148,9 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
 
         // TODO: make a query for this filtering.
         let logs = ha_log::select_between_ids(&conn, start as i32, stop as i32)?;
-        let entries: Vec<Entry<AgentRequest>> = logs 
+        let entries: Vec<Entry<AgentRequest>> = logs
             .iter()
-            .map(|l| serde_json::from_str::<Entry<AgentRequest>>(&l.payload))
-            .flatten()
+            .flat_map(|l| serde_json::from_str::<Entry<AgentRequest>>(&l.payload))
             .collect();
         if entries.len() as u64 == (stop - start) {
             Ok(entries)

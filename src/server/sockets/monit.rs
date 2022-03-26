@@ -115,7 +115,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MonitorPipelineSo
         match msg {
             Ok(ws::Message::Text(txt)) => {
                 if let Err(e) = self.dependencies(&txt) {
-                    eprintln!("{}", e.to_string());
+                    eprintln!("{e}");
                     ctx.text("internal server error");
                     ctx.stop();
                 }
@@ -146,8 +146,8 @@ pub async fn ws_monit(
     if user.is_none() {
         return Err(ErrorUnauthorized(""));
     }
-    println!("{:?}", req);
+    println!("{req:?}");
     let res = ws::start(MonitorPipelineSocket::new(db_pool, config), &req, stream);
-    println!("{:?}", res);
+    println!("{res:?}");
     res
 }

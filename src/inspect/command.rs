@@ -58,12 +58,12 @@ impl BldCommand for InspectCommand {
             },
             None => (&srv.name, &srv.auth),
         };
-        let url = format!("http://{}:{}/inspect/{}", srv.host, srv.port, pip);
+        let url = format!("http://{}:{}/inspect/{pip}", srv.host, srv.port);
         let headers = request::headers(name, auth)?;
         debug!("sending http request to {}", url);
         System::new().block_on(async move {
             request::get(url, headers).await.map(|r| {
-                println!("{}", r);
+                println!("{r}");
             })
         })
     }

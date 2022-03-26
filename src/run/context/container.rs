@@ -54,7 +54,7 @@ impl Container {
         if images.is_empty() {
             {
                 let mut logger = logger.lock().unwrap();
-                logger.info(&format!("Download image: {}", image));
+                logger.info(&format!("Download image: {image}"));
             }
             let options = PullOptions::builder().image(image).build();
             let mut pull_iter = client.images().pull(&options);
@@ -125,7 +125,7 @@ impl Container {
         let id = self.get_id()?;
         let input = working_dir
             .as_ref()
-            .map(|wd| format!("cd {} && {}", &wd, input))
+            .map(|wd| format!("cd {wd} && {input}"))
             .or_else(|| Some(input.to_string()))
             .unwrap();
         let cmd = vec!["bash", "-c", &input];

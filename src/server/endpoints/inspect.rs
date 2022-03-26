@@ -25,7 +25,7 @@ fn inspect_pipeline(name: &str) -> anyhow::Result<String> {
     let path = path![
         std::env::current_dir()?,
         definitions::TOOL_DIR,
-        format!("{}.yaml", name)
+        format!("{name}.yaml")
     ];
     Ok(std::fs::read_to_string(path)?)
 }

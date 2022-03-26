@@ -47,7 +47,7 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for HighAvailSocke
     fn handle(&mut self, msg: StdResult<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(txt)) => {
-                println!("{}", txt);
+                println!("{txt}");
             }
             Ok(ws::Message::Ping(msg)) => {
                 self.hb = Instant::now();

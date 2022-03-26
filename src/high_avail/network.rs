@@ -40,7 +40,7 @@ impl HighAvailRouter {
         T: 'static + Serialize,
     {
         let agent = self.agent(&target)?;
-        let url = format!("http://{}:{}{}", agent.host(), agent.port(), sub_url);
+        let url = format!("http://{}:{}{sub_url}", agent.host(), agent.port());
         request::post(url, HashMap::new(), body).await
     }
 }

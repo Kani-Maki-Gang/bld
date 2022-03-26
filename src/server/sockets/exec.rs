@@ -57,8 +57,7 @@ impl PipelineInfo {
                         .build()
                         .await
                     {
-                        if let Err(e) = runner.run().await.await
-                        {
+                        if let Err(e) = runner.run().await.await {
                             error!("runner returned error: {}", e);
                         }
                         {
@@ -137,7 +136,7 @@ impl ExecutePipelineSocket {
 
         let id = Uuid::new_v4().to_string();
         let config = self.config.get_ref();
-        let logs = path![&config.local.logs, format!("{}-{}", &info.name, id)]
+        let logs = path![&config.local.logs, format!("{}-{id}", &info.name)]
             .display()
             .to_string();
 
@@ -231,12 +230,12 @@ pub async fn ws_exec(
     config: web::Data<BldConfig>,
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
-    println!("{:?}", req);
+    println!("{req:?}");
     let res = ws::start(
         ExecutePipelineSocket::new(user, pip_pool, db_pool, config),
         &req,
         stream,
     );
-    println!("{:?}", res);
+    println!("{res:?}");
     res
 }

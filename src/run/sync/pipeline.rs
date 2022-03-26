@@ -97,7 +97,7 @@ impl Pipeline {
         Ok(path![
             std::env::current_dir()?,
             TOOL_DIR,
-            format!("{}.yaml", name)
+            format!("{name}.yaml")
         ])
     }
 

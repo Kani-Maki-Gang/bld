@@ -67,7 +67,7 @@ async fn do_push(matches: &ArgMatches<'_>) -> anyhow::Result<()> {
     let data: Vec<PushInfo> = payload
         .iter()
         .map(|(n, s)| {
-            println!("Pushing {}...", n);
+            println!("Pushing {n}...");
             PushInfo::new(n, s)
         })
         .collect();
@@ -75,7 +75,7 @@ async fn do_push(matches: &ArgMatches<'_>) -> anyhow::Result<()> {
     let headers = request::headers(name, auth)?;
     debug!("sending http request to {}", url);
     request::post(url, headers, data).await.map(|r| {
-        println!("{}", r);
+        println!("{r}");
     })
 }
 
