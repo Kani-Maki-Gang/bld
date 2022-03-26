@@ -22,6 +22,15 @@ pub struct BldConfig {
     pub remote: BldRemoteConfig,
 }
 
+impl Default for BldConfig {
+    fn default() -> Self {
+        Self {
+            local: BldLocalConfig::default(),
+            remote: BldRemoteConfig::default(),
+        }
+    }
+}
+
 impl BldConfig {
     pub fn load() -> anyhow::Result<Self> {
         let path = path![
@@ -40,10 +49,7 @@ impl BldConfig {
                     remote: BldRemoteConfig::load(yaml)?,
                 })
             }
-            Err(_) => Ok(Self {
-                local: Default::default(),
-                remote: Default::default(),
-            }),
+            Err(_) => Ok(BldConfig::default()),
         }
     }
 }

@@ -7,7 +7,6 @@ use futures_util::StreamExt;
 use shiplift::tty::TtyChunk;
 use shiplift::{ContainerOptions, Docker, ExecContainerOptions, ImageListOptions, PullOptions};
 use std::path::Path;
-use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
@@ -17,7 +16,7 @@ use tar::Archive;
 type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
 
 pub struct Container {
-    pub config: Option<Rc<BldConfig>>,
+    pub config: Option<Arc<BldConfig>>,
     pub img: String,
     pub client: Option<Docker>,
     pub id: Option<String>,
@@ -39,7 +38,7 @@ impl Container {
         }
     }
 
-    fn docker(config: &Rc<BldConfig>) -> anyhow::Result<Docker> {
+    fn docker(config: &Arc<BldConfig>) -> anyhow::Result<Docker> {
         let url = config.local.docker_url.parse()?;
         let host = Docker::host(url);
         Ok(host)
@@ -85,7 +84,7 @@ impl Container {
 
     pub async fn new(
         img: &str,
-        cfg: Rc<BldConfig>,
+        cfg: Arc<BldConfig>,
         lg: Arc<Mutex<dyn Logger>>,
     ) -> anyhow::Result<Self> {
         let client = Container::docker(&cfg)?;

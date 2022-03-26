@@ -3,10 +3,10 @@ use crate::config::BldConfig;
 use crate::persist::{EmptyExec, Execution, Logger};
 use crate::run::CheckStopSignal;
 use crate::run::{BuildStep, Container, Machine, Pipeline, RunsOn};
+use anyhow::anyhow;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
-use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 
@@ -21,23 +21,92 @@ pub enum TargetPlatform {
     Container(Box<Container>),
 }
 
+#[derive(Default)]
+pub struct RunnerBuilder {
+    cfg: Option<Arc<BldConfig>>,
+    ex: Option<AtomicExec>,
+    lg: Option<AtomicLog>,
+    pip: Option<Pipeline>,
+    cm: Option<AtomicRecv>,
+    vars: Option<AtomicVars>,
+    // platform: Option<TargetPlatform>,
+    // runs_on: Option<RunsOn>,
+}
+
+impl RunnerBuilder {
+    pub fn cfg(mut self, cfg: Arc<BldConfig>) -> Self {
+        self.cfg = Some(cfg);
+        self
+    }
+
+    pub fn exec(mut self, ex: AtomicExec) -> Self {
+        self.ex = Some(ex);
+        self
+    }
+
+    pub fn log(mut self, lg: AtomicLog) -> Self {
+        self.lg = Some(lg);
+        self
+    }
+
+    pub fn pipeline_src(mut self, src: &str) -> anyhow::Result<Self> {
+        self.pip = Some(Pipeline::parse(src)?);
+        Ok(self)
+    }
+
+    pub fn pipeline_file(self, file: &str) -> anyhow::Result<Self> {
+        let src = Pipeline::read(&file)?;
+        self.pipeline_src(&src)
+    }
+
+    pub fn receive(mut self, cm: Option<AtomicRecv>) -> Self {
+        self.cm = cm;
+        self
+    }
+
+    pub fn variables(mut self, vars: AtomicVars) -> Self {
+        self.vars = Some(vars);
+        self
+    }
+
+    pub async fn build(self) -> anyhow::Result<Runner> {
+        if self.cfg.is_none() {
+            return Err(anyhow!("no bld config instance provided"));
+        }
+        if self.ex.is_none() {
+            return Err(anyhow!("no executor instance provided")); 
+        }
+        if self.lg.is_none() {
+            return Err(anyhow!("no logger instance provided"));
+        }
+        if self.pip.is_none() {
+            return Err(anyhow!("no pipeline instance provided"));
+        }
+        if self.vars.is_none() {
+            return Err(anyhow!("no variables instance provided"));
+        }
+        Runner::new(self.cfg.unwrap(), self.ex.unwrap(), self.lg.unwrap(), self.pip.unwrap(), self.cm, self.vars.unwrap()).await
+    }
+}
+
 pub struct Runner {
-    pub ex: AtomicExec,
-    pub lg: AtomicLog,
-    pub pip: Pipeline,
-    pub cm: Option<AtomicRecv>,
-    pub vars: AtomicVars,
-    pub platform: TargetPlatform,
+    cfg: Arc<BldConfig>,
+    ex: AtomicExec,
+    lg: AtomicLog,
+    pip: Pipeline,
+    cm: Option<AtomicRecv>,
+    vars: AtomicVars,
+    platform: TargetPlatform,
 }
 
 impl Runner {
     async fn new(
-        cfg: Rc<BldConfig>,
+        cfg: Arc<BldConfig>,
         ex: AtomicExec,
         lg: AtomicLog,
         pip: Pipeline,
         cm: Option<AtomicRecv>,
-        vars: AtomicVars,
+        vars: AtomicVars
     ) -> anyhow::Result<Runner> {
         let platform = match &pip.runs_on {
             RunsOn::Machine => TargetPlatform::Machine(Box::new(Machine::new(lg.clone())?)),
@@ -46,6 +115,7 @@ impl Runner {
             )),
         };
         Ok(Runner {
+            cfg,
             ex,
             lg,
             pip,
@@ -157,15 +227,16 @@ impl Runner {
         }
         let comm = self.cm.as_ref().cloned();
         if let Some(call) = &step.call {
-            Runner::from_file(
-                call.clone(),
-                EmptyExec::atom(),
-                self.lg.clone(),
-                comm,
-                self.vars.clone(),
-            )
-            .await
-            .await?;
+            let runner = RunnerBuilder::default()
+                .cfg(self.cfg.clone())
+                .pipeline_file(&call)?
+                .exec(EmptyExec::atom())
+                .log(self.lg.clone())
+                .receive(comm)
+                .variables(self.vars.clone())
+                .build()
+                .await?;
+            runner.run().await.await?;
         }
         self.cm.check_stop_signal()?;
         for command in step.commands.iter() {
@@ -195,43 +266,20 @@ impl Runner {
         Ok(())
     }
 
-    pub async fn from_src(
-        src: String,
-        ex: AtomicExec,
-        lg: AtomicLog,
-        cm: Option<AtomicRecv>,
-        vars: AtomicVars,
-    ) -> RecursiveFuture {
+    pub async fn run(mut self) -> RecursiveFuture {
         Box::pin(async move {
-            let config = Rc::new(BldConfig::load()?);
-            let pip = Pipeline::parse(&src)?;
-            let mut runner = Runner::new(Rc::clone(&config), ex, lg, pip, cm, vars).await?;
-
-            runner.persist_start();
-            runner.info();
-            match runner.artifacts(&None).await {
+            self.persist_start();
+            self.info();
+            match self.artifacts(&None).await {
                 Ok(_) => {
-                    if let Err(e) = runner.steps().await {
-                        runner.dumpln(&e.to_string());
+                    if let Err(e) = self.steps().await {
+                        self.dumpln(&e.to_string());
                     }
                 }
-                Err(e) => runner.dumpln(&e.to_string()),
+                Err(e) => self.dumpln(&e.to_string()),
             }
-            runner.persist_end();
-            runner.dispose().await
-        })
-    }
-
-    pub async fn from_file(
-        name: String,
-        ex: AtomicExec,
-        lg: AtomicLog,
-        cm: Option<AtomicRecv>,
-        vars: AtomicVars,
-    ) -> RecursiveFuture {
-        Box::pin(async move {
-            let src = Pipeline::read(&name)?;
-            Runner::from_src(src, ex, lg, cm, vars).await.await
+            self.persist_end();
+            self.dispose().await
         })
     }
 }
