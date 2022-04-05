@@ -46,7 +46,7 @@ impl OAuth2Info {
             .filter(|y| y.is_some())
             .map(|y| Scope::new(y.unwrap().to_string()))
             .collect();
-        let redirect_url = RedirectUrl::new(format!("http://{}:{}/authRedirect", host, port))?;
+        let redirect_url = RedirectUrl::new(format!("http://{host}:{port}/authRedirect"))?;
         Ok(Box::new(Self {
             auth_url,
             token_url,

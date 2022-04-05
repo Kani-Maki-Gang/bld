@@ -3,7 +3,7 @@ use crate::path;
 use crate::persist::pipeline;
 use crate::persist::{FileLogger, FileScanner, PipelineExecWrapper, Scanner};
 use crate::run::socket::messages::ExecInfo;
-use crate::run::{Pipeline, Runner};
+use crate::run::{Pipeline, RunnerBuilder};
 use crate::server::{PipelinePool, User};
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
@@ -26,6 +26,7 @@ type AtomicFs = Arc<Mutex<FileLogger>>;
 type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
 
 struct PipelineInfo {
+    cfg: web::Data<BldConfig>,
     pool: web::Data<PipelinePool>,
     id: String,
     name: String,
@@ -44,15 +45,26 @@ impl PipelineInfo {
             }
             let rt = rt.unwrap();
             rt.block_on(async move {
-                if let Err(e) = Runner::from_file(self.name, self.ex, self.lg, self.cm, self.vars)
-                    .await
-                    .await
+                if let Ok(builder) = RunnerBuilder::default()
+                    .cfg(Arc::clone(&self.cfg))
+                    .pipeline_file(&self.name)
                 {
-                    error!("runner returned error: {}", e);
-                }
-                {
-                    let mut pool = self.pool.senders.lock().unwrap();
-                    pool.remove(&self.id);
+                    if let Ok(runner) = builder
+                        .exec(self.ex)
+                        .log(self.lg)
+                        .receive(self.cm)
+                        .variables(self.vars)
+                        .build()
+                        .await
+                    {
+                        if let Err(e) = runner.run().await.await {
+                            error!("runner returned error: {}", e);
+                        }
+                        {
+                            let mut pool = self.pool.senders.lock().unwrap();
+                            pool.remove(&self.id);
+                        }
+                    }
                 }
             });
         });
@@ -124,7 +136,7 @@ impl ExecutePipelineSocket {
 
         let id = Uuid::new_v4().to_string();
         let config = self.config.get_ref();
-        let logs = path![&config.local.logs, format!("{}-{}", &info.name, id)]
+        let logs = path![&config.local.logs, format!("{}-{id}", &info.name)]
             .display()
             .to_string();
 
@@ -143,6 +155,7 @@ impl ExecutePipelineSocket {
         }
 
         let info = PipelineInfo {
+            cfg: self.config.clone(),
             pool: self.pip_pool.clone(),
             id,
             name: info.name,
@@ -217,12 +230,12 @@ pub async fn ws_exec(
     config: web::Data<BldConfig>,
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
-    println!("{:?}", req);
+    println!("{req:?}");
     let res = ws::start(
         ExecutePipelineSocket::new(user, pip_pool, db_pool, config),
         &req,
         stream,
     );
-    println!("{:?}", res);
+    println!("{res:?}");
     res
 }

@@ -12,8 +12,7 @@ pub fn headers(server: &str, auth: &Auth) -> anyhow::Result<HashMap<String, Stri
     let mut headers = HashMap::new();
     if let Auth::OAuth2(_info) = auth {
         if let Ok(token) = fs::read_to_string(path![REMOTE_SERVER_OAUTH2, server]) {
-            let bearer = format!("Bearer {}", token);
-            headers.insert("Authorization".to_string(), bearer);
+            headers.insert("Authorization".to_string(), format!("Bearer {token}"));
         }
     }
     Ok(headers)

@@ -3,7 +3,7 @@ use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION, Bl
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::headers;
 use crate::persist::{EmptyExec, ShellLogger};
-use crate::run::{self, socket::ExecConnectionInfo, Runner};
+use crate::run::{self, socket::ExecConnectionInfo, RunnerBuilder};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -111,15 +111,15 @@ impl BldCommand for RunCommand {
                 );
                 let rt = Runtime::new()?;
                 rt.block_on(async {
-                    Runner::from_file(
-                        pipeline,
-                        EmptyExec::atom(),
-                        ShellLogger::atom(),
-                        None,
-                        Arc::new(vars),
-                    )
-                    .await
-                    .await
+                    let runner = RunnerBuilder::default()
+                        .cfg(Arc::new(config))
+                        .pipeline_file(&pipeline)?
+                        .exec(EmptyExec::atom())
+                        .log(ShellLogger::atom())
+                        .variables(Arc::new(vars))
+                        .build()
+                        .await?;
+                    runner.run().await.await
                 })
             }
         }

@@ -119,9 +119,16 @@ pub fn select_by_id(conn: &SqliteConnection, lg_id: i32) -> anyhow::Result<HighA
         })
 }
 
-pub fn select_between_ids(conn: &SqliteConnection, lg_start_id: i32, lg_end_id: i32) -> anyhow::Result<Vec<HighAvailLog>> {
-    debug!("loading high availability logs from id: {} to id: {}", lg_start_id, lg_end_id);
-    ha_log    
+pub fn select_between_ids(
+    conn: &SqliteConnection,
+    lg_start_id: i32,
+    lg_end_id: i32,
+) -> anyhow::Result<Vec<HighAvailLog>> {
+    debug!(
+        "loading high availability logs from id: {} to id: {}",
+        lg_start_id, lg_end_id
+    );
+    ha_log
         .filter(id.ge(lg_start_id).and(id.le(lg_end_id)))
         .load(conn)
         .map(|l| {

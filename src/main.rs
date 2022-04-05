@@ -84,7 +84,7 @@ fn main() {
 
     if let Err(e) = result {
         if let Err(e) = print_error(&e.to_string()) {
-            eprintln!("{}", e.to_string());
+            eprintln!("{e}");
         }
     }
 }

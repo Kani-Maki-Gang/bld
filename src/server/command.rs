@@ -51,7 +51,7 @@ impl ServerCommand {
                 .service(web::resource("/ws-monit/").route(web::get().to(ws_monit)))
                 .service(web::resource("/ws-ha/").route(web::get().to(ws_high_avail)))
         })
-        .bind(format!("{}:{}", host, port))?
+        .bind(format!("{host}:{port}"))?
         .run()
         .await?;
         Ok(())

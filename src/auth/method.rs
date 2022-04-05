@@ -37,7 +37,7 @@ fn persist_access_token(server: &str, token: &str) -> anyhow::Result<()> {
 
 fn stdin_with_label(label: &str) -> anyhow::Result<String> {
     let mut value = String::new();
-    println!("{}: ", label);
+    println!("{label}: ");
     stdin().read_line(&mut value)?;
     Ok(value.trim().to_string())
 }
@@ -65,7 +65,7 @@ impl Login for OAuth2Info {
         let (auth_url, csrf_token) = auth_url.url();
 
         oauth2_url_summary();
-        println!("{}", auth_url.to_string());
+        println!("{auth_url}");
         oauth2_input_summary();
 
         let code = AuthorizationCode::new(stdin_with_label("code")?);

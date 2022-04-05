@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use tracing::debug;
 use yaml_rust::YamlLoader;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BldConfig {
     pub local: BldLocalConfig,
     pub remote: BldRemoteConfig,
@@ -40,10 +40,7 @@ impl BldConfig {
                     remote: BldRemoteConfig::load(yaml)?,
                 })
             }
-            Err(_) => Ok(Self {
-                local: Default::default(),
-                remote: Default::default(),
-            }),
+            Err(_) => Ok(BldConfig::default()),
         }
     }
 }

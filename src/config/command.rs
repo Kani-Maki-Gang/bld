@@ -22,7 +22,7 @@ impl ConfigCommand {
             AuthValidation::OAuth2(url) => {
                 println!("- auth:");
                 println!("  - method: oauth2");
-                println!("  - validation-url: {}", url);
+                println!("  - validation-url: {url}");
             }
             AuthValidation::Ldap => {
                 println!("- auth:");
@@ -51,18 +51,16 @@ impl ConfigCommand {
                 Auth::OAuth2(info) => {
                     println!("- auth:");
                     println!("  - method: oauth2");
-                    println!("  - auth-url: {}", info.auth_url.to_string());
-                    println!("  - token-url: {}", info.token_url.to_string());
-                    println!("  - redirect-url: {}", info.redirect_url.to_string());
-                    println!("  - client-id: {}", info.client_id.to_string());
+                    println!("  - auth-url: {}", *info.auth_url);
+                    println!("  - token-url: {}", *info.token_url);
+                    println!("  - redirect-url: {}", *info.redirect_url);
+                    println!("  - client-id: {}", *info.client_id);
                     println!("  - client-secret: ***********");
                     println!(
                         "  - scopes: [{} ]",
-                        info.scopes.iter().fold(String::new(), |acc, n| format!(
-                            "{} \"{}\",",
-                            acc,
-                            n.to_string()
-                        ))
+                        info.scopes
+                            .iter()
+                            .fold(String::new(), |acc, n| format!("{acc} \"{}\",", **n))
                     );
                 }
                 Auth::Ldap => {

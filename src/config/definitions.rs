@@ -33,24 +33,22 @@ steps:
 pub fn default_server_config() -> String {
     format!(
         r"local:
-    ha-mode: {}
-    host: {}
-    port: {}
-    logs: {}
-    db: {}
-    docker-url: {}",
-        LOCAL_HA_MODE, LOCAL_SERVER_HOST, LOCAL_SERVER_PORT, LOCAL_LOGS, LOCAL_DB, LOCAL_DOCKER_URL
+    ha-mode: {LOCAL_HA_MODE}
+    host: {LOCAL_SERVER_HOST}
+    port: {LOCAL_SERVER_PORT}
+    logs: {LOCAL_LOGS}
+    db: {LOCAL_DB}
+    docker-url: {LOCAL_DOCKER_URL}"
     )
 }
 
 pub fn default_client_config() -> String {
     format!(
         r"local:
-    docker-url: {}
+    docker-url: {LOCAL_DOCKER_URL}
 remote:
-    - server: {}
-      host: {}
-      port: {}",
-        LOCAL_DOCKER_URL, REMOTE_SERVER_NAME, REMOTE_SERVER_HOST, REMOTE_SERVER_PORT
+    - server: {REMOTE_SERVER_NAME}
+      host: {REMOTE_SERVER_HOST}
+      port: {REMOTE_SERVER_PORT}"
     )
 }

@@ -7,7 +7,6 @@ use futures_util::StreamExt;
 use shiplift::tty::TtyChunk;
 use shiplift::{ContainerOptions, Docker, ExecContainerOptions, ImageListOptions, PullOptions};
 use std::path::Path;
-use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
@@ -17,7 +16,7 @@ use tar::Archive;
 type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
 
 pub struct Container {
-    pub config: Option<Rc<BldConfig>>,
+    pub config: Option<Arc<BldConfig>>,
     pub img: String,
     pub client: Option<Docker>,
     pub id: Option<String>,
@@ -39,7 +38,7 @@ impl Container {
         }
     }
 
-    fn docker(config: &Rc<BldConfig>) -> anyhow::Result<Docker> {
+    fn docker(config: &Arc<BldConfig>) -> anyhow::Result<Docker> {
         let url = config.local.docker_url.parse()?;
         let host = Docker::host(url);
         Ok(host)
@@ -55,7 +54,7 @@ impl Container {
         if images.is_empty() {
             {
                 let mut logger = logger.lock().unwrap();
-                logger.info(&format!("Download image: {}", image));
+                logger.info(&format!("Download image: {image}"));
             }
             let options = PullOptions::builder().image(image).build();
             let mut pull_iter = client.images().pull(&options);
@@ -85,7 +84,7 @@ impl Container {
 
     pub async fn new(
         img: &str,
-        cfg: Rc<BldConfig>,
+        cfg: Arc<BldConfig>,
         lg: Arc<Mutex<dyn Logger>>,
     ) -> anyhow::Result<Self> {
         let client = Container::docker(&cfg)?;
@@ -126,7 +125,7 @@ impl Container {
         let id = self.get_id()?;
         let input = working_dir
             .as_ref()
-            .map(|wd| format!("cd {} && {}", &wd, input))
+            .map(|wd| format!("cd {wd} && {input}"))
             .or_else(|| Some(input.to_string()))
             .unwrap();
         let cmd = vec!["bash", "-c", &input];
