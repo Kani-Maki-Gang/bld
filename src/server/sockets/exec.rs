@@ -3,7 +3,7 @@ use crate::path;
 use crate::persist::pipeline;
 use crate::persist::{FileLogger, FileScanner, PipelineExecWrapper, Scanner};
 use crate::run::socket::messages::ExecInfo;
-use crate::run::{Pipeline, RunnerBuilder};
+use crate::run::{Pipeline, Runner, RunnerBuilder};
 use crate::server::{PipelinePool, User};
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
@@ -37,34 +37,37 @@ struct PipelineInfo {
 }
 
 impl PipelineInfo {
+    async fn build_runner(&self) -> anyhow::Result<Runner> {
+        RunnerBuilder::default()
+            .set_config(Arc::clone(&self.cfg))
+            .set_from_file(&self.name)?
+            .set_exec(self.ex.clone())
+            .set_log(self.lg.clone())
+            .set_receiver(self.cm.clone())
+            .set_variables(self.vars.clone())
+            .build()
+            .await
+    }
+
     pub fn spawn(self) {
         thread::spawn(move || {
-            let rt = Runtime::new();
-            if rt.is_err() {
+            let rt = if let Ok(instance) = Runtime::new() {
+                instance
+            } else {
                 return;
-            }
-            let rt = rt.unwrap();
+            };
             rt.block_on(async move {
-                if let Ok(builder) = RunnerBuilder::default()
-                    .set_config(Arc::clone(&self.cfg))
-                    .set_from_file(&self.name)
+                let runner = if let Ok(instance) = self.build_runner().await {
+                    instance
+                } else {
+                    return;
+                };
+                if let Err(e) = runner.run().await.await {
+                    error!("runner returned error: {}", e);
+                }
                 {
-                    if let Ok(runner) = builder
-                        .set_exec(self.ex)
-                        .set_log(self.lg)
-                        .set_receiver(self.cm)
-                        .set_variables(self.vars)
-                        .build()
-                        .await
-                    {
-                        if let Err(e) = runner.run().await.await {
-                            error!("runner returned error: {}", e);
-                        }
-                        {
-                            let mut pool = self.pool.senders.lock().unwrap();
-                            pool.remove(&self.id);
-                        }
-                    }
+                    let mut pool = self.pool.senders.lock().unwrap();
+                    pool.remove(&self.id);
                 }
             });
         });
