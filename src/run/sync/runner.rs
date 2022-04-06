@@ -83,7 +83,7 @@ impl RunnerBuilder {
             pip,
             cm: self.cm,
             vars: self.vars.ok_or(anyhow!("no variables instance provided"))?,
-            platform
+            platform,
         })
     }
 }
@@ -104,7 +104,7 @@ impl Runner {
         lg.dumpln(message);
     }
 
-   fn persist_start(&mut self) {
+    fn persist_start(&mut self) {
         let mut exec = self.ex.lock().unwrap();
         let _ = exec.update(true);
     }
@@ -158,8 +158,12 @@ impl Runner {
                     ));
                 }
                 let result = match (&self.platform, &method[..]) {
-                    (TargetPlatform::Container(container), PUSH) => container.copy_into(&from, &to).await,
-                    (TargetPlatform::Container(container), GET) => container.copy_from(&from, &to).await,
+                    (TargetPlatform::Container(container), PUSH) => {
+                        container.copy_into(&from, &to).await
+                    }
+                    (TargetPlatform::Container(container), GET) => {
+                        container.copy_from(&from, &to).await
+                    }
                     (TargetPlatform::Machine(machine), PUSH) => machine.copy_into(&from, &to),
                     (TargetPlatform::Machine(machine), GET) => machine.copy_from(&from, &to),
                     _ => unreachable!(),
