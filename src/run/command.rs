@@ -112,11 +112,11 @@ impl BldCommand for RunCommand {
                 let rt = Runtime::new()?;
                 rt.block_on(async {
                     let runner = RunnerBuilder::default()
-                        .cfg(Arc::new(config))
-                        .pipeline_file(&pipeline)?
-                        .exec(EmptyExec::atom())
-                        .log(ShellLogger::atom())
-                        .variables(Arc::new(vars))
+                        .set_config(Arc::new(config))
+                        .set_from_file(&pipeline)?
+                        .set_exec(EmptyExec::atom())
+                        .set_log(ShellLogger::atom())
+                        .set_variables(Arc::new(vars))
                         .build()
                         .await?;
                     runner.run().await.await

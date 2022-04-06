@@ -29,70 +29,62 @@ pub struct RunnerBuilder {
     pip: Option<Pipeline>,
     cm: Option<AtomicRecv>,
     vars: Option<AtomicVars>,
-    // platform: Option<TargetPlatform>,
-    // runs_on: Option<RunsOn>,
 }
 
 impl RunnerBuilder {
-    pub fn cfg(mut self, cfg: Arc<BldConfig>) -> Self {
+    pub fn set_config(mut self, cfg: Arc<BldConfig>) -> Self {
         self.cfg = Some(cfg);
         self
     }
 
-    pub fn exec(mut self, ex: AtomicExec) -> Self {
+    pub fn set_exec(mut self, ex: AtomicExec) -> Self {
         self.ex = Some(ex);
         self
     }
 
-    pub fn log(mut self, lg: AtomicLog) -> Self {
+    pub fn set_log(mut self, lg: AtomicLog) -> Self {
         self.lg = Some(lg);
         self
     }
 
-    pub fn pipeline_src(mut self, src: &str) -> anyhow::Result<Self> {
+    pub fn set_from_src(mut self, src: &str) -> anyhow::Result<Self> {
         self.pip = Some(Pipeline::parse(src)?);
         Ok(self)
     }
 
-    pub fn pipeline_file(self, file: &str) -> anyhow::Result<Self> {
-        self.pipeline_src(&Pipeline::read(file)?)
+    pub fn set_from_file(self, file: &str) -> anyhow::Result<Self> {
+        self.set_from_src(&Pipeline::read(file)?)
     }
 
-    pub fn receive(mut self, cm: Option<AtomicRecv>) -> Self {
+    pub fn set_receiver(mut self, cm: Option<AtomicRecv>) -> Self {
         self.cm = cm;
         self
     }
 
-    pub fn variables(mut self, vars: AtomicVars) -> Self {
+    pub fn set_variables(mut self, vars: AtomicVars) -> Self {
         self.vars = Some(vars);
         self
     }
 
     pub async fn build(self) -> anyhow::Result<Runner> {
-        if self.cfg.is_none() {
-            return Err(anyhow!("no bld config instance provided"));
-        }
-        if self.ex.is_none() {
-            return Err(anyhow!("no executor instance provided"));
-        }
-        if self.lg.is_none() {
-            return Err(anyhow!("no logger instance provided"));
-        }
-        if self.pip.is_none() {
-            return Err(anyhow!("no pipeline instance provided"));
-        }
-        if self.vars.is_none() {
-            return Err(anyhow!("no variables instance provided"));
-        }
-        Runner::new(
-            self.cfg.unwrap(),
-            self.ex.unwrap(),
-            self.lg.unwrap(),
-            self.pip.unwrap(),
-            self.cm,
-            self.vars.unwrap(),
-        )
-        .await
+        let cfg = self.cfg.ok_or(anyhow!("no bld config instance provided"))?;
+        let lg = self.lg.ok_or(anyhow!("no logger instance provided"))?;
+        let pip = self.pip.ok_or(anyhow!("no pipeline provided"))?;
+        let platform = match &pip.runs_on {
+            RunsOn::Machine => TargetPlatform::Machine(Box::new(Machine::new(lg.clone())?)),
+            RunsOn::Docker(img) => TargetPlatform::Container(Box::new(
+                Container::new(img, cfg.clone(), lg.clone()).await?,
+            )),
+        };
+        Ok(Runner {
+            cfg,
+            ex: self.ex.ok_or(anyhow!("no executor instance provided"))?,
+            lg,
+            pip,
+            cm: self.cm,
+            vars: self.vars.ok_or(anyhow!("no variables instance provided"))?,
+            platform
+        })
     }
 }
 
@@ -107,37 +99,12 @@ pub struct Runner {
 }
 
 impl Runner {
-    async fn new(
-        cfg: Arc<BldConfig>,
-        ex: AtomicExec,
-        lg: AtomicLog,
-        pip: Pipeline,
-        cm: Option<AtomicRecv>,
-        vars: AtomicVars,
-    ) -> anyhow::Result<Runner> {
-        let platform = match &pip.runs_on {
-            RunsOn::Machine => TargetPlatform::Machine(Box::new(Machine::new(lg.clone())?)),
-            RunsOn::Docker(img) => TargetPlatform::Container(Box::new(
-                Container::new(img, cfg.clone(), lg.clone()).await?,
-            )),
-        };
-        Ok(Runner {
-            cfg,
-            ex,
-            lg,
-            pip,
-            cm,
-            vars,
-            platform,
-        })
-    }
-
     fn dumpln(&self, message: &str) {
         let mut lg = self.lg.lock().unwrap();
         lg.dumpln(message);
     }
 
-    fn persist_start(&mut self) {
+   fn persist_start(&mut self) {
         let mut exec = self.ex.lock().unwrap();
         let _ = exec.update(true);
     }
@@ -190,27 +157,15 @@ impl Runner {
                         "[bld] Copying artifacts from: {from} into container to: {to}",
                     ));
                 }
-                match &self.platform {
-                    TargetPlatform::Container(container) => {
-                        let result = if method == PUSH {
-                            container.copy_into(&from, &to).await
-                        } else {
-                            container.copy_from(&from, &to).await
-                        };
-                        if !artifact.ignore_errors {
-                            result?;
-                        }
-                    }
-                    TargetPlatform::Machine(machine) => {
-                        let result = if method == PUSH {
-                            machine.copy_into(&from, &to)
-                        } else {
-                            machine.copy_from(&from, &to)
-                        };
-                        if !artifact.ignore_errors {
-                            result?;
-                        }
-                    }
+                let result = match (&self.platform, &method[..]) {
+                    (TargetPlatform::Container(container), PUSH) => container.copy_into(&from, &to).await,
+                    (TargetPlatform::Container(container), GET) => container.copy_from(&from, &to).await,
+                    (TargetPlatform::Machine(machine), PUSH) => machine.copy_into(&from, &to),
+                    (TargetPlatform::Machine(machine), GET) => machine.copy_from(&from, &to),
+                    _ => unreachable!(),
+                };
+                if !artifact.ignore_errors {
+                    result?;
                 }
             }
         }
@@ -234,12 +189,12 @@ impl Runner {
         let comm = self.cm.as_ref().cloned();
         if let Some(call) = &step.call {
             let runner = RunnerBuilder::default()
-                .cfg(self.cfg.clone())
-                .pipeline_file(call)?
-                .exec(EmptyExec::atom())
-                .log(self.lg.clone())
-                .receive(comm)
-                .variables(self.vars.clone())
+                .set_config(self.cfg.clone())
+                .set_from_file(call)?
+                .set_exec(EmptyExec::atom())
+                .set_log(self.lg.clone())
+                .set_receiver(comm)
+                .set_variables(self.vars.clone())
                 .build()
                 .await?;
             runner.run().await.await?;

@@ -46,14 +46,14 @@ impl PipelineInfo {
             let rt = rt.unwrap();
             rt.block_on(async move {
                 if let Ok(builder) = RunnerBuilder::default()
-                    .cfg(Arc::clone(&self.cfg))
-                    .pipeline_file(&self.name)
+                    .set_config(Arc::clone(&self.cfg))
+                    .set_from_file(&self.name)
                 {
                     if let Ok(runner) = builder
-                        .exec(self.ex)
-                        .log(self.lg)
-                        .receive(self.cm)
-                        .variables(self.vars)
+                        .set_exec(self.ex)
+                        .set_log(self.lg)
+                        .set_receiver(self.cm)
+                        .set_variables(self.vars)
                         .build()
                         .await
                     {
