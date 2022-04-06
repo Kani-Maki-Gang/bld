@@ -83,7 +83,7 @@ impl RunnerBuilder {
             pip,
             cm: self.cm,
             vars: self.vars.ok_or(anyhow!("no variables instance provided"))?,
-            platform
+            platform,
         })
     }
 }
@@ -104,7 +104,7 @@ impl Runner {
         lg.dumpln(message);
     }
 
-   fn persist_start(&mut self) {
+    fn persist_start(&mut self) {
         let mut exec = self.ex.lock().unwrap();
         let _ = exec.update(true);
     }
@@ -158,8 +158,12 @@ impl Runner {
                     ));
                 }
                 let result = match (&self.platform, &method[..]) {
-                    (TargetPlatform::Container(container), PUSH) => container.copy_into(&from, &to).await,
-                    (TargetPlatform::Container(container), GET) => container.copy_from(&from, &to).await,
+                    (TargetPlatform::Container(container), PUSH) => {
+                        container.copy_into(&from, &to).await
+                    }
+                    (TargetPlatform::Container(container), GET) => {
+                        container.copy_from(&from, &to).await
+                    }
                     (TargetPlatform::Machine(machine), PUSH) => machine.copy_into(&from, &to),
                     (TargetPlatform::Machine(machine), GET) => machine.copy_from(&from, &to),
                     _ => unreachable!(),
@@ -180,8 +184,7 @@ impl Runner {
         }
         Ok(())
     }
-    
-    
+
     async fn step(&self, step: &BuildStep) -> anyhow::Result<()> {
         if let Some(name) = &step.name {
             let mut logger = self.lg.lock().unwrap();
@@ -191,7 +194,7 @@ impl Runner {
         self.sh(step).await?;
         Ok(())
     }
-        
+
     async fn call(&self, step: &BuildStep) -> anyhow::Result<()> {
         if let Some(call) = &step.call {
             let runner = RunnerBuilder::default()
@@ -205,27 +208,26 @@ impl Runner {
                 .await?;
             runner.run().await.await?;
         }
-        self.cm.check_stop_signal()?;   
+        self.cm.check_stop_signal()?;
         Ok(())
     }
-    
+
     async fn sh(&self, step: &BuildStep) -> anyhow::Result<()> {
         for command in step.commands.iter() {
-            let working_dir = step.working_dir.as_ref().map(|wd| self.apply_variables(&wd));
+            let working_dir = step
+                .working_dir
+                .as_ref()
+                .map(|wd| self.apply_variables(&wd));
             let command = self.apply_variables(command);
             match &self.platform {
                 TargetPlatform::Container(container) => {
-                    container
-                        .sh(&working_dir, &command, &self.cm)
-                        .await?
+                    container.sh(&working_dir, &command, &self.cm).await?
                 }
-                TargetPlatform::Machine(machine) => {
-                    machine.sh(&step.working_dir, &command)?
-                }
+                TargetPlatform::Machine(machine) => machine.sh(&step.working_dir, &command)?,
             }
             self.cm.check_stop_signal()?;
         }
-        Ok(())       
+        Ok(())
     }
 
     async fn dispose(&self) -> anyhow::Result<()> {
