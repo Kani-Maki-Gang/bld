@@ -220,7 +220,7 @@ impl Runner {
                         .await?
                 }
                 TargetPlatform::Machine(machine) => {
-                    machine.sh(&step.working_dir, &command)?
+                    machine.sh(&working_dir, &command)?
                 }
             }
             self.cm.check_stop_signal()?;
