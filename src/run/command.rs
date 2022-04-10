@@ -111,9 +111,7 @@ impl BldCommand for RunCommand {
                     RUN, pipeline, vars
                 );
                 let id = Uuid::new_v4().to_string();
-                let start_time = chrono::offset::Local::now()
-                    .format("%F %X")
-                    .to_string();
+                let start_time = chrono::offset::Local::now().format("%F %X").to_string();
                 let rt = Runtime::new()?;
                 rt.block_on(async {
                     let runner = RunnerBuilder::default()
