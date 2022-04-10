@@ -1,4 +1,5 @@
 use actix_web::{get, HttpResponse, Responder};
+use tracing::info;
 
 const HOME_HTML: &str = r"
 <!doctype html>
@@ -30,5 +31,6 @@ const HOME_HTML: &str = r"
 
 #[get("/")]
 async fn home() -> impl Responder {
+    info!("Reached handler for / route");
     HttpResponse::Ok().body(HOME_HTML)
 }

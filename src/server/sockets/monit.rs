@@ -86,7 +86,7 @@ impl MonitorPipelineSocket {
 
         let path = path![
             &config.local.logs,
-            format!("{}-{}", pipeline.name, pipeline.id)
+            &pipeline.id
         ]
         .display()
         .to_string();

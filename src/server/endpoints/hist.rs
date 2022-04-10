@@ -3,6 +3,7 @@ use crate::server::User;
 use actix_web::{get, web, HttpResponse, Responder};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
+use tracing::info;
 
 #[get("/hist")]
 pub async fn hist(
@@ -11,6 +12,7 @@ pub async fn hist(
         web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     ),
 ) -> impl Responder {
+    info!("Reached handler for /hist route");
     if user.is_none() {
         return HttpResponse::Unauthorized().body("");
     }

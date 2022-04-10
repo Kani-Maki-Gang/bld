@@ -55,7 +55,7 @@ async fn do_push(matches: &ArgMatches<'_>) -> anyhow::Result<()> {
         .unwrap_or(TOOL_DEFAULT_PIPELINE)
         .to_string();
     let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
-    debug!("running {} subcommand with --server: {}", PUSH, srv.name);
+    debug!("running {PUSH} subcommand with --server: {} and --pipeline: {pip}", srv.name);
     let (name, auth) = match &srv.same_auth_as {
         Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
             Some(srv) => (&srv.name, &srv.auth),
@@ -80,6 +80,7 @@ async fn do_push(matches: &ArgMatches<'_>) -> anyhow::Result<()> {
 }
 
 fn build_payload(name: String) -> anyhow::Result<HashSet<(String, String)>> {
+    debug!("Parsing pipeline {name}");
     let src = Pipeline::read(&name)?;
     let pipeline = Pipeline::parse(&src)?;
     let mut set = HashSet::new();

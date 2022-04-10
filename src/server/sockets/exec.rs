@@ -136,7 +136,7 @@ impl ExecutePipelineSocket {
 
         let id = Uuid::new_v4().to_string();
         let config = self.config.get_ref();
-        let logs = path![&config.local.logs, format!("{}-{id}", &info.name)]
+        let logs = path![&config.local.logs, &id]
             .display()
             .to_string();
 
