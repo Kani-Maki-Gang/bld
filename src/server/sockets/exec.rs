@@ -3,7 +3,7 @@ use crate::path;
 use crate::persist::pipeline;
 use crate::persist::{FileLogger, FileScanner, PipelineExecWrapper, Scanner};
 use crate::run::socket::messages::ExecInfo;
-use crate::run::{Pipeline, RunnerBuilder};
+use crate::run::{Pipeline, Runner, RunnerBuilder};
 use crate::server::{PipelinePool, User};
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
@@ -29,6 +29,7 @@ struct PipelineInfo {
     cfg: web::Data<BldConfig>,
     pool: web::Data<PipelinePool>,
     id: String,
+    start_time: String,
     name: String,
     ex: AtomicEx,
     lg: AtomicFs,
@@ -37,34 +38,39 @@ struct PipelineInfo {
 }
 
 impl PipelineInfo {
+    async fn build_runner(&self) -> anyhow::Result<Runner> {
+        RunnerBuilder::default()
+            .set_run_id(&self.id)
+            .set_run_start_time(&self.start_time)
+            .set_config(Arc::clone(&self.cfg))
+            .set_from_file(&self.name)?
+            .set_exec(self.ex.clone())
+            .set_log(self.lg.clone())
+            .set_receiver(self.cm.clone())
+            .set_variables(self.vars.clone())
+            .build()
+            .await
+    }
+
     pub fn spawn(self) {
         thread::spawn(move || {
-            let rt = Runtime::new();
-            if rt.is_err() {
+            let rt = if let Ok(instance) = Runtime::new() {
+                instance
+            } else {
                 return;
-            }
-            let rt = rt.unwrap();
+            };
             rt.block_on(async move {
-                if let Ok(builder) = RunnerBuilder::default()
-                    .cfg(Arc::clone(&self.cfg))
-                    .pipeline_file(&self.name)
+                let runner = if let Ok(instance) = self.build_runner().await {
+                    instance
+                } else {
+                    return;
+                };
+                if let Err(e) = runner.run().await.await {
+                    error!("runner returned error: {}", e);
+                }
                 {
-                    if let Ok(runner) = builder
-                        .exec(self.ex)
-                        .log(self.lg)
-                        .receive(self.cm)
-                        .variables(self.vars)
-                        .build()
-                        .await
-                    {
-                        if let Err(e) = runner.run().await.await {
-                            error!("runner returned error: {}", e);
-                        }
-                        {
-                            let mut pool = self.pool.senders.lock().unwrap();
-                            pool.remove(&self.id);
-                        }
-                    }
+                    let mut pool = self.pool.senders.lock().unwrap();
+                    pool.remove(&self.id);
                 }
             });
         });
@@ -140,7 +146,7 @@ impl ExecutePipelineSocket {
 
         let connection = self.db_pool.get()?;
         let pipeline = pipeline::insert(&connection, &id, &info.name, &self.user.name)?;
-
+        let start_time = String::from(&pipeline.start_date_time);
         let ex = Arc::new(Mutex::new(PipelineExecWrapper::new(
             &self.db_pool,
             pipeline,
@@ -156,6 +162,7 @@ impl ExecutePipelineSocket {
             cfg: self.config.clone(),
             pool: self.pip_pool.clone(),
             id,
+            start_time,
             name: info.name,
             ex: Arc::clone(&ex),
             lg: Arc::new(Mutex::new(FileLogger::new(&logs)?)),

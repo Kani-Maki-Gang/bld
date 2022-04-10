@@ -1,4 +1,4 @@
-use crate::config::definitions::{GET, PUSH, VAR_TOKEN};
+use crate::config::definitions::{GET, PUSH, VAR_TOKEN, RUN_PROPS_ID, RUN_PROPS_START_TIME};
 use crate::config::BldConfig;
 use crate::persist::{EmptyExec, Execution, Logger};
 use crate::run::CheckStopSignal;
@@ -23,80 +23,89 @@ pub enum TargetPlatform {
 
 #[derive(Default)]
 pub struct RunnerBuilder {
+    run_id: Option<String>,
+    run_start_time: Option<String>,
     cfg: Option<Arc<BldConfig>>,
     ex: Option<AtomicExec>,
     lg: Option<AtomicLog>,
     pip: Option<Pipeline>,
     cm: Option<AtomicRecv>,
     vars: Option<AtomicVars>,
-    // platform: Option<TargetPlatform>,
-    // runs_on: Option<RunsOn>,
 }
 
 impl RunnerBuilder {
-    pub fn cfg(mut self, cfg: Arc<BldConfig>) -> Self {
+    pub fn set_run_id(mut self, id: &str) -> Self {
+        self.run_id = Some(String::from(id));
+        self
+    }
+    
+    pub fn set_run_start_time(mut self, time: &str) -> Self {
+        self.run_start_time = Some(String::from(time));
+        self
+    }
+
+    pub fn set_config(mut self, cfg: Arc<BldConfig>) -> Self {
         self.cfg = Some(cfg);
         self
     }
 
-    pub fn exec(mut self, ex: AtomicExec) -> Self {
+    pub fn set_exec(mut self, ex: AtomicExec) -> Self {
         self.ex = Some(ex);
         self
     }
 
-    pub fn log(mut self, lg: AtomicLog) -> Self {
+    pub fn set_log(mut self, lg: AtomicLog) -> Self {
         self.lg = Some(lg);
         self
     }
 
-    pub fn pipeline_src(mut self, src: &str) -> anyhow::Result<Self> {
+    pub fn set_from_src(mut self, src: &str) -> anyhow::Result<Self> {
         self.pip = Some(Pipeline::parse(src)?);
         Ok(self)
     }
 
-    pub fn pipeline_file(self, file: &str) -> anyhow::Result<Self> {
-        self.pipeline_src(&Pipeline::read(file)?)
+    pub fn set_from_file(self, file: &str) -> anyhow::Result<Self> {
+        self.set_from_src(&Pipeline::read(file)?)
     }
 
-    pub fn receive(mut self, cm: Option<AtomicRecv>) -> Self {
+    pub fn set_receiver(mut self, cm: Option<AtomicRecv>) -> Self {
         self.cm = cm;
         self
     }
 
-    pub fn variables(mut self, vars: AtomicVars) -> Self {
+    pub fn set_variables(mut self, vars: AtomicVars) -> Self {
         self.vars = Some(vars);
         self
     }
 
     pub async fn build(self) -> anyhow::Result<Runner> {
-        if self.cfg.is_none() {
-            return Err(anyhow!("no bld config instance provided"));
-        }
-        if self.ex.is_none() {
-            return Err(anyhow!("no executor instance provided"));
-        }
-        if self.lg.is_none() {
-            return Err(anyhow!("no logger instance provided"));
-        }
-        if self.pip.is_none() {
-            return Err(anyhow!("no pipeline instance provided"));
-        }
-        if self.vars.is_none() {
-            return Err(anyhow!("no variables instance provided"));
-        }
-        Runner::new(
-            self.cfg.unwrap(),
-            self.ex.unwrap(),
-            self.lg.unwrap(),
-            self.pip.unwrap(),
-            self.cm,
-            self.vars.unwrap(),
-        )
-        .await
+        let id = self.run_id.ok_or(anyhow!("no run id provided"))?;
+        let cfg = self.cfg.ok_or(anyhow!("no bld config instance provided"))?;
+        let lg = self.lg.ok_or(anyhow!("no logger instance provided"))?;
+        let pip = self.pip.ok_or(anyhow!("no pipeline provided"))?;
+        let platform = match &pip.runs_on {
+            RunsOn::Machine => TargetPlatform::Machine(Box::new(Machine::new(&id, lg.clone())?)),
+            RunsOn::Docker(img) => TargetPlatform::Container(Box::new(
+                Container::new(img, cfg.clone(), lg.clone()).await?,
+            )),
+        };
+        Ok(Runner {
+            run_id: id,
+            run_start_time: self.run_start_time.ok_or(anyhow!("no run start time provided"))?,
+            cfg,
+            ex: self.ex.ok_or(anyhow!("no executor instance provided"))?,
+            lg,
+            pip,
+            cm: self.cm,
+            vars: self.vars.ok_or(anyhow!("no variables instance provided"))?,
+            platform
+        })
     }
 }
 
 pub struct Runner {
+    run_id: String,
+    run_start_time: String,
     cfg: Arc<BldConfig>,
     ex: AtomicExec,
     lg: AtomicLog,
@@ -107,37 +116,12 @@ pub struct Runner {
 }
 
 impl Runner {
-    async fn new(
-        cfg: Arc<BldConfig>,
-        ex: AtomicExec,
-        lg: AtomicLog,
-        pip: Pipeline,
-        cm: Option<AtomicRecv>,
-        vars: AtomicVars,
-    ) -> anyhow::Result<Runner> {
-        let platform = match &pip.runs_on {
-            RunsOn::Machine => TargetPlatform::Machine(Box::new(Machine::new(lg.clone())?)),
-            RunsOn::Docker(img) => TargetPlatform::Container(Box::new(
-                Container::new(img, cfg.clone(), lg.clone()).await?,
-            )),
-        };
-        Ok(Runner {
-            cfg,
-            ex,
-            lg,
-            pip,
-            cm,
-            vars,
-            platform,
-        })
-    }
-
     fn dumpln(&self, message: &str) {
         let mut lg = self.lg.lock().unwrap();
         lg.dumpln(message);
     }
 
-    fn persist_start(&mut self) {
+   fn persist_start(&mut self) {
         let mut exec = self.ex.lock().unwrap();
         let _ = exec.update(true);
     }
@@ -153,6 +137,13 @@ impl Runner {
             logger.dumpln(&format!("[bld] Pipeline: {name}"));
         }
         logger.dumpln(&format!("[bld] Runs on: {}", self.pip.runs_on));
+    }
+    
+    fn apply_run_properties(&self, txt: &str) -> String {
+        let mut txt_with_props = String::from(txt);
+        txt_with_props = txt_with_props.replace(RUN_PROPS_ID, &self.run_id);
+        txt_with_props = txt_with_props.replace(RUN_PROPS_START_TIME, &self.run_start_time);
+        txt_with_props
     }
 
     fn apply_variables(&self, txt: &str) -> String {
@@ -173,6 +164,11 @@ impl Runner {
         }
         txt_with_vars
     }
+    
+    fn apply_context(&self, txt: &str) -> String {
+        let txt = self.apply_run_properties(txt);
+        self.apply_variables(&txt)
+    }
 
     async fn artifacts(&self, name: &Option<String>) -> anyhow::Result<()> {
         for artifact in self.pip.artifacts.iter().filter(|a| &a.after == name) {
@@ -181,36 +177,24 @@ impl Runner {
                 && artifact.from.is_some()
                 && artifact.to.is_some();
             if can_continue {
-                let method = self.apply_variables(artifact.method.as_ref().unwrap());
-                let from = self.apply_variables(artifact.from.as_ref().unwrap());
-                let to = self.apply_variables(artifact.to.as_ref().unwrap());
+                let method = self.apply_context(artifact.method.as_ref().unwrap());
+                let from = self.apply_context(artifact.from.as_ref().unwrap());
+                let to = self.apply_context(artifact.to.as_ref().unwrap());
                 {
                     let mut logger = self.lg.lock().unwrap();
                     logger.dumpln(&format!(
                         "[bld] Copying artifacts from: {from} into container to: {to}",
                     ));
                 }
-                match &self.platform {
-                    TargetPlatform::Container(container) => {
-                        let result = if method == PUSH {
-                            container.copy_into(&from, &to).await
-                        } else {
-                            container.copy_from(&from, &to).await
-                        };
-                        if !artifact.ignore_errors {
-                            result?;
-                        }
-                    }
-                    TargetPlatform::Machine(machine) => {
-                        let result = if method == PUSH {
-                            machine.copy_into(&from, &to)
-                        } else {
-                            machine.copy_from(&from, &to)
-                        };
-                        if !artifact.ignore_errors {
-                            result?;
-                        }
-                    }
+                let result = match (&self.platform, &method[..]) {
+                    (TargetPlatform::Container(container), PUSH) => container.copy_into(&from, &to).await,
+                    (TargetPlatform::Container(container), GET) => container.copy_from(&from, &to).await,
+                    (TargetPlatform::Machine(machine), PUSH) => machine.copy_into(&from, &to),
+                    (TargetPlatform::Machine(machine), GET) => machine.copy_from(&from, &to),
+                    _ => unreachable!(),
+                };
+                if !artifact.ignore_errors {
+                    result?;
                 }
             }
         }
@@ -225,41 +209,54 @@ impl Runner {
         }
         Ok(())
     }
-
+    
+    
     async fn step(&self, step: &BuildStep) -> anyhow::Result<()> {
         if let Some(name) = &step.name {
             let mut logger = self.lg.lock().unwrap();
             logger.info(&format!("[bld] Step: {name}"));
         }
-        let comm = self.cm.as_ref().cloned();
+        self.call(step).await?;
+        self.sh(step).await?;
+        Ok(())
+    }
+        
+    async fn call(&self, step: &BuildStep) -> anyhow::Result<()> {
         if let Some(call) = &step.call {
             let runner = RunnerBuilder::default()
-                .cfg(self.cfg.clone())
-                .pipeline_file(call)?
-                .exec(EmptyExec::atom())
-                .log(self.lg.clone())
-                .receive(comm)
-                .variables(self.vars.clone())
+                .set_run_id(&self.run_id)
+                .set_run_start_time(&self.run_start_time)
+                .set_config(self.cfg.clone())
+                .set_from_file(call)?
+                .set_exec(EmptyExec::atom())
+                .set_log(self.lg.clone())
+                .set_receiver(self.cm.as_ref().cloned())
+                .set_variables(self.vars.clone())
                 .build()
                 .await?;
             runner.run().await.await?;
         }
-        self.cm.check_stop_signal()?;
+        self.cm.check_stop_signal()?;   
+        Ok(())
+    }
+    
+    async fn sh(&self, step: &BuildStep) -> anyhow::Result<()> {
         for command in step.commands.iter() {
-            let command_with_vars = self.apply_variables(command);
+            let working_dir = step.working_dir.as_ref().map(|wd| self.apply_context(wd));
+            let command = self.apply_context(command);
             match &self.platform {
                 TargetPlatform::Container(container) => {
                     container
-                        .sh(&step.working_dir, &command_with_vars, &self.cm)
+                        .sh(&working_dir, &command, &self.cm)
                         .await?
                 }
                 TargetPlatform::Machine(machine) => {
-                    machine.sh(&step.working_dir, &command_with_vars)?
+                    machine.sh(&working_dir, &command)?
                 }
             }
             self.cm.check_stop_signal()?;
         }
-        Ok(())
+        Ok(())       
     }
 
     async fn dispose(&self) -> anyhow::Result<()> {

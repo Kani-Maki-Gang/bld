@@ -6,7 +6,6 @@ use anyhow::anyhow;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
-use uuid::Uuid;
 
 fn could_not_spawn_shell() -> anyhow::Result<()> {
     Err(anyhow!("could not spawn shell"))
@@ -18,12 +17,8 @@ pub struct Machine {
 }
 
 impl Machine {
-    pub fn new(lg: Arc<Mutex<dyn Logger>>) -> anyhow::Result<Self> {
-        let tmp_path = path![
-            std::env::current_dir()?,
-            LOCAL_MACHINE_TMP_DIR,
-            Uuid::new_v4().to_string()
-        ];
+    pub fn new(id: &str, lg: Arc<Mutex<dyn Logger>>) -> anyhow::Result<Self> {
+        let tmp_path = path![std::env::current_dir()?, LOCAL_MACHINE_TMP_DIR, id];
         let tmp_dir = tmp_path.display().to_string();
         if !tmp_path.is_dir() {
             std::fs::create_dir_all(tmp_path)?;
