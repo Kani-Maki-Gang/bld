@@ -1,7 +1,7 @@
 use crate::high_avail::{AgentRequest, HighAvail};
 use actix_web::{post, web, HttpResponse, Responder};
 use async_raft::raft::{AppendEntriesRequest, InstallSnapshotRequest, VoteRequest};
-use tracing::{info, debug, error};
+use tracing::{debug, error, info};
 
 #[post("/ha/appendEntries")]
 pub async fn ha_append_entries(

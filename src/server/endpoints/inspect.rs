@@ -1,5 +1,5 @@
-use crate::server::User;
 use crate::run::Pipeline;
+use crate::server::User;
 use actix_web::{post, web, HttpResponse, Responder};
 use tracing::{debug, info};
 

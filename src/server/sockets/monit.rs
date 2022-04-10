@@ -84,12 +84,9 @@ impl MonitorPipelineSocket {
 
         self.id = pipeline.id.clone();
 
-        let path = path![
-            &config.local.logs,
-            &pipeline.id
-        ]
-        .display()
-        .to_string();
+        let path = path![&config.local.logs, &pipeline.id]
+            .display()
+            .to_string();
 
         self.scanner = Some(FileScanner::new(&path)?);
         Ok(())

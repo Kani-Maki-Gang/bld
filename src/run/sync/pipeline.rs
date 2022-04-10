@@ -94,11 +94,7 @@ pub struct Pipeline {
 
 impl Pipeline {
     pub fn get_path(name: &str) -> anyhow::Result<PathBuf> {
-        Ok(path![
-            std::env::current_dir()?,
-            TOOL_DIR,
-            name
-        ])
+        Ok(path![std::env::current_dir()?, TOOL_DIR, name])
     }
 
     pub fn read(pipeline: &str) -> anyhow::Result<String> {
