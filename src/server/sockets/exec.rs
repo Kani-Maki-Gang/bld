@@ -139,9 +139,7 @@ impl ExecutePipelineSocket {
 
         let id = Uuid::new_v4().to_string();
         let config = self.config.get_ref();
-        let logs = path![&config.local.logs, format!("{}-{id}", &info.name)]
-            .display()
-            .to_string();
+        let logs = path![&config.local.logs, &id].display().to_string();
 
         let connection = self.db_pool.get()?;
         let pipeline = pipeline::insert(&connection, &id, &info.name, &self.user.name)?;
