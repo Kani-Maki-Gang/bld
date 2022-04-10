@@ -1,13 +1,14 @@
 use crate::high_avail::{AgentRequest, HighAvail};
 use actix_web::{post, web, HttpResponse, Responder};
 use async_raft::raft::{AppendEntriesRequest, InstallSnapshotRequest, VoteRequest};
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 #[post("/ha/appendEntries")]
 pub async fn ha_append_entries(
     body: web::Json<AppendEntriesRequest<AgentRequest>>,
     ha: web::Data<HighAvail>,
 ) -> impl Responder {
+    info!("Reached handler for /ha/appendEntries route");
     let body = body.into_inner();
     if let HighAvail::Enabled(th) = ha.get_ref() {
         let raft = th.raft();
@@ -24,6 +25,7 @@ pub async fn ha_install_snapshot(
     body: web::Json<InstallSnapshotRequest>,
     ha: web::Data<HighAvail>,
 ) -> impl Responder {
+    info!("Reached handler for /ha/installSnapshot route");
     let body = body.into_inner();
     if let HighAvail::Enabled(th) = ha.get_ref() {
         return match th.raft().install_snapshot(body).await {
@@ -36,6 +38,7 @@ pub async fn ha_install_snapshot(
 
 #[post("/ha/vote")]
 pub async fn ha_vote(body: web::Json<VoteRequest>, ha: web::Data<HighAvail>) -> impl Responder {
+    info!("Reached handler for /ha/vote route");
     let body = body.into_inner();
     if let HighAvail::Enabled(th) = ha.get_ref() {
         return match th.raft().vote(body).await {

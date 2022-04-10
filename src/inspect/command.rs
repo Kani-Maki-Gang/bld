@@ -48,7 +48,7 @@ impl BldCommand for InspectCommand {
             .to_string();
         let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
         debug!(
-            "running {} subcommand with --pipeline: {} -- server: {}",
+            "running {} subcommand with --pipeline: {}, --server: {}",
             INSPECT, pip, srv.name
         );
         let (name, auth) = match &srv.same_auth_as {
@@ -58,11 +58,11 @@ impl BldCommand for InspectCommand {
             },
             None => (&srv.name, &srv.auth),
         };
-        let url = format!("http://{}:{}/inspect/{pip}", srv.host, srv.port);
+        let url = format!("http://{}:{}/inspect", srv.host, srv.port);
         let headers = request::headers(name, auth)?;
         debug!("sending http request to {}", url);
         System::new().block_on(async move {
-            request::get(url, headers).await.map(|r| {
+            request::post(url, headers, pip).await.map(|r| {
                 println!("{r}");
             })
         })
