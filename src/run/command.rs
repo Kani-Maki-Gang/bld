@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tracing::debug;
+use uuid::Uuid;
 
 static RUN: &str = "run";
 static PIPELINE: &str = "pipeline";
@@ -109,9 +110,15 @@ impl BldCommand for RunCommand {
                     "running {} subcommand with --pipeline: {}, --variables: {:?}",
                     RUN, pipeline, vars
                 );
+                let id = Uuid::new_v4().to_string();
+                let start_time = chrono::offset::Local::now()
+                    .format("%F %X")
+                    .to_string();
                 let rt = Runtime::new()?;
                 rt.block_on(async {
                     let runner = RunnerBuilder::default()
+                        .set_run_id(&id)
+                        .set_run_start_time(&start_time)
                         .set_config(Arc::new(config))
                         .set_from_file(&pipeline)?
                         .set_exec(EmptyExec::atom())

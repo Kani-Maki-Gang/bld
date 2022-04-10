@@ -404,6 +404,7 @@ dependencies = [
  "async-trait",
  "awc",
  "bytes 1.1.0",
+ "chrono",
  "clap",
  "diesel",
  "diesel_migrations",

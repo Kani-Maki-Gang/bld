@@ -1,4 +1,4 @@
-use crate::config::definitions::{GET, PUSH, VAR_TOKEN};
+use crate::config::definitions::{GET, PUSH, VAR_TOKEN, RUN_PROPS_ID, RUN_PROPS_START_TIME};
 use crate::config::BldConfig;
 use crate::persist::{EmptyExec, Execution, Logger};
 use crate::run::CheckStopSignal;
@@ -23,6 +23,8 @@ pub enum TargetPlatform {
 
 #[derive(Default)]
 pub struct RunnerBuilder {
+    run_id: Option<String>,
+    run_start_time: Option<String>,
     cfg: Option<Arc<BldConfig>>,
     ex: Option<AtomicExec>,
     lg: Option<AtomicLog>,
@@ -32,6 +34,16 @@ pub struct RunnerBuilder {
 }
 
 impl RunnerBuilder {
+    pub fn set_run_id(mut self, id: &str) -> Self {
+        self.run_id = Some(String::from(id));
+        self
+    }
+    
+    pub fn set_run_start_time(mut self, time: &str) -> Self {
+        self.run_start_time = Some(String::from(time));
+        self
+    }
+
     pub fn set_config(mut self, cfg: Arc<BldConfig>) -> Self {
         self.cfg = Some(cfg);
         self
@@ -67,16 +79,19 @@ impl RunnerBuilder {
     }
 
     pub async fn build(self) -> anyhow::Result<Runner> {
+        let id = self.run_id.ok_or(anyhow!("no run id provided"))?;
         let cfg = self.cfg.ok_or(anyhow!("no bld config instance provided"))?;
         let lg = self.lg.ok_or(anyhow!("no logger instance provided"))?;
         let pip = self.pip.ok_or(anyhow!("no pipeline provided"))?;
         let platform = match &pip.runs_on {
-            RunsOn::Machine => TargetPlatform::Machine(Box::new(Machine::new(lg.clone())?)),
+            RunsOn::Machine => TargetPlatform::Machine(Box::new(Machine::new(&id, lg.clone())?)),
             RunsOn::Docker(img) => TargetPlatform::Container(Box::new(
                 Container::new(img, cfg.clone(), lg.clone()).await?,
             )),
         };
         Ok(Runner {
+            run_id: id,
+            run_start_time: self.run_start_time.ok_or(anyhow!("no run start time provided"))?,
             cfg,
             ex: self.ex.ok_or(anyhow!("no executor instance provided"))?,
             lg,
@@ -89,6 +104,8 @@ impl RunnerBuilder {
 }
 
 pub struct Runner {
+    run_id: String,
+    run_start_time: String,
     cfg: Arc<BldConfig>,
     ex: AtomicExec,
     lg: AtomicLog,
@@ -121,6 +138,13 @@ impl Runner {
         }
         logger.dumpln(&format!("[bld] Runs on: {}", self.pip.runs_on));
     }
+    
+    fn apply_run_properties(&self, txt: &str) -> String {
+        let mut txt_with_props = String::from(txt);
+        txt_with_props = txt_with_props.replace(RUN_PROPS_ID, &self.run_id);
+        txt_with_props = txt_with_props.replace(RUN_PROPS_START_TIME, &self.run_start_time);
+        txt_with_props
+    }
 
     fn apply_variables(&self, txt: &str) -> String {
         let mut txt_with_vars = String::from(txt);
@@ -140,6 +164,11 @@ impl Runner {
         }
         txt_with_vars
     }
+    
+    fn apply_context(&self, txt: &str) -> String {
+        let txt = self.apply_run_properties(txt);
+        self.apply_variables(&txt)
+    }
 
     async fn artifacts(&self, name: &Option<String>) -> anyhow::Result<()> {
         for artifact in self.pip.artifacts.iter().filter(|a| &a.after == name) {
@@ -148,9 +177,9 @@ impl Runner {
                 && artifact.from.is_some()
                 && artifact.to.is_some();
             if can_continue {
-                let method = self.apply_variables(artifact.method.as_ref().unwrap());
-                let from = self.apply_variables(artifact.from.as_ref().unwrap());
-                let to = self.apply_variables(artifact.to.as_ref().unwrap());
+                let method = self.apply_context(artifact.method.as_ref().unwrap());
+                let from = self.apply_context(artifact.from.as_ref().unwrap());
+                let to = self.apply_context(artifact.to.as_ref().unwrap());
                 {
                     let mut logger = self.lg.lock().unwrap();
                     logger.dumpln(&format!(
@@ -195,6 +224,8 @@ impl Runner {
     async fn call(&self, step: &BuildStep) -> anyhow::Result<()> {
         if let Some(call) = &step.call {
             let runner = RunnerBuilder::default()
+                .set_run_id(&self.run_id)
+                .set_run_start_time(&self.run_start_time)
                 .set_config(self.cfg.clone())
                 .set_from_file(call)?
                 .set_exec(EmptyExec::atom())
@@ -211,8 +242,8 @@ impl Runner {
     
     async fn sh(&self, step: &BuildStep) -> anyhow::Result<()> {
         for command in step.commands.iter() {
-            let working_dir = step.working_dir.as_ref().map(|wd| self.apply_variables(&wd));
-            let command = self.apply_variables(command);
+            let working_dir = step.working_dir.as_ref().map(|wd| self.apply_context(&wd));
+            let command = self.apply_context(command);
             match &self.platform {
                 TargetPlatform::Container(container) => {
                     container

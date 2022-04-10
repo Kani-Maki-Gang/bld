@@ -29,6 +29,7 @@ struct PipelineInfo {
     cfg: web::Data<BldConfig>,
     pool: web::Data<PipelinePool>,
     id: String,
+    start_time: String,
     name: String,
     ex: AtomicEx,
     lg: AtomicFs,
@@ -39,6 +40,8 @@ struct PipelineInfo {
 impl PipelineInfo {
     async fn build_runner(&self) -> anyhow::Result<Runner> {
         RunnerBuilder::default()
+            .set_run_id(&self.id)
+            .set_run_start_time(&self.start_time)
             .set_config(Arc::clone(&self.cfg))
             .set_from_file(&self.name)?
             .set_exec(self.ex.clone())
@@ -143,7 +146,7 @@ impl ExecutePipelineSocket {
 
         let connection = self.db_pool.get()?;
         let pipeline = pipeline::insert(&connection, &id, &info.name, &self.user.name)?;
-
+        let start_time = String::from(&pipeline.start_date_time);
         let ex = Arc::new(Mutex::new(PipelineExecWrapper::new(
             &self.db_pool,
             pipeline,
@@ -159,6 +162,7 @@ impl ExecutePipelineSocket {
             cfg: self.config.clone(),
             pool: self.pip_pool.clone(),
             id,
+            start_time,
             name: info.name,
             ex: Arc::clone(&ex),
             lg: Arc::new(Mutex::new(FileLogger::new(&logs)?)),
