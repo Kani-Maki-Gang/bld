@@ -4,6 +4,7 @@ mod hist;
 mod home;
 mod inspect;
 mod list;
+mod remove;
 mod push;
 mod stop;
 
@@ -13,5 +14,6 @@ pub use hist::*;
 pub use home::*;
 pub use inspect::*;
 pub use list::*;
+pub use remove::*;
 pub use push::*;
 pub use stop::*;
