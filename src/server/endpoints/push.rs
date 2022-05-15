@@ -1,3 +1,4 @@
+use crate::helpers::fs::IsYaml;
 use crate::push::PushInfo;
 use crate::run::Pipeline;
 use crate::server::User;
@@ -21,7 +22,7 @@ pub async fn push(user: Option<User>, info: web::Json<Vec<PushInfo>>) -> impl Re
 pub fn push_pipelines(info: Vec<PushInfo>) -> anyhow::Result<()> {
     for entry in info.iter() {
         let path = Pipeline::get_path(&entry.name)?;
-        if path.is_file() {
+        if path.is_yaml() {
             remove_file(&path)?;
         } else if let Some(parent) = path.parent() {
             create_dir_all(parent)?;

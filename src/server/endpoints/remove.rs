@@ -9,10 +9,10 @@ use tracing::{info, error};
 
 #[post("/remove")]
 pub async fn remove(user: Option<User>, body: web::Json<String>) -> HttpResponse {
+    info!("Reached handler for /remove route");
     if user.is_none() {
         return HttpResponse::Unauthorized().body("");
     }
-    info!("Reached handler for /remove route");
     let path = path![TOOL_DIR, body.into_inner()];
     info!("Request to remove file {}", path.display().to_string());
     if path.is_yaml() {
