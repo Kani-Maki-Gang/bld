@@ -52,6 +52,7 @@ where
     let response = request.json(&body).send().await?;
     match response.status() {
         StatusCode::OK => response.text().await.map_err(|e| anyhow!(e)),
+        StatusCode::BAD_REQUEST => response.text().await.map_err(|e| anyhow!(e)),
         st => Err(anyhow!(
             "http request returned failed with status code: {}",
             st.to_string()

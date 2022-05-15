@@ -12,6 +12,7 @@ mod hist;
 mod init;
 mod inspect;
 mod list;
+mod remove;
 mod monit;
 mod os;
 mod persist;
@@ -46,6 +47,7 @@ fn main() {
         init::InitCommand::boxed(),
         inspect::InspectCommand::boxed(),
         list::ListCommand::boxed(),
+        remove::RemoveCommand::boxed(),
         monit::MonitCommand::boxed(),
         push::PushCommand::boxed(),
         run::RunCommand::boxed(),
