@@ -49,8 +49,14 @@ impl BldCommand for RemoveCommand {
 async fn do_remove(matches: &ArgMatches<'_>) -> anyhow::Result<()> {
     let config = BldConfig::load()?;
     let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
-    let pipeline = matches.value_of(PIPELINE).ok_or_else(|| anyhow!("invalid pipeline"))?.to_string();
-    debug!("running {} subcommand with --server: {} and --pipeline: {pipeline}", REMOVE, srv.name);
+    let pipeline = matches
+        .value_of(PIPELINE)
+        .ok_or_else(|| anyhow!("invalid pipeline"))?
+        .to_string();
+    debug!(
+        "running {} subcommand with --server: {} and --pipeline: {pipeline}",
+        REMOVE, srv.name
+    );
     let (name, auth) = match &srv.same_auth_as {
         Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
             Some(srv) => (&srv.name, &srv.auth),

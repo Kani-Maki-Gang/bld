@@ -1,6 +1,6 @@
 use crate::pull::{PullRequestInfo, PullResponseInfo};
-use crate::server::User;
 use crate::run::Pipeline;
+use crate::server::User;
 use actix_web::{post, web, HttpResponse, Responder};
 use std::collections::HashMap;
 use tracing::{debug, info};

@@ -1,4 +1,4 @@
-use crate::config::definitions::{GET, PUSH, VAR_TOKEN, RUN_PROPS_ID, RUN_PROPS_START_TIME};
+use crate::config::definitions::{GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN};
 use crate::config::BldConfig;
 use crate::persist::{EmptyExec, Execution, Logger};
 use crate::run::CheckStopSignal;
@@ -38,7 +38,7 @@ impl RunnerBuilder {
         self.run_id = Some(String::from(id));
         self
     }
-    
+
     pub fn set_run_start_time(mut self, time: &str) -> Self {
         self.run_start_time = Some(String::from(time));
         self
@@ -91,14 +91,16 @@ impl RunnerBuilder {
         };
         Ok(Runner {
             run_id: id,
-            run_start_time: self.run_start_time.ok_or(anyhow!("no run start time provided"))?,
+            run_start_time: self
+                .run_start_time
+                .ok_or(anyhow!("no run start time provided"))?,
             cfg,
             ex: self.ex.ok_or(anyhow!("no executor instance provided"))?,
             lg,
             pip,
             cm: self.cm,
             vars: self.vars.ok_or(anyhow!("no variables instance provided"))?,
-            platform
+            platform,
         })
     }
 }
@@ -121,7 +123,7 @@ impl Runner {
         lg.dumpln(message);
     }
 
-   fn persist_start(&mut self) {
+    fn persist_start(&mut self) {
         let mut exec = self.ex.lock().unwrap();
         let _ = exec.update(true);
     }
@@ -138,7 +140,7 @@ impl Runner {
         }
         logger.dumpln(&format!("[bld] Runs on: {}", self.pip.runs_on));
     }
-    
+
     fn apply_run_properties(&self, txt: &str) -> String {
         let mut txt_with_props = String::from(txt);
         txt_with_props = txt_with_props.replace(RUN_PROPS_ID, &self.run_id);
@@ -164,7 +166,7 @@ impl Runner {
         }
         txt_with_vars
     }
-    
+
     fn apply_context(&self, txt: &str) -> String {
         let txt = self.apply_run_properties(txt);
         self.apply_variables(&txt)
@@ -187,8 +189,12 @@ impl Runner {
                     ));
                 }
                 let result = match (&self.platform, &method[..]) {
-                    (TargetPlatform::Container(container), PUSH) => container.copy_into(&from, &to).await,
-                    (TargetPlatform::Container(container), GET) => container.copy_from(&from, &to).await,
+                    (TargetPlatform::Container(container), PUSH) => {
+                        container.copy_into(&from, &to).await
+                    }
+                    (TargetPlatform::Container(container), GET) => {
+                        container.copy_from(&from, &to).await
+                    }
                     (TargetPlatform::Machine(machine), PUSH) => machine.copy_into(&from, &to),
                     (TargetPlatform::Machine(machine), GET) => machine.copy_from(&from, &to),
                     _ => unreachable!(),
@@ -209,8 +215,7 @@ impl Runner {
         }
         Ok(())
     }
-    
-    
+
     async fn step(&self, step: &BuildStep) -> anyhow::Result<()> {
         if let Some(name) = &step.name {
             let mut logger = self.lg.lock().unwrap();
@@ -220,7 +225,7 @@ impl Runner {
         self.sh(step).await?;
         Ok(())
     }
-        
+
     async fn call(&self, step: &BuildStep) -> anyhow::Result<()> {
         if let Some(call) = &step.call {
             let runner = RunnerBuilder::default()
@@ -236,27 +241,23 @@ impl Runner {
                 .await?;
             runner.run().await.await?;
         }
-        self.cm.check_stop_signal()?;   
+        self.cm.check_stop_signal()?;
         Ok(())
     }
-    
+
     async fn sh(&self, step: &BuildStep) -> anyhow::Result<()> {
         for command in step.commands.iter() {
             let working_dir = step.working_dir.as_ref().map(|wd| self.apply_context(wd));
             let command = self.apply_context(command);
             match &self.platform {
                 TargetPlatform::Container(container) => {
-                    container
-                        .sh(&working_dir, &command, &self.cm)
-                        .await?
+                    container.sh(&working_dir, &command, &self.cm).await?
                 }
-                TargetPlatform::Machine(machine) => {
-                    machine.sh(&working_dir, &command)?
-                }
+                TargetPlatform::Machine(machine) => machine.sh(&working_dir, &command)?,
             }
             self.cm.check_stop_signal()?;
         }
-        Ok(())       
+        Ok(())
     }
 
     async fn dispose(&self) -> anyhow::Result<()> {

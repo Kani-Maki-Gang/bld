@@ -1,6 +1,6 @@
 use crate::config::definitions::TOOL_DEFAULT_CONFIG;
-use std::path::Path;
 use std::fs::DirEntry;
+use std::path::Path;
 
 pub trait IsYaml {
     fn is_yaml(&self) -> bool;

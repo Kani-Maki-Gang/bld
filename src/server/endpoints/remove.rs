@@ -1,11 +1,11 @@
 use crate::config::definitions::TOOL_DIR;
 use crate::helpers::fs::IsYaml;
-use crate::server::User;
 use crate::path;
+use crate::server::User;
 use actix_web::{post, web, HttpResponse};
-use std::path::PathBuf;
 use std::fs::remove_file;
-use tracing::{info, error};
+use std::path::PathBuf;
+use tracing::{error, info};
 
 #[post("/remove")]
 pub async fn remove(user: Option<User>, body: web::Json<String>) -> HttpResponse {
@@ -24,4 +24,3 @@ pub async fn remove(user: Option<User>, body: web::Json<String>) -> HttpResponse
     }
     HttpResponse::BadRequest().body("pipeline not found")
 }
-

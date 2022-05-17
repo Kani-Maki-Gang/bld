@@ -1,12 +1,12 @@
-use crate::config::{definitions::VERSION, BldConfig};
 use crate::cli::BldCommand;
+use crate::config::{definitions::VERSION, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::fs::IsYaml;
 use crate::helpers::request;
 use crate::pull::{PullRequestInfo, PullResponseInfo};
 use crate::run::Pipeline;
-use anyhow::anyhow;
 use actix_web::rt::System;
+use anyhow::anyhow;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::fs::{create_dir_all, remove_file, File};
 use std::io::Write;
@@ -26,11 +26,11 @@ impl PullCommand {
 }
 
 impl BldCommand for PullCommand {
-   fn id(&self) -> &'static str {
-       PULL
-   }
+    fn id(&self) -> &'static str {
+        PULL
+    }
 
-   fn interface(&self) -> App<'static, 'static> {
+    fn interface(&self) -> App<'static, 'static> {
         let server = Arg::with_name(SERVER)
             .short("s")
             .long(SERVER)
@@ -45,24 +45,27 @@ impl BldCommand for PullCommand {
             .long(IGNORE_DEPS)
             .help("Do not include other pipeline dependencies")
             .takes_value(false);
-       SubCommand::with_name(PULL) 
-           .about("Pull a pipeline from a bld server and stores it localy")
-           .version(VERSION)
-           .args(&[server, pipeline, ignore_deps])
-   }
+        SubCommand::with_name(PULL)
+            .about("Pull a pipeline from a bld server and stores it localy")
+            .version(VERSION)
+            .args(&[server, pipeline, ignore_deps])
+    }
 
-   fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
-       System::new().block_on(async move { do_pull(matches).await })
-   }
+    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
+        System::new().block_on(async move { do_pull(matches).await })
+    }
 }
 
 async fn do_pull(matches: &ArgMatches<'_>) -> anyhow::Result<()> {
     let config = BldConfig::load()?;
     let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
-    let pip = matches.value_of(PIPELINE).ok_or_else(|| anyhow!("no pipeline provided"))?.to_string();
+    let pip = matches
+        .value_of(PIPELINE)
+        .ok_or_else(|| anyhow!("no pipeline provided"))?
+        .to_string();
     let ignore = matches.is_present(IGNORE_DEPS);
     debug!(
-        "running {PULL} subcommand with --server: {} and --pipeline: {pip}",
+        "running {PULL} subcommand with --server: {}, --pipeline: {pip} and --ignore-deps: {ignore}",
         srv.name
     );
     let (name, auth) = match &srv.same_auth_as {
