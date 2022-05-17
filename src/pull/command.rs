@@ -79,7 +79,7 @@ async fn do_pull(matches: &ArgMatches<'_>) -> anyhow::Result<()> {
     request::post(url, headers, body)
         .await
         .and_then(|r| serde_json::from_str::<Vec<PullResponseInfo>>(&r).map_err(|e| anyhow!(e)))
-        .and_then(|r| save_pipelines(r))
+        .and_then(save_pipelines)
 }
 
 fn save_pipelines(pipelines: Vec<PullResponseInfo>) -> anyhow::Result<()> {
