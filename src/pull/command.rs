@@ -1,15 +1,21 @@
 use crate::config::{definitions::VERSION, BldConfig};
 use crate::cli::BldCommand;
 use crate::helpers::errors::auth_for_server_invalid;
+use crate::helpers::fs::IsYaml;
 use crate::helpers::request;
+use crate::pull::{PullRequestInfo, PullResponseInfo};
+use crate::run::Pipeline;
 use anyhow::anyhow;
 use actix_web::rt::System;
 use clap::{App, Arg, ArgMatches, SubCommand};
+use std::fs::{create_dir_all, remove_file, File};
+use std::io::Write;
 use tracing::debug;
 
 const PULL: &str = "pull";
 const SERVER: &str = "server";
 const PIPELINE: &str = "pipeline";
+const IGNORE_DEPS: &str = "ignore-deps";
 
 pub struct PullCommand;
 
@@ -33,12 +39,16 @@ impl BldCommand for PullCommand {
         let pipeline = Arg::with_name(PIPELINE)
             .short("p")
             .long(PIPELINE)
-            .help("the name of the pipeline")
+            .help("The name of the pipeline")
             .takes_value(true);
+        let ignore_deps = Arg::with_name(IGNORE_DEPS)
+            .long(IGNORE_DEPS)
+            .help("Do not include other pipeline dependencies")
+            .takes_value(false);
        SubCommand::with_name(PULL) 
            .about("Pull a pipeline from a bld server and stores it localy")
            .version(VERSION)
-           .args(&[server, pipeline])
+           .args(&[server, pipeline, ignore_deps])
    }
 
    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
@@ -50,6 +60,7 @@ async fn do_pull(matches: &ArgMatches<'_>) -> anyhow::Result<()> {
     let config = BldConfig::load()?;
     let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
     let pip = matches.value_of(PIPELINE).ok_or_else(|| anyhow!("no pipeline provided"))?.to_string();
+    let ignore = matches.is_present(IGNORE_DEPS);
     debug!(
         "running {PULL} subcommand with --server: {} and --pipeline: {pip}",
         srv.name
@@ -63,8 +74,24 @@ async fn do_pull(matches: &ArgMatches<'_>) -> anyhow::Result<()> {
     };
     let url = format!("http://{}:{}/pull", srv.host, srv.port);
     let headers = request::headers(name, auth)?;
+    let body = PullRequestInfo::new(&pip, !ignore);
     debug!("sending http request to {}", url);
-    request::post(url, headers, pip).await.map(|r| {
-        println!("{r}")
-    })
+    request::post(url, headers, body)
+        .await
+        .and_then(|r| serde_json::from_str::<Vec<PullResponseInfo>>(&r).map_err(|e| anyhow!(e)))
+        .and_then(|r| save_pipelines(r))
+}
+
+fn save_pipelines(pipelines: Vec<PullResponseInfo>) -> anyhow::Result<()> {
+    for entry in pipelines.iter() {
+        let path = Pipeline::get_path(&entry.name)?;
+        if path.is_yaml() {
+            remove_file(&path)?;
+        } else if let Some(parent) = path.parent() {
+            create_dir_all(parent)?;
+        }
+        let mut handle = File::create(&path)?;
+        handle.write_all(entry.content.as_bytes())?;
+    }
+    Ok(())
 }

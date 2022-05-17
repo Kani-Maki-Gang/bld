@@ -6,6 +6,7 @@ mod inspect;
 mod list;
 mod remove;
 mod push;
+mod pull;
 mod stop;
 
 pub use auth_redirect::*;
@@ -16,4 +17,5 @@ pub use inspect::*;
 pub use list::*;
 pub use remove::*;
 pub use push::*;
+pub use pull::*;
 pub use stop::*;
