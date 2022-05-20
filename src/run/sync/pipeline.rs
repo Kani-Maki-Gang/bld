@@ -1,8 +1,10 @@
 use crate::config::definitions::TOOL_DIR;
+use crate::helpers::fs::IsYaml;
 use crate::helpers::errors::err_variable_in_yaml;
 use crate::path;
 use anyhow::anyhow;
 use std::fmt::{self, Display, Formatter};
+use std::fs::read_to_string;
 use std::path::PathBuf;
 use yaml_rust::{Yaml, YamlLoader};
 
@@ -94,12 +96,17 @@ pub struct Pipeline {
 
 impl Pipeline {
     pub fn get_path(name: &str) -> anyhow::Result<PathBuf> {
-        Ok(path![std::env::current_dir()?, TOOL_DIR, name])
+        let path_buf = path![std::env::current_dir()?, TOOL_DIR, name];
+        let path = path_buf.as_path();
+        if !path.is_yaml() {
+            return Err(anyhow!("Pipeline not found"));
+        }
+        Ok(path_buf)
     }
 
     pub fn read(pipeline: &str) -> anyhow::Result<String> {
         let path = Pipeline::get_path(pipeline)?;
-        Ok(std::fs::read_to_string(path)?)
+        Ok(read_to_string(path)?)
     }
 
     pub fn parse(src: &str) -> anyhow::Result<Pipeline> {

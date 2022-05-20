@@ -4,7 +4,7 @@ use crate::high_avail::HighAvail;
 use crate::persist::new_connection_pool;
 use crate::server::{
     auth_redirect, ha_append_entries, ha_install_snapshot, ha_vote, hist, home, inspect, list,
-    pull, push, remove, stop, ws_exec, ws_high_avail, ws_monit, PipelinePool,
+    pull, deps, push, remove, stop, ws_exec, ws_high_avail, ws_monit, PipelinePool,
 };
 use actix_web::{middleware, rt::System, web, App, HttpServer};
 use clap::{App as ClapApp, Arg, ArgMatches, SubCommand};
@@ -46,6 +46,7 @@ impl ServerCommand {
                 .service(list)
                 .service(remove)
                 .service(push)
+                .service(deps)
                 .service(pull)
                 .service(stop)
                 .service(inspect)

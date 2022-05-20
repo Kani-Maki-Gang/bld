@@ -8,12 +8,20 @@ pub trait IsYaml {
 
 impl IsYaml for Path {
     fn is_yaml(&self) -> bool {
-        if self.is_file() {
-            if let Some(ext) = self.extension() {
-                return ext == "yaml";
+        if !self.is_file() {
+            return false;
+        }
+        if let Some(ext) = self.extension() {
+            if ext != "yaml" {
+                return false;
             }
         }
-        false
+        if let Some(name) = self.file_name() {
+            if name.to_string_lossy() == format!("{TOOL_DEFAULT_CONFIG}.yaml") {
+                return false;
+            }
+        }
+        true
     }
 }
 
