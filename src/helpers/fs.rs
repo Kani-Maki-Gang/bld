@@ -17,11 +17,6 @@ impl IsYaml for Path {
             }
             None => return false,
         }
-        if let Some(name) = self.file_name() {
-            if name.to_string_lossy() == format!("{TOOL_DEFAULT_CONFIG}.yaml") {
-                return false;
-            }
-        }
         match self.file_name() {
             Some(name) => if name.to_string_lossy() == format!("{TOOL_DEFAULT_CONFIG}.yaml") {
                 return false;
