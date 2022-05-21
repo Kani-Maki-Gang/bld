@@ -1,7 +1,8 @@
-use crate::config::definitions::{TOOL_DEFAULT_CONFIG, TOOL_DIR};
+use crate::config::definitions::TOOL_DIR;
+use crate::helpers::fs::IsYaml;
 use crate::server::User;
 use actix_web::{get, HttpResponse};
-use std::fs::{read_dir, DirEntry};
+use std::fs::read_dir;
 use tracing::info;
 
 #[get("/list")]
@@ -26,7 +27,7 @@ fn find_pipelines(collection: &mut Vec<String>, path: &str) -> anyhow::Result<()
         }
         let entry = entry.unwrap();
         let entry_path = entry.path();
-        if entry_path.is_file() && is_yaml_file(&entry) {
+        if entry_path.is_yaml() {
             collection.push(entry_path.as_path().display().to_string());
         }
         if entry_path.is_dir() {
@@ -36,17 +37,4 @@ fn find_pipelines(collection: &mut Vec<String>, path: &str) -> anyhow::Result<()
         }
     }
     Ok(())
-}
-
-fn is_yaml_file(entry: &DirEntry) -> bool {
-    match entry.file_type() {
-        Ok(file_type) => {
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
-            file_type.is_file()
-                && name.ends_with(".yaml")
-                && name != format!("{TOOL_DEFAULT_CONFIG}.yaml")
-        }
-        Err(_) => false,
-    }
 }
