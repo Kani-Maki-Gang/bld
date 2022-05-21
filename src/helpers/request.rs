@@ -28,6 +28,10 @@ pub async fn get(url: String, headers: HashMap<String, String>) -> anyhow::Resul
     let response = request.send().await?;
     match response.status() {
         StatusCode::OK => response.text().await.map_err(|e| anyhow!(e)),
+        StatusCode::BAD_REQUEST => {
+            let msg = response.text().await.map_err(|e| anyhow!(e))?;
+            Err(anyhow!(msg))
+        }
         st => Err(anyhow!(
             "http request returned failed with status code: {}",
             st.to_string()
@@ -52,7 +56,10 @@ where
     let response = request.json(&body).send().await?;
     match response.status() {
         StatusCode::OK => response.text().await.map_err(|e| anyhow!(e)),
-        StatusCode::BAD_REQUEST => response.text().await.map_err(|e| anyhow!(e)),
+        StatusCode::BAD_REQUEST => {
+            let msg = response.text().await.map_err(|e| anyhow!(e))?;
+            Err(anyhow!(msg))
+        }
         st => Err(anyhow!(
             "http request returned failed with status code: {}",
             st.to_string()

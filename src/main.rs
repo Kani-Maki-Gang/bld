@@ -12,11 +12,12 @@ mod hist;
 mod init;
 mod inspect;
 mod list;
-mod remove;
 mod monit;
 mod os;
 mod persist;
+mod pull;
 mod push;
+mod remove;
 mod run;
 mod server;
 mod stop;
@@ -50,6 +51,7 @@ fn main() {
         remove::RemoveCommand::boxed(),
         monit::MonitCommand::boxed(),
         push::PushCommand::boxed(),
+        pull::PullCommand::boxed(),
         run::RunCommand::boxed(),
         server::ServerCommand::boxed(),
         stop::StopCommand::boxed(),

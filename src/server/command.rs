@@ -4,7 +4,7 @@ use crate::high_avail::HighAvail;
 use crate::persist::new_connection_pool;
 use crate::server::{
     auth_redirect, ha_append_entries, ha_install_snapshot, ha_vote, hist, home, inspect, list,
-    remove, push, stop, ws_exec, ws_high_avail, ws_monit, PipelinePool,
+    pull, deps, push, remove, stop, ws_exec, ws_high_avail, ws_monit, PipelinePool,
 };
 use actix_web::{middleware, rt::System, web, App, HttpServer};
 use clap::{App as ClapApp, Arg, ArgMatches, SubCommand};
@@ -46,6 +46,8 @@ impl ServerCommand {
                 .service(list)
                 .service(remove)
                 .service(push)
+                .service(deps)
+                .service(pull)
                 .service(stop)
                 .service(inspect)
                 .service(web::resource("/ws-exec/").route(web::get().to(ws_exec)))
@@ -100,9 +102,7 @@ impl BldCommand for ServerCommand {
             .value_of("port")
             .map(|port| port.parse::<i64>().unwrap_or(config.local.port))
             .unwrap_or(config.local.port);
-        debug!(
-            "running {SERVER} subcommand with --host: {host} --port: {port}",
-        );
+        debug!("running {SERVER} subcommand with --host: {host} --port: {port}",);
         Self::spawn(config, host, port)?;
         Ok(())
     }
