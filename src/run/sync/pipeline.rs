@@ -1,15 +1,15 @@
 use crate::config::definitions::TOOL_DIR;
-use crate::helpers::fs::IsYaml;
 use crate::helpers::errors::err_variable_in_yaml;
+use crate::helpers::fs::IsYaml;
 use crate::path;
 use anyhow::anyhow;
 use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
-use std::fs::{remove_file, create_dir_all, read_to_string, File};
+use std::fs::{create_dir_all, read_to_string, remove_file, File};
 use std::io::Write;
 use std::path::PathBuf;
-use yaml_rust::{Yaml, YamlLoader};
 use tracing::debug;
+use yaml_rust::{Yaml, YamlLoader};
 
 pub enum RunsOn {
     Machine,
@@ -159,7 +159,7 @@ impl Pipeline {
         for step in pipeline.steps.iter() {
             if let Some(pipeline) = &step.call {
                 let subset = Self::deps_internal(pipeline)?;
-                for (k, v)in subset {
+                for (k, v) in subset {
                     set.insert(k, v);
                 }
             }

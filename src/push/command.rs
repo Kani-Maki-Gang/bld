@@ -68,22 +68,26 @@ impl BldCommand for PushCommand {
             None => (&srv.name, &srv.auth),
         };
         let headers = request::headers(name, auth)?;
-        System::new().block_on(async move { 
-            do_push(srv.host.clone(), srv.port, headers, pip, ignore).await 
+        System::new().block_on(async move {
+            do_push(srv.host.clone(), srv.port, headers, pip, ignore).await
         })
     }
 }
 
-async fn do_push(host: String, port: i64, headers: HashMap<String, String>, name: String, ignore_deps: bool) -> anyhow::Result<()> {
+async fn do_push(
+    host: String,
+    port: i64,
+    headers: HashMap<String, String>,
+    name: String,
+    ignore_deps: bool,
+) -> anyhow::Result<()> {
     let mut pipelines = vec![PushInfo::new(&name, &Pipeline::read(&name)?)];
     if !ignore_deps {
         print!("Resolving dependecies...");
         let mut deps = Pipeline::deps(&name)
             .map(|pips| {
                 println!("Done.");
-                pips.iter()
-                    .map(|(n, s)| PushInfo::new(n, s))
-                    .collect()
+                pips.iter().map(|(n, s)| PushInfo::new(n, s)).collect()
             })
             .map_err(|e| {
                 println!("Error. {e}");
