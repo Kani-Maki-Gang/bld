@@ -1,9 +1,7 @@
 use crate::run::Pipeline;
 use crate::server::User;
-use anyhow::anyhow;
 use actix_web::{post, web, HttpResponse, Responder};
-use std::collections::HashSet;
-use tracing::{debug, info};
+use tracing::info;
 
 #[post("/deps")]
 pub async fn deps(user: Option<User>, body: web::Json<String>) -> impl Responder {
@@ -12,30 +10,8 @@ pub async fn deps(user: Option<User>, body: web::Json<String>) -> impl Responder
         return HttpResponse::Unauthorized().body("");
     }
     let name = body.into_inner();
-    match build_payload(&name)
-        .map(|mut hs| {
-            hs.remove(&name);
-            hs.into_iter().collect::<Vec<String>>()
-        })
-    {
+    match Pipeline::deps(&name).map(|hs| hs.into_iter().map(|(n, _)| n).collect::<Vec<String>>()) {
         Ok(r) => HttpResponse::Ok().json(r),
-        Err(e) => HttpResponse::BadRequest().body(e.to_string())
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
-}
-
-pub fn build_payload(name: &str) -> anyhow::Result<HashSet<String>> {
-    debug!("Parsing pipeline {name}");
-    let src = Pipeline::read(name).map_err(|_| anyhow!("Pipeline not found"))?;
-    let pipeline = Pipeline::parse(&src)?;
-    let mut set = HashSet::new();
-    set.insert(name.to_string());
-    for step in pipeline.steps.iter() {
-        if let Some(pipeline) = &step.call {
-            let subset = build_payload(pipeline)?;
-            for entry in subset {
-                set.insert(entry);
-            }
-        }
-    }
-    Ok(set)
 }

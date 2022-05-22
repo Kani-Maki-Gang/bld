@@ -1,4 +1,5 @@
 use crate::config::BldConfig;
+use crate::helpers::fs::IsYaml;
 use crate::path;
 use crate::persist::pipeline;
 use crate::persist::{FileLogger, FileScanner, PipelineExecWrapper, Scanner};
@@ -135,7 +136,7 @@ impl ExecutePipelineSocket {
     fn get_info(&mut self, data: &str) -> anyhow::Result<PipelineInfo> {
         let info = serde_json::from_str::<ExecInfo>(data)?;
         let path = Pipeline::get_path(&info.name)?;
-        if !path.is_file() {
+        if !path.is_yaml() {
             let message = String::from("pipeline file not found");
             return Err(anyhow!(message));
         }
