@@ -132,7 +132,7 @@ impl Pipeline {
     }
 
     pub fn create(name: &str, content: &str) -> anyhow::Result<()> {
-        let path = Self::get_path(&name)?;
+        let path = Self::get_path(name)?;
         if path.is_yaml() {
             remove_file(&path)?;
         } else if let Some(parent) = path.parent() {

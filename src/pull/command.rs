@@ -107,7 +107,7 @@ async fn do_pull(host: String, port: i64, headers: HashMap<String, String>, name
                 println!("Done.");
             })
             .map_err(|e| {
-                println!("Error. {}", e.to_string());
+                println!("Error. {e}");
                 e
             });
     }
