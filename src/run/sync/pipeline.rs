@@ -1,11 +1,14 @@
 use crate::config::definitions::TOOL_DIR;
-use crate::helpers::fs::IsYaml;
 use crate::helpers::errors::err_variable_in_yaml;
+use crate::helpers::fs::IsYaml;
 use crate::path;
 use anyhow::anyhow;
+use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
-use std::fs::read_to_string;
+use std::fs::{create_dir_all, read_to_string, remove_file, File};
+use std::io::Write;
 use std::path::PathBuf;
+use tracing::debug;
 use yaml_rust::{Yaml, YamlLoader};
 
 pub enum RunsOn {
@@ -96,12 +99,7 @@ pub struct Pipeline {
 
 impl Pipeline {
     pub fn get_path(name: &str) -> anyhow::Result<PathBuf> {
-        let path_buf = path![std::env::current_dir()?, TOOL_DIR, name];
-        let path = path_buf.as_path();
-        if !path.is_yaml() {
-            return Err(anyhow!("Pipeline not found"));
-        }
-        Ok(path_buf)
+        Ok(path![std::env::current_dir()?, TOOL_DIR, name])
     }
 
     pub fn read(pipeline: &str) -> anyhow::Result<String> {
@@ -131,6 +129,42 @@ impl Pipeline {
             artifacts: Self::artifacts(yaml),
             steps: Self::steps(yaml),
         })
+    }
+
+    pub fn create(name: &str, content: &str) -> anyhow::Result<()> {
+        let path = Self::get_path(name)?;
+        if path.is_yaml() {
+            remove_file(&path)?;
+        } else if let Some(parent) = path.parent() {
+            create_dir_all(parent)?;
+        }
+        let mut handle = File::create(&path)?;
+        handle.write_all(content.as_bytes())?;
+        Ok(())
+    }
+
+    pub fn deps(name: &str) -> anyhow::Result<HashMap<String, String>> {
+        Self::deps_internal(name).map(|mut hs| {
+            hs.remove(name);
+            hs.into_iter().collect()
+        })
+    }
+
+    fn deps_internal(name: &str) -> anyhow::Result<HashMap<String, String>> {
+        debug!("Parsing pipeline {name}");
+        let src = Self::read(name).map_err(|_| anyhow!("Pipeline {name} not found"))?;
+        let pipeline = Self::parse(&src)?;
+        let mut set = HashMap::new();
+        set.insert(name.to_string(), src);
+        for step in pipeline.steps.iter() {
+            if let Some(pipeline) = &step.call {
+                let subset = Self::deps_internal(pipeline)?;
+                for (k, v) in subset {
+                    set.insert(k, v);
+                }
+            }
+        }
+        Ok(set)
     }
 
     fn variables(yaml: &Yaml) -> anyhow::Result<Vec<Variable>> {

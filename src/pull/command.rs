@@ -72,11 +72,19 @@ impl BldCommand for PullCommand {
             None => (&srv.name, &srv.auth),
         };
         let headers = request::headers(name, auth)?;
-        System::new().block_on(async move { do_pull(srv.host.clone(), srv.port, headers, pip, ignore).await })
+        System::new().block_on(async move {
+            do_pull(srv.host.clone(), srv.port, headers, pip, ignore).await
+        })
     }
 }
 
-async fn do_pull(host: String, port: i64, headers: HashMap<String, String>, name: String, ignore_deps: bool) -> anyhow::Result<()> {
+async fn do_pull(
+    host: String,
+    port: i64,
+    headers: HashMap<String, String>,
+    name: String,
+    ignore_deps: bool,
+) -> anyhow::Result<()> {
     let mut pipelines = vec![name.to_string()];
     if !ignore_deps {
         let metadata_url = format!("http://{host}:{port}/deps");
@@ -107,7 +115,7 @@ async fn do_pull(host: String, port: i64, headers: HashMap<String, String>, name
                 println!("Done.");
             })
             .map_err(|e| {
-                println!("Error. {}", e.to_string());
+                println!("Error. {e}");
                 e
             });
     }

@@ -1,6 +1,8 @@
-use crate::run::Pipeline;
 use crate::server::User;
+use crate::{helpers::fs::IsYaml, run::Pipeline};
 use actix_web::{post, web, HttpResponse, Responder};
+use anyhow::anyhow;
+use std::fs::read_to_string;
 use tracing::{debug, info};
 
 #[post("/inspect")]
@@ -23,5 +25,9 @@ pub async fn inspect(user: Option<User>, body: web::Json<String>) -> impl Respon
 }
 
 fn inspect_pipeline(name: &str) -> anyhow::Result<String> {
-    Ok(std::fs::read_to_string(Pipeline::get_path(name)?)?)
+    let path = Pipeline::get_path(name)?;
+    if !path.is_yaml() {
+        return Err(anyhow!("Pipeline not found"));
+    }
+    Ok(read_to_string(path)?)
 }

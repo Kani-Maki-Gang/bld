@@ -6,12 +6,13 @@ use crate::push::PushInfo;
 use crate::run::Pipeline;
 use actix_web::rt::System;
 use clap::{App, Arg, ArgMatches, SubCommand};
-use std::collections::HashSet;
+use std::collections::HashMap;
 use tracing::debug;
 
 static PUSH: &str = "push";
 static PIPELINE: &str = "pipeline";
 static SERVER: &str = "server";
+static IGNORE_DEPS: &str = "ignore-deps";
 
 pub struct PushCommand;
 
@@ -37,64 +38,76 @@ impl BldCommand for PushCommand {
             .long("server")
             .help("The name of the server to push changes to")
             .takes_value(true);
+        let ignore = Arg::with_name(IGNORE_DEPS)
+            .long(IGNORE_DEPS)
+            .help("Don't include other pipeline dependencies")
+            .takes_value(false);
         SubCommand::with_name(PUSH)
             .about("Pushes the contents of a pipeline to a bld server")
             .version(VERSION)
-            .args(&[pipeline, server])
+            .args(&[pipeline, server, ignore])
     }
 
     fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
-        System::new().block_on(async move { do_push(matches).await })
-    }
-}
-
-async fn do_push(matches: &ArgMatches<'_>) -> anyhow::Result<()> {
-    let config = BldConfig::load()?;
-    let pip = matches
-        .value_of(PIPELINE)
-        .unwrap_or(TOOL_DEFAULT_PIPELINE)
-        .to_string();
-    let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
-    debug!(
-        "running {PUSH} subcommand with --server: {} and --pipeline: {pip}",
-        srv.name
-    );
-    let (name, auth) = match &srv.same_auth_as {
-        Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
-            Some(srv) => (&srv.name, &srv.auth),
-            None => return auth_for_server_invalid(),
-        },
-        None => (&srv.name, &srv.auth),
-    };
-    let payload = build_payload(pip)?;
-    let data: Vec<PushInfo> = payload
-        .iter()
-        .map(|(n, s)| {
-            println!("Pushing {n}...");
-            PushInfo::new(n, s)
+        let config = BldConfig::load()?;
+        let pip = matches
+            .value_of(PIPELINE)
+            .unwrap_or(TOOL_DEFAULT_PIPELINE)
+            .to_string();
+        let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
+        let ignore = matches.is_present(IGNORE_DEPS);
+        debug!(
+            "running {PUSH} subcommand with --server: {} and --pipeline: {pip}",
+            srv.name
+        );
+        let (name, auth) = match &srv.same_auth_as {
+            Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
+                Some(srv) => (&srv.name, &srv.auth),
+                None => return auth_for_server_invalid(),
+            },
+            None => (&srv.name, &srv.auth),
+        };
+        let headers = request::headers(name, auth)?;
+        System::new().block_on(async move {
+            do_push(srv.host.clone(), srv.port, headers, pip, ignore).await
         })
-        .collect();
-    let url = format!("http://{}:{}/push", srv.host, srv.port);
-    let headers = request::headers(name, auth)?;
-    debug!("sending http request to {}", url);
-    request::post(url, headers, data).await.map(|r| {
-        println!("{r}");
-    })
+    }
 }
 
-fn build_payload(name: String) -> anyhow::Result<HashSet<(String, String)>> {
-    debug!("Parsing pipeline {name}");
-    let src = Pipeline::read(&name)?;
-    let pipeline = Pipeline::parse(&src)?;
-    let mut set = HashSet::new();
-    set.insert((name, src));
-    for step in pipeline.steps.iter() {
-        if let Some(pipeline) = &step.call {
-            let subset = build_payload(pipeline.to_string())?;
-            for entry in subset {
-                set.insert(entry);
-            }
-        }
+async fn do_push(
+    host: String,
+    port: i64,
+    headers: HashMap<String, String>,
+    name: String,
+    ignore_deps: bool,
+) -> anyhow::Result<()> {
+    let mut pipelines = vec![PushInfo::new(&name, &Pipeline::read(&name)?)];
+    if !ignore_deps {
+        print!("Resolving dependecies...");
+        let mut deps = Pipeline::deps(&name)
+            .map(|pips| {
+                println!("Done.");
+                pips.iter().map(|(n, s)| PushInfo::new(n, s)).collect()
+            })
+            .map_err(|e| {
+                println!("Error. {e}");
+                e
+            })?;
+        pipelines.append(&mut deps);
     }
-    Ok(set)
+    for info in pipelines.into_iter() {
+        print!("Pushing {}...", info.name);
+        let url = format!("http://{}:{}/push", host, port);
+        debug!("sending http request to {}", url);
+        let _ = request::post(url.clone(), headers.clone(), info)
+            .await
+            .map(|_| {
+                println!("Done.");
+            })
+            .map_err(|e| {
+                println!("Error. {e}");
+                e
+            });
+    }
+    Ok(())
 }
