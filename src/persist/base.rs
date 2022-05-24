@@ -10,5 +10,6 @@ pub trait Scanner {
 }
 
 pub trait Execution {
-    fn update(&mut self, is_running: bool) -> anyhow::Result<()>;
+    fn update_running(&mut self, is_running: bool) -> anyhow::Result<()>;
+    fn update_container_id(&mut self, container_id: &str) -> anyhow::Result<()>;
 }

@@ -1,4 +1,4 @@
-use crate::persist::pipeline;
+use crate::persist::pipeline_runs;
 use crate::server::User;
 use actix_web::{get, web, HttpResponse, Responder};
 use diesel::r2d2::{ConnectionManager, Pool};
@@ -25,14 +25,14 @@ pub async fn hist(
 
 fn history_info(db_pool: &Pool<ConnectionManager<SqliteConnection>>) -> anyhow::Result<String> {
     let connection = db_pool.get()?;
-    let pipelines = pipeline::select_all(&connection).unwrap_or_else(|_| vec![]);
+    let pipeline_runs = pipeline_runs::select_all(&connection).unwrap_or_else(|_| vec![]);
     let mut info = String::new();
-    if !pipelines.is_empty() {
+    if !pipeline_runs.is_empty() {
         info = format!(
             "{0: <30} | {1: <36} | {2: <15} | {3: <7} | {4: <19} | {5: <19}",
             "pipeline", "id", "user", "running", "start time", "end time",
         );
-        for entry in pipelines.iter() {
+        for entry in pipeline_runs.iter() {
             info = format!(
                 "{0}\n{1: <30} | {2: <36} | {3: <15} | {4: <7} | {5: <19} | {6: <19}",
                 info,

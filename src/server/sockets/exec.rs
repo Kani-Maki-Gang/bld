@@ -1,7 +1,7 @@
 use crate::config::BldConfig;
 use crate::helpers::fs::IsYaml;
 use crate::path;
-use crate::persist::pipeline;
+use crate::persist::pipeline_runs;
 use crate::persist::{FileLogger, FileScanner, PipelineExecWrapper, Scanner};
 use crate::run::socket::messages::ExecInfo;
 use crate::run::{Pipeline, Runner, RunnerBuilder};
@@ -127,7 +127,7 @@ impl ExecutePipelineSocket {
     fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
         if let Some(exec) = act.exec.as_mut() {
             let exec = exec.lock().unwrap();
-            if !exec.pipeline.running {
+            if !exec.pipeline_run.running {
                 ctx.stop();
             }
         }
@@ -146,7 +146,7 @@ impl ExecutePipelineSocket {
         let logs = path![&config.local.logs, &id].display().to_string();
 
         let connection = self.db_pool.get()?;
-        let pipeline = pipeline::insert(&connection, &id, &info.name, &self.user.name)?;
+        let pipeline = pipeline_runs::insert(&connection, &id, &info.name, &self.user.name)?;
         let start_time = String::from(&pipeline.start_date_time);
         let ex = Arc::new(Mutex::new(PipelineExecWrapper::new(
             &self.db_pool,

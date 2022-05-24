@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use crate::config::definitions::DB_NAME;
 use crate::path;
-use crate::persist::pipeline::{self, Pipeline};
+use crate::persist::pipeline_runs::{self, PipelineRuns};
 use crate::persist::{run_migrations, Execution};
 use anyhow::anyhow;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
@@ -28,31 +28,42 @@ pub fn new_connection_pool(db: &str) -> anyhow::Result<Pool<ConnectionManager<Sq
 }
 
 pub struct PipelineExecWrapper {
-    pub pipeline: Pipeline,
+    pub pipeline_run: PipelineRuns,
     pub connection: PooledConnection<ConnectionManager<SqliteConnection>>,
 }
 
 impl PipelineExecWrapper {
     pub fn new(
         pool: &Pool<ConnectionManager<SqliteConnection>>,
-        pipeline: Pipeline,
+        pipeline_run: PipelineRuns,
     ) -> anyhow::Result<Self> {
         Ok(Self {
-            pipeline,
+            pipeline_run,
             connection: pool.get()?,
         })
     }
 }
 
 impl Execution for PipelineExecWrapper {
-    fn update(&mut self, running: bool) -> anyhow::Result<()> {
-        self.pipeline = pipeline::update(&self.connection, &self.pipeline.id, running)?;
+    fn update_running(&mut self, running: bool) -> anyhow::Result<()> {
+        self.pipeline_run = pipeline_runs::update_running(&self.connection, &self.pipeline_run.id, running)?;
         debug!(
-            "updated pipeline of id: {}, name: {} with new values running: {}, end_date_time: {}",
-            self.pipeline.id,
-            self.pipeline.name,
-            self.pipeline.running,
-            self.pipeline.end_date_time.as_ref().unwrap_or(&EMPTY)
+            "updated pipeline run of id: {}, name: {} with new values running: {}, end_date_time: {}",
+            self.pipeline_run.id,
+            self.pipeline_run.name,
+            self.pipeline_run.running,
+            self.pipeline_run.end_date_time.as_ref().unwrap_or(&EMPTY)
+        );
+        Ok(())
+    }
+
+    fn update_container_id(&mut self, container_id: &str) -> anyhow::Result<()> {
+        self.pipeline_run = pipeline_runs::update_container_id(&self.connection, &self.pipeline_run.id, container_id)?;
+        debug!(
+            "updated pipeline run of id: {}, name: {} with new container_id: {:?}",
+            self.pipeline_run.id,
+            self.pipeline_run.name,
+            self.pipeline_run.container_id
         );
         Ok(())
     }
@@ -67,7 +78,11 @@ impl EmptyExec {
 }
 
 impl Execution for EmptyExec {
-    fn update(&mut self, _running: bool) -> anyhow::Result<()> {
+    fn update_running(&mut self, _running: bool) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn update_container_id(&mut self, _container_id: &str) -> anyhow::Result<()>{
         Ok(())
     }
 }

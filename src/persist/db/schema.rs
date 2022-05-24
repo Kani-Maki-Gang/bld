@@ -78,13 +78,14 @@ table! {
 }
 
 table! {
-    pipelines (id) {
+    pipeline_runs (id) {
         id -> Text,
         name -> Text,
         running -> Bool,
         user -> Text,
         start_date_time -> Text,
         end_date_time -> Nullable<Text>,
+        container_id -> Nullable<Text>,
     }
 }
 
@@ -102,5 +103,5 @@ allow_tables_to_appear_in_same_query!(
     ha_members_after_consensus,
     ha_snapshot,
     ha_state_machine,
-    pipelines,
+    pipeline_runs,
 );
