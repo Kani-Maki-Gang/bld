@@ -78,6 +78,14 @@ table! {
 }
 
 table! {
+    pipeline (id) {
+        id -> Text,
+        name -> Text,
+        date_created -> Binary,
+    }
+}
+
+table! {
     pipeline_runs (id) {
         id -> Text,
         name -> Text,
@@ -103,5 +111,6 @@ allow_tables_to_appear_in_same_query!(
     ha_members_after_consensus,
     ha_snapshot,
     ha_state_machine,
+    pipeline,
     pipeline_runs,
 );
