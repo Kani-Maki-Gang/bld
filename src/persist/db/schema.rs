@@ -81,7 +81,7 @@ table! {
     pipeline (id) {
         id -> Text,
         name -> Text,
-        date_created -> Binary,
+        date_created -> Text,
     }
 }
 

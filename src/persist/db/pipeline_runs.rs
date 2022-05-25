@@ -95,7 +95,7 @@ pub fn insert(
     pip_user: &str,
 ) -> anyhow::Result<PipelineRuns> {
     debug!("inserting new pipeline to the database");
-    let pipeline = InsertPipelineRun {
+    let run = InsertPipelineRun {
         id: pip_id,
         name: pip_name,
         running: false,
@@ -103,7 +103,7 @@ pub fn insert(
     };
     conn.transaction(|| {
         diesel::insert_into(pipeline_runs::table)
-            .values(&pipeline)
+            .values(&run)
             .execute(conn)
             .map_err(|e| {
                 error!("could not insert pipeline due to: {e}");
