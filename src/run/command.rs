@@ -118,7 +118,7 @@ impl BldCommand for RunCommand {
                         .set_run_id(&id)
                         .set_run_start_time(&start_time)
                         .set_config(Arc::new(config))
-                        .set_from_file(&pipeline)?
+                        .set_pipeline(&pipeline)?
                         .set_exec(EmptyExec::atom())
                         .set_log(ShellLogger::atom())
                         .set_variables(Arc::new(vars))

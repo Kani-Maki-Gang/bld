@@ -59,13 +59,9 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn set_from_src(mut self, src: &str) -> anyhow::Result<Self> {
-        self.pip = Some(Pipeline::parse(src)?);
+    pub fn set_pipeline(mut self, file: &str) -> anyhow::Result<Self> {
+        self.pip = Some(Pipeline::parse(&Pipeline::read(file)?)?);
         Ok(self)
-    }
-
-    pub fn set_from_file(self, file: &str) -> anyhow::Result<Self> {
-        self.set_from_src(&Pipeline::read(file)?)
     }
 
     pub fn set_receiver(mut self, cm: Option<AtomicRecv>) -> Self {
@@ -241,7 +237,7 @@ impl Runner {
                 .set_run_id(&self.run_id)
                 .set_run_start_time(&self.run_start_time)
                 .set_config(self.cfg.clone())
-                .set_from_file(call)?
+                .set_pipeline(call)?
                 .set_exec(EmptyExec::atom())
                 .set_log(self.lg.clone())
                 .set_receiver(self.cm.as_ref().cloned())

@@ -44,7 +44,7 @@ impl PipelineInfo {
             .set_run_id(&self.id)
             .set_run_start_time(&self.start_time)
             .set_config(Arc::clone(&self.cfg))
-            .set_from_file(&self.name)?
+            .set_pipeline(&self.name)?
             .set_exec(self.ex.clone())
             .set_log(self.lg.clone())
             .set_receiver(self.cm.clone())
