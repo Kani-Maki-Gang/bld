@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::persist::db::schema::pipeline;
 use crate::persist::db::schema::pipeline::dsl::*;
 use anyhow::anyhow;
@@ -39,6 +40,21 @@ pub fn select_by_id(conn:&SqliteConnection, pip_id: &str) -> anyhow::Result<Pipe
     debug!("loading pipeline with id: {pip_id} from the database");
     pipeline
         .filter(id.eq(pip_id))
+        .first(conn)
+        .map(|p| {
+            debug!("loaded pipeline successfully");
+            p
+        })
+        .map_err(|e| {
+            error!("could not load pipeline due to {e}");
+            anyhow!(e)
+        })
+}
+
+pub fn select_by_name(conn: &SqliteConnection, pip_name: &str) -> anyhow::Result<Pipeline> {
+    debug!("loading pipeline with name: {pip_name} from the database");
+    pipeline
+        .filter(name.eq(pip_name))
         .first(conn)
         .map(|p| {
             debug!("loaded pipeline successfully");

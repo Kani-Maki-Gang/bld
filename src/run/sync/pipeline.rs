@@ -1,14 +1,12 @@
-use crate::config::definitions::TOOL_DIR;
+use crate::config::{definitions::TOOL_DIR, BldConfig};
 use crate::helpers::errors::err_variable_in_yaml;
 use crate::helpers::fs::IsYaml;
 use crate::path;
 use anyhow::anyhow;
-use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
 use std::fs::{create_dir_all, read_to_string, remove_file, File};
 use std::io::Write;
 use std::path::PathBuf;
-use tracing::debug;
 use yaml_rust::{Yaml, YamlLoader};
 
 pub enum RunsOn {
@@ -102,9 +100,26 @@ impl Pipeline {
         Ok(path![std::env::current_dir()?, TOOL_DIR, name])
     }
 
+    pub fn get_server_path(config: &BldConfig, id: &str) -> anyhow::Result<PathBuf> {
+        Ok(path![
+            std::env::current_dir()?, 
+            TOOL_DIR, 
+            &config.local.server_pipelines, 
+            format!("{}.yaml", id)
+        ])
+    }
+
     pub fn read(pipeline: &str) -> anyhow::Result<String> {
         let path = Pipeline::get_path(pipeline)?;
         Ok(read_to_string(path)?)
+    }
+
+    pub fn read_in_server(config: &BldConfig, id: &str) -> anyhow::Result<String> {
+        let path = Self::get_server_path(config, id)?;
+        if path.is_yaml() {
+            return Ok(read_to_string(path)?);
+        }
+        Err(anyhow!("pipeline not found"))
     }
 
     pub fn parse(src: &str) -> anyhow::Result<Pipeline> {
@@ -131,8 +146,8 @@ impl Pipeline {
         })
     }
 
-    pub fn create(name: &str, content: &str) -> anyhow::Result<()> {
-        let path = Self::get_path(name)?;
+    pub fn create_in_server(config: &BldConfig, id: &str, content: &str) -> anyhow::Result<()> {
+        let path = Self::get_server_path(config, id)?;
         if path.is_yaml() {
             remove_file(&path)?;
         } else if let Some(parent) = path.parent() {
@@ -141,30 +156,6 @@ impl Pipeline {
         let mut handle = File::create(&path)?;
         handle.write_all(content.as_bytes())?;
         Ok(())
-    }
-
-    pub fn deps(name: &str) -> anyhow::Result<HashMap<String, String>> {
-        Self::deps_internal(name).map(|mut hs| {
-            hs.remove(name);
-            hs.into_iter().collect()
-        })
-    }
-
-    fn deps_internal(name: &str) -> anyhow::Result<HashMap<String, String>> {
-        debug!("Parsing pipeline {name}");
-        let src = Self::read(name).map_err(|_| anyhow!("Pipeline {name} not found"))?;
-        let pipeline = Self::parse(&src)?;
-        let mut set = HashMap::new();
-        set.insert(name.to_string(), src);
-        for step in pipeline.steps.iter() {
-            if let Some(pipeline) = &step.call {
-                let subset = Self::deps_internal(pipeline)?;
-                for (k, v) in subset {
-                    set.insert(k, v);
-                }
-            }
-        }
-        Ok(set)
     }
 
     fn variables(yaml: &Yaml) -> anyhow::Result<Vec<Variable>> {
