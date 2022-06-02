@@ -1,12 +1,12 @@
 use crate::config::BldConfig;
 use crate::helpers::fs::IsYaml;
-use crate::server::User;
 use crate::persist::{pipeline, PipelineFileSystemProxy, ServerPipelineProxy};
+use crate::server::User;
 use actix_web::{get, web, HttpResponse};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use tracing::info;
 use std::sync::Arc;
+use tracing::info;
 
 #[get("/list")]
 pub async fn list(
@@ -24,7 +24,10 @@ pub async fn list(
     }
 }
 
-fn find_pipelines(proxy: &impl PipelineFileSystemProxy, pool: &Pool<ConnectionManager<SqliteConnection>>) -> anyhow::Result<String> {
+fn find_pipelines(
+    proxy: &impl PipelineFileSystemProxy,
+    pool: &Pool<ConnectionManager<SqliteConnection>>,
+) -> anyhow::Result<String> {
     let conn = pool.get()?;
     let pips = pipeline::select_all(&conn)?
         .iter()

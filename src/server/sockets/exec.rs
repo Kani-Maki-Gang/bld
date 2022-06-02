@@ -2,9 +2,8 @@ use crate::config::BldConfig;
 use crate::helpers::fs::IsYaml;
 use crate::path;
 use crate::persist::{
-    pipeline_runs, FileLogger, FileScanner, 
-    PipelineFileSystemProxy, PipelineExecWrapper, Scanner,
-    ServerPipelineProxy
+    pipeline_runs, FileLogger, FileScanner, PipelineExecWrapper, PipelineFileSystemProxy, Scanner,
+    ServerPipelineProxy,
 };
 use crate::run::socket::messages::ExecInfo;
 use crate::run::{Pipeline, Runner, RunnerBuilder};
@@ -101,7 +100,7 @@ impl ExecutePipelineSocket {
         pip_pool: web::Data<PipelinePool>,
         db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
         cfg: web::Data<BldConfig>,
-        prx: web::Data<ServerPipelineProxy>
+        prx: web::Data<ServerPipelineProxy>,
     ) -> Self {
         Self {
             hb: Instant::now(),
@@ -244,7 +243,7 @@ pub async fn ws_exec(
     pip_pool: web::Data<PipelinePool>,
     db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     config: web::Data<BldConfig>,
-    proxy: web::Data<ServerPipelineProxy>
+    proxy: web::Data<ServerPipelineProxy>,
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{req:?}");

@@ -46,7 +46,8 @@ impl PipelineExecWrapper {
 
 impl Execution for PipelineExecWrapper {
     fn update_running(&mut self, running: bool) -> anyhow::Result<()> {
-        self.pipeline_run = pipeline_runs::update_running(&self.connection, &self.pipeline_run.id, running)?;
+        self.pipeline_run =
+            pipeline_runs::update_running(&self.connection, &self.pipeline_run.id, running)?;
         debug!(
             "updated pipeline run of id: {}, name: {} with new values running: {}, end_date_time: {}",
             self.pipeline_run.id,
@@ -58,12 +59,14 @@ impl Execution for PipelineExecWrapper {
     }
 
     fn update_container_id(&mut self, container_id: &str) -> anyhow::Result<()> {
-        self.pipeline_run = pipeline_runs::update_container_id(&self.connection, &self.pipeline_run.id, container_id)?;
+        self.pipeline_run = pipeline_runs::update_container_id(
+            &self.connection,
+            &self.pipeline_run.id,
+            container_id,
+        )?;
         debug!(
             "updated pipeline run of id: {}, name: {} with new container_id: {:?}",
-            self.pipeline_run.id,
-            self.pipeline_run.name,
-            self.pipeline_run.container_id
+            self.pipeline_run.id, self.pipeline_run.name, self.pipeline_run.container_id
         );
         Ok(())
     }
@@ -82,7 +85,7 @@ impl Execution for EmptyExec {
         Ok(())
     }
 
-    fn update_container_id(&mut self, _container_id: &str) -> anyhow::Result<()>{
+    fn update_container_id(&mut self, _container_id: &str) -> anyhow::Result<()> {
         Ok(())
     }
 }

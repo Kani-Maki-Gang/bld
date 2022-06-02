@@ -1,6 +1,6 @@
 use crate::config::definitions::{GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN};
 use crate::config::BldConfig;
-use crate::persist::{EmptyExec, Execution, PipelineFileSystemProxy, Logger};
+use crate::persist::{EmptyExec, Execution, Logger, PipelineFileSystemProxy};
 use crate::run::CheckStopSignal;
 use crate::run::{BuildStep, Container, Machine, Pipeline, RunsOn};
 use anyhow::anyhow;
@@ -85,7 +85,9 @@ impl RunnerBuilder {
         let id = self.run_id.ok_or(anyhow!("no run id provided"))?;
         let cfg = self.cfg.ok_or(anyhow!("no bld config instance provided"))?;
         let lg = self.lg.ok_or(anyhow!("no logger instance provided"))?;
-        let prx = self.prx.ok_or(anyhow!("no pipeline file system proxy provided"))?;
+        let prx = self
+            .prx
+            .ok_or(anyhow!("no pipeline file system proxy provided"))?;
         let pip_name = self.pip.ok_or(anyhow!("no pipeline provided"))?;
         let pip = Pipeline::parse(&prx.read(&pip_name)?)?;
         let platform = match &pip.runs_on {
@@ -136,7 +138,7 @@ impl Runner {
                 let mut exec = self.ex.lock().unwrap();
                 let _ = exec.update_container_id(container_id);
             }
-        }            
+        }
     }
 
     fn persist_start(&mut self) {

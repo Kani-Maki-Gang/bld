@@ -12,8 +12,6 @@ use tracing::debug;
 static INIT: &str = "init";
 static SERVER: &str = "server";
 
-
-
 pub struct InitCommand;
 
 impl InitCommand {
@@ -119,7 +117,10 @@ fn create_default_yaml() -> anyhow::Result<()> {
         definitions::TOOL_DEFAULT_PIPELINE_FILE
     ];
     fs::write(path, definitions::DEFAULT_PIPELINE_CONTENT)?;
-    print_info(&format!("{} yaml file created", definitions::TOOL_DEFAULT_PIPELINE))?;
+    print_info(&format!(
+        "{} yaml file created",
+        definitions::TOOL_DEFAULT_PIPELINE
+    ))?;
     Ok(())
 }
 

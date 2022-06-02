@@ -10,9 +10,9 @@ use tracing::{debug, error};
 
 #[derive(Debug, Queryable)]
 pub struct Pipeline {
-   pub id: String,
-   pub name: String,
-   pub date_created: String,
+    pub id: String,
+    pub name: String,
+    pub date_created: String,
 }
 
 #[derive(Insertable)]
@@ -32,11 +32,11 @@ pub fn select_all(conn: &SqliteConnection) -> anyhow::Result<Vec<Pipeline>> {
         })
         .map_err(|e| {
             error!("could not load pipelines due to {e}");
-            anyhow!(e) 
+            anyhow!(e)
         })
 }
 
-pub fn select_by_id(conn:&SqliteConnection, pip_id: &str) -> anyhow::Result<Pipeline> {
+pub fn select_by_id(conn: &SqliteConnection, pip_id: &str) -> anyhow::Result<Pipeline> {
     debug!("loading pipeline with id: {pip_id} from the database");
     pipeline
         .filter(id.eq(pip_id))

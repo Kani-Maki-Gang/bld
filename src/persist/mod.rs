@@ -1,11 +1,11 @@
 mod base;
 mod db;
 mod fs;
-mod sh;
 mod proxies;
+mod sh;
 
 pub use base::*;
 pub use db::*;
 pub use fs::*;
-pub use sh::*;
 pub use proxies::*;
+pub use sh::*;

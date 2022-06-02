@@ -5,8 +5,8 @@ use crate::helpers::request;
 use crate::persist::{LocalPipelineProxy, PipelineFileSystemProxy};
 use crate::push::PushInfo;
 use crate::run::Pipeline;
-use anyhow::anyhow;
 use actix_web::rt::System;
+use anyhow::anyhow;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashMap;
 use tracing::debug;
@@ -83,7 +83,10 @@ async fn do_push(
     name: String,
     ignore_deps: bool,
 ) -> anyhow::Result<()> {
-    let mut pipelines = vec![PushInfo::new(&name, &LocalPipelineProxy::default().read(&name)?)];
+    let mut pipelines = vec![PushInfo::new(
+        &name,
+        &LocalPipelineProxy::default().read(&name)?,
+    )];
     if !ignore_deps {
         print!("Resolving dependecies...");
         let mut deps = deps(&name)
@@ -123,7 +126,9 @@ fn deps(name: &str) -> anyhow::Result<HashMap<String, String>> {
 
 fn deps_recursive(name: &str) -> anyhow::Result<HashMap<String, String>> {
     debug!("Parsing pipeline {name}");
-    let src = LocalPipelineProxy::default().read(name).map_err(|_| anyhow!("Pipeline {name} not found"))?;
+    let src = LocalPipelineProxy::default()
+        .read(name)
+        .map_err(|_| anyhow!("Pipeline {name} not found"))?;
     let pipeline = Pipeline::parse(&src)?;
     let mut set = HashMap::new();
     set.insert(name.to_string(), src);

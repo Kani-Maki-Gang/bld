@@ -10,9 +10,9 @@ use tracing::info;
 
 #[post("/pull")]
 pub async fn pull(
-    user: Option<User>, 
+    user: Option<User>,
     proxy: web::Data<ServerPipelineProxy>,
-    body: web::Json<String>
+    body: web::Json<String>,
 ) -> impl Responder {
     info!("Reached handler for /pull route");
     if user.is_none() {

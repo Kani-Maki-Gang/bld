@@ -1,9 +1,9 @@
 use crate::config::BldConfig;
+use crate::persist::{pipeline, PipelineFileSystemProxy, ServerPipelineProxy};
 use crate::run::Pipeline;
 use crate::server::User;
-use crate::persist::{pipeline, PipelineFileSystemProxy, ServerPipelineProxy};
-use anyhow::anyhow;
 use actix_web::{post, web, HttpResponse, Responder};
+use anyhow::anyhow;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::collections::HashMap;
@@ -12,9 +12,9 @@ use tracing::{debug, info};
 
 #[post("/deps")]
 pub async fn deps(
-    user: Option<User>, 
+    user: Option<User>,
     proxy: web::Data<ServerPipelineProxy>,
-    body: web::Json<String>
+    body: web::Json<String>,
 ) -> impl Responder {
     info!("Reached handler for /deps route");
     if user.is_none() {
@@ -34,9 +34,14 @@ fn do_deps(proxy: &impl PipelineFileSystemProxy, name: &str) -> anyhow::Result<V
     })
 }
 
-fn deps_recursive(proxy: &impl PipelineFileSystemProxy, name: &str) -> anyhow::Result<HashMap<String, String>> {
+fn deps_recursive(
+    proxy: &impl PipelineFileSystemProxy,
+    name: &str,
+) -> anyhow::Result<HashMap<String, String>> {
     debug!("Parsing pipeline {name}");
-    let src = proxy.read(name).map_err(|_| anyhow!("Pipeline with name: {name} not found"))?;
+    let src = proxy
+        .read(name)
+        .map_err(|_| anyhow!("Pipeline with name: {name} not found"))?;
     let pipeline = Pipeline::parse(&src)?;
     let mut set = HashMap::new();
     set.insert(name.to_string(), src);

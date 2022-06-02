@@ -143,8 +143,8 @@ pub fn update_running(
 pub fn update_container_id(
     conn: &SqliteConnection,
     pip_id: &str,
-    pip_container_id: &str
-) -> anyhow::Result<PipelineRuns>{
+    pip_container_id: &str,
+) -> anyhow::Result<PipelineRuns> {
     debug!("updating pipeline id: {pip_id} with values container_id: {pip_container_id}");
     conn.transaction(|| {
         diesel::update(pipeline_runs.filter(id.eq(pip_id)))

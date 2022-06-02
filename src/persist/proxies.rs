@@ -2,8 +2,8 @@
 
 use crate::config::{definitions::TOOL_DIR, BldConfig};
 use crate::helpers::fs::IsYaml;
-use crate::persist::{pipeline, PipelineFileSystemProxy};
 use crate::path;
+use crate::persist::{pipeline, PipelineFileSystemProxy};
 use actix_web::web;
 use anyhow::{anyhow, bail};
 use diesel::r2d2::{ConnectionManager, Pool};
@@ -18,7 +18,10 @@ pub struct ServerPipelineProxy {
 }
 
 impl ServerPipelineProxy {
-    pub fn new(config: web::Data<BldConfig>, pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>) -> Self {
+    pub fn new(
+        config: web::Data<BldConfig>,
+        pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
+    ) -> Self {
         Self { config, pool }
     }
 }
@@ -28,9 +31,9 @@ impl PipelineFileSystemProxy for ServerPipelineProxy {
         let conn = self.pool.get()?;
         let pip = pipeline::select_by_name(&conn, name)?;
         Ok(path![
-            std::env::current_dir()?, 
-            TOOL_DIR, 
-            &self.config.local.server_pipelines, 
+            std::env::current_dir()?,
+            TOOL_DIR,
+            &self.config.local.server_pipelines,
             format!("{}.yaml", pip.id)
         ])
     }
