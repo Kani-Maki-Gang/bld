@@ -2,7 +2,7 @@ use crate::cli::BldCommand;
 use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request::headers;
-use crate::persist::{EmptyExec, ShellLogger};
+use crate::persist::{EmptyExec, ShellLogger, LocalPipelineProxy};
 use crate::run::{self, socket::ExecConnectionInfo, RunnerBuilder};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashMap;
@@ -118,6 +118,7 @@ impl BldCommand for RunCommand {
                         .set_run_id(&id)
                         .set_run_start_time(&start_time)
                         .set_config(Arc::new(config))
+                        .set_proxy(Arc::new(LocalPipelineProxy))
                         .set_pipeline(&pipeline)?
                         .set_exec(EmptyExec::atom())
                         .set_log(ShellLogger::atom())

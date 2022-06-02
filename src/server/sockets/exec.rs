@@ -28,15 +28,17 @@ use uuid::Uuid;
 type AtomicEx = Arc<Mutex<PipelineExecWrapper>>;
 type AtomicFs = Arc<Mutex<FileLogger>>;
 type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
+type AtomicProxy = Arc<ServerPipelineProxy>;
 
 struct PipelineInfo {
-    cfg: web::Data<BldConfig>,
+    cfg: Arc<BldConfig>,
     pool: web::Data<PipelinePool>,
     id: String,
     start_time: String,
     name: String,
     ex: AtomicEx,
     lg: AtomicFs,
+    prx: AtomicProxy,
     cm: Option<AtomicRecv>,
     vars: Arc<HashMap<String, String>>,
 }
@@ -46,7 +48,8 @@ impl PipelineInfo {
         RunnerBuilder::default()
             .set_run_id(&self.id)
             .set_run_start_time(&self.start_time)
-            .set_config(Arc::clone(&self.cfg))
+            .set_config(self.cfg.clone())
+            .set_proxy(self.prx.clone())
             .set_pipeline(&self.name)?
             .set_exec(self.ex.clone())
             .set_log(self.lg.clone())
@@ -85,11 +88,11 @@ pub struct ExecutePipelineSocket {
     hb: Instant,
     pip_pool: web::Data<PipelinePool>,
     db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
-    config: web::Data<BldConfig>,
-    proxy: web::Data<ServerPipelineProxy>,
+    cfg: web::Data<BldConfig>,
+    prx: web::Data<ServerPipelineProxy>,
     user: User,
     exec: Option<AtomicEx>,
-    scanner: Option<FileScanner>,
+    sc: Option<FileScanner>,
 }
 
 impl ExecutePipelineSocket {
@@ -97,18 +100,18 @@ impl ExecutePipelineSocket {
         user: User,
         pip_pool: web::Data<PipelinePool>,
         db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
-        config: web::Data<BldConfig>,
-        proxy: web::Data<ServerPipelineProxy>
+        cfg: web::Data<BldConfig>,
+        prx: web::Data<ServerPipelineProxy>
     ) -> Self {
         Self {
             hb: Instant::now(),
             pip_pool,
             db_pool,
-            config,
-            proxy,
+            cfg,
+            prx,
             user,
             exec: None,
-            scanner: None,
+            sc: None,
         }
     }
 
@@ -122,7 +125,7 @@ impl ExecutePipelineSocket {
     }
 
     fn scan(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
-        if let Some(scanner) = act.scanner.as_mut() {
+        if let Some(scanner) = act.sc.as_mut() {
             let content = scanner.fetch();
             for line in content.iter() {
                 ctx.text(line.to_string());
@@ -141,14 +144,14 @@ impl ExecutePipelineSocket {
 
     fn get_info(&mut self, data: &str) -> anyhow::Result<PipelineInfo> {
         let info = serde_json::from_str::<ExecInfo>(data)?;
-        let path = self.proxy.path(&info.name)?;
+        let path = self.prx.path(&info.name)?;
         if !path.is_yaml() {
             let message = String::from("pipeline file not found");
             return Err(anyhow!(message));
         }
 
         let id = Uuid::new_v4().to_string();
-        let config = self.config.get_ref();
+        let config = self.cfg.get_ref();
         let logs = path![&config.local.logs, &id].display().to_string();
 
         let connection = self.db_pool.get()?;
@@ -166,13 +169,14 @@ impl ExecutePipelineSocket {
         }
 
         let info = PipelineInfo {
-            cfg: self.config.clone(),
+            cfg: Arc::clone(&self.cfg),
             pool: self.pip_pool.clone(),
             id,
             start_time,
             name: info.name,
             ex: Arc::clone(&ex),
             lg: Arc::new(Mutex::new(FileLogger::new(&logs)?)),
+            prx: Arc::clone(&self.prx),
             cm: Some(rx),
             vars: match info.variables {
                 Some(vars) => Arc::new(vars),
@@ -181,7 +185,7 @@ impl ExecutePipelineSocket {
         };
 
         self.exec = Some(ex);
-        self.scanner = Some(FileScanner::new(&logs)?);
+        self.sc = Some(FileScanner::new(&logs)?);
 
         Ok(info)
     }
