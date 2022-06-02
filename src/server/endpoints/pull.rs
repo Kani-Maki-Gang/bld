@@ -1,18 +1,17 @@
 use crate::config::BldConfig;
-use crate::persist::pipeline;
+use crate::persist::{pipeline, PipelineFileSystemProxy, ServerPipelineProxy};
 use crate::pull::PullResponse;
-use crate::run::Pipeline;
 use crate::server::User;
 use actix_web::{post, web, HttpResponse, Responder};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
+use std::sync::Arc;
 use tracing::info;
 
 #[post("/pull")]
 pub async fn pull(
     user: Option<User>, 
-    config: web::Data<BldConfig>,
-    pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
+    proxy: web::Data<ServerPipelineProxy>,
     body: web::Json<String>
 ) -> impl Responder {
     info!("Reached handler for /pull route");
@@ -20,18 +19,8 @@ pub async fn pull(
         return HttpResponse::Unauthorized().body("");
     }
     let name = body.into_inner();
-    match do_pull(config.get_ref(), pool.get_ref(), &name) {
+    match proxy.read(&name) {
         Ok(r) => HttpResponse::Ok().json(PullResponse::new(&name, &r)),
         Err(_) => HttpResponse::BadRequest().body("Pipeline not found"),
     }
-}
-
-fn do_pull(
-    config: &BldConfig,
-    pool: &Pool<ConnectionManager<SqliteConnection>>, 
-    name: &str
-) -> anyhow::Result<String> {
-    let conn = pool.get()?;
-    let pip = pipeline::select_by_name(&conn, name)?;
-    Pipeline::read_in_server(&config, &pip.id)
 }

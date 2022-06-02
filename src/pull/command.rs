@@ -3,8 +3,8 @@ use crate::config::{definitions::VERSION, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::fs::IsYaml;
 use crate::helpers::request;
+use crate::persist::{LocalPipelineProxy, PipelineFileSystemProxy};
 use crate::pull::PullResponse;
-use crate::run::Pipeline;
 use actix_web::rt::System;
 use anyhow::anyhow;
 use clap::{App, Arg, ArgMatches, SubCommand};
@@ -123,7 +123,7 @@ async fn do_pull(
 }
 
 fn save_pipeline(data: PullResponse) -> anyhow::Result<()> {
-    let path = Pipeline::get_path(&data.name)?;
+    let path = LocalPipelineProxy::default().path(&data.name)?;
     if path.is_yaml() {
         remove_file(&path)?;
     } else if let Some(parent) = path.parent() {

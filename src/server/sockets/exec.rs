@@ -1,8 +1,11 @@
 use crate::config::BldConfig;
 use crate::helpers::fs::IsYaml;
 use crate::path;
-use crate::persist::pipeline_runs;
-use crate::persist::{FileLogger, FileScanner, PipelineExecWrapper, Scanner};
+use crate::persist::{
+    pipeline_runs, FileLogger, FileScanner, 
+    PipelineFileSystemProxy, PipelineExecWrapper, Scanner,
+    ServerPipelineProxy
+};
 use crate::run::socket::messages::ExecInfo;
 use crate::run::{Pipeline, Runner, RunnerBuilder};
 use crate::server::{PipelinePool, User};
@@ -83,6 +86,7 @@ pub struct ExecutePipelineSocket {
     pip_pool: web::Data<PipelinePool>,
     db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     config: web::Data<BldConfig>,
+    proxy: web::Data<ServerPipelineProxy>,
     user: User,
     exec: Option<AtomicEx>,
     scanner: Option<FileScanner>,
@@ -94,12 +98,14 @@ impl ExecutePipelineSocket {
         pip_pool: web::Data<PipelinePool>,
         db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
         config: web::Data<BldConfig>,
+        proxy: web::Data<ServerPipelineProxy>
     ) -> Self {
         Self {
             hb: Instant::now(),
             pip_pool,
             db_pool,
             config,
+            proxy,
             user,
             exec: None,
             scanner: None,
@@ -135,7 +141,7 @@ impl ExecutePipelineSocket {
 
     fn get_info(&mut self, data: &str) -> anyhow::Result<PipelineInfo> {
         let info = serde_json::from_str::<ExecInfo>(data)?;
-        let path = Pipeline::get_path(&info.name)?;
+        let path = self.proxy.path(&info.name)?;
         if !path.is_yaml() {
             let message = String::from("pipeline file not found");
             return Err(anyhow!(message));
@@ -234,11 +240,12 @@ pub async fn ws_exec(
     pip_pool: web::Data<PipelinePool>,
     db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     config: web::Data<BldConfig>,
+    proxy: web::Data<ServerPipelineProxy>
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{req:?}");
     let res = ws::start(
-        ExecutePipelineSocket::new(user, pip_pool, db_pool, config),
+        ExecutePipelineSocket::new(user, pip_pool, db_pool, config, proxy),
         &req,
         stream,
     );

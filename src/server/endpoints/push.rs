@@ -1,5 +1,5 @@
 use crate::config::BldConfig;
-use crate::persist::pipeline;
+use crate::persist::{pipeline, PipelineFileSystemProxy, ServerPipelineProxy};
 use crate::push::PushInfo;
 use crate::run::Pipeline;
 use crate::server::User;
@@ -7,12 +7,13 @@ use actix_web::{post, web, HttpResponse, Responder};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use uuid::Uuid;
+use std::sync::Arc;
 use tracing::info;
 
 #[post("/push")]
 pub async fn push(
     user: Option<User>, 
-    config: web::Data<BldConfig>,
+    proxy: web::Data<ServerPipelineProxy>,
     pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     info: web::Json<PushInfo>
 ) -> impl Responder {
@@ -20,24 +21,21 @@ pub async fn push(
     if user.is_none() {
         return HttpResponse::Unauthorized().body("");
     }
-    match do_push(config.get_ref(), pool.get_ref(), &info.into_inner()) {
+    match do_push(proxy.get_ref(), pool.get_ref(), &info.into_inner()) {
         Ok(()) => HttpResponse::Ok().body(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
 
 fn do_push(
-    config: &BldConfig,
+    proxy: &impl PipelineFileSystemProxy,
     pool: &Pool<ConnectionManager<SqliteConnection>>,
     info: &PushInfo
 ) -> anyhow::Result<()> {
    let conn = pool.get()?; 
-   let pip = match pipeline::select_by_name(&conn, &info.name) {
-        Ok(p) => p,
-        Err(_) => {
-            let id = Uuid::new_v4().to_string();
-            pipeline::insert(&conn, &id, &info.name)?
-        }
-   };
-   Pipeline::create_in_server(config, &pip.id, &info.content)
+   if let Err(_) = pipeline::select_by_name(&conn, &info.name) {
+        let id = Uuid::new_v4().to_string();
+        pipeline::insert(&conn, &id, &info.name)?;
+   }
+   proxy.create(&info.name, &info.content)
 }

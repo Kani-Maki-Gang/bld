@@ -89,13 +89,30 @@ pub fn insert(conn: &SqliteConnection, pip_id: &str, pip_name: &str) -> anyhow::
 
 pub fn delete(conn: &SqliteConnection, pip_id: &str) -> anyhow::Result<()> {
     debug!("deleting pipeline with id: {pip_id} from the database");
-    diesel::delete(pipeline.filter(id.eq(pip_id)))
-        .execute(conn)
-        .map_err(|e| {
-            error!("could not delete pipeline due to {e}");
-            anyhow!(e)
-        })
-        .map(|_| {
-            debug!("pipeline deleted successfully");
-        })
+    conn.transaction(|| {
+        diesel::delete(pipeline.filter(id.eq(pip_id)))
+            .execute(conn)
+            .map_err(|e| {
+                error!("could not delete pipeline due to {e}");
+                anyhow!(e)
+            })
+            .map(|_| {
+                debug!("pipeline deleted successfully");
+            })
+    })
+}
+
+pub fn delete_by_name(conn: &SqliteConnection, pip_name: &str) -> anyhow::Result<()> {
+    debug!("deleting pipeline with name: {pip_name} from the database");
+    conn.transaction(|| {
+        diesel::delete(pipeline.filter(name.eq(pip_name)))
+            .execute(conn)
+            .map_err(|e| {
+                error!("could not delete pipeline due to {e}");
+                anyhow!(e)
+            })
+            .map(|_| {
+                debug!("pipeline delete successfully");
+            })
+    })
 }

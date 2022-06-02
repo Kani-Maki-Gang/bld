@@ -1,6 +1,6 @@
 use crate::config::definitions::{GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN};
 use crate::config::BldConfig;
-use crate::persist::{EmptyExec, Execution, Logger};
+use crate::persist::{EmptyExec, Execution, PipelineFileSystemProxy, LocalPipelineProxy, Logger};
 use crate::run::CheckStopSignal;
 use crate::run::{BuildStep, Container, Machine, Pipeline, RunsOn};
 use anyhow::anyhow;
@@ -60,7 +60,7 @@ impl RunnerBuilder {
     }
 
     pub fn set_pipeline(mut self, file: &str) -> anyhow::Result<Self> {
-        self.pip = Some(Pipeline::parse(&Pipeline::read(file)?)?);
+        self.pip = Some(Pipeline::parse(&LocalPipelineProxy::default().read(file)?)?);
         Ok(self)
     }
 

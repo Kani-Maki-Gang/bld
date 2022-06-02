@@ -2,6 +2,7 @@ use crate::cli::BldCommand;
 use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request;
+use crate::persist::{LocalPipelineProxy, PipelineFileSystemProxy};
 use crate::push::PushInfo;
 use crate::run::Pipeline;
 use anyhow::anyhow;
@@ -82,7 +83,7 @@ async fn do_push(
     name: String,
     ignore_deps: bool,
 ) -> anyhow::Result<()> {
-    let mut pipelines = vec![PushInfo::new(&name, &Pipeline::read(&name)?)];
+    let mut pipelines = vec![PushInfo::new(&name, &LocalPipelineProxy::default().read(&name)?)];
     if !ignore_deps {
         print!("Resolving dependecies...");
         let mut deps = deps(&name)
@@ -122,7 +123,7 @@ fn deps(name: &str) -> anyhow::Result<HashMap<String, String>> {
 
 fn deps_recursive(name: &str) -> anyhow::Result<HashMap<String, String>> {
     debug!("Parsing pipeline {name}");
-    let src = Pipeline::read(name).map_err(|_| anyhow!("Pipeline {name} not found"))?;
+    let src = LocalPipelineProxy::default().read(name).map_err(|_| anyhow!("Pipeline {name} not found"))?;
     let pipeline = Pipeline::parse(&src)?;
     let mut set = HashMap::new();
     set.insert(name.to_string(), src);

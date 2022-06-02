@@ -1,42 +1,37 @@
 use crate::config::BldConfig;
 use crate::helpers::fs::IsYaml;
-use crate::run::Pipeline;
 use crate::server::User;
-use crate::persist::pipeline;
+use crate::persist::{pipeline, PipelineFileSystemProxy, ServerPipelineProxy};
 use actix_web::{get, web, HttpResponse};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use tracing::info;
+use std::sync::Arc;
 
 #[get("/list")]
 pub async fn list(
-    (user, db_pool, config): (
-        Option<User>,
-        web::Data<Pool<ConnectionManager<SqliteConnection>>>,
-        web::Data<BldConfig>,
-    )
+    user: Option<User>,
+    proxy: web::Data<ServerPipelineProxy>,
+    pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
 ) -> HttpResponse {
     info!("Reached handler for /list route");
     if user.is_none() {
         return HttpResponse::Unauthorized().body("");
     }
-    match find_pipelines(config.get_ref(), db_pool.get_ref()) {
-        Ok(pips) => {
-            let pips = pips.join("\n");
-            HttpResponse::Ok().body(pips)
-        }
-        Err(_) => HttpResponse::BadRequest().body("no pipelines found") 
+    match find_pipelines(proxy.get_ref(), pool.get_ref()) {
+        Ok(pips) => HttpResponse::Ok().body(pips),
+        Err(_) => HttpResponse::BadRequest().body("no pipelines found"),
     }
 }
 
-fn find_pipelines(config: &BldConfig, pool: &Pool<ConnectionManager<SqliteConnection>>) -> anyhow::Result<Vec<String>> {
+fn find_pipelines(proxy: &impl PipelineFileSystemProxy, pool: &Pool<ConnectionManager<SqliteConnection>>) -> anyhow::Result<String> {
     let conn = pool.get()?;
     let pips = pipeline::select_all(&conn)?
         .iter()
-        .map(|p| (p, Pipeline::get_server_path(config, &p.id)))
+        .map(|p| (p, proxy.path(&p.name)))
         .filter(|(_, p)| p.is_ok())
         .filter(|(_, p)| p.as_ref().unwrap().is_yaml())
         .map(|(p, _)| p.name.clone())
-        .collect();
+        .fold(String::new(), |acc, n| format!("{acc}{n}\n"));
     Ok(pips)
 }

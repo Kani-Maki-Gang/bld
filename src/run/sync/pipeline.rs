@@ -1,17 +1,17 @@
-use crate::config::{definitions::TOOL_DIR, BldConfig};
 use crate::helpers::errors::err_variable_in_yaml;
-use crate::helpers::fs::IsYaml;
-use crate::path;
 use anyhow::anyhow;
 use std::fmt::{self, Display, Formatter};
-use std::fs::{create_dir_all, read_to_string, remove_file, File};
-use std::io::Write;
-use std::path::PathBuf;
 use yaml_rust::{Yaml, YamlLoader};
 
 pub enum RunsOn {
     Machine,
     Docker(String),
+}
+
+impl Default for RunsOn {
+    fn default() -> Self {
+        Self::Machine
+    }
 }
 
 impl Display for RunsOn {
@@ -86,6 +86,7 @@ impl Artifacts {
     }
 }
 
+#[derive(Default)]
 pub struct Pipeline {
     pub name: Option<String>,
     pub runs_on: RunsOn,
@@ -96,32 +97,6 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    pub fn get_path(name: &str) -> anyhow::Result<PathBuf> {
-        Ok(path![std::env::current_dir()?, TOOL_DIR, name])
-    }
-
-    pub fn get_server_path(config: &BldConfig, id: &str) -> anyhow::Result<PathBuf> {
-        Ok(path![
-            std::env::current_dir()?, 
-            TOOL_DIR, 
-            &config.local.server_pipelines, 
-            format!("{}.yaml", id)
-        ])
-    }
-
-    pub fn read(pipeline: &str) -> anyhow::Result<String> {
-        let path = Pipeline::get_path(pipeline)?;
-        Ok(read_to_string(path)?)
-    }
-
-    pub fn read_in_server(config: &BldConfig, id: &str) -> anyhow::Result<String> {
-        let path = Self::get_server_path(config, id)?;
-        if path.is_yaml() {
-            return Ok(read_to_string(path)?);
-        }
-        Err(anyhow!("pipeline not found"))
-    }
-
     pub fn parse(src: &str) -> anyhow::Result<Pipeline> {
         let yaml = YamlLoader::load_from_str(src)?;
         if yaml.is_empty() {
@@ -144,18 +119,6 @@ impl Pipeline {
             artifacts: Self::artifacts(yaml),
             steps: Self::steps(yaml),
         })
-    }
-
-    pub fn create_in_server(config: &BldConfig, id: &str, content: &str) -> anyhow::Result<()> {
-        let path = Self::get_server_path(config, id)?;
-        if path.is_yaml() {
-            remove_file(&path)?;
-        } else if let Some(parent) = path.parent() {
-            create_dir_all(parent)?;
-        }
-        let mut handle = File::create(&path)?;
-        handle.write_all(content.as_bytes())?;
-        Ok(())
     }
 
     fn variables(yaml: &Yaml) -> anyhow::Result<Vec<Variable>> {
