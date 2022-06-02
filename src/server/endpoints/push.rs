@@ -33,7 +33,7 @@ fn do_push(
     info: &PushInfo
 ) -> anyhow::Result<()> {
    let conn = pool.get()?; 
-   if let Err(_) = pipeline::select_by_name(&conn, &info.name) {
+   if pipeline::select_by_name(&conn, &info.name).is_err() {
         let id = Uuid::new_v4().to_string();
         pipeline::insert(&conn, &id, &info.name)?;
    }

@@ -134,7 +134,7 @@ impl Runner {
         if let TargetPlatform::Container(container) = &self.platform {
             if let Some(container_id) = &container.id {
                 let mut exec = self.ex.lock().unwrap();
-                let _ = exec.update_container_id(&container_id);
+                let _ = exec.update_container_id(container_id);
             }
         }            
     }
