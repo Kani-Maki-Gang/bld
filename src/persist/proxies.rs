@@ -31,8 +31,6 @@ impl PipelineFileSystemProxy for ServerPipelineProxy {
         let conn = self.pool.get()?;
         let pip = pipeline::select_by_name(&conn, name)?;
         Ok(path![
-            std::env::current_dir()?,
-            TOOL_DIR,
             &self.config.local.server_pipelines,
             format!("{}.yaml", pip.id)
         ])
