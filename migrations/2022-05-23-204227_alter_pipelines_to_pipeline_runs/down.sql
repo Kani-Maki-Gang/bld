@@ -8,8 +8,6 @@ create table pipelines (
     end_date_time text
 );
 
-drop trigger pipelines_after_update;
-
 create trigger pipelines_after_update
     after update on pipelines
 begin

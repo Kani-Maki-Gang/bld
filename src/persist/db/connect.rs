@@ -58,16 +58,7 @@ impl Execution for PipelineExecWrapper {
         Ok(())
     }
 
-    fn update_container_id(&mut self, container_id: &str) -> anyhow::Result<()> {
-        self.pipeline_run = pipeline_runs::update_container_id(
-            &self.connection,
-            &self.pipeline_run.id,
-            container_id,
-        )?;
-        debug!(
-            "updated pipeline run of id: {}, name: {} with new container_id: {:?}",
-            self.pipeline_run.id, self.pipeline_run.name, self.pipeline_run.container_id
-        );
+    fn update_container_id(&mut self, _container_id: &str) -> anyhow::Result<()> {
         Ok(())
     }
 }

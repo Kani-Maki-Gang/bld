@@ -132,15 +132,6 @@ impl Runner {
         lg.dumpln(message);
     }
 
-    fn persist_container_id(&mut self) {
-        if let TargetPlatform::Container(container) = &self.platform {
-            if let Some(container_id) = &container.id {
-                let mut exec = self.ex.lock().unwrap();
-                let _ = exec.update_container_id(container_id);
-            }
-        }
-    }
-
     fn persist_start(&mut self) {
         let mut exec = self.ex.lock().unwrap();
         let _ = exec.update_running(true);
@@ -291,7 +282,6 @@ impl Runner {
 
     pub async fn run(mut self) -> RecursiveFuture {
         Box::pin(async move {
-            self.persist_container_id();
             self.persist_start();
             self.info();
             match self.artifacts(&None).await {
