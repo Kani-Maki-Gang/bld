@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use bld_config::definitions::LOCAL_MACHINE_TMP_DIR;
-use bld_config::{path, OSname, os_name};
+use bld_config::{os_name, path, OSname};
 use bld_core::logger::Logger;
 use std::path::{Path, PathBuf};
 use std::process::Command;

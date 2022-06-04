@@ -1,12 +1,12 @@
 mod context;
+mod recv;
 mod socket;
 mod sync;
-mod recv;
 
 pub use context::*;
+pub use recv::*;
 pub use socket::*;
 pub use sync::*;
-pub use recv::*;
 
 #[cfg(test)]
 mod tests {
