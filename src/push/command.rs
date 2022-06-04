@@ -2,9 +2,11 @@ use crate::cli::BldCommand;
 use crate::config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION, BldConfig};
 use crate::helpers::errors::auth_for_server_invalid;
 use crate::helpers::request;
+use crate::persist::{LocalPipelineProxy, PipelineFileSystemProxy};
 use crate::push::PushInfo;
 use crate::run::Pipeline;
 use actix_web::rt::System;
+use anyhow::anyhow;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashMap;
 use tracing::debug;
@@ -81,10 +83,13 @@ async fn do_push(
     name: String,
     ignore_deps: bool,
 ) -> anyhow::Result<()> {
-    let mut pipelines = vec![PushInfo::new(&name, &Pipeline::read(&name)?)];
+    let mut pipelines = vec![PushInfo::new(
+        &name,
+        &LocalPipelineProxy::default().read(&name)?,
+    )];
     if !ignore_deps {
         print!("Resolving dependecies...");
-        let mut deps = Pipeline::deps(&name)
+        let mut deps = deps(&name)
             .map(|pips| {
                 println!("Done.");
                 pips.iter().map(|(n, s)| PushInfo::new(n, s)).collect()
@@ -110,4 +115,30 @@ async fn do_push(
             });
     }
     Ok(())
+}
+
+fn deps(name: &str) -> anyhow::Result<HashMap<String, String>> {
+    deps_recursive(name).map(|mut hs| {
+        hs.remove(name);
+        hs.into_iter().collect()
+    })
+}
+
+fn deps_recursive(name: &str) -> anyhow::Result<HashMap<String, String>> {
+    debug!("Parsing pipeline {name}");
+    let src = LocalPipelineProxy::default()
+        .read(name)
+        .map_err(|_| anyhow!("Pipeline {name} not found"))?;
+    let pipeline = Pipeline::parse(&src)?;
+    let mut set = HashMap::new();
+    set.insert(name.to_string(), src);
+    for step in pipeline.steps.iter() {
+        if let Some(pipeline) = &step.call {
+            let subset = deps_recursive(pipeline)?;
+            for (k, v) in subset {
+                set.insert(k, v);
+            }
+        }
+    }
+    Ok(set)
 }

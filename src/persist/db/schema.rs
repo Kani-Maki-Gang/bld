@@ -78,7 +78,15 @@ table! {
 }
 
 table! {
-    pipelines (id) {
+    pipeline (id) {
+        id -> Text,
+        name -> Text,
+        date_created -> Text,
+    }
+}
+
+table! {
+    pipeline_runs (id) {
         id -> Text,
         name -> Text,
         running -> Bool,
@@ -102,5 +110,6 @@ allow_tables_to_appear_in_same_query!(
     ha_members_after_consensus,
     ha_snapshot,
     ha_state_machine,
-    pipelines,
+    pipeline,
+    pipeline_runs,
 );

@@ -13,6 +13,7 @@ pub struct BldLocalConfig {
     pub port: i64,
     pub logs: String,
     pub db: String,
+    pub server_pipelines: String,
     pub auth: AuthValidation,
     pub docker_url: String,
 }
@@ -39,6 +40,10 @@ impl BldLocalConfig {
             .as_str()
             .unwrap_or(definitions::LOCAL_DB)
             .to_string();
+        let server_pipelines = local_yaml["server-pipelines"]
+            .as_str()
+            .unwrap_or(definitions::LOCAL_SERVER_PIPELINES)
+            .to_string();
         let docker_url = local_yaml["docker-url"]
             .as_str()
             .unwrap_or(definitions::LOCAL_DOCKER_URL)
@@ -51,6 +56,7 @@ impl BldLocalConfig {
             port,
             logs,
             db,
+            server_pipelines,
             auth,
             docker_url,
         };
@@ -97,6 +103,7 @@ impl Default for BldLocalConfig {
             port: definitions::LOCAL_SERVER_PORT,
             logs: definitions::LOCAL_LOGS.to_string(),
             db: definitions::LOCAL_DB.to_string(),
+            server_pipelines: definitions::LOCAL_SERVER_PIPELINES.to_string(),
             auth: AuthValidation::None,
             docker_url: definitions::LOCAL_DOCKER_URL.to_string(),
         }

@@ -9,6 +9,7 @@ pub mod ha_snapshot;
 pub mod ha_state_machine;
 mod migrations;
 pub mod pipeline;
+pub mod pipeline_runs;
 mod schema;
 
 pub use connect::*;

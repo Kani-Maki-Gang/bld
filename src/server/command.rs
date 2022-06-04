@@ -1,7 +1,7 @@
 use crate::cli::BldCommand;
 use crate::config::{definitions::VERSION, BldConfig};
 use crate::high_avail::HighAvail;
-use crate::persist::new_connection_pool;
+use crate::persist::{new_connection_pool, ServerPipelineProxy};
 use crate::server::{
     auth_redirect, deps, ha_append_entries, ha_install_snapshot, ha_vote, hist, home, inspect,
     list, pull, push, remove, stop, ws_exec, ws_high_avail, ws_monit, PipelinePool,
@@ -26,16 +26,18 @@ impl ServerCommand {
         info!("starting bld server at {}:{}", host, port);
         let db_pool = new_connection_pool(&config.local.db)?;
         let pip_pool = web::Data::new(PipelinePool::new());
-        let high_avail = web::Data::new(HighAvail::new(&config, db_pool.clone()).await?);
+        let ha = web::Data::new(HighAvail::new(&config, db_pool.clone()).await?);
         let db_pool = web::Data::new(db_pool);
-        let config = web::Data::new(config);
+        let cfg = web::Data::new(config);
+        let prx = web::Data::new(ServerPipelineProxy::new(cfg.clone(), db_pool.clone()));
         set_var("RUST_LOG", "actix_server=info,actix_web=debug");
         HttpServer::new(move || {
             App::new()
                 .app_data(pip_pool.clone())
-                .app_data(config.clone())
-                .app_data(high_avail.clone())
+                .app_data(cfg.clone())
+                .app_data(ha.clone())
                 .app_data(db_pool.clone())
+                .app_data(prx.clone())
                 .wrap(middleware::Logger::default())
                 .service(ha_append_entries)
                 .service(ha_install_snapshot)

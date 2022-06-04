@@ -4,15 +4,16 @@ use tracing::info;
 
 #[post("/stop")]
 pub fn stop(
-    (user, req, data): (Option<User>, web::Json<String>, web::Data<PipelinePool>),
+    user: Option<User>, 
+    pool: web::Data<PipelinePool>, 
+    req: web::Json<String>
 ) -> HttpResponse {
     info!("Reached handler for /stop route");
     if user.is_none() {
         return HttpResponse::Unauthorized().body("");
     }
-
     let id = req.into_inner();
-    let pool = data.senders.lock().unwrap();
+    let pool = pool.senders.lock().unwrap();
     match pool.get(&id) {
         Some(sender) => match sender.send(true) {
             Ok(_) => HttpResponse::Ok().finish(),

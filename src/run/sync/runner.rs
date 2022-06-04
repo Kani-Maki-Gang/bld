@@ -1,6 +1,6 @@
 use crate::config::definitions::{GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN};
 use crate::config::BldConfig;
-use crate::persist::{EmptyExec, Execution, Logger};
+use crate::persist::{EmptyExec, Execution, Logger, PipelineFileSystemProxy};
 use crate::run::CheckStopSignal;
 use crate::run::{BuildStep, Container, Machine, Pipeline, RunsOn};
 use anyhow::anyhow;
@@ -15,6 +15,7 @@ type AtomicExec = Arc<Mutex<dyn Execution>>;
 type AtomicLog = Arc<Mutex<dyn Logger>>;
 type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
 type AtomicVars = Arc<HashMap<String, String>>;
+type AtomicProxy = Arc<dyn PipelineFileSystemProxy>;
 
 pub enum TargetPlatform {
     Machine(Box<Machine>),
@@ -28,7 +29,8 @@ pub struct RunnerBuilder {
     cfg: Option<Arc<BldConfig>>,
     ex: Option<AtomicExec>,
     lg: Option<AtomicLog>,
-    pip: Option<Pipeline>,
+    prx: Option<AtomicProxy>,
+    pip: Option<String>,
     cm: Option<AtomicRecv>,
     vars: Option<AtomicVars>,
 }
@@ -59,13 +61,14 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn set_from_src(mut self, src: &str) -> anyhow::Result<Self> {
-        self.pip = Some(Pipeline::parse(src)?);
+    pub fn set_pipeline(mut self, name: &str) -> anyhow::Result<Self> {
+        self.pip = Some(name.to_string());
         Ok(self)
     }
 
-    pub fn set_from_file(self, file: &str) -> anyhow::Result<Self> {
-        self.set_from_src(&Pipeline::read(file)?)
+    pub fn set_proxy(mut self, prx: AtomicProxy) -> Self {
+        self.prx = Some(prx);
+        self
     }
 
     pub fn set_receiver(mut self, cm: Option<AtomicRecv>) -> Self {
@@ -82,7 +85,11 @@ impl RunnerBuilder {
         let id = self.run_id.ok_or(anyhow!("no run id provided"))?;
         let cfg = self.cfg.ok_or(anyhow!("no bld config instance provided"))?;
         let lg = self.lg.ok_or(anyhow!("no logger instance provided"))?;
-        let pip = self.pip.ok_or(anyhow!("no pipeline provided"))?;
+        let prx = self
+            .prx
+            .ok_or(anyhow!("no pipeline file system proxy provided"))?;
+        let pip_name = self.pip.ok_or(anyhow!("no pipeline provided"))?;
+        let pip = Pipeline::parse(&prx.read(&pip_name)?)?;
         let platform = match &pip.runs_on {
             RunsOn::Machine => TargetPlatform::Machine(Box::new(Machine::new(&id, lg.clone())?)),
             RunsOn::Docker(img) => TargetPlatform::Container(Box::new(
@@ -97,6 +104,7 @@ impl RunnerBuilder {
             cfg,
             ex: self.ex.ok_or(anyhow!("no executor instance provided"))?,
             lg,
+            prx,
             pip,
             cm: self.cm,
             vars: self.vars.ok_or(anyhow!("no variables instance provided"))?,
@@ -111,6 +119,7 @@ pub struct Runner {
     cfg: Arc<BldConfig>,
     ex: AtomicExec,
     lg: AtomicLog,
+    prx: AtomicProxy,
     pip: Pipeline,
     cm: Option<AtomicRecv>,
     vars: AtomicVars,
@@ -125,12 +134,12 @@ impl Runner {
 
     fn persist_start(&mut self) {
         let mut exec = self.ex.lock().unwrap();
-        let _ = exec.update(true);
+        let _ = exec.update_running(true);
     }
 
     fn persist_end(&mut self) {
         let mut exec = self.ex.lock().unwrap();
-        let _ = exec.update(false);
+        let _ = exec.update_running(false);
     }
 
     fn info(&self) {
@@ -232,7 +241,8 @@ impl Runner {
                 .set_run_id(&self.run_id)
                 .set_run_start_time(&self.run_start_time)
                 .set_config(self.cfg.clone())
-                .set_from_file(call)?
+                .set_proxy(self.prx.clone())
+                .set_pipeline(call)?
                 .set_exec(EmptyExec::atom())
                 .set_log(self.lg.clone())
                 .set_receiver(self.cm.as_ref().cloned())
