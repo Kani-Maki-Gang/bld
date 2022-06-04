@@ -1,5 +1,5 @@
-use bld_config::{path, definitions::REMOTE_SERVER_OAUTH2, Auth};
 use anyhow::anyhow;
+use bld_config::{definitions::REMOTE_SERVER_OAUTH2, path, Auth};
 use reqwest::{Client, StatusCode};
 use serde::Serialize;
 use std::collections::HashMap;
