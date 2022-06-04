@@ -19,4 +19,3 @@ impl Logger for NullLogger {
 
     fn error(&mut self, _: &str) {}
 }
-

@@ -8,7 +8,6 @@ pub use agent::*;
 pub use network::*;
 pub use storage::*;
 
-use bld_config::BldConfig;
 use anyhow::anyhow;
 use async_raft::config::Config;
 use async_raft::raft::{
@@ -16,6 +15,7 @@ use async_raft::raft::{
     Raft, VoteRequest, VoteResponse,
 };
 use async_raft::NodeId;
+use bld_config::BldConfig;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::collections::HashSet;

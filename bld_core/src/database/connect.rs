@@ -1,5 +1,5 @@
 use crate::database::run_migrations;
-use bld_config::{path, definitions::DB_NAME};
+use bld_config::{definitions::DB_NAME, path};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::path::PathBuf;

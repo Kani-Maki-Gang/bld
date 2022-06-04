@@ -1,6 +1,6 @@
+use crate::database::ha_state_machine::HighAvailStateMachine;
 use crate::database::schema::ha_client_status;
 use crate::database::schema::ha_client_status::dsl::*;
-use crate::database::ha_state_machine::HighAvailStateMachine;
 use anyhow::anyhow;
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;

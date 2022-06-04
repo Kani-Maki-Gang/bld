@@ -1,6 +1,6 @@
+use crate::database::ha_snapshot::HighAvailSnapshot;
 use crate::database::schema::ha_members;
 use crate::database::schema::ha_members::dsl::*;
-use crate::database::ha_snapshot::HighAvailSnapshot;
 use anyhow::anyhow;
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;

@@ -1,6 +1,5 @@
 #![allow(dead_code, unused_imports)]
 
-use crate::high_avail::{AgentRequest, AgentResponse};
 use crate::database::ha_client_serial_responses::{
     self, HighAvailClientSerialResponses, InsertHighAvailClientSerialResponses,
 };
@@ -13,6 +12,7 @@ use crate::database::ha_members_after_consensus::{
 };
 use crate::database::ha_snapshot::{self, HighAvailSnapshot, InsertHighAvailSnapshot};
 use crate::database::ha_state_machine::{self, HighAvailStateMachine};
+use crate::high_avail::{AgentRequest, AgentResponse};
 use anyhow::{anyhow, Result};
 use async_raft::raft::{Entry, EntryPayload, MembershipConfig};
 use async_raft::storage::{CurrentSnapshotData, HardState, InitialState, RaftStorage};

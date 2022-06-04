@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::proxies::PipelineFileSystemProxy;
-use bld_config::{path, definitions::TOOL_DIR};
+use bld_config::{definitions::TOOL_DIR, path};
 use bld_utils::fs::IsYaml;
 use std::fs::{create_dir_all, read_to_string, remove_file, File};
 use std::io::Write;
