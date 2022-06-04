@@ -2,16 +2,16 @@ mod auth;
 pub mod definitions;
 mod errors;
 mod local;
+mod path;
 mod remote;
 mod server;
-mod path;
 
 pub use auth::*;
 pub use errors::*;
 pub use local::*;
+pub use path::*;
 pub use remote::*;
 pub use server::*;
-pub use path::*;
 
 use std::path::PathBuf;
 use tracing::debug;
