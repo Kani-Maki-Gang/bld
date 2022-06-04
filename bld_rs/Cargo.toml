@@ -1,0 +1,14 @@
+[package]
+name = "bld_rs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bld_config = { path = "../bld_config" }
+bld_utils = { path = "../bld_utils" }
+bld_commands = { path = "../bld_commands" }
+clap = "2.33.3"
+tracing = "0.1.26"
+tracing-subscriber = "0.2.19"
