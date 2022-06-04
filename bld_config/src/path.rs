@@ -45,7 +45,7 @@ fn is_windows() -> bool {
     path.is_dir()
 }
 
-pub fn name() -> OSname {
+pub fn os_name() -> OSname {
     if is_linux() {
         return OSname::Linux;
     }
