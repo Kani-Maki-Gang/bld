@@ -57,10 +57,6 @@ impl Execution for PipelineExecWrapper {
         );
         Ok(())
     }
-
-    fn update_container_id(&mut self, _container_id: &str) -> anyhow::Result<()> {
-        Ok(())
-    }
 }
 
 pub struct EmptyExec;
@@ -73,10 +69,6 @@ impl EmptyExec {
 
 impl Execution for EmptyExec {
     fn update_running(&mut self, _running: bool) -> anyhow::Result<()> {
-        Ok(())
-    }
-
-    fn update_container_id(&mut self, _container_id: &str) -> anyhow::Result<()> {
         Ok(())
     }
 }
