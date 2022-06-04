@@ -29,7 +29,7 @@ impl ServerCommand {
     async fn start(config: BldConfig, host: &str, port: i64) -> anyhow::Result<()> {
         info!("starting bld server at {}:{}", host, port);
         let db_pool = new_connection_pool(&config.local.db)?;
-        let pip_pool = web::Data::new(PipelinePool::new());
+        let pip_pool = web::Data::new(PipelinePool::default());
         let ha = web::Data::new(HighAvail::new(&config, db_pool.clone()).await?);
         let db_pool = web::Data::new(db_pool);
         let cfg = web::Data::new(config);
