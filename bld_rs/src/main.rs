@@ -1,6 +1,6 @@
+use bld_commands::*;
 use bld_config::definitions::VERSION;
 use bld_utils::term::print_error;
-use bld_commands::*;
 use clap::{App, Arg, ArgMatches};
 use tracing_subscriber::filter::LevelFilter;
 
