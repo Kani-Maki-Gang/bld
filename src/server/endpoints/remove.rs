@@ -13,14 +13,14 @@ use tracing::info;
 #[post("/remove")]
 pub async fn remove(
     user: Option<User>,
-    proxy: web::Data<ServerPipelineProxy>,
+    prx: web::Data<ServerPipelineProxy>,
     body: web::Json<String>,
 ) -> HttpResponse {
     info!("Reached handler for /remove route");
     if user.is_none() {
         return HttpResponse::Unauthorized().body("");
     }
-    match proxy.remove(&body.into_inner()) {
+    match prx.remove(&body.into_inner()) {
         Ok(_) => HttpResponse::Ok().body(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }

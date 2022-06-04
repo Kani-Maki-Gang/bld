@@ -13,7 +13,7 @@ use uuid::Uuid;
 #[post("/push")]
 pub async fn push(
     user: Option<User>,
-    proxy: web::Data<ServerPipelineProxy>,
+    prx: web::Data<ServerPipelineProxy>,
     pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     info: web::Json<PushInfo>,
 ) -> impl Responder {
@@ -21,14 +21,14 @@ pub async fn push(
     if user.is_none() {
         return HttpResponse::Unauthorized().body("");
     }
-    match do_push(proxy.get_ref(), pool.get_ref(), &info.into_inner()) {
+    match do_push(prx.get_ref(), pool.get_ref(), &info.into_inner()) {
         Ok(()) => HttpResponse::Ok().body(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
 
 fn do_push(
-    proxy: &impl PipelineFileSystemProxy,
+    prx: &impl PipelineFileSystemProxy,
     pool: &Pool<ConnectionManager<SqliteConnection>>,
     info: &PushInfo,
 ) -> anyhow::Result<()> {
@@ -37,5 +37,5 @@ fn do_push(
         let id = Uuid::new_v4().to_string();
         pipeline::insert(&conn, &id, &info.name)?;
     }
-    proxy.create(&info.name, &info.content)
+    prx.create(&info.name, &info.content)
 }

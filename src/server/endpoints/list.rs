@@ -11,27 +11,27 @@ use tracing::info;
 #[get("/list")]
 pub async fn list(
     user: Option<User>,
-    proxy: web::Data<ServerPipelineProxy>,
+    prx: web::Data<ServerPipelineProxy>,
     pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
 ) -> HttpResponse {
     info!("Reached handler for /list route");
     if user.is_none() {
         return HttpResponse::Unauthorized().body("");
     }
-    match find_pipelines(proxy.get_ref(), pool.get_ref()) {
+    match find_pipelines(prx.get_ref(), pool.get_ref()) {
         Ok(pips) => HttpResponse::Ok().body(pips),
         Err(_) => HttpResponse::BadRequest().body("no pipelines found"),
     }
 }
 
 fn find_pipelines(
-    proxy: &impl PipelineFileSystemProxy,
+    prx: &impl PipelineFileSystemProxy,
     pool: &Pool<ConnectionManager<SqliteConnection>>,
 ) -> anyhow::Result<String> {
     let conn = pool.get()?;
     let pips = pipeline::select_all(&conn)?
         .iter()
-        .map(|p| (p, proxy.path(&p.name)))
+        .map(|p| (p, prx.path(&p.name)))
         .filter(|(_, p)| p.is_ok())
         .filter(|(_, p)| p.as_ref().unwrap().is_yaml())
         .map(|(p, _)| p.name.clone())

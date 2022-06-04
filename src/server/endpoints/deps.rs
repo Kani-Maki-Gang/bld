@@ -13,7 +13,7 @@ use tracing::{debug, info};
 #[post("/deps")]
 pub async fn deps(
     user: Option<User>,
-    proxy: web::Data<ServerPipelineProxy>,
+    prx: web::Data<ServerPipelineProxy>,
     body: web::Json<String>,
 ) -> impl Responder {
     info!("Reached handler for /deps route");
@@ -21,25 +21,25 @@ pub async fn deps(
         return HttpResponse::Unauthorized().body("");
     }
     let name = body.into_inner();
-    match do_deps(proxy.get_ref(), &name) {
+    match do_deps(prx.get_ref(), &name) {
         Ok(r) => HttpResponse::Ok().json(r),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
 
-fn do_deps(proxy: &impl PipelineFileSystemProxy, name: &str) -> anyhow::Result<Vec<String>> {
-    deps_recursive(proxy, name).map(|mut hs| {
+fn do_deps(prx: &impl PipelineFileSystemProxy, name: &str) -> anyhow::Result<Vec<String>> {
+    deps_recursive(prx, name).map(|mut hs| {
         hs.remove(name);
         hs.into_iter().map(|(n, _)| n).collect()
     })
 }
 
 fn deps_recursive(
-    proxy: &impl PipelineFileSystemProxy,
+    prx: &impl PipelineFileSystemProxy,
     name: &str,
 ) -> anyhow::Result<HashMap<String, String>> {
     debug!("Parsing pipeline {name}");
-    let src = proxy
+    let src = prx
         .read(name)
         .map_err(|_| anyhow!("Pipeline with name: {name} not found"))?;
     let pipeline = Pipeline::parse(&src)?;
@@ -47,7 +47,7 @@ fn deps_recursive(
     set.insert(name.to_string(), src);
     for step in pipeline.steps.iter() {
         if let Some(pipeline) = &step.call {
-            let subset = deps_recursive(proxy, pipeline)?;
+            let subset = deps_recursive(prx, pipeline)?;
             for (k, v) in subset {
                 set.insert(k, v);
             }
