@@ -9,6 +9,7 @@ edition = "2021"
 actix = "0.12.0"
 actix-codec = "0.4.1"
 actix-web = { version = "4.0.0-beta.19", features = ["openssl"] }
+actix-web-actors = "4.0.0-beta.10"
 awc = "3.0.0-beta.18"
 anyhow = "1.0.40"
 bld_config = { path = "../bld_config" }

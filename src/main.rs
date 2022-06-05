@@ -1,29 +1,6 @@
-#[macro_use]
-extern crate diesel;
-#[macro_use]
-extern crate diesel_migrations;
-
-mod auth;
-mod cli;
-mod config;
-mod helpers;
-mod high_avail;
-mod hist;
-mod init;
-mod inspect;
-mod list;
-mod monit;
-mod os;
-mod persist;
-mod pull;
-mod push;
-mod remove;
-mod run;
-mod server;
-mod stop;
-
-use crate::config::definitions::VERSION;
-use crate::helpers::term::print_error;
+use bld_commands::*;
+use bld_config::definitions::VERSION;
+use bld_utils::term::print_error;
 use clap::{App, Arg, ArgMatches};
 use tracing_subscriber::filter::LevelFilter;
 
