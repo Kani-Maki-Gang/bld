@@ -25,11 +25,11 @@ impl Display for RunsOn {
 
 pub struct Variable {
     pub name: String,
-    pub default_value: Option<String>,
+    pub default_value: String,
 }
 
 impl Variable {
-    pub fn new(name: String, default_value: Option<String>) -> Self {
+    pub fn new(name: String, default_value: String) -> Self {
         Variable {
             name,
             default_value,
@@ -125,11 +125,21 @@ impl Pipeline {
         let mut variables = Vec::<Variable>::new();
         if let Some(entries) = &yaml["variables"].as_vec() {
             for variable in entries.iter() {
-                let name = variable["name"]
-                    .as_str()
-                    .ok_or_else(err_variable_in_yaml)?
-                    .to_string();
-                let default_value = variable["default-value"].as_str().map(|d| d.to_string());
+                let hash = variable
+                    .as_hash()
+                    .ok_or_else(err_variable_in_yaml)?;
+                let name = hash
+                    .keys()
+                    .next()
+                    .and_then(|k| k.as_str())
+                    .and_then(|k| Some(k.to_string()))
+                    .ok_or_else(err_variable_in_yaml)?;
+                let default_value = hash
+                    .values()
+                    .next()
+                    .and_then(|v| v.as_str())
+                    .and_then(|v| Some(v.to_string()))
+                    .ok_or_else(err_variable_in_yaml)?;
                 variables.push(Variable::new(name, default_value));
             }
         }

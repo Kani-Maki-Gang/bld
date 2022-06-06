@@ -167,13 +167,7 @@ impl Runner {
         }
         for variable in self.pip.variables.iter() {
             let full_name = format!("{VAR_TOKEN}{}", &variable.name);
-            let value = variable
-                .default_value
-                .as_ref()
-                .map(|d| d.to_string())
-                .or_else(|| Some(String::new()))
-                .unwrap();
-            txt_with_vars = txt_with_vars.replace(&full_name, &value);
+            txt_with_vars = txt_with_vars.replace(&full_name, &variable.default_value);
         }
         txt_with_vars
     }
