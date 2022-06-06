@@ -1,4 +1,4 @@
-use actix_web::{get, web, HttpResponse};
+use actix_web::{get, web, HttpResponse, Responder};
 use serde_derive::Deserialize;
 use tracing::info;
 
@@ -9,7 +9,7 @@ pub struct AuthRedirectInfo {
 }
 
 #[get("/authRedirect")]
-pub fn auth_redirect(web::Query(info): web::Query<AuthRedirectInfo>) -> HttpResponse {
+pub async fn auth_redirect(info: web::Query<AuthRedirectInfo>) -> impl Responder {
     info!("Reached handler for /authRedirect route");
     let message = format!("code: {}, state: {}", info.code, info.state);
     HttpResponse::Ok().body(message)

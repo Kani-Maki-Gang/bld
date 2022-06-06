@@ -1,14 +1,14 @@
 use crate::extractors::User;
 use crate::state::PipelinePool;
-use actix_web::{post, web, HttpResponse};
+use actix_web::{post, web, HttpResponse, Responder};
 use tracing::info;
 
 #[post("/stop")]
-pub fn stop(
+pub async fn stop(
     user: Option<User>,
     pool: web::Data<PipelinePool>,
     req: web::Json<String>,
-) -> HttpResponse {
+) -> impl Responder {
     info!("Reached handler for /stop route");
     if user.is_none() {
         return HttpResponse::Unauthorized().body("");
