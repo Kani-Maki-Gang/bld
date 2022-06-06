@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use bld_utils::errors::err_variable_in_yaml;
+use bld_utils::errors::{err_variable_in_yaml, err_exec_in_yaml};
 use std::fmt::{self, Display, Formatter};
 use yaml_rust::{Yaml, YamlLoader};
 
@@ -176,7 +176,7 @@ impl Pipeline {
                     .as_vec()
                     .unwrap_or(&Vec::<Yaml>::new())
                     .iter()
-                    .map(|c| c["sh"].as_str().or(Some("")).unwrap().to_string())
+                    .map(|c| c.as_str().unwrap_or("").to_string())
                     .filter(|c| !c.is_empty())
                     .collect();
                 steps.push(BuildStep::new(name, working_dir, call, commands));
