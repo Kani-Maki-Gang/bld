@@ -1,3 +1,13 @@
+[workspace]
+members = [
+  "bld_core",
+  "bld_utils",
+  "bld_config",
+  "bld_runner",
+  "bld_server",
+  "bld_commands"
+]
+
 [package]
 name = "bld"
 version = "0.1.0"
@@ -15,33 +25,9 @@ opt-level = 3
 debug = false
 
 [dependencies]
+bld_config = { path = "bld_config" }
+bld_utils = { path = "bld_utils" }
+bld_commands = { path = "bld_commands" }
 clap = "2.33.3"
-yaml-rust = "0.4.5"
-futures-util = "0.3.15"
-shiplift = "0.7.0"
-termcolor = "1.1.2"
-actix = "0.12.0"
-actix-codec = "0.4.1"
-actix-http = "3.0.0-beta.18"
-actix-web = { version = "4.0.0-beta.19", features = ["openssl"] }
-actix-web-actors = "4.0.0-beta.10"
-awc = "3.0.0-beta.18"
-bytes = "1.0.1"
-futures = "0.3.15"
-env_logger = "0.8.3"
-tokio = { version = "1.15", features = ["full"] }
-diesel = { version = "1.4.6", features = ["sqlite", "r2d2"] }
-diesel_migrations = { version = "1.4.0", features = ["sqlite"] }
-uuid = { version = "0.8.2", features = ["v4"] }
-oauth2 = "4.0.0"
-serde = "1.0.126"
-serde_derive = "1.0.126"
-serde_json = "1.0.64"
-tar = "0.4.35"
-async-raft = "0.6.1"
-async-trait = "0.1.50"
-anyhow = "1.0.40"
 tracing = "0.1.26"
 tracing-subscriber = "0.2.19"
-reqwest = { version = "0.11.8", features = ["json"] }
-chrono = "0.4.19"
