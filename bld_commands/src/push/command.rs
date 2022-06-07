@@ -133,8 +133,8 @@ fn deps_recursive(name: &str) -> anyhow::Result<HashMap<String, String>> {
     let mut set = HashMap::new();
     set.insert(name.to_string(), src);
     for step in pipeline.steps.iter() {
-        if let Some(pipeline) = &step.call {
-            let subset = deps_recursive(pipeline)?;
+        for call in &step.call {
+            let subset = deps_recursive(call)?;
             for (k, v) in subset {
                 set.insert(k, v);
             }

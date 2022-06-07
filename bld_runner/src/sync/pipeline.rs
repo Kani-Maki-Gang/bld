@@ -25,11 +25,11 @@ impl Display for RunsOn {
 
 pub struct Variable {
     pub name: String,
-    pub default_value: Option<String>,
+    pub default_value: String,
 }
 
 impl Variable {
-    pub fn new(name: String, default_value: Option<String>) -> Self {
+    pub fn new(name: String, default_value: String) -> Self {
         Variable {
             name,
             default_value,
@@ -40,7 +40,7 @@ impl Variable {
 pub struct BuildStep {
     pub name: Option<String>,
     pub working_dir: Option<String>,
-    pub call: Option<String>,
+    pub call: Vec<String>,
     pub commands: Vec<String>,
 }
 
@@ -48,7 +48,7 @@ impl BuildStep {
     pub fn new(
         name: Option<String>,
         working_dir: Option<String>,
-        call: Option<String>,
+        call: Vec<String>,
         commands: Vec<String>,
     ) -> Self {
         Self {
@@ -125,11 +125,21 @@ impl Pipeline {
         let mut variables = Vec::<Variable>::new();
         if let Some(entries) = &yaml["variables"].as_vec() {
             for variable in entries.iter() {
-                let name = variable["name"]
-                    .as_str()
-                    .ok_or_else(err_variable_in_yaml)?
-                    .to_string();
-                let default_value = variable["default-value"].as_str().map(|d| d.to_string());
+                let hash = variable
+                    .as_hash()
+                    .ok_or_else(err_variable_in_yaml)?;
+                let name = hash
+                    .keys()
+                    .next()
+                    .and_then(|k| k.as_str())
+                    .and_then(|k| Some(k.to_string()))
+                    .ok_or_else(err_variable_in_yaml)?;
+                let default_value = hash
+                    .values()
+                    .next()
+                    .and_then(|v| v.as_str())
+                    .and_then(|v| Some(v.to_string()))
+                    .ok_or_else(err_variable_in_yaml)?;
                 variables.push(Variable::new(name, default_value));
             }
         }
@@ -161,12 +171,18 @@ impl Pipeline {
                     .as_str()
                     .map(|w| w.to_string())
                     .or_else(|| working_dir.clone());
-                let call = step["call"].as_str().map(|p| p.to_string());
+                let call = step["call"]
+                    .as_vec()
+                    .unwrap_or(&Vec::<Yaml>::new())
+                    .iter()
+                    .map(|c| c.as_str().unwrap_or("").to_string())
+                    .filter(|c| !c.is_empty())
+                    .collect();
                 let commands: Vec<String> = step["exec"]
                     .as_vec()
                     .unwrap_or(&Vec::<Yaml>::new())
                     .iter()
-                    .map(|c| c["sh"].as_str().or(Some("")).unwrap().to_string())
+                    .map(|c| c.as_str().unwrap_or("").to_string())
                     .filter(|c| !c.is_empty())
                     .collect();
                 steps.push(BuildStep::new(name, working_dir, call, commands));
