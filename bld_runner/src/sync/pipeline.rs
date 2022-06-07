@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use bld_utils::errors::{err_variable_in_yaml, err_exec_in_yaml};
+use bld_utils::errors::err_variable_in_yaml;
 use std::fmt::{self, Display, Formatter};
 use yaml_rust::{Yaml, YamlLoader};
 
@@ -40,7 +40,7 @@ impl Variable {
 pub struct BuildStep {
     pub name: Option<String>,
     pub working_dir: Option<String>,
-    pub call: Option<String>,
+    pub call: Vec<String>,
     pub commands: Vec<String>,
 }
 
@@ -48,7 +48,7 @@ impl BuildStep {
     pub fn new(
         name: Option<String>,
         working_dir: Option<String>,
-        call: Option<String>,
+        call: Vec<String>,
         commands: Vec<String>,
     ) -> Self {
         Self {
@@ -171,7 +171,13 @@ impl Pipeline {
                     .as_str()
                     .map(|w| w.to_string())
                     .or_else(|| working_dir.clone());
-                let call = step["call"].as_str().map(|p| p.to_string());
+                let call = step["call"]
+                    .as_vec()
+                    .unwrap_or(&Vec::<Yaml>::new())
+                    .iter()
+                    .map(|c| c.as_str().unwrap_or("").to_string())
+                    .filter(|c| !c.is_empty())
+                    .collect();
                 let commands: Vec<String> = step["exec"]
                     .as_vec()
                     .unwrap_or(&Vec::<Yaml>::new())

@@ -232,7 +232,7 @@ impl Runner {
     }
 
     async fn call(&self, step: &BuildStep) -> anyhow::Result<()> {
-        if let Some(call) = &step.call {
+        for call in &step.call {
             let runner = RunnerBuilder::default()
                 .set_run_id(&self.run_id)
                 .set_run_start_time(&self.run_start_time)
@@ -246,8 +246,8 @@ impl Runner {
                 .build()
                 .await?;
             runner.run().await.await?;
+            self.cm.check_stop_signal()?;
         }
-        self.cm.check_stop_signal()?;
         Ok(())
     }
 
