@@ -40,6 +40,7 @@ struct PipelineInfo {
     lg: AtomicFs,
     prx: AtomicProxy,
     cm: Option<AtomicRecv>,
+    env: Arc<HashMap<String, String>>,
     vars: Arc<HashMap<String, String>>,
 }
 
@@ -54,6 +55,7 @@ impl PipelineInfo {
             .set_exec(self.ex.clone())
             .set_log(self.lg.clone())
             .set_receiver(self.cm.clone())
+            .set_environment(self.env.clone())
             .set_variables(self.vars.clone())
             .build()
             .await
@@ -178,6 +180,10 @@ impl ExecutePipelineSocket {
             lg: Arc::new(Mutex::new(FileLogger::new(&logs)?)),
             prx: Arc::clone(&self.prx),
             cm: Some(rx),
+            env: match info.environment {
+                Some(env) => Arc::new(env),
+                None => Arc::new(HashMap::<String, String>::new()),
+            },
             vars: match info.variables {
                 Some(vars) => Arc::new(vars),
                 None => Arc::new(HashMap::<String, String>::new()),

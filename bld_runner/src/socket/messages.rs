@@ -6,14 +6,16 @@ use std::collections::HashMap;
 #[rtype(result = "()")]
 pub struct ExecInfo {
     pub name: String,
+    pub environment: Option<HashMap<String, String>>,
     pub variables: Option<HashMap<String, String>>,
 }
 
 impl ExecInfo {
-    pub fn new(name: &str, variables: Option<HashMap<String, String>>) -> Self {
+    pub fn new(name: &str, env: Option<HashMap<String, String>>, vars: Option<HashMap<String, String>>) -> Self {
         Self {
             name: name.to_string(),
-            variables,
+            environment: env,
+            variables: vars,
         }
     }
 }

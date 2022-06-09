@@ -91,6 +91,7 @@ pub struct Pipeline {
     pub name: Option<String>,
     pub runs_on: RunsOn,
     pub dispose: bool,
+    pub env_variables: Vec<Variable>,
     pub variables: Vec<Variable>,
     pub artifacts: Vec<Artifacts>,
     pub steps: Vec<BuildStep>,
@@ -115,15 +116,16 @@ impl Pipeline {
                 Some(target) => RunsOn::Docker(target.to_string()),
             },
             dispose: yaml["dispose"].as_bool().or(Some(true)).unwrap(),
-            variables: Self::variables(yaml)?,
+            env_variables: Self::variables(yaml, "environment")?,
+            variables: Self::variables(yaml, "variables")?,
             artifacts: Self::artifacts(yaml),
             steps: Self::steps(yaml),
         })
     }
 
-    fn variables(yaml: &Yaml) -> anyhow::Result<Vec<Variable>> {
+    fn variables(yaml: &Yaml, section: &str) -> anyhow::Result<Vec<Variable>> {
         let mut variables = Vec::<Variable>::new();
-        if let Some(entries) = &yaml["variables"].as_vec() {
+        if let Some(entries) = &yaml[section].as_vec() {
             for variable in entries.iter() {
                 let hash = variable
                     .as_hash()

@@ -34,6 +34,7 @@ pub struct RunnerBuilder {
     prx: Option<AtomicProxy>,
     pip: Option<String>,
     cm: Option<AtomicRecv>,
+    env: Option<AtomicVars>,
     vars: Option<AtomicVars>,
 }
 
@@ -78,6 +79,11 @@ impl RunnerBuilder {
         self
     }
 
+    pub fn set_environment(mut self, env: AtomicVars) -> Self {
+        self.env = Some(env);
+        self
+    }
+
     pub fn set_variables(mut self, vars: AtomicVars) -> Self {
         self.vars = Some(vars);
         self
@@ -109,6 +115,7 @@ impl RunnerBuilder {
             prx,
             pip,
             cm: self.cm,
+            env: self.env.ok_or(anyhow!("no environment instance provided"))?,
             vars: self.vars.ok_or(anyhow!("no variables instance provided"))?,
             platform,
         })
@@ -124,6 +131,7 @@ pub struct Runner {
     prx: AtomicProxy,
     pip: Pipeline,
     cm: Option<AtomicRecv>,
+    env: AtomicVars,
     vars: AtomicVars,
     platform: TargetPlatform,
 }
@@ -242,6 +250,7 @@ impl Runner {
                 .set_exec(EmptyExec::atom())
                 .set_log(self.lg.clone())
                 .set_receiver(self.cm.as_ref().cloned())
+                .set_environment(self.env.clone())
                 .set_variables(self.vars.clone())
                 .build()
                 .await?;
