@@ -11,7 +11,11 @@ pub struct ExecInfo {
 }
 
 impl ExecInfo {
-    pub fn new(name: &str, env: Option<HashMap<String, String>>, vars: Option<HashMap<String, String>>) -> Self {
+    pub fn new(
+        name: &str,
+        env: Option<HashMap<String, String>>,
+        vars: Option<HashMap<String, String>>,
+    ) -> Self {
         Self {
             name: name.to_string(),
             environment: env,

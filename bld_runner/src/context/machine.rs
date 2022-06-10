@@ -18,7 +18,11 @@ pub struct Machine {
 }
 
 impl Machine {
-    pub fn new(id: &str, env: Arc<HashMap<String, String>>, lg: Arc<Mutex<dyn Logger>>) -> anyhow::Result<Self> {
+    pub fn new(
+        id: &str,
+        env: Arc<HashMap<String, String>>,
+        lg: Arc<Mutex<dyn Logger>>,
+    ) -> anyhow::Result<Self> {
         let tmp_path = path![std::env::current_dir()?, LOCAL_MACHINE_TMP_DIR, id];
         let tmp_dir = tmp_path.display().to_string();
         if !tmp_path.is_dir() {

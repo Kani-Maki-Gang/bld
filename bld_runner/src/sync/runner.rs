@@ -1,7 +1,9 @@
 use crate::CheckStopSignal;
 use crate::{BuildStep, Container, Machine, Pipeline, RunsOn};
 use anyhow::anyhow;
-use bld_config::definitions::{ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN};
+use bld_config::definitions::{
+    ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN,
+};
 use bld_config::BldConfig;
 use bld_core::execution::{EmptyExec, Execution};
 use bld_core::logger::Logger;
@@ -91,28 +93,46 @@ impl RunnerBuilder {
 
     pub async fn build(self) -> anyhow::Result<Runner> {
         let id = self.run_id.ok_or_else(|| anyhow!("no run id provided"))?;
-        let cfg = self.cfg.ok_or_else(|| anyhow!("no bld config instance provided"))?;
-        let lg = self.lg.ok_or_else(|| anyhow!("no logger instance provided"))?;
+        let cfg = self
+            .cfg
+            .ok_or_else(|| anyhow!("no bld config instance provided"))?;
+        let lg = self
+            .lg
+            .ok_or_else(|| anyhow!("no logger instance provided"))?;
         let prx = self
             .prx
             .ok_or_else(|| anyhow!("no pipeline file system proxy provided"))?;
         let pip_name = self.pip.ok_or_else(|| anyhow!("no pipeline provided"))?;
         let pipeline = Pipeline::parse(&prx.read(&pip_name)?)?;
-        let env = self.env.ok_or_else(|| anyhow!("no environment instance provided"))?;
+        let env = self
+            .env
+            .ok_or_else(|| anyhow!("no environment instance provided"))?;
         let env: Arc<HashMap<String, String>> = Arc::new(
             pipeline
                 .environment
                 .iter()
-                .map(|e| (e.name.to_string(), env.get(&e.name).unwrap_or(&e.default_value).to_string()))
-                .collect()
+                .map(|e| {
+                    (
+                        e.name.to_string(),
+                        env.get(&e.name).unwrap_or(&e.default_value).to_string(),
+                    )
+                })
+                .collect(),
         );
-        let vars = self.vars.ok_or_else(|| anyhow!("no variables instance provided"))?;
+        let vars = self
+            .vars
+            .ok_or_else(|| anyhow!("no variables instance provided"))?;
         let vars: Arc<HashMap<String, String>> = Arc::new(
             pipeline
                 .variables
                 .iter()
-                .map(|v| (v.name.to_string(), vars.get(&v.name).unwrap_or(&v.default_value).to_string()))
-                .collect()
+                .map(|v| {
+                    (
+                        v.name.to_string(),
+                        vars.get(&v.name).unwrap_or(&v.default_value).to_string(),
+                    )
+                })
+                .collect(),
         );
         let platform = match &pipeline.runs_on {
             RunsOn::Machine => {
@@ -122,7 +142,7 @@ impl RunnerBuilder {
             RunsOn::Docker(img) => {
                 let container = Container::new(img, cfg.clone(), env.clone(), lg.clone()).await?;
                 TargetPlatform::Container(Box::new(container))
-            },
+            }
         };
         Ok(Runner {
             run_id: id,
@@ -130,7 +150,9 @@ impl RunnerBuilder {
                 .run_start_time
                 .ok_or_else(|| anyhow!("no run start time provided"))?,
             cfg,
-            ex: self.ex.ok_or_else(|| anyhow!("no executor instance provided"))?,
+            ex: self
+                .ex
+                .ok_or_else(|| anyhow!("no executor instance provided"))?,
             lg,
             prx,
             pip: pipeline,

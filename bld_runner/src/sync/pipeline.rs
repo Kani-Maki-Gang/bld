@@ -131,9 +131,7 @@ impl Pipeline {
         let mut variables = Vec::<Variable>::new();
         if let Some(entries) = &yaml[section].as_vec() {
             for variable in entries.iter() {
-                let hash = variable
-                    .as_hash()
-                    .ok_or_else(err_variable_in_yaml)?;
+                let hash = variable.as_hash().ok_or_else(err_variable_in_yaml)?;
                 let name = hash
                     .keys()
                     .next()

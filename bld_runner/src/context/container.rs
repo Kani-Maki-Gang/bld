@@ -78,10 +78,7 @@ impl Container {
         logger: &mut Arc<Mutex<dyn Logger>>,
     ) -> anyhow::Result<String> {
         Container::pull(client, image, logger).await?;
-        let options = ContainerOptions::builder(image)
-            .env(env)
-            .tty(true)
-            .build();
+        let options = ContainerOptions::builder(image).env(env).tty(true).build();
         let info = client.containers().create(&options).await?;
         client.containers().get(&info.id).start().await?;
         Ok(info.id)

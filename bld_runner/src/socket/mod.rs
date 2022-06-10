@@ -39,10 +39,18 @@ async fn remote_invoke(info: ExecConnectionInfo) -> anyhow::Result<()> {
         info.pipeline, info.variables
     );
     if info.detach {
-        addr.do_send(ExecInfo::new(&info.pipeline, Some(info.environment.clone()), Some(info.variables.clone())));
+        addr.do_send(ExecInfo::new(
+            &info.pipeline,
+            Some(info.environment.clone()),
+            Some(info.variables.clone()),
+        ));
     } else {
-        addr.send(ExecInfo::new(&info.pipeline, Some(info.environment.clone()), Some(info.variables.clone())))
-            .await?;
+        addr.send(ExecInfo::new(
+            &info.pipeline,
+            Some(info.environment.clone()),
+            Some(info.variables.clone()),
+        ))
+        .await?;
     }
     Ok(())
 }
