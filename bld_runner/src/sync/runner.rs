@@ -90,28 +90,28 @@ impl RunnerBuilder {
     }
 
     pub async fn build(self) -> anyhow::Result<Runner> {
-        let id = self.run_id.ok_or(anyhow!("no run id provided"))?;
-        let cfg = self.cfg.ok_or(anyhow!("no bld config instance provided"))?;
-        let lg = self.lg.ok_or(anyhow!("no logger instance provided"))?;
+        let id = self.run_id.ok_or_else(|| anyhow!("no run id provided"))?;
+        let cfg = self.cfg.ok_or_else(|| anyhow!("no bld config instance provided"))?;
+        let lg = self.lg.ok_or_else(|| anyhow!("no logger instance provided"))?;
         let prx = self
             .prx
-            .ok_or(anyhow!("no pipeline file system proxy provided"))?;
-        let pip_name = self.pip.ok_or(anyhow!("no pipeline provided"))?;
+            .ok_or_else(|| anyhow!("no pipeline file system proxy provided"))?;
+        let pip_name = self.pip.ok_or_else(|| anyhow!("no pipeline provided"))?;
         let pipeline = Pipeline::parse(&prx.read(&pip_name)?)?;
-        let env = self.env.ok_or(anyhow!("no environment instance provided"))?;
+        let env = self.env.ok_or_else(|| anyhow!("no environment instance provided"))?;
         let env: Arc<HashMap<String, String>> = Arc::new(
             pipeline
                 .environment
                 .iter()
-                .map(|e| (e.name.to_string(), env.get(&e.name).unwrap_or_else(|| &e.default_value).to_string()))
+                .map(|e| (e.name.to_string(), env.get(&e.name).unwrap_or(&e.default_value).to_string()))
                 .collect()
         );
-        let vars = self.vars.ok_or(anyhow!("no variables instance provided"))?;
+        let vars = self.vars.ok_or_else(|| anyhow!("no variables instance provided"))?;
         let vars: Arc<HashMap<String, String>> = Arc::new(
             pipeline
                 .variables
                 .iter()
-                .map(|v| (v.name.to_string(), vars.get(&v.name).unwrap_or_else(|| &v.default_value).to_string()))
+                .map(|v| (v.name.to_string(), vars.get(&v.name).unwrap_or(&v.default_value).to_string()))
                 .collect()
         );
         let platform = match &pipeline.runs_on {
@@ -128,15 +128,15 @@ impl RunnerBuilder {
             run_id: id,
             run_start_time: self
                 .run_start_time
-                .ok_or(anyhow!("no run start time provided"))?,
+                .ok_or_else(|| anyhow!("no run start time provided"))?,
             cfg,
-            ex: self.ex.ok_or(anyhow!("no executor instance provided"))?,
+            ex: self.ex.ok_or_else(|| anyhow!("no executor instance provided"))?,
             lg,
             prx,
             pip: pipeline,
             cm: self.cm,
-            env: env,
-            vars: vars,
+            env,
+            vars,
             platform,
         })
     }
@@ -216,8 +216,7 @@ impl Runner {
     fn apply_context(&self, txt: &str) -> String {
         let txt = self.apply_run_properties(txt);
         let txt = self.apply_environment(&txt);
-        let txt = self.apply_variables(&txt);
-        txt
+        self.apply_variables(&txt)
     }
 
     async fn artifacts(&self, name: &Option<String>) -> anyhow::Result<()> {

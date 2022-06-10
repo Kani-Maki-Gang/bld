@@ -138,13 +138,13 @@ impl Pipeline {
                     .keys()
                     .next()
                     .and_then(|k| k.as_str())
-                    .and_then(|k| Some(k.to_string()))
+                    .map(|k| k.to_string())
                     .ok_or_else(err_variable_in_yaml)?;
                 let default_value = hash
                     .values()
                     .next()
                     .and_then(|v| v.as_str())
-                    .and_then(|v| Some(v.to_string()))
+                    .map(|v| v.to_string())
                     .ok_or_else(err_variable_in_yaml)?;
                 variables.push(Variable::new(name, default_value));
             }
