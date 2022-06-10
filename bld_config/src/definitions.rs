@@ -3,6 +3,7 @@ pub const TOOL_DIR: &str = ".bld";
 pub const DB_NAME: &str = "bld-server.db";
 pub const PUSH: &str = "push";
 pub const GET: &str = "get";
+pub const ENV_TOKEN: &str = "bld:env:";
 pub const VAR_TOKEN: &str = "bld:var:";
 pub const RUN_PROPS_ID: &str = "bld:run:id";
 pub const RUN_PROPS_START_TIME: &str = "bld:run:start-time";

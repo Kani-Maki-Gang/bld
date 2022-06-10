@@ -63,16 +63,20 @@ impl PipelineInfo {
 
     pub fn spawn(self) {
         thread::spawn(move || {
-            let rt = if let Ok(instance) = Runtime::new() {
-                instance
-            } else {
-                return;
+            let rt = match Runtime::new() {
+                Ok(instance) => instance,
+                Err(e) => {
+                    error!("runtime error occured. {e}");
+                    return;
+                }
             };
             rt.block_on(async move {
-                let runner = if let Ok(instance) = self.build_runner().await {
-                    instance
-                } else {
-                    return;
+                let runner = match self.build_runner().await {
+                    Ok(instance) => instance,
+                    Err(e) => {
+                        error!("runner build error occured. {e}");
+                        return;
+                    }
                 };
                 if let Err(e) = runner.run().await.await {
                     error!("runner returned error: {}", e);

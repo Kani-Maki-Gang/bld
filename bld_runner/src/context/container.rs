@@ -6,6 +6,7 @@ use futures::TryStreamExt;
 use futures_util::StreamExt;
 use shiplift::tty::TtyChunk;
 use shiplift::{ContainerOptions, Docker, ExecContainerOptions, ImageListOptions, PullOptions};
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
@@ -73,10 +74,14 @@ impl Container {
     async fn create(
         client: &Docker,
         image: &str,
+        env: &[String],
         logger: &mut Arc<Mutex<dyn Logger>>,
     ) -> anyhow::Result<String> {
         Container::pull(client, image, logger).await?;
-        let options = ContainerOptions::builder(image).tty(true).build();
+        let options = ContainerOptions::builder(image)
+            .env(env)
+            .tty(true)
+            .build();
         let info = client.containers().create(&options).await?;
         client.containers().get(&info.id).start().await?;
         Ok(info.id)
@@ -85,10 +90,12 @@ impl Container {
     pub async fn new(
         img: &str,
         cfg: Arc<BldConfig>,
+        env: Arc<HashMap<String, String>>,
         lg: Arc<Mutex<dyn Logger>>,
     ) -> anyhow::Result<Self> {
         let client = Container::docker(&cfg)?;
-        let id = Container::create(&client, img, &mut lg.clone()).await?;
+        let env: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
+        let id = Container::create(&client, img, &env, &mut lg.clone()).await?;
         Ok(Self {
             config: Some(cfg),
             img: img.to_string(),

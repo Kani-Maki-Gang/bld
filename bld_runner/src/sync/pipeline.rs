@@ -3,6 +3,7 @@ use bld_utils::errors::err_variable_in_yaml;
 use std::fmt::{self, Display, Formatter};
 use yaml_rust::{Yaml, YamlLoader};
 
+#[derive(Debug)]
 pub enum RunsOn {
     Machine,
     Docker(String),
@@ -23,6 +24,7 @@ impl Display for RunsOn {
     }
 }
 
+#[derive(Debug)]
 pub struct Variable {
     pub name: String,
     pub default_value: String,
@@ -37,6 +39,7 @@ impl Variable {
     }
 }
 
+#[derive(Debug)]
 pub struct BuildStep {
     pub name: Option<String>,
     pub working_dir: Option<String>,
@@ -60,6 +63,7 @@ impl BuildStep {
     }
 }
 
+#[derive(Debug)]
 pub struct Artifacts {
     pub method: Option<String>,
     pub from: Option<String>,
@@ -86,12 +90,12 @@ impl Artifacts {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Pipeline {
     pub name: Option<String>,
     pub runs_on: RunsOn,
     pub dispose: bool,
-    pub env_variables: Vec<Variable>,
+    pub environment: Vec<Variable>,
     pub variables: Vec<Variable>,
     pub artifacts: Vec<Artifacts>,
     pub steps: Vec<BuildStep>,
@@ -116,7 +120,7 @@ impl Pipeline {
                 Some(target) => RunsOn::Docker(target.to_string()),
             },
             dispose: yaml["dispose"].as_bool().or(Some(true)).unwrap(),
-            env_variables: Self::variables(yaml, "environment")?,
+            environment: Self::variables(yaml, "environment")?,
             variables: Self::variables(yaml, "variables")?,
             artifacts: Self::artifacts(yaml),
             steps: Self::steps(yaml),

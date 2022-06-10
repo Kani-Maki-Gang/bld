@@ -1,7 +1,7 @@
 use crate::CheckStopSignal;
 use crate::{BuildStep, Container, Machine, Pipeline, RunsOn};
 use anyhow::anyhow;
-use bld_config::definitions::{GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN};
+use bld_config::definitions::{ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN};
 use bld_config::BldConfig;
 use bld_core::execution::{EmptyExec, Execution};
 use bld_core::logger::Logger;
@@ -97,12 +97,32 @@ impl RunnerBuilder {
             .prx
             .ok_or(anyhow!("no pipeline file system proxy provided"))?;
         let pip_name = self.pip.ok_or(anyhow!("no pipeline provided"))?;
-        let pip = Pipeline::parse(&prx.read(&pip_name)?)?;
-        let platform = match &pip.runs_on {
-            RunsOn::Machine => TargetPlatform::Machine(Box::new(Machine::new(&id, lg.clone())?)),
-            RunsOn::Docker(img) => TargetPlatform::Container(Box::new(
-                Container::new(img, cfg.clone(), lg.clone()).await?,
-            )),
+        let pipeline = Pipeline::parse(&prx.read(&pip_name)?)?;
+        let env = self.env.ok_or(anyhow!("no environment instance provided"))?;
+        let env: Arc<HashMap<String, String>> = Arc::new(
+            pipeline
+                .environment
+                .iter()
+                .map(|e| (e.name.to_string(), env.get(&e.name).unwrap_or_else(|| &e.default_value).to_string()))
+                .collect()
+        );
+        let vars = self.vars.ok_or(anyhow!("no variables instance provided"))?;
+        let vars: Arc<HashMap<String, String>> = Arc::new(
+            pipeline
+                .variables
+                .iter()
+                .map(|v| (v.name.to_string(), vars.get(&v.name).unwrap_or_else(|| &v.default_value).to_string()))
+                .collect()
+        );
+        let platform = match &pipeline.runs_on {
+            RunsOn::Machine => {
+                let machine = Machine::new(&id, env.clone(), lg.clone())?;
+                TargetPlatform::Machine(Box::new(machine))
+            }
+            RunsOn::Docker(img) => {
+                let container = Container::new(img, cfg.clone(), env.clone(), lg.clone()).await?;
+                TargetPlatform::Container(Box::new(container))
+            },
         };
         Ok(Runner {
             run_id: id,
@@ -113,10 +133,10 @@ impl RunnerBuilder {
             ex: self.ex.ok_or(anyhow!("no executor instance provided"))?,
             lg,
             prx,
-            pip,
+            pip: pipeline,
             cm: self.cm,
-            env: self.env.ok_or(anyhow!("no environment instance provided"))?,
-            vars: self.vars.ok_or(anyhow!("no variables instance provided"))?,
+            env: env,
+            vars: vars,
             platform,
         })
     }
@@ -167,6 +187,19 @@ impl Runner {
         txt_with_props
     }
 
+    fn apply_environment(&self, txt: &str) -> String {
+        let mut txt_with_env = String::from(txt);
+        for (key, value) in self.env.iter() {
+            let full_name = format!("{ENV_TOKEN}{key}");
+            txt_with_env = txt_with_env.replace(&full_name, value);
+        }
+        for env in self.pip.environment.iter() {
+            let full_name = format!("{ENV_TOKEN}{}", &env.name);
+            txt_with_env = txt_with_env.replace(&full_name, &env.default_value);
+        }
+        txt_with_env
+    }
+
     fn apply_variables(&self, txt: &str) -> String {
         let mut txt_with_vars = String::from(txt);
         for (key, value) in self.vars.iter() {
@@ -182,7 +215,9 @@ impl Runner {
 
     fn apply_context(&self, txt: &str) -> String {
         let txt = self.apply_run_properties(txt);
-        self.apply_variables(&txt)
+        let txt = self.apply_environment(&txt);
+        let txt = self.apply_variables(&txt);
+        txt
     }
 
     async fn artifacts(&self, name: &Option<String>) -> anyhow::Result<()> {
