@@ -113,15 +113,15 @@ impl BldCommand for RunCommand {
                 let rt = Runtime::new()?;
                 rt.block_on(async {
                     let runner = RunnerBuilder::default()
-                        .set_run_id(&id)
-                        .set_run_start_time(&start_time)
-                        .set_config(Arc::new(config))
-                        .set_proxy(Arc::new(LocalPipelineProxy))
-                        .set_pipeline(&pipeline)?
-                        .set_exec(EmptyExec::atom())
-                        .set_log(ShellLogger::atom())
-                        .set_environment(Arc::new(env))
-                        .set_variables(Arc::new(vars))
+                        .run_id(&id)
+                        .run_start_time(&start_time)
+                        .config(Arc::new(config))
+                        .proxy(Arc::new(LocalPipelineProxy))
+                        .pipeline(&pipeline)
+                        .execution(EmptyExec::atom())
+                        .logger(ShellLogger::atom())
+                        .environment(Arc::new(env))
+                        .variables(Arc::new(vars))
                         .build()
                         .await?;
                     runner.run().await.await

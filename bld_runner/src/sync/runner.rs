@@ -41,52 +41,52 @@ pub struct RunnerBuilder {
 }
 
 impl RunnerBuilder {
-    pub fn set_run_id(mut self, id: &str) -> Self {
+    pub fn run_id(mut self, id: &str) -> Self {
         self.run_id = Some(String::from(id));
         self
     }
 
-    pub fn set_run_start_time(mut self, time: &str) -> Self {
+    pub fn run_start_time(mut self, time: &str) -> Self {
         self.run_start_time = Some(String::from(time));
         self
     }
 
-    pub fn set_config(mut self, cfg: Arc<BldConfig>) -> Self {
+    pub fn config(mut self, cfg: Arc<BldConfig>) -> Self {
         self.cfg = Some(cfg);
         self
     }
 
-    pub fn set_exec(mut self, ex: AtomicExec) -> Self {
+    pub fn execution(mut self, ex: AtomicExec) -> Self {
         self.ex = Some(ex);
         self
     }
 
-    pub fn set_log(mut self, lg: AtomicLog) -> Self {
+    pub fn logger(mut self, lg: AtomicLog) -> Self {
         self.lg = Some(lg);
         self
     }
 
-    pub fn set_pipeline(mut self, name: &str) -> anyhow::Result<Self> {
+    pub fn pipeline(mut self, name: &str) -> Self {
         self.pip = Some(name.to_string());
-        Ok(self)
+        self
     }
 
-    pub fn set_proxy(mut self, prx: AtomicProxy) -> Self {
+    pub fn proxy(mut self, prx: AtomicProxy) -> Self {
         self.prx = Some(prx);
         self
     }
 
-    pub fn set_receiver(mut self, cm: Option<AtomicRecv>) -> Self {
+    pub fn receiver(mut self, cm: Option<AtomicRecv>) -> Self {
         self.cm = cm;
         self
     }
 
-    pub fn set_environment(mut self, env: AtomicVars) -> Self {
+    pub fn environment(mut self, env: AtomicVars) -> Self {
         self.env = Some(env);
         self
     }
 
-    pub fn set_variables(mut self, vars: AtomicVars) -> Self {
+    pub fn variables(mut self, vars: AtomicVars) -> Self {
         self.vars = Some(vars);
         self
     }
@@ -298,16 +298,16 @@ impl Runner {
     async fn call(&self, step: &BuildStep) -> anyhow::Result<()> {
         for call in &step.call {
             let runner = RunnerBuilder::default()
-                .set_run_id(&self.run_id)
-                .set_run_start_time(&self.run_start_time)
-                .set_config(self.cfg.clone())
-                .set_proxy(self.prx.clone())
-                .set_pipeline(call)?
-                .set_exec(EmptyExec::atom())
-                .set_log(self.lg.clone())
-                .set_receiver(self.cm.as_ref().cloned())
-                .set_environment(self.env.clone())
-                .set_variables(self.vars.clone())
+                .run_id(&self.run_id)
+                .run_start_time(&self.run_start_time)
+                .config(self.cfg.clone())
+                .proxy(self.prx.clone())
+                .pipeline(call)
+                .execution(EmptyExec::atom())
+                .logger(self.lg.clone())
+                .receiver(self.cm.as_ref().cloned())
+                .environment(self.env.clone())
+                .variables(self.vars.clone())
                 .build()
                 .await?;
             runner.run().await.await?;

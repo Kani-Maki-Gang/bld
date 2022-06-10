@@ -47,16 +47,16 @@ struct PipelineInfo {
 impl PipelineInfo {
     async fn build_runner(&self) -> anyhow::Result<Runner> {
         RunnerBuilder::default()
-            .set_run_id(&self.id)
-            .set_run_start_time(&self.start_time)
-            .set_config(self.cfg.clone())
-            .set_proxy(self.prx.clone())
-            .set_pipeline(&self.name)?
-            .set_exec(self.ex.clone())
-            .set_log(self.lg.clone())
-            .set_receiver(self.cm.clone())
-            .set_environment(self.env.clone())
-            .set_variables(self.vars.clone())
+            .run_id(&self.id)
+            .run_start_time(&self.start_time)
+            .config(self.cfg.clone())
+            .proxy(self.prx.clone())
+            .pipeline(&self.name)
+            .execution(self.ex.clone())
+            .logger(self.lg.clone())
+            .receiver(self.cm.clone())
+            .environment(self.env.clone())
+            .variables(self.vars.clone())
             .build()
             .await
     }
