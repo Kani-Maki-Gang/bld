@@ -40,37 +40,43 @@ struct PipelineInfo {
     lg: AtomicFs,
     prx: AtomicProxy,
     cm: Option<AtomicRecv>,
+    env: Arc<HashMap<String, String>>,
     vars: Arc<HashMap<String, String>>,
 }
 
 impl PipelineInfo {
     async fn build_runner(&self) -> anyhow::Result<Runner> {
         RunnerBuilder::default()
-            .set_run_id(&self.id)
-            .set_run_start_time(&self.start_time)
-            .set_config(self.cfg.clone())
-            .set_proxy(self.prx.clone())
-            .set_pipeline(&self.name)?
-            .set_exec(self.ex.clone())
-            .set_log(self.lg.clone())
-            .set_receiver(self.cm.clone())
-            .set_variables(self.vars.clone())
+            .run_id(&self.id)
+            .run_start_time(&self.start_time)
+            .config(self.cfg.clone())
+            .proxy(self.prx.clone())
+            .pipeline(&self.name)
+            .execution(self.ex.clone())
+            .logger(self.lg.clone())
+            .receiver(self.cm.clone())
+            .environment(self.env.clone())
+            .variables(self.vars.clone())
             .build()
             .await
     }
 
     pub fn spawn(self) {
         thread::spawn(move || {
-            let rt = if let Ok(instance) = Runtime::new() {
-                instance
-            } else {
-                return;
+            let rt = match Runtime::new() {
+                Ok(instance) => instance,
+                Err(e) => {
+                    error!("runtime error occured. {e}");
+                    return;
+                }
             };
             rt.block_on(async move {
-                let runner = if let Ok(instance) = self.build_runner().await {
-                    instance
-                } else {
-                    return;
+                let runner = match self.build_runner().await {
+                    Ok(instance) => instance,
+                    Err(e) => {
+                        error!("runner build error occured. {e}");
+                        return;
+                    }
                 };
                 if let Err(e) = runner.run().await.await {
                     error!("runner returned error: {}", e);
@@ -178,6 +184,10 @@ impl ExecutePipelineSocket {
             lg: Arc::new(Mutex::new(FileLogger::new(&logs)?)),
             prx: Arc::clone(&self.prx),
             cm: Some(rx),
+            env: match info.environment {
+                Some(env) => Arc::new(env),
+                None => Arc::new(HashMap::<String, String>::new()),
+            },
             vars: match info.variables {
                 Some(vars) => Arc::new(vars),
                 None => Arc::new(HashMap::<String, String>::new()),

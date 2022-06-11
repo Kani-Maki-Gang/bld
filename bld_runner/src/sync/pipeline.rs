@@ -3,6 +3,7 @@ use bld_utils::errors::err_variable_in_yaml;
 use std::fmt::{self, Display, Formatter};
 use yaml_rust::{Yaml, YamlLoader};
 
+#[derive(Debug)]
 pub enum RunsOn {
     Machine,
     Docker(String),
@@ -23,6 +24,7 @@ impl Display for RunsOn {
     }
 }
 
+#[derive(Debug)]
 pub struct Variable {
     pub name: String,
     pub default_value: String,
@@ -37,6 +39,7 @@ impl Variable {
     }
 }
 
+#[derive(Debug)]
 pub struct BuildStep {
     pub name: Option<String>,
     pub working_dir: Option<String>,
@@ -60,6 +63,7 @@ impl BuildStep {
     }
 }
 
+#[derive(Debug)]
 pub struct Artifacts {
     pub method: Option<String>,
     pub from: Option<String>,
@@ -86,11 +90,12 @@ impl Artifacts {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Pipeline {
     pub name: Option<String>,
     pub runs_on: RunsOn,
     pub dispose: bool,
+    pub environment: Vec<Variable>,
     pub variables: Vec<Variable>,
     pub artifacts: Vec<Artifacts>,
     pub steps: Vec<BuildStep>,
@@ -115,30 +120,29 @@ impl Pipeline {
                 Some(target) => RunsOn::Docker(target.to_string()),
             },
             dispose: yaml["dispose"].as_bool().or(Some(true)).unwrap(),
-            variables: Self::variables(yaml)?,
+            environment: Self::variables(yaml, "environment")?,
+            variables: Self::variables(yaml, "variables")?,
             artifacts: Self::artifacts(yaml),
             steps: Self::steps(yaml),
         })
     }
 
-    fn variables(yaml: &Yaml) -> anyhow::Result<Vec<Variable>> {
+    fn variables(yaml: &Yaml, section: &str) -> anyhow::Result<Vec<Variable>> {
         let mut variables = Vec::<Variable>::new();
-        if let Some(entries) = &yaml["variables"].as_vec() {
+        if let Some(entries) = &yaml[section].as_vec() {
             for variable in entries.iter() {
-                let hash = variable
-                    .as_hash()
-                    .ok_or_else(err_variable_in_yaml)?;
+                let hash = variable.as_hash().ok_or_else(err_variable_in_yaml)?;
                 let name = hash
                     .keys()
                     .next()
                     .and_then(|k| k.as_str())
-                    .and_then(|k| Some(k.to_string()))
+                    .map(|k| k.to_string())
                     .ok_or_else(err_variable_in_yaml)?;
                 let default_value = hash
                     .values()
                     .next()
                     .and_then(|v| v.as_str())
-                    .and_then(|v| Some(v.to_string()))
+                    .map(|v| v.to_string())
                     .ok_or_else(err_variable_in_yaml)?;
                 variables.push(Variable::new(name, default_value));
             }

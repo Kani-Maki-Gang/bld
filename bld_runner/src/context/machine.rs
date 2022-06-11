@@ -2,6 +2,7 @@ use anyhow::anyhow;
 use bld_config::definitions::LOCAL_MACHINE_TMP_DIR;
 use bld_config::{os_name, path, OSname};
 use bld_core::logger::Logger;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
@@ -12,17 +13,22 @@ fn could_not_spawn_shell() -> anyhow::Result<()> {
 
 pub struct Machine {
     tmp_dir: String,
+    env: Arc<HashMap<String, String>>,
     lg: Arc<Mutex<dyn Logger>>,
 }
 
 impl Machine {
-    pub fn new(id: &str, lg: Arc<Mutex<dyn Logger>>) -> anyhow::Result<Self> {
+    pub fn new(
+        id: &str,
+        env: Arc<HashMap<String, String>>,
+        lg: Arc<Mutex<dyn Logger>>,
+    ) -> anyhow::Result<Self> {
         let tmp_path = path![std::env::current_dir()?, LOCAL_MACHINE_TMP_DIR, id];
         let tmp_dir = tmp_path.display().to_string();
         if !tmp_path.is_dir() {
             std::fs::create_dir_all(tmp_path)?;
         }
-        Ok(Self { tmp_dir, lg })
+        Ok(Self { tmp_dir, env, lg })
     }
 
     fn copy(&self, from: &str, to: &str) -> anyhow::Result<()> {
@@ -60,6 +66,7 @@ impl Machine {
         args.push(input);
 
         let mut command = Command::new(shell);
+        command.envs(&*self.env);
         command.args(&args);
         command.current_dir(current_dir);
 

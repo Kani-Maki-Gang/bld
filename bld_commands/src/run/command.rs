@@ -13,11 +13,12 @@ use tokio::runtime::Runtime;
 use tracing::debug;
 use uuid::Uuid;
 
-static RUN: &str = "run";
-static PIPELINE: &str = "pipeline";
-static SERVER: &str = "server";
-static DETACH: &str = "detach";
-static VARIABLES: &str = "variables";
+const RUN: &str = "run";
+const PIPELINE: &str = "pipeline";
+const SERVER: &str = "server";
+const DETACH: &str = "detach";
+const VARIABLES: &str = "variables";
+const ENVIRONMENT: &str = "environment";
 
 pub struct RunCommand;
 
@@ -35,28 +36,34 @@ impl BldCommand for RunCommand {
     fn interface(&self) -> App<'static, 'static> {
         let pipeline = Arg::with_name(PIPELINE)
             .short("p")
-            .long("pipeline")
+            .long(PIPELINE)
             .help("Path to pipeline script")
             .takes_value(true);
         let server = Arg::with_name(SERVER)
             .short("s")
-            .long("server")
+            .long(SERVER)
             .help("The name of the server to run the pipeline")
             .takes_value(true);
         let detach = Arg::with_name(DETACH)
             .short("d")
-            .long("detach")
+            .long(DETACH)
             .help("Detaches from the run execution (for server mode runs)");
         let variables = Arg::with_name(VARIABLES)
             .short("v")
-            .long("variables")
+            .long(VARIABLES)
             .help("Define values for variables of a pipeline")
+            .multiple(true)
+            .takes_value(true);
+        let environment = Arg::with_name(ENVIRONMENT)
+            .short("e")
+            .long(ENVIRONMENT)
+            .help("Define values for environment variables of a pipeline")
             .multiple(true)
             .takes_value(true);
         SubCommand::with_name(RUN)
             .about("Executes a build pipeline")
             .version(VERSION)
-            .args(&[pipeline, server, detach, variables])
+            .args(&[pipeline, server, detach, variables, environment])
     }
 
     fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
@@ -67,20 +74,8 @@ impl BldCommand for RunCommand {
             .unwrap()
             .to_string();
         let detach = matches.is_present("detach");
-        let vars = matches
-            .values_of("variables")
-            .map(|variable| {
-                variable
-                    .map(|v| {
-                        let mut split = v.split('=');
-                        let name = split.next().or(Some("")).unwrap().to_string();
-                        let value = split.next().or(Some("")).unwrap().to_string();
-                        (name, value)
-                    })
-                    .collect::<HashMap<String, String>>()
-            })
-            .or_else(|| Some(HashMap::new()))
-            .unwrap();
+        let env = parse_variables(matches, "environment");
+        let vars = parse_variables(matches, "variables");
         match matches.value_of("server") {
             Some(server) => {
                 let srv = config.remote.server(server)?;
@@ -104,6 +99,7 @@ impl BldCommand for RunCommand {
                     headers: headers(srv_name, auth)?,
                     detach,
                     pipeline,
+                    environment: env,
                     variables: vars,
                 })
             }
@@ -117,14 +113,15 @@ impl BldCommand for RunCommand {
                 let rt = Runtime::new()?;
                 rt.block_on(async {
                     let runner = RunnerBuilder::default()
-                        .set_run_id(&id)
-                        .set_run_start_time(&start_time)
-                        .set_config(Arc::new(config))
-                        .set_proxy(Arc::new(LocalPipelineProxy))
-                        .set_pipeline(&pipeline)?
-                        .set_exec(EmptyExec::atom())
-                        .set_log(ShellLogger::atom())
-                        .set_variables(Arc::new(vars))
+                        .run_id(&id)
+                        .run_start_time(&start_time)
+                        .config(Arc::new(config))
+                        .proxy(Arc::new(LocalPipelineProxy))
+                        .pipeline(&pipeline)
+                        .execution(EmptyExec::atom())
+                        .logger(ShellLogger::atom())
+                        .environment(Arc::new(env))
+                        .variables(Arc::new(vars))
                         .build()
                         .await?;
                     runner.run().await.await
@@ -132,4 +129,21 @@ impl BldCommand for RunCommand {
             }
         }
     }
+}
+
+fn parse_variables(matches: &ArgMatches<'_>, arg: &str) -> HashMap<String, String> {
+    matches
+        .values_of(arg)
+        .map(|variable| {
+            variable
+                .map(|v| {
+                    let mut split = v.split('=');
+                    let name = split.next().or(Some("")).unwrap().to_string();
+                    let value = split.next().or(Some("")).unwrap().to_string();
+                    (name, value)
+                })
+                .collect::<HashMap<String, String>>()
+        })
+        .or_else(|| Some(HashMap::new()))
+        .unwrap()
 }
