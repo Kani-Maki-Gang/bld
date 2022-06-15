@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 const WORKER: &str = "worker";
-const PIPELINE: &str = "id";
+const PIPELINE: &str = "pipeline";
 const RUN_ID: &str = "run-id";
 const VARIABLES: &str = "variables";
 const ENVIRONMENT: &str = "environment";
@@ -32,7 +32,7 @@ impl BldCommand for WorkerCommand {
     
     fn interface(&self) -> App<'static, 'static> {
         let pipeline = Arg::with_name(PIPELINE)
-            .short("i")
+            .short("p")
             .long(PIPELINE)
             .help("The pipeline id in the current bld server instance")
             .takes_value(true)
