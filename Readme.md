@@ -17,6 +17,8 @@ login   | Initiates the login process for a bld server
 ls      | Lists pipelines in a bld server.
 monit   | Connects to a bld server to monitor the execution of a pipeline.
 push    | Pushes the content of a pipeline to a bld server.
+pull    | Pulls the content of a pipeline from a bld server.
+rm      | Removed a pipeline from a bld server.
 run     | Execute a bld pipeline.
 server  | Start bld in server mode, listening to incoming build requests.
 stop    | Stops a running pipeline on a server.
@@ -83,19 +85,44 @@ runs-on: machine
 steps: 
 - name: echo 
   exec:
-  - sh: echo 'hello world'
+  - echo 'hello world'
+```
+
+### Pipeline with environment and bld variables
+```yaml
+name: example pipeline with variables
+runs-on: ubuntu
+
+environment:
+- AN_ENVIRONMENT_VARIABLE: 1
+- another_environment_variable: hello world
+
+variables:
+- A_BLD_VARIABLE: true
+- another_bld_variable: goodbye
+
+steps:
+- name: Echo environment variables
+  exec:
+  - echo $AN_ENVIRONMENT_VARIABLE
+  - echo $another_environment_variable
+  - echo bld:env:AN_ENVIRONMENT_VARIABLE
+  - echo bld:env:another_environment_variable
+
+- name: Echo bld variables
+  exec:
+  - echo bld:var:A_BLD_VARIABLE
+  - echo bld:var:another_bld_variable
 ```
 
 #### Build a dotnet core project
 ```yaml
-name: dotnet core project ipeline
+name: dotnet core project pipeline
 runs-on: mcr.microsoft.com/dotnet/core/sdk:3.1
 
 variables:
-- name: BRANCH
-  default-value: master
-- name: CONFIG
-  default-value: release 
+- BRANCH: master
+- CONFIG: release 
 
 artifacts:
 - method: push
@@ -109,12 +136,12 @@ artifacts:
 steps:
 - name: fetch repository
   exec:
-  - sh: git clone -b bld:var:BRANCH https://github.com/project/project.git  
+  - git clone -b bld:var:BRANCH https://github.com/project/project.git  
 - name: build project
   working-dir: project
   exec:  
-  - sh: dotnet build -c bld:var:CONFIG 
-  - sh: cp -r bin/release/netcoreapp3.1/linux-x64/* /output
+  - dotnet build -c bld:var:CONFIG 
+  - cp -r bin/release/netcoreapp3.1/linux-x64/* /output
 ```
 
 #### Build a node project
@@ -123,10 +150,8 @@ name: node project pipeline
 runs-on: node:12.18.3
 
 variables:
-- name: BRANCH
-  default-value: master
-- name: SCRIPT
-  default-value: build
+- BRANCH: master
+- SCRIPT: build
 
 artifacts:
 - method: push
@@ -140,15 +165,15 @@ artifacts:
 steps:
 - name: Fetch repository
   exec:
-  - sh: git clone -b bld:var:BRANCH https://github.com/project/project.git
+  - git clone -b bld:var:BRANCH https://github.com/project/project.git
 - name: install dependencies 
   working-dir: project
   exec:
-  - sh: npm install
+  - npm install
 - name: build project 
   working-dir: project 
   exec:
-  - sh: npm run bld:var:SCRIPT 
+  - npm run bld:var:SCRIPT 
 ```
 
 #### Pipeline that invokes other pipelines
@@ -156,9 +181,11 @@ steps:
 name: pipeline that calls other pipelines
 steps:
 - name: Execute dotnet core pipeline
-  call: dotnet_core_pipeline
+  call: 
+  - dotnet_core_pipeline
 - name: Execute nodejs pipeline 
-  call: nodejs_pipeline
+  call: 
+  - nodejs_pipeline
 ```
 
 # Authentication
