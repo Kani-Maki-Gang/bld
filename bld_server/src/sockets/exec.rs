@@ -21,22 +21,32 @@ use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-use std::process::Command;
+use std::process::{Command, Child};
 use tokio::runtime::Runtime;
 use tracing::error;
 use uuid::Uuid;
 
 struct PipelineWorker {
-    cmd: Command
+    cmd: Command,
+    child: Option<Child>
 }
 
 impl PipelineWorker {
     pub fn new(cmd: Command) -> Self {
-        Self { cmd }
+        Self { cmd, child: None }
     }
 
     pub fn spawn(&mut self) -> anyhow::Result<()> {
-        self.cmd.spawn().map(|_| ()).map_err(|e| anyhow!(e))
+        self.child = Some(self.cmd.spawn().map_err(|e| anyhow!(e))?);
+        Ok(())
+    }
+
+    pub fn is_done(&mut self) -> bool {
+        self.child
+            .as_mut()
+            .ok_or_else(|| anyhow!("worker has not spawned"))
+            .and_then(|c| c.try_wait().map_err(|e| anyhow!(e)))
+            .is_ok()
     }
 }
 
@@ -45,7 +55,7 @@ pub struct ExecutePipelineSocket {
     db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     prx: web::Data<ServerPipelineProxy>,
     user: User,
-    exec: Option<PipelineExecWrapper>,
+    worker: Option<PipelineWorker>,
     sc: Option<FileScanner>,
 }
 
@@ -60,7 +70,7 @@ impl ExecutePipelineSocket {
             db_pool,
             prx,
             user,
-            exec: None,
+            worker: None,
             sc: None,
         }
     }
@@ -83,15 +93,15 @@ impl ExecutePipelineSocket {
         }
     }
 
-    fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
-        if let Some(exec) = &act.exec {
-            if !exec.pipeline_run.running {
+    fn worker(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
+        if let Some(worker) = act.worker.as_mut() {
+            if worker.is_done() {
                 ctx.stop();
             }
         }
     }
 
-    fn create_worker(&mut self, data: &str) -> anyhow::Result<PipelineWorker> {
+    fn create_worker(&mut self, data: &str) -> anyhow::Result<()> {
         let info = serde_json::from_str::<ExecInfo>(data)?;
         let path = self.prx.path(&info.name)?;
         if !path.is_yaml() {
@@ -101,7 +111,7 @@ impl ExecutePipelineSocket {
 
         let run_id = Uuid::new_v4().to_string();
         let connection = self.db_pool.get()?;
-        let run = pipeline_runs::insert(&connection, &run_id, &info.name, &self.user.name)?;
+        pipeline_runs::insert(&connection, &run_id, &info.name, &self.user.name)?;
         let vars = info
             .variables
             .map(|hmap|
@@ -133,8 +143,8 @@ impl ExecutePipelineSocket {
         }
 
         self.sc = Some(FileScanner::new(&path.display().to_string())?);
-        self.exec = Some(PipelineExecWrapper::new(Arc::clone(&self.db_pool), run)?);
-        Ok(PipelineWorker::new(cmd))
+        self.worker = Some(PipelineWorker::new(cmd));
+        Ok(())
     }
 }
 
@@ -148,7 +158,7 @@ impl Actor for ExecutePipelineSocket {
         });
         ctx.run_interval(Duration::from_secs(10), |act, ctx| {
             ExecutePipelineSocket::scan(act, ctx);
-            ExecutePipelineSocket::exec(act, ctx);
+            ExecutePipelineSocket::worker(act, ctx);
         });
     }
 }
@@ -157,7 +167,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSo
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(txt)) => {
-                if let Err(e) = self.create_worker(&txt).map(|mut w| w.spawn()) {
+                let worker_created = self
+                    .create_worker(&txt)
+                    .and_then(|_| self.worker.as_mut().map(|w| w.spawn()).transpose());
+                if let Err(e) = worker_created {
                     error!("{}", e.to_string());
                     ctx.text("Unable to run pipeline");
                     ctx.stop();
