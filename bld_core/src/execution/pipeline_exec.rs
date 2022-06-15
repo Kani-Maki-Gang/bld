@@ -2,8 +2,8 @@ use crate::database::pipeline_runs::{self, PipelineRuns};
 use crate::execution::Execution;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use tracing::debug;
 use std::sync::Arc;
+use tracing::debug;
 
 const EMPTY_STRING: String = String::new();
 
@@ -17,18 +17,14 @@ impl PipelineExecWrapper {
         pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
         pipeline_run: PipelineRuns,
     ) -> anyhow::Result<Self> {
-        Ok(Self {
-            pipeline_run,
-            pool
-        })
+        Ok(Self { pipeline_run, pool })
     }
 }
 
 impl Execution for PipelineExecWrapper {
     fn update_running(&mut self, running: bool) -> anyhow::Result<()> {
         let conn = self.pool.get()?;
-        self.pipeline_run =
-            pipeline_runs::update_running(&conn, &self.pipeline_run.id, running)?;
+        self.pipeline_run = pipeline_runs::update_running(&conn, &self.pipeline_run.id, running)?;
         debug!(
             "updated pipeline run of id: {}, name: {} with new values running: {}, end_date_time: {}",
             self.pipeline_run.id,

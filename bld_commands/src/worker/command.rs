@@ -1,15 +1,15 @@
-use crate::BldCommand;
 use crate::run::parse_variables;
+use crate::BldCommand;
 use bld_config::{path, BldConfig};
 use bld_core::database::{new_connection_pool, pipeline_runs};
-use bld_core::logger::FileLogger;
 use bld_core::execution::PipelineExecWrapper;
+use bld_core::logger::FileLogger;
 use bld_core::proxies::ServerPipelineProxy;
 use bld_runner::RunnerBuilder;
-use clap::{App, Arg, SubCommand, ArgMatches};
-use tokio::runtime::Runtime;
+use clap::{App, Arg, ArgMatches, SubCommand};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use tokio::runtime::Runtime;
 
 const WORKER: &str = "worker";
 const PIPELINE: &str = "pipeline";
@@ -29,7 +29,7 @@ impl BldCommand for WorkerCommand {
     fn id(&self) -> &'static str {
         WORKER
     }
-    
+
     fn interface(&self) -> App<'static, 'static> {
         let pipeline = Arg::with_name(PIPELINE)
             .short("p")
@@ -59,7 +59,7 @@ impl BldCommand for WorkerCommand {
             .about("A sub command that creates a worker process for a bld server in order to run a pipeline.")
             .args(&[pipeline, run_id, variables, environment])
     }
-    
+
     fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
         let cfg = Arc::new(BldConfig::load()?);
         let pipeline = matches.value_of(PIPELINE).unwrap_or_default();

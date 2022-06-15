@@ -17,18 +17,18 @@ use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::process::{Child, Command};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-use std::process::{Command, Child};
 use tokio::runtime::Runtime;
 use tracing::error;
 use uuid::Uuid;
 
 struct PipelineWorker {
     cmd: Command,
-    child: Option<Child>
+    child: Option<Child>,
 }
 
 impl PipelineWorker {
@@ -112,21 +112,16 @@ impl ExecutePipelineSocket {
         let run_id = Uuid::new_v4().to_string();
         let connection = self.db_pool.get()?;
         pipeline_runs::insert(&connection, &run_id, &info.name, &self.user.name)?;
-        let vars = info
-            .variables
-            .map(|hmap|
-                hmap
-                    .iter()
-                    .map(|(k, v)| format!("{k}={v}"))
-                    .fold(String::new(), |acc, n| format!("{acc} {n}"))
-            );
-        let env = info
-            .environment
-            .map(|hmap|
-                hmap.iter()
-                    .map(|(k, v)| format!("{k}={v}"))
-                    .fold(String::new(), |acc, n| format!("{acc} {n}"))
-            );
+        let vars = info.variables.map(|hmap| {
+            hmap.iter()
+                .map(|(k, v)| format!("{k}={v}"))
+                .fold(String::new(), |acc, n| format!("{acc} {n}"))
+        });
+        let env = info.environment.map(|hmap| {
+            hmap.iter()
+                .map(|(k, v)| format!("{k}={v}"))
+                .fold(String::new(), |acc, n| format!("{acc} {n}"))
+        });
         let mut cmd = Command::new(std::env::current_exe()?);
         cmd.arg("worker");
         cmd.arg("--pipeline");
@@ -202,11 +197,7 @@ pub async fn ws_exec(
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{req:?}");
     let socket = ExecutePipelineSocket::new(user, db_pool, proxy);
-    let res = ws::start(
-        socket,
-        &req,
-        stream,
-    );
+    let res = ws::start(socket, &req, stream);
     println!("{res:?}");
     res
 }
