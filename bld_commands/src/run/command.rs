@@ -131,7 +131,7 @@ impl BldCommand for RunCommand {
     }
 }
 
-fn parse_variables(matches: &ArgMatches<'_>, arg: &str) -> HashMap<String, String> {
+pub fn parse_variables(matches: &ArgMatches<'_>, arg: &str) -> HashMap<String, String> {
     matches
         .values_of(arg)
         .map(|variable| {

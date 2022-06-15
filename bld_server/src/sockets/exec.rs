@@ -164,7 +164,7 @@ impl ExecutePipelineSocket {
         let pipeline = pipeline_runs::insert(&connection, &id, &info.name, &self.user.name)?;
         let start_time = String::from(&pipeline.start_date_time);
         let ex = Arc::new(Mutex::new(PipelineExecWrapper::new(
-            &self.db_pool,
+            Arc::clone(&self.db_pool),
             pipeline,
         )?));
         let (tx, rx) = mpsc::channel::<bool>();
