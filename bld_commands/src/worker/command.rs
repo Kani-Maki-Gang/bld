@@ -73,11 +73,11 @@ impl BldCommand for WorkerCommand {
         let start_date_time = pipeline_run.start_date_time.to_string();
         let proxy = Arc::new(ServerPipelineProxy::new(cfg.clone(), pool.clone()));
         let logger = Arc::new(Mutex::new(FileLogger::new(&logs)?));
-        let exec = Arc::new(Mutex::new(PipelineExecWrapper::new(pool.clone(), pipeline_run)?));
+        let exec = Arc::new(Mutex::new(PipelineExecWrapper::new(pool, pipeline_run)?));
         let rt = Runtime::new()?;
         rt.block_on(async {
             let runner = RunnerBuilder::default()
-                .run_id(&run_id)
+                .run_id(run_id)
                 .run_start_time(&start_date_time)
                 .config(cfg.clone())
                 .proxy(proxy.clone())

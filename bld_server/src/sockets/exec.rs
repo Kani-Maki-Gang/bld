@@ -41,7 +41,7 @@ impl PipelineWorker {
         Ok(())
     }
 
-    pub fn is_done(&mut self) -> bool {
+    pub fn completed(&mut self) -> bool {
         self.child
             .as_mut()
             .ok_or_else(|| anyhow!("worker has not spawned"))
@@ -95,7 +95,7 @@ impl ExecutePipelineSocket {
 
     fn worker(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
         if let Some(worker) = act.worker.as_mut() {
-            if worker.is_done() {
+            if worker.completed() {
                 ctx.stop();
             }
         }
@@ -133,13 +133,13 @@ impl ExecutePipelineSocket {
         cmd.arg(info.name);
         cmd.arg("--run-id");
         cmd.arg(run_id);
-        if vars.is_some() {
+        if let Some(vars) = vars {
             cmd.arg("--variables");
-            cmd.arg(vars.unwrap());
+            cmd.arg(vars);
         }
-        if env.is_some() {
+        if let Some(env) = env {
             cmd.arg("--environment");
-            cmd.arg(env.unwrap());
+            cmd.arg(env);
         }
 
         self.sc = Some(FileScanner::new(&path.display().to_string())?);
@@ -201,8 +201,9 @@ pub async fn ws_exec(
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{req:?}");
+    let socket = ExecutePipelineSocket::new(user, db_pool, proxy);
     let res = ws::start(
-        ExecutePipelineSocket::new(user, db_pool, proxy),
+        socket,
         &req,
         stream,
     );
