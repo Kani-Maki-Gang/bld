@@ -31,7 +31,7 @@ runs-on: machine
 steps: 
 - name: echo 
   exec:
-  - sh: echo 'hello world'
+  - echo 'hello world'
 ";
 
 pub fn default_server_config() -> String {
