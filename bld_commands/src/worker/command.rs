@@ -1,13 +1,12 @@
 use crate::run::parse_variables;
 use crate::BldCommand;
-use bld_config::{path, BldConfig};
+use bld_config::BldConfig;
 use bld_core::database::{new_connection_pool, pipeline_runs};
 use bld_core::execution::PipelineExecution;
 use bld_core::logger::FileLogger;
 use bld_core::proxies::ServerPipelineProxy;
 use bld_runner::RunnerBuilder;
 use clap::{App, Arg, ArgMatches, SubCommand};
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio::runtime::Runtime;
 
@@ -64,7 +63,6 @@ impl BldCommand for WorkerCommand {
         let cfg = Arc::new(BldConfig::load()?);
         let pipeline = matches.value_of(PIPELINE).unwrap_or_default();
         let run_id = matches.value_of(RUN_ID).unwrap_or_default();
-        let logs = path![&cfg.local.logs, run_id].display().to_string();
         let variables = Arc::new(parse_variables(matches, VARIABLES));
         let environment = Arc::new(parse_variables(matches, ENVIRONMENT));
         let pool = Arc::new(new_connection_pool(&cfg.local.db)?);
@@ -72,8 +70,8 @@ impl BldCommand for WorkerCommand {
         let pipeline_run = pipeline_runs::select_by_id(&conn, run_id)?;
         let start_date_time = pipeline_run.start_date_time.to_string();
         let proxy = Arc::new(ServerPipelineProxy::new(cfg.clone(), pool.clone()));
-        let logger = Arc::new(Mutex::new(FileLogger::new(&logs)?));
-        let exec = Arc::new(Mutex::new(PipelineExecution::new(pool, pipeline_run)?));
+        let logger = Arc::new(Mutex::new(FileLogger::new(cfg.clone(), &run_id)?));
+        let exec = Arc::new(Mutex::new(PipelineExecution::new(pool, &run_id)?));
         let rt = Runtime::new()?;
         rt.block_on(async {
             let runner = RunnerBuilder::default()

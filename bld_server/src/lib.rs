@@ -5,7 +5,6 @@ pub mod extractors;
 pub mod requests;
 pub mod responses;
 pub mod sockets;
-pub mod state;
 
 #[cfg(test)]
 mod tests {

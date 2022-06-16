@@ -11,24 +11,25 @@ use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
+use std::sync::Arc;
 
 pub struct MonitorPipelineSocket {
     hb: Instant,
     id: String,
-    db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
+    pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     config: web::Data<BldConfig>,
     scanner: Option<FileScanner>,
 }
 
 impl MonitorPipelineSocket {
     pub fn new(
-        db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
+        pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
         config: web::Data<BldConfig>,
     ) -> Self {
         Self {
             hb: Instant::now(),
             id: String::new(),
-            db_pool,
+            pool,
             config,
             scanner: None,
         }
@@ -53,7 +54,7 @@ impl MonitorPipelineSocket {
     }
 
     fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
-        if let Ok(connection) = act.db_pool.get() {
+        if let Ok(connection) = act.pool.get() {
             match pipeline_runs::select_by_id(&connection, &act.id) {
                 Ok(PipelineRuns { running: false, .. }) => ctx.stop(),
                 Err(_) => {
@@ -67,27 +68,22 @@ impl MonitorPipelineSocket {
 
     fn dependencies(&mut self, data: &str) -> anyhow::Result<()> {
         let data = serde_json::from_str::<MonitInfo>(data)?;
-        let config = self.config.get_ref();
-        let connection = self.db_pool.get()?;
+        let conn = self.pool.get()?;
 
-        let pipeline = if data.last {
-            pipeline_runs::select_last(&connection)
+        let run = if data.last {
+            pipeline_runs::select_last(&conn)
         } else if let Some(id) = data.id {
-            pipeline_runs::select_by_id(&connection, &id)
+            pipeline_runs::select_by_id(&conn, &id)
         } else if let Some(name) = data.name {
-            pipeline_runs::select_by_name(&connection, &name)
+            pipeline_runs::select_by_name(&conn, &name)
         } else {
             return Err(anyhow!("pipeline not found"));
         }
         .map_err(|_| anyhow!("pipeline not found"))?;
 
-        self.id = pipeline.id.clone();
+        self.id = run.id.clone();
 
-        let path = path![&config.local.logs, &pipeline.id]
-            .display()
-            .to_string();
-
-        self.scanner = Some(FileScanner::new(&path)?);
+        self.scanner = Some(FileScanner::new(Arc::clone(&self.config), &run.id));
         Ok(())
     }
 }
@@ -136,14 +132,14 @@ pub async fn ws_monit(
     user: Option<User>,
     req: HttpRequest,
     stream: web::Payload,
-    db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
+    pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     config: web::Data<BldConfig>,
 ) -> Result<HttpResponse, Error> {
     if user.is_none() {
         return Err(ErrorUnauthorized(""));
     }
     println!("{req:?}");
-    let res = ws::start(MonitorPipelineSocket::new(db_pool, config), &req, stream);
+    let res = ws::start(MonitorPipelineSocket::new(pool, config), &req, stream);
     println!("{res:?}");
     res
 }

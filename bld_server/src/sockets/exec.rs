@@ -1,12 +1,10 @@
 use crate::extractors::User;
-use crate::state::PipelinePool;
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use anyhow::anyhow;
 use bld_config::{path, BldConfig};
 use bld_core::database::pipeline_runs;
-use bld_core::logger::FileLogger;
 use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
 use bld_core::scanner::{FileScanner, Scanner};
 use bld_runner::messages::ExecInfo;
@@ -51,26 +49,29 @@ impl PipelineWorker {
 
 pub struct ExecutePipelineSocket {
     hb: Instant,
-    db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
-    prx: web::Data<ServerPipelineProxy>,
+    config: web::Data<BldConfig>,
+    pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
+    proxy: web::Data<ServerPipelineProxy>,
     user: User,
     worker: Option<PipelineWorker>,
-    sc: Option<FileScanner>,
+    scanner: Option<FileScanner>,
 }
 
 impl ExecutePipelineSocket {
     pub fn new(
         user: User,
-        db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
-        prx: web::Data<ServerPipelineProxy>,
+        config: web::Data<BldConfig>,
+        pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
+        proxy: web::Data<ServerPipelineProxy>,
     ) -> Self {
         Self {
             hb: Instant::now(),
-            db_pool,
-            prx,
+            config,
+            pool,
+            proxy,
             user,
             worker: None,
-            sc: None,
+            scanner: None,
         }
     }
 
@@ -84,7 +85,7 @@ impl ExecutePipelineSocket {
     }
 
     fn scan(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
-        if let Some(scanner) = act.sc.as_mut() {
+        if let Some(scanner) = act.scanner.as_mut() {
             let content = scanner.fetch();
             for line in content.iter() {
                 ctx.text(line.to_string());
@@ -102,15 +103,15 @@ impl ExecutePipelineSocket {
 
     fn create_worker(&mut self, data: &str) -> anyhow::Result<()> {
         let info = serde_json::from_str::<ExecInfo>(data)?;
-        let path = self.prx.path(&info.name)?;
+        let path = self.proxy.path(&info.name)?;
         if !path.is_yaml() {
             let message = String::from("pipeline file not found");
             return Err(anyhow!(message));
         }
 
         let run_id = Uuid::new_v4().to_string();
-        let connection = self.db_pool.get()?;
-        pipeline_runs::insert(&connection, &run_id, &info.name, &self.user.name)?;
+        let conn = self.pool.get()?;
+        pipeline_runs::insert(&conn, &run_id, &info.name, &self.user.name)?;
         let vars = info.variables.map(|hmap| {
             hmap.iter()
                 .map(|(k, v)| format!("{k}={v}"))
@@ -124,19 +125,19 @@ impl ExecutePipelineSocket {
         let mut cmd = Command::new(std::env::current_exe()?);
         cmd.arg("worker");
         cmd.arg("--pipeline");
-        cmd.arg(info.name);
+        cmd.arg(&info.name);
         cmd.arg("--run-id");
-        cmd.arg(run_id);
+        cmd.arg(&run_id);
         if let Some(vars) = vars {
             cmd.arg("--variables");
-            cmd.arg(vars);
+            cmd.arg(&vars);
         }
         if let Some(env) = env {
             cmd.arg("--environment");
-            cmd.arg(env);
+            cmd.arg(&env);
         }
 
-        self.sc = Some(FileScanner::new(&path.display().to_string())?);
+        self.scanner = Some(FileScanner::new(Arc::clone(&self.config), &run_id));
         self.worker = Some(PipelineWorker::new(cmd));
         Ok(())
     }
@@ -190,12 +191,13 @@ pub async fn ws_exec(
     user: Option<User>,
     req: HttpRequest,
     stream: web::Payload,
-    db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
+    cfg: web::Data<BldConfig>,
+    pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     proxy: web::Data<ServerPipelineProxy>,
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{req:?}");
-    let socket = ExecutePipelineSocket::new(user, db_pool, proxy);
+    let socket = ExecutePipelineSocket::new(user, cfg, pool, proxy);
     let res = ws::start(socket, &req, stream);
     println!("{res:?}");
     res

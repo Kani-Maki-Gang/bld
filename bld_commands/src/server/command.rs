@@ -9,7 +9,6 @@ use bld_server::endpoints::{
     list, pull, push, remove, stop,
 };
 use bld_server::sockets::{ws_exec, ws_high_avail, ws_monit};
-use bld_server::state::PipelinePool;
 use clap::{App as ClapApp, Arg, ArgMatches, SubCommand};
 use std::env::set_var;
 use std::sync::Arc;
@@ -28,22 +27,20 @@ impl ServerCommand {
 
     async fn start(config: BldConfig, host: &str, port: i64) -> anyhow::Result<()> {
         info!("starting bld server at {}:{}", host, port);
-        let db_pool = new_connection_pool(&config.local.db)?;
-        let pip_pool = web::Data::new(PipelinePool::default());
-        let ha = web::Data::new(HighAvail::new(&config, db_pool.clone()).await?);
-        let db_pool = web::Data::new(db_pool);
+        let pool = new_connection_pool(&config.local.db)?;
+        let ha = web::Data::new(HighAvail::new(&config, pool.clone()).await?);
+        let pool = web::Data::new(pool);
         let cfg = web::Data::new(config);
         let prx = web::Data::new(ServerPipelineProxy::new(
             Arc::clone(&cfg),
-            Arc::clone(&db_pool),
+            Arc::clone(&pool),
         ));
         set_var("RUST_LOG", "actix_server=info,actix_web=debug");
         HttpServer::new(move || {
             App::new()
-                .app_data(pip_pool.clone())
                 .app_data(cfg.clone())
                 .app_data(ha.clone())
-                .app_data(db_pool.clone())
+                .app_data(pool.clone())
                 .app_data(prx.clone())
                 .wrap(middleware::Logger::default())
                 .service(ha_append_entries)
