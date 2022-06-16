@@ -6,7 +6,6 @@ use actix_web_actors::ws;
 use anyhow::anyhow;
 use bld_config::{path, BldConfig};
 use bld_core::database::pipeline_runs;
-use bld_core::execution::PipelineExecWrapper;
 use bld_core::logger::FileLogger;
 use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
 use bld_core::scanner::{FileScanner, Scanner};

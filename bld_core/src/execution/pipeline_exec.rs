@@ -7,12 +7,12 @@ use tracing::debug;
 
 const EMPTY_STRING: String = String::new();
 
-pub struct PipelineExecWrapper {
+pub struct PipelineExecution {
     pub pipeline_run: PipelineRuns,
     pub pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
 }
 
-impl PipelineExecWrapper {
+impl PipelineExecution {
     pub fn new(
         pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
         pipeline_run: PipelineRuns,
@@ -21,7 +21,7 @@ impl PipelineExecWrapper {
     }
 }
 
-impl Execution for PipelineExecWrapper {
+impl Execution for PipelineExecution {
     fn update_running(&mut self, running: bool) -> anyhow::Result<()> {
         let conn = self.pool.get()?;
         self.pipeline_run = pipeline_runs::update_running(&conn, &self.pipeline_run.id, running)?;
