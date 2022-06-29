@@ -49,8 +49,7 @@ impl Machine {
         let os_name = os_name();
         let current_dir = working_dir
             .as_ref()
-            .or(Some(&self.tmp_dir))
-            .unwrap()
+            .unwrap_or(&self.tmp_dir)
             .to_string();
         let current_dir = if Path::new(&current_dir).is_relative() {
             path![&self.tmp_dir, current_dir].display().to_string()

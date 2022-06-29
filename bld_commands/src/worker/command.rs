@@ -68,10 +68,10 @@ impl BldCommand for WorkerCommand {
         let pool = Arc::new(new_connection_pool(&cfg.local.db)?);
         let conn = pool.get()?;
         let pipeline_run = pipeline_runs::select_by_id(&conn, run_id)?;
-        let start_date_time = pipeline_run.start_date_time.to_string();
+        let start_date_time = pipeline_run.start_date_time;
         let proxy = Arc::new(ServerPipelineProxy::new(cfg.clone(), pool.clone()));
-        let logger = Arc::new(Mutex::new(FileLogger::new(cfg.clone(), &run_id)?));
-        let exec = Arc::new(Mutex::new(PipelineExecution::new(pool, &run_id)?));
+        let logger = Arc::new(Mutex::new(FileLogger::new(cfg.clone(), run_id)?));
+        let exec = Arc::new(Mutex::new(PipelineExecution::new(pool, run_id)?));
         let rt = Runtime::new()?;
         rt.block_on(async {
             let runner = RunnerBuilder::default()

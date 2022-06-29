@@ -119,7 +119,7 @@ impl Pipeline {
                 Some("machine") | None => RunsOn::Machine,
                 Some(target) => RunsOn::Docker(target.to_string()),
             },
-            dispose: yaml["dispose"].as_bool().or(Some(true)).unwrap(),
+            dispose: yaml["dispose"].as_bool().unwrap_or(true),
             environment: Self::variables(yaml, "environment")?,
             variables: Self::variables(yaml, "variables")?,
             artifacts: Self::artifacts(yaml),
@@ -158,7 +158,7 @@ impl Pipeline {
                 let from = artifact["from"].as_str().map(|p| p.to_string());
                 let to = artifact["to"].as_str().map(|p| p.to_string());
                 let after = artifact["after"].as_str().map(|a| a.to_string());
-                let ignore_errors = artifact["ignore-errors"].as_bool().or(Some(false)).unwrap();
+                let ignore_errors = artifact["ignore-errors"].as_bool().unwrap_or(false);
                 artifacts.push(Artifacts::new(method, from, to, after, ignore_errors));
             }
         }

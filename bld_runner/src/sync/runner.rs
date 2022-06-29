@@ -284,7 +284,7 @@ impl Runner {
 
     async fn steps(&mut self) -> anyhow::Result<()> {
         for step in &self.pip.steps {
-            self.step(&step).await?;
+            self.step(step).await?;
             self.artifacts(&step.name).await?;
             self.check_stop_signal()?;
         }

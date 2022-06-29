@@ -42,8 +42,7 @@ impl BldCommand for ServerCommand {
         let config = BldConfig::load()?;
         let host = matches
             .value_of("host")
-            .or(Some(&config.local.host))
-            .unwrap()
+            .unwrap_or(&config.local.host)
             .to_string();
         let port = matches
             .value_of("port")

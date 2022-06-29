@@ -21,11 +21,11 @@ impl FileScanner {
     }
 
     fn try_open(&mut self) {
-        if let Some(_) = self.file_handle {
+        if self.file_handle.is_some() {
             return;
         }
         self.file_handle = match self.path.is_file() {
-            true => File::open(&self.path).map(|f| Some(f)).unwrap_or(None),
+            true => File::open(&self.path).map(Some).unwrap_or(None),
             false => None,
         };
     }
