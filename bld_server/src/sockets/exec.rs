@@ -1,3 +1,4 @@
+use crate::data::PipelineWorker;
 use crate::extractors::User;
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
@@ -14,7 +15,7 @@ use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::process::{Child, Command};
+use std::process::Command;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -23,37 +24,14 @@ use tokio::runtime::Runtime;
 use tracing::error;
 use uuid::Uuid;
 
-struct PipelineWorker {
-    cmd: Command,
-    child: Option<Child>,
-}
-
-impl PipelineWorker {
-    pub fn new(cmd: Command) -> Self {
-        Self { cmd, child: None }
-    }
-
-    pub fn spawn(&mut self) -> anyhow::Result<()> {
-        self.child = Some(self.cmd.spawn().map_err(|e| anyhow!(e))?);
-        Ok(())
-    }
-
-    pub fn completed(&mut self) -> bool {
-        self.child
-            .as_mut()
-            .ok_or_else(|| anyhow!("worker has not spawned"))
-            .and_then(|c| c.try_wait().map_err(|e| anyhow!(e)))
-            .is_ok()
-    }
-}
-
 pub struct ExecutePipelineSocket {
     hb: Instant,
     config: web::Data<BldConfig>,
     pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     proxy: web::Data<ServerPipelineProxy>,
+    workers: web::Data<Mutex<Vec<PipelineWorker>>>,
     user: User,
-    worker: Option<PipelineWorker>,
+    worker_idx: Option<usize>,
     scanner: Option<FileScanner>,
 }
 
@@ -63,14 +41,16 @@ impl ExecutePipelineSocket {
         config: web::Data<BldConfig>,
         pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
         proxy: web::Data<ServerPipelineProxy>,
+        workers: web::Data<Mutex<Vec<PipelineWorker>>>,
     ) -> Self {
         Self {
             hb: Instant::now(),
             config,
             pool,
             proxy,
+            workers,
             user,
-            worker: None,
+            worker_idx: None,
             scanner: None,
         }
     }
@@ -94,14 +74,19 @@ impl ExecutePipelineSocket {
     }
 
     fn worker(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
-        if let Some(worker) = act.worker.as_mut() {
+        let idx = match act.worker_idx {
+            Some(idx) => idx,
+            None => return,
+        };
+        let mut workers = act.workers.lock().unwrap();
+        if let Some(worker) = workers.iter_mut().nth(idx).as_mut() {
             if worker.completed() {
                 ctx.stop();
             }
         }
     }
 
-    fn create_worker(&mut self, data: &str) -> anyhow::Result<()> {
+    fn spawn_worker(&mut self, data: &str) -> anyhow::Result<()> {
         let info = serde_json::from_str::<ExecInfo>(data)?;
         let path = self.proxy.path(&info.name)?;
         if !path.is_yaml() {
@@ -137,9 +122,14 @@ impl ExecutePipelineSocket {
             cmd.arg(&env);
         }
 
+        let mut worker = PipelineWorker::new(cmd);
+        let res = worker.spawn();
+        let mut workers = self.workers.lock().unwrap();
+        workers.push(worker);
+
+        self.worker_idx = Some(workers.len() - 1);
         self.scanner = Some(FileScanner::new(Arc::clone(&self.config), &run_id));
-        self.worker = Some(PipelineWorker::new(cmd));
-        Ok(())
+        res
     }
 }
 
@@ -162,10 +152,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSo
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(txt)) => {
-                let worker_created = self
-                    .create_worker(&txt)
-                    .and_then(|_| self.worker.as_mut().map(|w| w.spawn()).transpose());
-                if let Err(e) = worker_created {
+                if let Err(e) = self.spawn_worker(&txt) {
                     error!("{}", e.to_string());
                     ctx.text("Unable to run pipeline");
                     ctx.stop();
@@ -194,10 +181,11 @@ pub async fn ws_exec(
     cfg: web::Data<BldConfig>,
     pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     proxy: web::Data<ServerPipelineProxy>,
+    workers: web::Data<Mutex<Vec<PipelineWorker>>>
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{req:?}");
-    let socket = ExecutePipelineSocket::new(user, cfg, pool, proxy);
+    let socket = ExecutePipelineSocket::new(user, cfg, pool, proxy, workers);
     let res = ws::start(socket, &req, stream);
     println!("{res:?}");
     res
