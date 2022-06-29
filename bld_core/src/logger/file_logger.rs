@@ -17,7 +17,10 @@ impl FileLogger {
             true => File::open(&path)?,
             false => File::create(&path)?,
         };
-        Ok(Self { _cfg: cfg, file_handle })
+        Ok(Self {
+            _cfg: cfg,
+            file_handle,
+        })
     }
 
     fn write(&mut self, text: &str) {

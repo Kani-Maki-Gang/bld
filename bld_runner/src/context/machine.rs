@@ -47,10 +47,7 @@ impl Machine {
     pub fn sh(&self, working_dir: &Option<String>, input: &str) -> anyhow::Result<()> {
         let mut logger = self.lg.lock().unwrap();
         let os_name = os_name();
-        let current_dir = working_dir
-            .as_ref()
-            .unwrap_or(&self.tmp_dir)
-            .to_string();
+        let current_dir = working_dir.as_ref().unwrap_or(&self.tmp_dir).to_string();
         let current_dir = if Path::new(&current_dir).is_relative() {
             path![&self.tmp_dir, current_dir].display().to_string()
         } else {

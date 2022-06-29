@@ -10,8 +10,8 @@ use bld_core::scanner::{FileScanner, Scanner};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 pub struct MonitorPipelineSocket {
     hb: Instant,

@@ -15,7 +15,7 @@ pub struct PipelineRuns {
     pub user: String,
     pub start_date_time: String,
     pub end_date_time: Option<String>,
-    pub stopped: Option<bool>
+    pub stopped: Option<bool>,
 }
 
 #[derive(Insertable)]
@@ -143,7 +143,7 @@ pub fn update_running(
 pub fn update_stopped(
     conn: &SqliteConnection,
     pip_id: &str,
-    pip_stopped: bool
+    pip_stopped: bool,
 ) -> anyhow::Result<PipelineRuns> {
     debug!("updating pipeline id: {pip_id} with values stopped: {pip_stopped}");
     conn.transaction(|| {

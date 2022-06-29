@@ -11,8 +11,14 @@ pub struct PipelineExecution {
 }
 
 impl PipelineExecution {
-    pub fn new(pool: Arc<Pool<ConnectionManager<SqliteConnection>>>, run_id: &str) -> anyhow::Result<Self> {
-        Ok(Self { pool, run_id: run_id.to_string() })
+    pub fn new(
+        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        run_id: &str,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            pool,
+            run_id: run_id.to_string(),
+        })
     }
 }
 
@@ -24,10 +30,9 @@ impl Execution for PipelineExecution {
 
     fn check_stop_signal(&self) -> anyhow::Result<()> {
         let conn = self.pool.get()?;
-        pipeline_runs::select_by_id(&conn, &self.run_id).and_then(|r| match r.stopped
-        {
+        pipeline_runs::select_by_id(&conn, &self.run_id).and_then(|r| match r.stopped {
             Some(true) => bail!(""),
-            _ => Ok(())
+            _ => Ok(()),
         })
     }
 }

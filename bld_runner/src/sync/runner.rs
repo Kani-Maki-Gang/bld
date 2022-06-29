@@ -156,7 +156,7 @@ impl RunnerBuilder {
             env,
             vars,
             platform,
-            is_child: self.is_child
+            is_child: self.is_child,
         })
     }
 }
@@ -328,7 +328,9 @@ impl Runner {
             let command = self.apply_context(command);
             match &self.platform {
                 TargetPlatform::Container(container) => {
-                    container.sh(&working_dir, &command, self.ex.clone()).await?
+                    container
+                        .sh(&working_dir, &command, self.ex.clone())
+                        .await?
                 }
                 TargetPlatform::Machine(machine) => machine.sh(&working_dir, &command)?,
             }

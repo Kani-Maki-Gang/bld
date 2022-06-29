@@ -8,7 +8,7 @@ use std::sync::Arc;
 pub struct FileScanner {
     path: PathBuf,
     file_handle: Option<File>,
-    _cfg: Arc<BldConfig>
+    _cfg: Arc<BldConfig>,
 }
 
 impl FileScanner {
@@ -16,7 +16,7 @@ impl FileScanner {
         Self {
             path: path![&cfg.local.logs, run_id],
             file_handle: None,
-            _cfg: cfg
+            _cfg: cfg,
         }
     }
 

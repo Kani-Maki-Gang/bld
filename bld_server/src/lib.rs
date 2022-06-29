@@ -7,21 +7,21 @@ pub mod requests;
 pub mod responses;
 pub mod sockets;
 
-use actix::System;
-use actix_web::{middleware, web, App, HttpServer};
-use bld_core::database::new_connection_pool;
-use bld_core::high_avail::HighAvail;
-use bld_core::proxies::ServerPipelineProxy;
-use bld_config::BldConfig;
 use crate::data::PipelineWorker;
-use crate::sockets::{ws_exec, ws_high_avail, ws_monit};
 use crate::endpoints::{
     auth_redirect, deps, ha_append_entries, ha_install_snapshot, ha_vote, hist, home, inspect,
     list, pull, push, remove, stop,
 };
-use std::time::{Instant, Duration};
+use crate::sockets::{ws_exec, ws_high_avail, ws_monit};
+use actix::System;
+use actix_web::{middleware, web, App, HttpServer};
+use bld_config::BldConfig;
+use bld_core::database::new_connection_pool;
+use bld_core::high_avail::HighAvail;
+use bld_core::proxies::ServerPipelineProxy;
 use std::env::set_var;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tracing::{debug, info};
 
 async fn set_worker_cleanup(workers: Arc<Mutex<Vec<PipelineWorker>>>) {
@@ -38,7 +38,10 @@ async fn set_worker_cleanup(workers: Arc<Mutex<Vec<PipelineWorker>>>) {
                 }
             }
             zombies.sort_by(|a, b| b.cmp(a));
-            debug!("cleaned up {} zombies removing them from lookup", zombies.len());
+            debug!(
+                "cleaned up {} zombies removing them from lookup",
+                zombies.len()
+            );
             for i in zombies {
                 workers.remove(i);
             }
@@ -57,7 +60,9 @@ pub async fn start(config: BldConfig, host: &str, port: i64) -> anyhow::Result<(
         Arc::clone(&cfg),
         Arc::clone(&pool),
     ));
-    System::current().arbiter().spawn(set_worker_cleanup(Arc::clone(&workers)));
+    System::current()
+        .arbiter()
+        .spawn(set_worker_cleanup(Arc::clone(&workers)));
     set_var("RUST_LOG", "actix_server=info,actix_web=debug");
     HttpServer::new(move || {
         App::new()

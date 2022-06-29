@@ -29,14 +29,12 @@ impl PipelineWorker {
 
     pub fn cleanup(&mut self) -> anyhow::Result<ExitStatus> {
         match self.try_wait() {
-            Ok(Some(_)) => {
-                self.child
-                    .as_mut()
-                    .ok_or_else(|| anyhow!("worker has not spawned"))
-                    .and_then(|c| c.wait().map_err(|e| anyhow!(e)))
-            }
+            Ok(Some(_)) => self
+                .child
+                .as_mut()
+                .ok_or_else(|| anyhow!("worker has not spawned"))
+                .and_then(|c| c.wait().map_err(|e| anyhow!(e))),
             _ => bail!("command is still running. cannot cleanup"),
         }
     }
 }
-

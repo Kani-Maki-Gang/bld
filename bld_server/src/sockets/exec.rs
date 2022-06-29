@@ -181,7 +181,7 @@ pub async fn ws_exec(
     cfg: web::Data<BldConfig>,
     pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     proxy: web::Data<ServerPipelineProxy>,
-    workers: web::Data<Mutex<Vec<PipelineWorker>>>
+    workers: web::Data<Mutex<Vec<PipelineWorker>>>,
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{req:?}");

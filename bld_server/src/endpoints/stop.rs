@@ -1,7 +1,7 @@
 use crate::extractors::User;
 use actix_web::{post, web, HttpResponse, Responder};
 use bld_core::database::pipeline_runs;
-use diesel::r2d2::{Pool, ConnectionManager};
+use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use tracing::info;
 
@@ -22,10 +22,7 @@ pub async fn stop(
     }
 }
 
-fn do_stop(
-    pool: &Pool<ConnectionManager<SqliteConnection>>,
-    id: &str
-) -> anyhow::Result<()> {
+fn do_stop(pool: &Pool<ConnectionManager<SqliteConnection>>, id: &str) -> anyhow::Result<()> {
     let conn = pool.get()?;
     pipeline_runs::update_stopped(&conn, id, true).map(|_| ())
 }

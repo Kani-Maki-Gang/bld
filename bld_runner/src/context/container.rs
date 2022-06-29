@@ -1,7 +1,7 @@
 use anyhow::{anyhow, bail};
 use bld_config::BldConfig;
-use bld_core::logger::Logger;
 use bld_core::execution::Execution;
+use bld_core::logger::Logger;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
 use shiplift::tty::TtyChunk;
