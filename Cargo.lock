@@ -474,6 +474,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "bld_ipc"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bld_config",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "bld_runner"
 version = "0.1.0"
 dependencies = [
@@ -511,6 +524,7 @@ dependencies = [
  "awc",
  "bld_config",
  "bld_core",
+ "bld_ipc",
  "bld_runner",
  "bld_utils",
  "diesel",

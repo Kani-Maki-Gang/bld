@@ -16,6 +16,7 @@ pub struct BldLocalConfig {
     pub server_pipelines: String,
     pub auth: AuthValidation,
     pub docker_url: String,
+    pub unix_sock: String,
 }
 
 impl BldLocalConfig {
@@ -48,6 +49,10 @@ impl BldLocalConfig {
             .as_str()
             .unwrap_or(definitions::LOCAL_DOCKER_URL)
             .to_string();
+        let unix_sock = local_yaml["unix-socket"]
+            .as_str()
+            .unwrap_or(definitions::LOCAL_UNIX_SOCKET)
+            .to_string();
         let auth = BldLocalConfig::auth_load(local_yaml)?;
         let instance = Self {
             ha_mode,
@@ -59,6 +64,7 @@ impl BldLocalConfig {
             server_pipelines,
             auth,
             docker_url,
+            unix_sock,
         };
         instance.debug_info();
         Ok(instance)
@@ -86,7 +92,9 @@ impl BldLocalConfig {
         debug!("port: {}", self.port);
         debug!("logs: {}", self.logs);
         debug!("db: {}", self.db);
+        debug!("server_pipelines: {}", self.server_pipelines);
         debug!("docker-url: {}", self.docker_url);
+        debug!("unix-socket: {}", self.unix_sock);
         if let AuthValidation::OAuth2(url) = &self.auth {
             debug!("auth > method: oauth2");
             debug!("auth > validation-url: {}", url);
@@ -106,6 +114,7 @@ impl Default for BldLocalConfig {
             server_pipelines: definitions::LOCAL_SERVER_PIPELINES.to_string(),
             auth: AuthValidation::None,
             docker_url: definitions::LOCAL_DOCKER_URL.to_string(),
+            unix_sock: definitions::LOCAL_UNIX_SOCKET.to_string(),
         }
     }
 }

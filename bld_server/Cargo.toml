@@ -17,6 +17,7 @@ async-raft = "0.6.1"
 bld_config = { path = "../bld_config" }
 bld_utils = { path = "../bld_utils" }
 bld_core = { path = "../bld_core" }
+bld_ipc = { path = "../bld_ipc" }
 bld_runner = { path = "../bld_runner" }
 diesel = { version = "1.4.6", features = ["sqlite", "r2d2"] }
 futures-util = "0.3.15"

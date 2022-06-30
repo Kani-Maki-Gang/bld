@@ -38,6 +38,7 @@ impl ConfigCommand {
         println!("- db: {}", local.db);
         println!("- server_pipelines: {}", local.server_pipelines);
         println!("- docker-url: {}", local.docker_url);
+        println!("- unix-socket: {}", local.unix_sock);
         Ok(())
     }
 
