@@ -38,10 +38,7 @@ impl UnixSocketListener {
                 .tx
                 .send(UnixSocketClient::new(client))
                 .await
-                .map(|_| {
-                    debug!("sent new client to handler");
-                    ()
-                })
+                .map(|_| debug!("sent new client to handler"))
                 .map_err(|e| {
                     error!("could not accept client from unix socket, {e}");
                     e
@@ -130,7 +127,7 @@ impl UnixSocketHandler {
                         "worker with pid: {pid} sent PING message from unix socket with id: {}",
                         client.id
                     );
-                    self.try_associate_worker_with_client(*pid, client.id.clone());
+                    self.try_associate_worker_with_client(*pid, client.id);
                 }
                 UnixSocketMessage::Exit { pid } => {
                     debug!(
