@@ -1,12 +1,10 @@
 use crate::extractors::User;
 use actix_web::{get, web, HttpResponse};
-use bld_config::BldConfig;
 use bld_core::database::pipeline;
 use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
 use bld_utils::fs::IsYaml;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use std::sync::Arc;
 use tracing::info;
 
 #[get("/list")]

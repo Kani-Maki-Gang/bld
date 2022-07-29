@@ -1,14 +1,6 @@
 use crate::extractors::User;
 use actix_web::{post, web, HttpResponse};
-use anyhow::anyhow;
-use bld_config::BldConfig;
-use bld_core::database::pipeline;
 use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
-use bld_utils::fs::IsYaml;
-use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::sqlite::SqliteConnection;
-use std::fs::remove_file;
-use std::sync::Arc;
 use tracing::info;
 
 #[post("/remove")]

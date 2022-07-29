@@ -427,6 +427,7 @@ dependencies = [
  "awc",
  "bld_config",
  "bld_core",
+ "bld_ipc",
  "bld_runner",
  "bld_server",
  "bld_utils",
@@ -477,13 +478,17 @@ dependencies = [
 name = "bld_ipc"
 version = "0.1.0"
 dependencies = [
+ "actix",
  "anyhow",
+ "async-trait",
  "bld_config",
+ "bld_core",
  "serde",
  "serde_derive",
  "serde_json",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -498,6 +503,7 @@ dependencies = [
  "awc",
  "bld_config",
  "bld_core",
+ "bld_ipc",
  "bld_utils",
  "futures",
  "futures-util",
@@ -506,6 +512,7 @@ dependencies = [
  "serde_json",
  "shiplift",
  "tar",
+ "tokio",
  "tracing",
  "yaml-rust",
 ]

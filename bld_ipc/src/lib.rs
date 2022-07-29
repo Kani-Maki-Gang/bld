@@ -1,6 +1,6 @@
 pub mod client;
+pub mod message;
 pub mod server;
-pub mod messages;
 
 #[cfg(test)]
 mod tests {

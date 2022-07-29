@@ -4,12 +4,11 @@ use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use anyhow::anyhow;
-use bld_config::{path, BldConfig};
+use bld_config::BldConfig;
 use bld_core::database::pipeline_runs::{self, PipelineRuns};
 use bld_core::scanner::{FileScanner, Scanner};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 

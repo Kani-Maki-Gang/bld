@@ -15,6 +15,7 @@ anyhow = "1.0.40"
 bld_config = { path = "../bld_config" }
 bld_utils = { path = "../bld_utils" }
 bld_core = { path = "../bld_core" }
+bld_ipc = { path = "../bld_ipc" }
 futures = "0.3.15"
 futures-util = "0.3.15"
 serde = "1.0.126"
@@ -22,5 +23,6 @@ serde_derive = "1.0.126"
 serde_json = "1.0.64"
 shiplift = "0.7.0"
 tar = "0.4.35"
+tokio = { version = "1.15", features = ["full"] }
 tracing = "0.1.26"
 yaml-rust = "0.4.5"

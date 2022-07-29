@@ -1,26 +1,20 @@
-use crate::data::PipelineWorker;
 use crate::extractors::User;
 use actix::prelude::*;
 use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use anyhow::anyhow;
-use bld_config::{path, BldConfig};
+use bld_config::BldConfig;
 use bld_core::database::pipeline_runs;
 use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
 use bld_core::scanner::{FileScanner, Scanner};
+use bld_core::workers::PipelineWorker;
 use bld_runner::messages::ExecInfo;
-use bld_runner::{Pipeline, Runner, RunnerBuilder};
 use bld_utils::fs::IsYaml;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use std::collections::HashMap;
-use std::path::PathBuf;
 use std::process::Command;
-use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
-use std::thread;
 use std::time::{Duration, Instant};
-use tokio::runtime::Runtime;
 use tracing::error;
 use uuid::Uuid;
 
@@ -123,13 +117,13 @@ impl ExecutePipelineSocket {
         }
 
         let mut worker = PipelineWorker::new(cmd);
-        let res = worker.spawn();
+        worker.spawn()?;
         let mut workers = self.workers.lock().unwrap();
         workers.push(worker);
 
         self.worker_idx = Some(workers.len() - 1);
         self.scanner = Some(FileScanner::new(Arc::clone(&self.config), &run_id));
-        res
+        Ok(())
     }
 }
 

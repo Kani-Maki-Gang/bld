@@ -7,6 +7,8 @@ use bld_config::BldConfig;
 use bld_core::execution::Execution;
 use bld_core::logger::Logger;
 use bld_core::proxies::PipelineFileSystemProxy;
+use bld_ipc::client::UnixSocketClient;
+use bld_ipc::message::UnixSocketMessage;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -32,6 +34,7 @@ pub struct RunnerBuilder {
     lg: Option<AtomicLog>,
     prx: Option<AtomicProxy>,
     pip: Option<String>,
+    sock: Arc<Option<UnixSocketClient>>,
     env: Option<AtomicVars>,
     vars: Option<AtomicVars>,
     is_child: bool,
@@ -70,6 +73,11 @@ impl RunnerBuilder {
 
     pub fn proxy(mut self, prx: AtomicProxy) -> Self {
         self.prx = Some(prx);
+        self
+    }
+
+    pub fn socket(mut self, sock: Arc<Option<UnixSocketClient>>) -> Self {
+        self.sock = sock;
         self
     }
 
@@ -153,6 +161,7 @@ impl RunnerBuilder {
             lg,
             prx,
             pip: pipeline,
+            sock: self.sock,
             env,
             vars,
             platform,
@@ -169,6 +178,7 @@ pub struct Runner {
     lg: AtomicLog,
     prx: AtomicProxy,
     pip: Pipeline,
+    sock: Arc<Option<UnixSocketClient>>,
     env: AtomicVars,
     vars: AtomicVars,
     platform: TargetPlatform,
@@ -176,28 +186,50 @@ pub struct Runner {
 }
 
 impl Runner {
-    fn dumpln(&self, message: &str) {
+    fn log_dumpln(&self, message: &str) {
         let mut lg = self.lg.lock().unwrap();
         lg.dumpln(message);
     }
 
-    fn persist_start(&self) {
+    fn exec_persist_start(&self) {
         if !self.is_child {
             let mut exec = self.ex.lock().unwrap();
             let _ = exec.update_running(true);
         }
     }
 
-    fn persist_end(&self) {
+    fn exec_persist_end(&self) {
         if !self.is_child {
             let mut exec = self.ex.lock().unwrap();
             let _ = exec.update_running(false);
         }
     }
 
-    fn check_stop_signal(&self) -> anyhow::Result<()> {
+    fn exec_check_stop_signal(&self) -> anyhow::Result<()> {
         let exec = self.ex.lock().unwrap();
         exec.check_stop_signal()
+    }
+
+    async fn socket_ping(&self) -> anyhow::Result<()> {
+        if let Some(stream) = Option::as_ref(&self.sock) {
+            stream
+                .try_write(&UnixSocketMessage::Ping {
+                    pid: std::process::id(),
+                })
+                .await?;
+        }
+        Ok(())
+    }
+
+    async fn socket_exit(&self) -> anyhow::Result<()> {
+        if let Some(stream) = Option::as_ref(&self.sock) {
+            stream
+                .try_write(&UnixSocketMessage::Exit {
+                    pid: std::process::id(),
+                })
+                .await?;
+        }
+        Ok(())
     }
 
     fn info(&self) {
@@ -248,6 +280,7 @@ impl Runner {
     }
 
     async fn artifacts(&self, name: &Option<String>) -> anyhow::Result<()> {
+        self.socket_ping().await?;
         for artifact in self.pip.artifacts.iter().filter(|a| &a.after == name) {
             let can_continue = (artifact.method == Some(PUSH.to_string())
                 || artifact.method == Some(GET.to_string()))
@@ -284,9 +317,10 @@ impl Runner {
 
     async fn steps(&mut self) -> anyhow::Result<()> {
         for step in &self.pip.steps {
+            self.socket_ping().await?;
             self.step(step).await?;
             self.artifacts(&step.name).await?;
-            self.check_stop_signal()?;
+            self.exec_check_stop_signal()?;
         }
         Ok(())
     }
@@ -313,11 +347,13 @@ impl Runner {
                 .logger(self.lg.clone())
                 .environment(self.env.clone())
                 .variables(self.vars.clone())
+                .socket(self.sock.clone())
                 .is_child(true)
                 .build()
                 .await?;
             runner.run().await.await?;
-            self.check_stop_signal()?;
+            self.socket_ping().await?;
+            self.exec_check_stop_signal()?;
         }
         Ok(())
     }
@@ -334,7 +370,8 @@ impl Runner {
                 }
                 TargetPlatform::Machine(machine) => machine.sh(&working_dir, &command)?,
             }
-            self.check_stop_signal()?;
+            self.socket_ping().await?;
+            self.exec_check_stop_signal()?;
         }
         Ok(())
     }
@@ -351,18 +388,20 @@ impl Runner {
 
     pub async fn run(mut self) -> RecursiveFuture {
         Box::pin(async move {
-            self.persist_start();
+            self.exec_persist_start();
             self.info();
             match self.artifacts(&None).await {
                 Ok(_) => {
                     if let Err(e) = self.steps().await {
-                        self.dumpln(&e.to_string());
+                        self.log_dumpln(&e.to_string());
                     }
                 }
-                Err(e) => self.dumpln(&e.to_string()),
+                Err(e) => self.log_dumpln(&e.to_string()),
             }
-            self.persist_end();
-            self.dispose().await
+            self.exec_persist_end();
+            self.dispose().await?;
+            self.socket_exit().await?;
+            Ok(())
         })
     }
 }

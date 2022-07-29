@@ -1,12 +1,16 @@
 use crate::run::parse_variables;
 use crate::BldCommand;
-use bld_config::BldConfig;
+use anyhow::anyhow;
+use bld_config::{path, BldConfig};
 use bld_core::database::{new_connection_pool, pipeline_runs};
 use bld_core::execution::PipelineExecution;
 use bld_core::logger::FileLogger;
 use bld_core::proxies::ServerPipelineProxy;
+use bld_ipc::client::UnixSocketClient;
 use bld_runner::RunnerBuilder;
 use clap::{App, Arg, ArgMatches, SubCommand};
+use std::env::temp_dir;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio::runtime::Runtime;
 
@@ -73,17 +77,23 @@ impl BldCommand for WorkerCommand {
         let logger = Arc::new(Mutex::new(FileLogger::new(cfg.clone(), run_id)?));
         let exec = Arc::new(Mutex::new(PipelineExecution::new(pool, run_id)?));
         let rt = Runtime::new()?;
-        rt.block_on(async {
+        rt.block_on(async move {
+            let socket = UnixSocketClient::connect(&path![temp_dir(), &cfg.local.unix_sock])
+                .await
+                .map_err(|e| {
+                    anyhow!("worker for {run_id} could not connect to unix socket. {e}")
+                })?;
             let runner = RunnerBuilder::default()
                 .run_id(run_id)
                 .run_start_time(&start_date_time)
                 .config(cfg.clone())
-                .proxy(proxy.clone())
+                .proxy(proxy)
                 .pipeline(pipeline)
-                .execution(exec.clone())
-                .logger(logger.clone())
-                .environment(environment.clone())
-                .variables(variables.clone())
+                .execution(exec)
+                .logger(logger)
+                .environment(environment)
+                .variables(variables)
+                .socket(Arc::new(Some(socket)))
                 .build()
                 .await?;
             runner.run().await.await
