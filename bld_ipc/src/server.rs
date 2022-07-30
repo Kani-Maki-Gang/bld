@@ -76,29 +76,34 @@ impl UnixSocketHandler {
         }
     }
 
-    fn try_associate_worker_with_client(&self, pid: u32, cid: Uuid) {
+    fn try_assign_cid_to_worker(&self, pid: u32, cid: Uuid) {
         let mut workers = self.workers.lock().unwrap();
-        if let Some(worker) = workers.iter_mut().find(|w| w.is(pid)) {
-            worker.set_unix_client_id(cid);
+        if let Some(worker) = workers.iter_mut().find(|w| w.has_pid(pid)) {
+            worker.set_cid(cid);
         }
     }
 
     fn try_remove_worker_by_pid(&self, pid: u32) {
         let mut workers = self.workers.lock().unwrap();
-        if let Some(worker) = workers.iter_mut().find(|w| w.is(pid)) {
-            let _ = worker.cleanup();
-            let idx = workers.iter().position(|w| w.is(pid)).unwrap();
+        if let Some(worker) = workers.iter_mut().find(|w| w.has_pid(pid)) {
+            match worker.cleanup() {
+                Ok(_) => debug!("cleaned up worker with pid: {:?} and cid: {:?}", worker.get_pid(), worker.get_cid()),
+                Err(e) => error!("{e}"),
+            }
+            let idx = workers.iter().position(|w| w.has_pid(pid)).unwrap();
             workers.remove(idx);
         }
     }
 
     fn try_remove_worker_by_cid(&self, cid: &Uuid) {
         let mut workers = self.workers.lock().unwrap();
-        if let Some(worker) = workers.iter_mut().find(|w| w.associates(cid)) {
-            if let Err(e) = worker.cleanup() {
-                error!("{e}");
+        debug!("removing worker client with id: {cid}");
+        if let Some(worker) = workers.iter_mut().find(|w| w.has_cid(cid)) {
+            match worker.cleanup() {
+                Ok(_) => debug!("clean up worker with pid: {:?} and cid: {:?}", worker.get_pid(), worker.get_cid()),
+                Err(e) => error!("{e}"),
             }
-            let idx = workers.iter().position(|w| w.associates(cid)).unwrap();
+            let idx = workers.iter().position(|w| w.has_cid(cid)).unwrap();
             workers.remove(idx);
         }
     }
@@ -107,7 +112,6 @@ impl UnixSocketHandler {
         for id in ids {
             let idx = self.clients.iter().position(|s| s.id == *id);
             if let Some(i) = idx {
-                debug!("removing worker client with id: {id}");
                 self.try_remove_worker_by_cid(id);
                 self.clients.remove(i);
             }
@@ -127,7 +131,7 @@ impl UnixSocketHandler {
                         "worker with pid: {pid} sent PING message from unix socket with id: {}",
                         client.id
                     );
-                    self.try_associate_worker_with_client(*pid, client.id);
+                    self.try_assign_cid_to_worker(*pid, client.id);
                 }
                 UnixSocketMessage::Exit { pid } => {
                     debug!(

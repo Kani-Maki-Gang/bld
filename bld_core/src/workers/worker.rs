@@ -17,16 +17,24 @@ impl PipelineWorker {
         }
     }
 
-    pub fn set_unix_client_id(&mut self, id: Uuid) {
-        self.unix_client_id = Some(id);
+    pub fn get_pid(&self) -> Option<u32> {
+        self.child.as_ref().map(|c| c.id())
     }
 
-    pub fn is(&self, pid: u32) -> bool {
+    pub fn get_cid(&self) -> &Option<Uuid> {
+        &self.unix_client_id 
+    }
+
+    pub fn set_cid(&mut self, cid: Uuid) {
+        self.unix_client_id = Some(cid);
+    }
+
+    pub fn has_pid(&self, pid: u32) -> bool {
         self.child.as_ref().map(|c| c.id() == pid) == Some(true)
     }
 
-    pub fn associates(&self, cid: &Uuid) -> bool {
-        self.unix_client_id.map(|id| &id == cid).unwrap_or(false)
+    pub fn has_cid(&self, cid: &Uuid) -> bool {
+        self.unix_client_id.map(|id| id.to_string() == cid.to_string()).unwrap_or(false)
     }
 
     fn try_wait(&mut self) -> anyhow::Result<Option<ExitStatus>> {
