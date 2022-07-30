@@ -75,7 +75,7 @@ pub fn select_by_name(conn: &SqliteConnection, pip_name: &str) -> anyhow::Result
 pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<PipelineRuns> {
     debug!("loading the last invoked pipeline from the database");
     pipeline_runs
-        .order(start_date_time)
+        .order(start_date_time.desc())
         .limit(1)
         .first(conn)
         .map(|p| {
