@@ -222,12 +222,14 @@ impl Runner {
     }
 
     async fn socket_exit(&self) -> anyhow::Result<()> {
-        if let Some(stream) = Option::as_ref(&self.sock) {
-            stream
-                .try_write(&UnixSocketMessage::Exit {
-                    pid: std::process::id(),
-                })
-                .await?;
+        if !self.is_child {
+            if let Some(stream) = Option::as_ref(&self.sock) {
+                stream
+                    .try_write(&UnixSocketMessage::Exit {
+                        pid: std::process::id(),
+                    })
+                    .await?;
+            }
         }
         Ok(())
     }
