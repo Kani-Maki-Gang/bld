@@ -3,9 +3,9 @@ use bld_config::definitions::LOCAL_MACHINE_TMP_DIR;
 use bld_config::{os_name, path, OSname};
 use bld_core::logger::Logger;
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::fmt::Write;
 use std::sync::{Arc, Mutex};
 
 fn could_not_spawn_shell() -> anyhow::Result<()> {

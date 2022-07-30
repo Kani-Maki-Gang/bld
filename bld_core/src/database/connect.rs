@@ -11,7 +11,7 @@ use tracing::{debug, error};
 struct SqliteConnectionOptions {
     enable_wal: bool,
     enabld_foreign_keys: bool,
-    busy_timeout: Option<Duration>
+    busy_timeout: Option<Duration>,
 }
 
 impl SqliteConnectionOptions {
@@ -22,7 +22,7 @@ impl SqliteConnectionOptions {
                     error!("error trying to set wal option for connection. {e}");
                     e
                 })?;
-        } 
+        }
         if self.enabld_foreign_keys {
             conn.batch_execute("PRAGMA foreign_keys = ON;")
                 .map_err(|e| {
@@ -55,7 +55,7 @@ pub fn new_connection_pool(db: &str) -> anyhow::Result<Pool<ConnectionManager<Sq
         .connection_customizer(Box::new(SqliteConnectionOptions {
             enable_wal: true,
             enabld_foreign_keys: true,
-            busy_timeout: Some(Duration::from_secs(30))
+            busy_timeout: Some(Duration::from_secs(30)),
         }))
         .build(ConnectionManager::<SqliteConnection>::new(path))?;
     debug!("running migrations");
