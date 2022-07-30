@@ -5,6 +5,7 @@ use bld_core::logger::Logger;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::fmt::Write;
 use std::sync::{Arc, Mutex};
 
 fn could_not_spawn_shell() -> anyhow::Result<()> {
@@ -67,8 +68,13 @@ impl Machine {
         command.current_dir(current_dir);
 
         let process = command.output()?;
-        let mut output = String::from_utf8_lossy(&process.stderr).to_string();
-        output.push_str(&format!("\r\n{}", String::from_utf8_lossy(&process.stdout)));
+        let mut output = String::new();
+        if process.stderr.len() > 0 {
+            write!(output, "{}\r\n", String::from_utf8_lossy(&process.stderr))?;
+        }
+        if process.stdout.len() > 0 {
+            write!(output, "{}", String::from_utf8_lossy(&process.stdout))?;
+        }
         logger.dump(&output);
 
         Ok(())
