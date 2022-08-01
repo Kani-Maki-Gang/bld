@@ -19,7 +19,11 @@ impl SqliteConnectionOptions {
     fn customize(&self, conn: &mut SqliteConnection) -> Result<(), diesel::result::Error> {
         let mut pragma = String::new();
         if self.enable_wal {
-            let _ = write!(pragma, "{}", "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
+            let _ = write!(
+                pragma,
+                "{}",
+                "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;"
+            );
         }
         if self.enabld_foreign_keys {
             let _ = write!(pragma, "{}", "PRAGMA foreign_keys = ON;");

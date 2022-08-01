@@ -5,7 +5,7 @@ use uuid::Uuid;
 pub struct PipelineWorker {
     cmd: Command,
     child: Option<Child>,
-    unix_client_id: Option<Uuid>,
+    cid: Option<Uuid>,
 }
 
 impl PipelineWorker {
@@ -13,7 +13,7 @@ impl PipelineWorker {
         Self {
             cmd,
             child: None,
-            unix_client_id: None,
+            cid: None,
         }
     }
 
@@ -21,20 +21,16 @@ impl PipelineWorker {
         self.child.as_ref().map(|c| c.id())
     }
 
-    pub fn get_cid(&self) -> &Option<Uuid> {
-        &self.unix_client_id 
-    }
-
     pub fn set_cid(&mut self, cid: Uuid) {
-        self.unix_client_id = Some(cid);
+        self.cid = Some(cid);
     }
 
     pub fn has_pid(&self, pid: u32) -> bool {
-        self.child.as_ref().map(|c| c.id() == pid) == Some(true)
+        self.child.as_ref().map(|c| c.id() == pid).unwrap_or(false)
     }
 
     pub fn has_cid(&self, cid: &Uuid) -> bool {
-        self.unix_client_id.map(|id| id.to_string() == cid.to_string()).unwrap_or(false)
+        self.cid.map(|id| id == *cid).unwrap_or(false)
     }
 
     fn try_wait(&mut self) -> anyhow::Result<Option<ExitStatus>> {
