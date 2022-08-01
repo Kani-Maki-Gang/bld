@@ -1,11 +1,16 @@
-use anyhow::{anyhow, bail};
+use anyhow::anyhow;
 use std::process::{Child, Command, ExitStatus};
-use uuid::Uuid;
+
+pub enum PipelineWorkerStatus {
+    Initial,
+    Active,
+    Stopped,
+}
 
 pub struct PipelineWorker {
     cmd: Command,
     child: Option<Child>,
-    cid: Option<Uuid>,
+    status: PipelineWorkerStatus,
 }
 
 impl PipelineWorker {
@@ -13,7 +18,7 @@ impl PipelineWorker {
         Self {
             cmd,
             child: None,
-            cid: None,
+            status: PipelineWorkerStatus::Initial,
         }
     }
 
@@ -21,16 +26,19 @@ impl PipelineWorker {
         self.child.as_ref().map(|c| c.id())
     }
 
-    pub fn set_cid(&mut self, cid: Uuid) {
-        self.cid = Some(cid);
-    }
-
     pub fn has_pid(&self, pid: u32) -> bool {
         self.child.as_ref().map(|c| c.id() == pid).unwrap_or(false)
     }
 
-    pub fn has_cid(&self, cid: &Uuid) -> bool {
-        self.cid.map(|id| id == *cid).unwrap_or(false)
+    pub fn set_status(&mut self, status: PipelineWorkerStatus) {
+        self.status = status;
+    }
+
+    pub fn has_stopped(&self) -> bool {
+        match self.status {
+            PipelineWorkerStatus::Stopped => true,
+            _ => false,
+        }
     }
 
     fn try_wait(&mut self) -> anyhow::Result<Option<ExitStatus>> {
@@ -42,6 +50,7 @@ impl PipelineWorker {
 
     pub fn spawn(&mut self) -> anyhow::Result<()> {
         self.child = Some(self.cmd.spawn().map_err(|e| anyhow!(e))?);
+        self.status = PipelineWorkerStatus::Active;
         Ok(())
     }
 
@@ -50,20 +59,17 @@ impl PipelineWorker {
     }
 
     pub fn cleanup(&mut self) -> anyhow::Result<ExitStatus> {
-        match self.try_wait() {
-            Ok(Some(_)) => self
-                .child
-                .as_mut()
-                .ok_or_else(|| anyhow!("worker has not spawned"))
-                .and_then(|c| c.wait().map_err(|e| anyhow!(e))),
-            _ => bail!("command is still running. cannot cleanup"),
-        }
-    }
-
-    pub fn shutdown(&mut self) -> anyhow::Result<()> {
-        self.child
-            .as_mut()
-            .ok_or_else(|| anyhow!("worker child process not started"))
-            .and_then(|c| c.kill().map(|_| ()).map_err(|e| anyhow!(e)))
+        self.try_wait()
+            .map_err(|_| anyhow!("command is still running. cannot cleanup"))
+            .and_then(|_| {
+                self.child
+                    .as_mut()
+                    .ok_or_else(|| anyhow!("worker has not spawned"))
+                    .and_then(|c| c.wait().map_err(|e| anyhow!(e)))
+            })
+            .and_then(|exit| {
+                self.status = PipelineWorkerStatus::Stopped;
+                Ok(exit)
+            })
     }
 }

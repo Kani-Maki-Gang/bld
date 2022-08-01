@@ -1,5 +1,4 @@
 use crate::client::UnixSocketClient;
-use crate::message::UnixSocketMessage;
 use actix::System;
 use anyhow::anyhow;
 use bld_config::{path, BldConfig};
@@ -13,7 +12,6 @@ use tokio::net::UnixListener;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::time::sleep;
 use tracing::{debug, error};
-use uuid::Uuid;
 
 struct UnixSocketListener {
     listener: UnixListener,
@@ -76,77 +74,6 @@ impl UnixSocketHandler {
         }
     }
 
-    fn set_worker_cid(&self, pid: u32, cid: Uuid) {
-        let mut workers = self.workers.lock().unwrap();
-        if let Some(worker) = workers.iter_mut().find(|w| w.has_pid(pid)) {
-            worker.set_cid(cid);
-        }
-    }
-
-    fn remove_worker(&self, cid: &Uuid) -> anyhow::Result<()> {
-        let mut workers = self.workers.lock().unwrap();
-        let idx = workers.iter().position(|w| w.has_cid(cid)).ok_or_else(|| {
-            anyhow!("could not remove worker with cid: {cid} because it was not found")
-        })?;
-        workers
-            .iter_mut()
-            .nth(idx)
-            .ok_or_else(|| {
-                anyhow!("could not remove worker with cid: {cid} because it was not found")
-            })
-            .and_then(|w| w.cleanup())?;
-        workers.remove(idx);
-        debug!("removed worker with cid: {cid}");
-        Ok(())
-    }
-
-    fn remove_client(&mut self, cid: &Uuid) -> anyhow::Result<()> {
-        let i = self
-            .clients
-            .iter()
-            .position(|s| s.id == *cid)
-            .ok_or_else(|| {
-                anyhow!("could not remove client with cid: {cid} because it was not found")
-            })?;
-        self.clients.remove(i);
-        debug!("removed client with cid: {cid}");
-        Ok(())
-    }
-
-    fn messages(
-        &self,
-        client: &UnixSocketClient,
-        messages: Vec<UnixSocketMessage>,
-        removals: &mut Vec<Uuid>,
-    ) {
-        for message in messages.iter() {
-            match message {
-                UnixSocketMessage::Ping { pid } => {
-                    debug!(
-                        "worker with pid: {pid} sent PING message from unix socket with id: {}",
-                        client.id
-                    );
-                    self.set_worker_cid(*pid, client.id);
-                }
-                UnixSocketMessage::Exit { pid } => {
-                    debug!(
-                        "worker with pid: {pid} sent EXIT message from unix socket with id: {}",
-                        client.id
-                    );
-                    removals.push(client.id);
-                }
-            }
-        }
-    }
-
-    fn closed_stream(client: &UnixSocketClient, removals: &mut Vec<Uuid>) {
-        debug!(
-            "worker client with id: {} has closed without EXIT message.",
-            client.id
-        );
-        removals.push(client.id);
-    }
-
     fn recv(&mut self) {
         if let Ok(client) = self.rx.try_recv() {
             debug!("new unix socket client sent, adding it to the collection");
@@ -154,33 +81,41 @@ impl UnixSocketHandler {
         }
     }
 
-    async fn read(&mut self, removals: &mut Vec<Uuid>) {
-        for client in self.clients.iter() {
+    async fn read(&mut self) {
+        for client in self.clients.iter_mut() {
             debug!("trying to read from unix socket client");
             match client.try_read().await {
-                Ok(Some(messages)) => self.messages(client, messages, removals),
-                Ok(None) => Self::closed_stream(client, removals),
+                Ok(Some(messages)) => client.handle(messages),
+                Ok(None) => client.stopped(),
                 Err(e) => error!("could not read from unix socket client. {e}"),
             }
         }
     }
 
-    fn cleanup(&mut self, removals: &mut Vec<Uuid>) {
-        removals.retain(|cid| {
-            let result = self
-                .remove_worker(cid)
-                .and_then(|_| self.remove_client(cid));
-            !result.is_ok()
-        })
+    fn cleanup(&mut self) {
+        let mut workers = self.workers.lock().unwrap();
+        for worker in workers.iter_mut() {
+            if self
+                .clients
+                .iter()
+                .find(|c| {
+                    c.has_stopped() && worker.get_pid().map(|pid| c.has_pid(pid)).unwrap_or(false)
+                })
+                .is_some()
+            {
+                let _ = worker.cleanup();
+            }
+        }
+        workers.retain(|w| !w.has_stopped());
+        self.clients.retain(|c| !c.has_stopped());
     }
 
     pub async fn start(&mut self) {
         debug!("starting handling of incoming unix socket clients");
-        let mut removals = vec![];
         loop {
             self.recv();
-            self.read(&mut removals).await;
-            self.cleanup(&mut removals);
+            self.read().await;
+            self.cleanup();
             sleep(Duration::from_secs(1)).await;
         }
     }
