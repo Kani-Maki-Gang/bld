@@ -427,9 +427,9 @@ dependencies = [
  "awc",
  "bld_config",
  "bld_core",
- "bld_ipc",
  "bld_runner",
  "bld_server",
+ "bld_supervisor",
  "bld_utils",
  "chrono",
  "clap",
@@ -475,23 +475,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bld_ipc"
-version = "0.1.0"
-dependencies = [
- "actix",
- "anyhow",
- "async-trait",
- "bld_config",
- "bld_core",
- "serde",
- "serde_derive",
- "serde_json",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
 name = "bld_runner"
 version = "0.1.0"
 dependencies = [
@@ -503,7 +486,7 @@ dependencies = [
  "awc",
  "bld_config",
  "bld_core",
- "bld_ipc",
+ "bld_supervisor",
  "bld_utils",
  "futures",
  "futures-util",
@@ -531,12 +514,28 @@ dependencies = [
  "awc",
  "bld_config",
  "bld_core",
- "bld_ipc",
  "bld_runner",
+ "bld_supervisor",
  "bld_utils",
  "diesel",
  "futures",
  "futures-util",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "bld_supervisor"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bld_config",
+ "bld_core",
  "serde",
  "serde_derive",
  "serde_json",

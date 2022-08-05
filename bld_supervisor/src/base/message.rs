@@ -2,10 +2,23 @@ use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use std::mem::size_of;
 
+pub static SERVER: &str = "server";
+pub static WORKER: &str = "worker";
+
 #[derive(Serialize, Deserialize)]
 pub enum UnixSocketMessage {
-    Ping { pid: u32 },
-    Exit { pid: u32 },
+    ServerAck,
+    ServerEnqueue {
+        pipeline: String,
+        run_id: String,
+        variables: Option<String>,
+        environment: Option<String>,
+    },
+    WorkerAck {
+        pid: u32,
+    },
+    WorkerPing,
+    WorkerExit,
 }
 
 impl UnixSocketMessage {

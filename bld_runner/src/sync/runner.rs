@@ -7,8 +7,8 @@ use bld_config::BldConfig;
 use bld_core::execution::Execution;
 use bld_core::logger::Logger;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_ipc::client::UnixSocketClient;
-use bld_ipc::message::UnixSocketMessage;
+use bld_supervisor::base::{UnixSocketMessage, UnixSocketWrite};
+use bld_supervisor::client::UnixSocketWriter;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -34,7 +34,7 @@ pub struct RunnerBuilder {
     lg: Option<AtomicLog>,
     prx: Option<AtomicProxy>,
     pip: Option<String>,
-    sock: Arc<Option<UnixSocketClient>>,
+    sock: Arc<Option<UnixSocketWriter>>,
     env: Option<AtomicVars>,
     vars: Option<AtomicVars>,
     is_child: bool,
@@ -76,7 +76,7 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn socket(mut self, sock: Arc<Option<UnixSocketClient>>) -> Self {
+    pub fn socket(mut self, sock: Arc<Option<UnixSocketWriter>>) -> Self {
         self.sock = sock;
         self
     }
@@ -178,7 +178,7 @@ pub struct Runner {
     lg: AtomicLog,
     prx: AtomicProxy,
     pip: Pipeline,
-    sock: Arc<Option<UnixSocketClient>>,
+    sock: Arc<Option<UnixSocketWriter>>,
     env: AtomicVars,
     vars: AtomicVars,
     platform: TargetPlatform,
@@ -212,11 +212,7 @@ impl Runner {
 
     async fn socket_ping(&self) -> anyhow::Result<()> {
         if let Some(stream) = Option::as_ref(&self.sock) {
-            stream
-                .try_write(&UnixSocketMessage::Ping {
-                    pid: std::process::id(),
-                })
-                .await?;
+            stream.try_write(&UnixSocketMessage::WorkerPing).await?;
         }
         Ok(())
     }
@@ -224,11 +220,7 @@ impl Runner {
     async fn socket_exit(&self) -> anyhow::Result<()> {
         if !self.is_child {
             if let Some(stream) = Option::as_ref(&self.sock) {
-                stream
-                    .try_write(&UnixSocketMessage::Exit {
-                        pid: std::process::id(),
-                    })
-                    .await?;
+                stream.try_write(&UnixSocketMessage::WorkerExit).await?;
             }
         }
         Ok(())

@@ -4,18 +4,22 @@ use crate::endpoints::{
 };
 use crate::sockets::{ws_exec, ws_high_avail, ws_monit};
 use actix_web::{middleware, web, App, HttpServer};
-use bld_config::BldConfig;
+use bld_config::{path, BldConfig};
 use bld_core::database::new_connection_pool;
 use bld_core::high_avail::HighAvail;
 use bld_core::proxies::ServerPipelineProxy;
 use bld_core::workers::PipelineWorker;
-use std::env::set_var;
+use bld_supervisor::base::{UnixSocketWrite, UnixSocketMessage};
+use bld_supervisor::client::UnixSocketWriter;
+use std::env::{set_var, temp_dir};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tracing::info;
 
 pub async fn start(config: BldConfig, host: &str, port: i64) -> anyhow::Result<()> {
     info!("starting bld server at {}:{}", host, port);
-    let workers = web::Data::new(Mutex::new(Vec::<PipelineWorker>::new()));
+    let sock_path = path![temp_dir(), &config.local.unix_sock];
+    let supervisor = web::Data::new(Mutex::new(UnixSocketWriter::connect(sock_path).await?));
     let pool = new_connection_pool(&config.local.db)?;
     let ha = web::Data::new(HighAvail::new(&config, pool.clone()).await?);
     let pool = web::Data::new(pool);
@@ -24,12 +28,15 @@ pub async fn start(config: BldConfig, host: &str, port: i64) -> anyhow::Result<(
         Arc::clone(&cfg),
         Arc::clone(&pool),
     ));
-    bld_ipc::server::start(Arc::clone(&cfg), Arc::clone(&workers));
+    {
+        let supervisor = supervisor.lock().unwrap();
+        supervisor.try_write(&UnixSocketMessage::ServerAck).await
+    }?;
     set_var("RUST_LOG", "actix_server=info,actix_web=debug");
     HttpServer::new(move || {
         App::new()
-            .app_data(workers.clone())
             .app_data(cfg.clone())
+            .app_data(supervisor.clone())
             .app_data(ha.clone())
             .app_data(pool.clone())
             .app_data(prx.clone())

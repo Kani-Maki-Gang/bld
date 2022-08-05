@@ -15,7 +15,7 @@ anyhow = "1.0.40"
 bld_config = { path = "../bld_config" }
 bld_utils = { path = "../bld_utils" }
 bld_core = { path = "../bld_core" }
-bld_ipc = { path = "../bld_ipc" }
+bld_supervisor = { path = "../bld_supervisor" }
 futures = "0.3.15"
 futures-util = "0.3.15"
 serde = "1.0.126"

@@ -6,8 +6,8 @@ use bld_core::database::{new_connection_pool, pipeline_runs};
 use bld_core::execution::PipelineExecution;
 use bld_core::logger::FileLogger;
 use bld_core::proxies::ServerPipelineProxy;
-use bld_ipc::client::UnixSocketClient;
 use bld_runner::RunnerBuilder;
+use bld_supervisor::client::UnixSocketWriter;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::env::temp_dir;
 use std::path::PathBuf;
@@ -78,7 +78,7 @@ impl BldCommand for WorkerCommand {
         let exec = Arc::new(Mutex::new(PipelineExecution::new(pool, run_id)?));
         let rt = Runtime::new()?;
         rt.block_on(async move {
-            let socket = UnixSocketClient::connect(&path![temp_dir(), &cfg.local.unix_sock])
+            let socket = UnixSocketWriter::connect(&path![temp_dir(), &cfg.local.unix_sock])
                 .await
                 .map_err(|e| {
                     anyhow!("worker for {run_id} could not connect to unix socket. {e}")

@@ -7,12 +7,12 @@ use bld_config::BldConfig;
 use bld_core::database::pipeline_runs;
 use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
 use bld_core::scanner::{FileScanner, Scanner};
-use bld_core::workers::PipelineWorker;
 use bld_runner::messages::ExecInfo;
+use bld_supervisor::base::{UnixSocketWrite, UnixSocketMessage};
+use bld_supervisor::client::UnixSocketWriter;
 use bld_utils::fs::IsYaml;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tracing::error;
@@ -21,11 +21,10 @@ use uuid::Uuid;
 pub struct ExecutePipelineSocket {
     hb: Instant,
     config: web::Data<BldConfig>,
+    supervisor: web::Data<Mutex<UnixSocketWriter>>,
     pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     proxy: web::Data<ServerPipelineProxy>,
-    workers: web::Data<Mutex<Vec<PipelineWorker>>>,
     user: User,
-    worker_idx: Option<usize>,
     scanner: Option<FileScanner>,
 }
 
@@ -33,18 +32,17 @@ impl ExecutePipelineSocket {
     pub fn new(
         user: User,
         config: web::Data<BldConfig>,
+        supervisor: web::Data<Mutex<UnixSocketWriter>>,
         pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
         proxy: web::Data<ServerPipelineProxy>,
-        workers: web::Data<Mutex<Vec<PipelineWorker>>>,
     ) -> Self {
         Self {
             hb: Instant::now(),
             config,
+            supervisor,
             pool,
             proxy,
-            workers,
             user,
-            worker_idx: None,
             scanner: None,
         }
     }
@@ -67,20 +65,7 @@ impl ExecutePipelineSocket {
         }
     }
 
-    fn worker(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
-        let idx = match act.worker_idx {
-            Some(idx) => idx,
-            None => return,
-        };
-        let mut workers = act.workers.lock().unwrap();
-        if let Some(worker) = workers.iter_mut().nth(idx).as_mut() {
-            if worker.completed() {
-                ctx.stop();
-            }
-        }
-    }
-
-    fn spawn_worker(&mut self, data: &str) -> anyhow::Result<()> {
+    async fn enqueue_worker(&mut self, data: &str) -> anyhow::Result<()> {
         let info = serde_json::from_str::<ExecInfo>(data)?;
         let path = self.proxy.path(&info.name)?;
         if !path.is_yaml() {
@@ -101,27 +86,15 @@ impl ExecutePipelineSocket {
                 .map(|(k, v)| format!("{k}={v}"))
                 .fold(String::new(), |acc, n| format!("{acc} {n}"))
         });
-        let mut cmd = Command::new(std::env::current_exe()?);
-        cmd.arg("worker");
-        cmd.arg("--pipeline");
-        cmd.arg(&info.name);
-        cmd.arg("--run-id");
-        cmd.arg(&run_id);
-        if let Some(vars) = vars {
-            cmd.arg("--variables");
-            cmd.arg(&vars);
-        }
-        if let Some(env) = env {
-            cmd.arg("--environment");
-            cmd.arg(&env);
-        }
 
-        let mut worker = PipelineWorker::new(cmd);
-        worker.spawn()?;
-        let mut workers = self.workers.lock().unwrap();
-        workers.push(worker);
+        let supervisor = self.supervisor.lock().unwrap();
+        supervisor.try_write(&UnixSocketMessage::ServerEnqueue { 
+            pipeline: info.name.to_string(), 
+            run_id: run_id.to_string(), 
+            variables: vars, 
+            environment: env,
+        }).await?;
 
-        self.worker_idx = Some(workers.len() - 1);
         self.scanner = Some(FileScanner::new(Arc::clone(&self.config), &run_id));
         Ok(())
     }
@@ -137,7 +110,6 @@ impl Actor for ExecutePipelineSocket {
         });
         ctx.run_interval(Duration::from_secs(10), |act, ctx| {
             ExecutePipelineSocket::scan(act, ctx);
-            ExecutePipelineSocket::worker(act, ctx);
         });
     }
 }
@@ -146,11 +118,13 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSo
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(txt)) => {
-                if let Err(e) = self.spawn_worker(&txt) {
-                    error!("{}", e.to_string());
-                    ctx.text("Unable to run pipeline");
-                    ctx.stop();
-                };
+                ctx.wait(async {
+                    if let Err(e) = self.enqueue_worker(&txt).await {
+                       error!("{}", e.to_string());
+                       ctx.text("Unable to run pipeline");
+                       ctx.stop();
+                    }
+                });
             }
             Ok(ws::Message::Ping(msg)) => {
                 self.hb = Instant::now();
@@ -173,13 +147,13 @@ pub async fn ws_exec(
     req: HttpRequest,
     stream: web::Payload,
     cfg: web::Data<BldConfig>,
+    supervisor: web::Data<Mutex<UnixSocketWriter>>,
     pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     proxy: web::Data<ServerPipelineProxy>,
-    workers: web::Data<Mutex<Vec<PipelineWorker>>>,
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{req:?}");
-    let socket = ExecutePipelineSocket::new(user, cfg, pool, proxy, workers);
+    let socket = ExecutePipelineSocket::new(user, cfg, supervisor, pool, proxy);
     let res = ws::start(socket, &req, stream);
     println!("{res:?}");
     res
