@@ -21,7 +21,6 @@ impl WorkerQueue {
         }
     }
 
-    /// Used to spawn the child process of the worker and add it to the active workers vector.
     fn activate(&mut self, worker: Arc<Mutex<PipelineWorker>>) {
         {
             let mut worker = worker.lock().unwrap();
@@ -29,16 +28,10 @@ impl WorkerQueue {
         }
         self.active.push(worker);
     }
-
-    /// This method will check for worker that have finished executing and will remove them from
-    /// the active workers collection. It will pop the appropriate amount of workers from the
-    /// backlog vector, spawn them and add them as active.
-    pub fn refresh(&mut self) {
-
-    }
 }
 
 impl Queue<Arc<Mutex<PipelineWorker>>> for WorkerQueue {
+    /// Used to spawn the child process of the worker and add it to the active workers vector.
     fn enqueue(&mut self, item: Arc<Mutex<PipelineWorker>>) {
         if self.active.len() < self.capacity {
             self.activate(item);
@@ -47,15 +40,37 @@ impl Queue<Arc<Mutex<PipelineWorker>>> for WorkerQueue {
         }
     }
 
+    /// This method will check for worker that have finished executing and will remove them from
+    /// the active workers collection. It will pop the appropriate amount of workers from the
+    /// backlog vector, spawn them and add them as active.
     fn refresh(&mut self) {
         self.active.retain(|w| {
-            let w = w.lock().unwrap();
-            !w.has_stopped()
+            let mut w = w.lock().unwrap();
+            !w.cleanup().is_ok() 
         });
         for _ in 0..(self.capacity - self.active.len()) {
             if let Some(worker) = self.backlog.pop_front() {
                 self.activate(worker);
             }
         }
+    }
+
+    fn find(&mut self, id: u32) -> Option<Arc<Mutex<PipelineWorker>>> {
+        self.active
+            .iter()
+            .find(|w| {
+                let w = w.lock().unwrap();
+                w.has_pid(id)
+            })
+            .map(|w| w.clone())
+            .or_else(|| {
+                self.backlog
+                    .iter()
+                    .find(|w| {
+                        let w = w.lock().unwrap();
+                        w.has_pid(id)
+                    })
+                    .map(|w| w.clone())
+            })
     }
 }

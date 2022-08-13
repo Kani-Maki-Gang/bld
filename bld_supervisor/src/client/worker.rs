@@ -1,20 +1,22 @@
 use crate::base::{
-    UnixSocketConnectionState, UnixSocketHandle, UnixSocketMessage, UnixSocketRead, UnixSocketState,
+    Queue, UnixSocketConnectionState, UnixSocketHandle, UnixSocketMessage, UnixSocketRead,
+    UnixSocketState,
 };
 use bld_core::workers::PipelineWorker;
+use std::sync::{Arc, Mutex};
 use tokio::net::UnixStream;
 use tracing::debug;
 use uuid::Uuid;
 
 pub struct UnixSocketWorkerReader {
     id: Uuid,
-    worker: PipelineWorker,
+    worker: Arc<Mutex<PipelineWorker>>,
     stream: UnixStream,
     state: UnixSocketConnectionState,
 }
 
 impl UnixSocketWorkerReader {
-    pub fn new(worker: PipelineWorker, stream: UnixStream) -> Self {
+    pub fn new(worker: Arc<Mutex<PipelineWorker>>, stream: UnixStream) -> Self {
         Self {
             id: Uuid::new_v4(),
             stream,
@@ -24,7 +26,8 @@ impl UnixSocketWorkerReader {
     }
 
     pub fn has_pid(&self, pid: u32) -> bool {
-        self.worker.get_pid().map(|id| id == pid).unwrap_or(false)
+        let worker = self.worker.lock().unwrap();
+        worker.has_pid(pid)
     }
 }
 
@@ -35,23 +38,28 @@ impl UnixSocketRead for UnixSocketWorkerReader {
 }
 
 impl UnixSocketHandle for UnixSocketWorkerReader {
-    fn handle(&mut self, messages: Vec<UnixSocketMessage>) {
+    fn handle<Q>(&mut self, _queue: Arc<Mutex<Q>>, messages: Vec<UnixSocketMessage>)
+    where
+        Q: Queue<Arc<Mutex<PipelineWorker>>>,
+    {
         for message in messages.iter() {
             match message {
                 UnixSocketMessage::WorkerPing => {
+                    let worker = self.worker.lock().unwrap();
                     debug!(
                         "worker with pid: {:?} sent PING message from unix socket with id: {}",
-                        self.worker.get_pid(),
+                        worker.get_pid(),
                         self.id
                     );
                 }
                 UnixSocketMessage::WorkerExit => {
+                    self.set_state(UnixSocketConnectionState::Stopped);
+                    let worker = self.worker.lock().unwrap();
                     debug!(
                         "worker with pid: {:?} sent EXIT message from unix socket with id: {}",
-                        self.worker.get_pid(),
+                        worker.get_pid(),
                         self.id
                     );
-                    self.set_state(UnixSocketConnectionState::Stopped);
                 }
                 _ => {}
             }

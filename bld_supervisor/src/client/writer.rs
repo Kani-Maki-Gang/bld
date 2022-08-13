@@ -1,5 +1,4 @@
 use crate::base::UnixSocketWrite;
-use std::fs::remove_file;
 use std::path::Path;
 use tokio::net::UnixStream;
 
@@ -12,7 +11,6 @@ impl UnixSocketWriter {
     where
         P: AsRef<Path>,
     {
-        let _ = remove_file(&path);
         Ok(Self {
             stream: UnixStream::connect(path).await?,
         })

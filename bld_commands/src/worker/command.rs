@@ -7,6 +7,7 @@ use bld_core::execution::PipelineExecution;
 use bld_core::logger::FileLogger;
 use bld_core::proxies::ServerPipelineProxy;
 use bld_runner::RunnerBuilder;
+use bld_supervisor::base::{UnixSocketMessage, UnixSocketWrite};
 use bld_supervisor::client::UnixSocketWriter;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::env::temp_dir;
@@ -83,6 +84,11 @@ impl BldCommand for WorkerCommand {
                 .map_err(|e| {
                     anyhow!("worker for {run_id} could not connect to unix socket. {e}")
                 })?;
+            socket
+                .try_write(&UnixSocketMessage::WorkerAck {
+                    pid: std::process::id(),
+                })
+                .await?;
             let runner = RunnerBuilder::default()
                 .run_id(run_id)
                 .run_start_time(&start_date_time)

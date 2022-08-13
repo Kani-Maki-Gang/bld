@@ -26,9 +26,8 @@ impl BldCommand for SupervisorCommand {
     }
 
     fn exec(&self, _matches: &ArgMatches<'_>) -> anyhow::Result<()> {
-        let _config = BldConfig::load()?;
+        let config = BldConfig::load()?;
         debug!("starting supervisor");
-        System::new().block_on(async move {});
-        Ok(())
+        System::new().block_on(async move { bld_supervisor::server::start(config).await })
     }
 }

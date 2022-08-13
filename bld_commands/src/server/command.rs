@@ -1,3 +1,4 @@
+
 use crate::BldCommand;
 use actix_web::rt::System;
 use bld_config::{definitions::VERSION, BldConfig};
@@ -49,9 +50,8 @@ impl BldCommand for ServerCommand {
             .map(|port| port.parse::<i64>().unwrap_or(config.local.port))
             .unwrap_or(config.local.port);
         debug!("running {SERVER} subcommand with --host: {host} --port: {port}",);
-        System::new().block_on(async move {
-            let _ = bld_server::start(config, &host, port).await;
-        });
-        Ok(())
+        let res =
+            System::new().block_on(async move { bld_server::start(config, &host, port).await });
+        res
     }
 }
