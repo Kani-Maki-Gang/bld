@@ -194,14 +194,14 @@ impl Runner {
     fn exec_persist_start(&self) {
         if !self.is_child {
             let mut exec = self.ex.lock().unwrap();
-            let _ = exec.update_running(true);
+            let _ = exec.update_state("running");
         }
     }
 
     fn exec_persist_end(&self) {
         if !self.is_child {
             let mut exec = self.ex.lock().unwrap();
-            let _ = exec.update_running(false);
+            let _ = exec.update_state("finished");
         }
     }
 

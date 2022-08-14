@@ -11,7 +11,7 @@ use tracing::{debug, error};
 pub struct PipelineRuns {
     pub id: String,
     pub name: String,
-    pub running: bool,
+    pub state: String,
     pub user: String,
     pub start_date_time: String,
     pub end_date_time: Option<String>,
@@ -23,7 +23,7 @@ pub struct PipelineRuns {
 struct InsertPipelineRun<'a> {
     pub id: &'a str,
     pub name: &'a str,
-    pub running: bool,
+    pub state: &'a str,
     pub user: &'a str,
 }
 
@@ -76,7 +76,6 @@ pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<PipelineRuns> {
     debug!("loading the last invoked pipeline from the database");
     pipeline_runs
         .order(start_date_time.desc())
-        .limit(1)
         .first(conn)
         .map(|p| {
             debug!("loaded pipeline successfully");
@@ -98,7 +97,7 @@ pub fn insert(
     let run = InsertPipelineRun {
         id: pip_id,
         name: pip_name,
-        running: false,
+        state: "queued",
         user: pip_user,
     };
     conn.transaction(|| {
@@ -119,15 +118,15 @@ pub fn insert(
     })
 }
 
-pub fn update_running(
+pub fn update_state(
     conn: &SqliteConnection,
     pip_id: &str,
-    pip_running: bool,
+    pip_state: &str,
 ) -> anyhow::Result<PipelineRuns> {
-    debug!("updating pipeline id: {pip_id} with values running: {pip_running}");
+    debug!("updating pipeline id: {pip_id} with values state: {pip_state}");
     conn.transaction(|| {
         diesel::update(pipeline_runs.filter(id.eq(pip_id)))
-            .set(running.eq(pip_running))
+            .set(state.eq(pip_state))
             .execute(conn)
             .map_err(|e| {
                 error!("could not update pipeline run due to: {e}");

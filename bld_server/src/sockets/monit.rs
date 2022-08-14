@@ -5,7 +5,7 @@ use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse}
 use actix_web_actors::ws;
 use anyhow::anyhow;
 use bld_config::BldConfig;
-use bld_core::database::pipeline_runs::{self, PipelineRuns};
+use bld_core::database::pipeline_runs;
 use bld_core::scanner::{FileScanner, Scanner};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
@@ -55,7 +55,7 @@ impl MonitorPipelineSocket {
     fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
         if let Ok(connection) = act.pool.get() {
             match pipeline_runs::select_by_id(&connection, &act.id) {
-                Ok(PipelineRuns { running: false, .. }) => ctx.stop(),
+                Ok(run) if run.state == "finished" => ctx.stop(),
                 Err(_) => {
                     ctx.text("internal server error");
                     ctx.stop();

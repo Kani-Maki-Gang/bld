@@ -23,9 +23,9 @@ impl PipelineExecution {
 }
 
 impl Execution for PipelineExecution {
-    fn update_running(&mut self, running: bool) -> anyhow::Result<()> {
+    fn update_state(&mut self, state: &str) -> anyhow::Result<()> {
         let conn = self.pool.get()?;
-        pipeline_runs::update_running(&conn, &self.run_id, running).map(|_| ())
+        pipeline_runs::update_state(&conn, &self.run_id, state).map(|_| ())
     }
 
     fn check_stop_signal(&self) -> anyhow::Result<()> {

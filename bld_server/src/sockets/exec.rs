@@ -4,7 +4,7 @@ use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse}
 use actix_web_actors::ws;
 use anyhow::anyhow;
 use bld_config::BldConfig;
-use bld_core::database::pipeline_runs::{self, PipelineRuns};
+use bld_core::database::pipeline_runs;
 use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
 use bld_core::scanner::{FileScanner, Scanner};
 use bld_runner::messages::ExecInfo;
@@ -71,7 +71,7 @@ impl ExecutePipelineSocket {
         if let Ok(connection) = act.pool.get() {
             if let Some(run_id) = act.run_id.as_ref() {
                 match pipeline_runs::select_by_id(&connection, run_id) {
-                    Ok(PipelineRuns { running: false, .. }) => ctx.stop(),
+                    Ok(run) if run.state == "finished" => ctx.stop(),
                     Err(_) => {
                         ctx.text("internal server error");
                         ctx.stop();
