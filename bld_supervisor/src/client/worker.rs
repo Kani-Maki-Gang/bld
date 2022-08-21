@@ -10,24 +10,23 @@ use uuid::Uuid;
 
 pub struct UnixSocketWorkerReader {
     id: Uuid,
-    worker: Arc<Mutex<PipelineWorker>>,
+    worker_pid: u32,
     stream: UnixStream,
     state: UnixSocketConnectionState,
 }
 
 impl UnixSocketWorkerReader {
-    pub fn new(worker: Arc<Mutex<PipelineWorker>>, stream: UnixStream) -> Self {
+    pub fn new(worker_pid: u32, stream: UnixStream) -> Self {
         Self {
             id: Uuid::new_v4(),
+            worker_pid,
             stream,
             state: UnixSocketConnectionState::Active,
-            worker,
         }
     }
 
     pub fn has_pid(&self, pid: u32) -> bool {
-        let worker = self.worker.lock().unwrap();
-        worker.has_pid(pid)
+        self.worker_pid == pid
     }
 }
 
@@ -45,19 +44,17 @@ impl UnixSocketHandle for UnixSocketWorkerReader {
         for message in messages.iter() {
             match message {
                 UnixSocketMessage::WorkerPing => {
-                    let worker = self.worker.lock().unwrap();
                     debug!(
                         "worker with pid: {:?} sent PING message from unix socket with id: {}",
-                        worker.get_pid(),
+                        self.worker_pid,
                         self.id
                     );
                 }
                 UnixSocketMessage::WorkerExit => {
                     self.set_state(UnixSocketConnectionState::Stopped);
-                    let worker = self.worker.lock().unwrap();
                     debug!(
                         "worker with pid: {:?} sent EXIT message from unix socket with id: {}",
-                        worker.get_pid(),
+                        self.worker_pid,
                         self.id
                     );
                 }

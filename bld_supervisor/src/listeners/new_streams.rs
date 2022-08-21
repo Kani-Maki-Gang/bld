@@ -104,10 +104,10 @@ impl UnixSocketNewStreamsListener {
 
             let mut queue = queue.lock().unwrap();
             for (ri, pid) in resolved_workers {
-                if let Some(worker) = queue.find(pid) {
+                if let Some(_) = queue.find(pid) {
                     let reader = readers.remove(ri);
                     let _ = worker_tx
-                        .send(UnixSocketWorkerReader::new(worker, reader.into()))
+                        .send(UnixSocketWorkerReader::new(pid, reader.into()))
                         .await;
                     debug!("transfering stream to the worker handling thread");
                 }
