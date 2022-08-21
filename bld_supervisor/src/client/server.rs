@@ -37,7 +37,7 @@ impl UnixSocketRead for UnixSocketServerReader {
 impl UnixSocketHandle for UnixSocketServerReader {
     fn handle<Q>(&mut self, queue: Arc<Mutex<Q>>, messages: Vec<UnixSocketMessage>)
     where
-        Q: Queue<Arc<Mutex<PipelineWorker>>>,
+        Q: Queue<PipelineWorker>
     {
         for message in messages.iter() {
             if let UnixSocketMessage::ServerEnqueue {
@@ -69,9 +69,8 @@ impl UnixSocketHandle for UnixSocketServerReader {
                     command.arg("--environment");
                     command.arg(environment);
                 }
-                let worker = PipelineWorker::new(command);
                 let mut queue = queue.lock().unwrap();
-                queue.enqueue(Arc::new(Mutex::new(worker)));
+                queue.enqueue(PipelineWorker::new(command));
             }
         }
     }

@@ -104,7 +104,7 @@ impl UnixSocketNewStreamsListener {
 
             let mut queue = queue.lock().unwrap();
             for (ri, pid) in resolved_workers {
-                if let Some(_) = queue.find(pid) {
+                if queue.contains(pid) {
                     let reader = readers.remove(ri);
                     let _ = worker_tx
                         .send(UnixSocketWorkerReader::new(pid, reader.into()))

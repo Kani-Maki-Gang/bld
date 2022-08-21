@@ -1,15 +1,14 @@
 use crate::base::Queue;
 use bld_core::workers::PipelineWorker;
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
 
 /// The QueueManager is initialized with a capacity of active workers.
 /// If there are more workers than the specified capacity, the queue manager
 /// will add them to a backlog based on when they were enqueued.
 pub struct WorkerQueue {
     capacity: usize,
-    active: Vec<Arc<Mutex<PipelineWorker>>>,
-    backlog: VecDeque<Arc<Mutex<PipelineWorker>>>,
+    active: Vec<PipelineWorker>,
+    backlog: VecDeque<PipelineWorker>,
 }
 
 impl WorkerQueue {
@@ -21,18 +20,15 @@ impl WorkerQueue {
         }
     }
 
-    fn activate(&mut self, worker: Arc<Mutex<PipelineWorker>>) {
-        {
-            let mut worker = worker.lock().unwrap();
-            let _ = worker.spawn();
-        }
+    fn activate(&mut self, mut worker: PipelineWorker) {
+        let _ = worker.spawn();
         self.active.push(worker);
     }
 }
 
-impl Queue<Arc<Mutex<PipelineWorker>>> for WorkerQueue {
+impl Queue<PipelineWorker> for WorkerQueue {
     /// Used to spawn the child process of the worker and add it to the active workers vector.
-    fn enqueue(&mut self, item: Arc<Mutex<PipelineWorker>>) {
+    fn enqueue(&mut self, item: PipelineWorker) {
         if self.active.len() < self.capacity {
             self.activate(item);
         } else {
@@ -44,8 +40,7 @@ impl Queue<Arc<Mutex<PipelineWorker>>> for WorkerQueue {
     /// the active workers collection. It will pop the appropriate amount of workers from the
     /// backlog vector, spawn them and add them as active.
     fn refresh(&mut self) {
-        self.active.retain(|w| {
-            let mut w = w.lock().unwrap();
+        self.active.retain_mut(|w| {
             !w.cleanup().is_ok() 
         });
         for _ in 0..(self.capacity - self.active.len()) {
@@ -55,22 +50,19 @@ impl Queue<Arc<Mutex<PipelineWorker>>> for WorkerQueue {
         }
     }
 
-    fn find(&mut self, id: u32) -> Option<Arc<Mutex<PipelineWorker>>> {
+    fn contains(&mut self, pid: u32) -> bool {
         self.active
             .iter()
             .find(|w| {
-                let w = w.lock().unwrap();
-                w.has_pid(id)
+                w.has_pid(pid)
             })
-            .map(|w| w.clone())
             .or_else(|| {
                 self.backlog
                     .iter()
                     .find(|w| {
-                        let w = w.lock().unwrap();
-                        w.has_pid(id)
+                        w.has_pid(pid)
                     })
-                    .map(|w| w.clone())
             })
+            .is_some()
     }
 }
