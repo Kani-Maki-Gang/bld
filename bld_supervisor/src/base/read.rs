@@ -8,7 +8,7 @@ pub trait UnixSocketRead {
     fn set_leftover(&mut self, leftover: Option<Vec<u8>>);
 
     fn get_leftover(&self) -> Option<&Vec<u8>>;
-    
+
     fn get_stream(&self) -> &UnixStream;
 
     async fn try_read(&mut self) -> anyhow::Result<Option<Vec<UnixSocketMessage>>> {
@@ -19,7 +19,13 @@ pub trait UnixSocketRead {
         let (messages, leftover) = stream
             .try_read(&mut data)
             .map_err(|e| anyhow!(e))
-            .and_then(|n| UnixSocketMessage::from_bytes(&mut &data[..], self.get_leftover().map(|l| &l[..]), n))?;
+            .and_then(|n| {
+                UnixSocketMessage::from_bytes(
+                    &mut &data[..],
+                    self.get_leftover().map(|l| &l[..]),
+                    n,
+                )
+            })?;
 
         self.set_leftover(leftover);
 

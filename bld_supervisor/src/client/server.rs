@@ -47,7 +47,7 @@ impl UnixSocketRead for UnixSocketServerReader {
 impl UnixSocketHandle for UnixSocketServerReader {
     fn handle<Q>(&mut self, queue: Arc<Mutex<Q>>, messages: Vec<UnixSocketMessage>)
     where
-        Q: Queue<PipelineWorker>
+        Q: Queue<PipelineWorker>,
     {
         for message in messages.iter() {
             if let UnixSocketMessage::ServerEnqueue {

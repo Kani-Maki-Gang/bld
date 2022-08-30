@@ -41,7 +41,11 @@ impl Queue<PipelineWorker> for WorkerQueue {
     /// backlog vector, spawn them and add them as active.
     fn dequeue(&mut self, pids: &[u32]) {
         self.active.retain_mut(|w| {
-            let found = w.get_pid().as_ref().map(|pid| pids.contains(pid)).unwrap_or(false);
+            let found = w
+                .get_pid()
+                .as_ref()
+                .map(|pid| pids.contains(pid))
+                .unwrap_or(false);
             if found {
                 let _ = w.cleanup();
             }
@@ -57,16 +61,8 @@ impl Queue<PipelineWorker> for WorkerQueue {
     fn contains(&mut self, pid: u32) -> bool {
         self.active
             .iter()
-            .find(|w| {
-                w.has_pid(pid)
-            })
-            .or_else(|| {
-                self.backlog
-                    .iter()
-                    .find(|w| {
-                        w.has_pid(pid)
-                    })
-            })
+            .find(|w| w.has_pid(pid))
+            .or_else(|| self.backlog.iter().find(|w| w.has_pid(pid)))
             .is_some()
     }
 }

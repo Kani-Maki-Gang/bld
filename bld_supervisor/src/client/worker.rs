@@ -38,7 +38,7 @@ impl UnixSocketWorkerReader {
 
 impl UnixSocketRead for UnixSocketWorkerReader {
     fn set_leftover(&mut self, leftover: Option<Vec<u8>>) {
-        self.leftovers = leftover; 
+        self.leftovers = leftover;
     }
 
     fn get_leftover(&self) -> Option<&Vec<u8>> {
@@ -60,16 +60,14 @@ impl UnixSocketHandle for UnixSocketWorkerReader {
                 UnixSocketMessage::WorkerPing => {
                     debug!(
                         "worker with pid: {:?} sent PING message from unix socket with id: {}",
-                        self.worker_pid,
-                        self.id
+                        self.worker_pid, self.id
                     );
                 }
                 UnixSocketMessage::WorkerExit => {
                     self.set_state(UnixSocketConnectionState::Stopped);
                     debug!(
                         "worker with pid: {:?} sent EXIT message from unix socket with id: {}",
-                        self.worker_pid,
-                        self.id
+                        self.worker_pid, self.id
                     );
                 }
                 _ => {}

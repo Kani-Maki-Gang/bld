@@ -1,4 +1,3 @@
-
 use crate::BldCommand;
 use actix_web::rt::System;
 use bld_config::{definitions::VERSION, BldConfig};

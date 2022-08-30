@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
-use std::{mem::size_of, collections::VecDeque};
+use std::{collections::VecDeque, mem::size_of};
 
 pub static SERVER: &str = "server";
 pub static WORKER: &str = "worker";
