@@ -62,16 +62,23 @@ impl UnixSocketWorkersListener {
     ) {
         loop {
             sleep(Duration::from_millis(300)).await;
+            let mut pids = vec![];
             {
                 let mut readers = readers.lock().await;
                 let len = readers.len();
-                readers.retain(|r| !r.has_stopped());
+                readers.retain(|r| {
+                    let stopped = r.has_stopped();
+                    if stopped {
+                        pids.push(r.get_worker_pid());
+                    }
+                    !stopped
+                });
                 if len - readers.len() > 0 {
                     debug!("cleaning up {} readers", len - readers.len());
                 }
             }
             let mut queue = queue.lock().unwrap();
-            queue.refresh();
+            queue.dequeue(&pids);
         }
     }
 

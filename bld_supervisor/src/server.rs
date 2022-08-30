@@ -13,7 +13,7 @@ pub async fn start(config: BldConfig) -> anyhow::Result<()> {
     debug!("creating communication channel for listener tasks");
 
     let sock_path = path![temp_dir(), &config.local.unix_sock];
-    let queue = Arc::new(Mutex::new(WorkerQueue::new(20)));
+    let queue = Arc::new(Mutex::new(WorkerQueue::new(5)));
     let (server_tx, server_rx) = channel(4096);
     let (worker_tx, worker_rx) = channel(4096);
 

@@ -16,6 +16,7 @@ pub struct UnixSocketServerReader {
     _id: Uuid,
     stream: UnixStream,
     state: UnixSocketConnectionState,
+    leftovers: Option<Vec<u8>>,
 }
 
 impl UnixSocketServerReader {
@@ -24,11 +25,20 @@ impl UnixSocketServerReader {
             _id: Uuid::new_v4(),
             stream,
             state: UnixSocketConnectionState::Active,
+            leftovers: None,
         }
     }
 }
 
 impl UnixSocketRead for UnixSocketServerReader {
+    fn set_leftover(&mut self, leftover: Option<Vec<u8>>) {
+        self.leftovers = leftover;
+    }
+
+    fn get_leftover(&self) -> Option<&Vec<u8>> {
+        self.leftovers.as_ref()
+    }
+
     fn get_stream(&self) -> &UnixStream {
         &self.stream
     }

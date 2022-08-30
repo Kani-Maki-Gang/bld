@@ -13,6 +13,7 @@ pub struct UnixSocketWorkerReader {
     worker_pid: u32,
     stream: UnixStream,
     state: UnixSocketConnectionState,
+    leftovers: Option<Vec<u8>>,
 }
 
 impl UnixSocketWorkerReader {
@@ -22,7 +23,12 @@ impl UnixSocketWorkerReader {
             worker_pid,
             stream,
             state: UnixSocketConnectionState::Active,
+            leftovers: None,
         }
+    }
+
+    pub fn get_worker_pid(&self) -> u32 {
+        self.worker_pid
     }
 
     pub fn has_pid(&self, pid: u32) -> bool {
@@ -31,6 +37,14 @@ impl UnixSocketWorkerReader {
 }
 
 impl UnixSocketRead for UnixSocketWorkerReader {
+    fn set_leftover(&mut self, leftover: Option<Vec<u8>>) {
+        self.leftovers = leftover; 
+    }
+
+    fn get_leftover(&self) -> Option<&Vec<u8>> {
+        self.leftovers.as_ref()
+    }
+
     fn get_stream(&self) -> &UnixStream {
         &self.stream
     }

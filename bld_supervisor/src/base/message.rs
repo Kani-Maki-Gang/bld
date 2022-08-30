@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
-use std::mem::size_of;
+use std::{mem::size_of, collections::VecDeque};
 
 pub static SERVER: &str = "server";
 pub static WORKER: &str = "worker";
@@ -37,25 +37,55 @@ impl UnixSocketMessage {
 
     pub fn from_bytes(
         bytes: &mut &[u8],
+        leftover: Option<&[u8]>,
         capacity: usize,
-    ) -> anyhow::Result<Option<Vec<UnixSocketMessage>>> {
+    ) -> anyhow::Result<(Option<Vec<UnixSocketMessage>>, Option<Vec<u8>>)> {
         if capacity == 0 {
-            return Ok(None);
+            return Ok((None, None));
         }
         let mut current = 0;
         let mut messages = vec![];
-        while current < capacity {
-            let (len, rest) = bytes.split_at(size_of::<u32>());
-            *bytes = rest;
+        let mut current_leftover: Option<Vec<u8>> = None;
 
-            let len: usize = u32::from_le_bytes(len.try_into()?).try_into()?;
-            let (message, rest) = bytes.split_at(len);
-            *bytes = rest;
-
-            messages.push(serde_json::from_slice(message).map_err(|e| anyhow!(e))?);
-
-            current += size_of::<u32>() + len;
+        let mut bytes_inner = VecDeque::new();
+        if let Some(leftover) = leftover {
+            for b in leftover {
+                bytes_inner.push_back(b);
+            }
         }
-        Ok(Some(messages))
+        for b in bytes.iter() {
+            bytes_inner.push_back(b);
+        }
+
+        while current < capacity {
+            if bytes_inner.len() <= size_of::<u32>() {
+                current_leftover = Some(bytes_inner.iter().map(|e| **e).collect());
+                break;
+            }
+
+            let mut len: [u8; 4] = [0; 4];
+            for i in 0..4 {
+                len[i] = *bytes_inner.pop_front().unwrap();
+            }
+
+            let actual_len: usize = u32::from_le_bytes(len.try_into()?).try_into()?;
+            if bytes_inner.len() <= actual_len {
+                let mut leftover = vec![];
+                leftover.extend_from_slice(&len[..]);
+                leftover.extend_from_slice(bytes);
+                current_leftover = Some(leftover);
+                break;
+            }
+
+            let mut message = vec![];
+            for _ in 0..actual_len {
+                message.push(*bytes_inner.pop_front().unwrap());
+            }
+
+            messages.push(serde_json::from_slice(&message[..]).map_err(|e| anyhow!(e))?);
+
+            current += size_of::<u32>() + actual_len;
+        }
+        Ok((Some(messages), current_leftover))
     }
 }

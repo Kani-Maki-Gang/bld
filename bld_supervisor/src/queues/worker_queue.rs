@@ -39,9 +39,13 @@ impl Queue<PipelineWorker> for WorkerQueue {
     /// This method will check for worker that have finished executing and will remove them from
     /// the active workers collection. It will pop the appropriate amount of workers from the
     /// backlog vector, spawn them and add them as active.
-    fn refresh(&mut self) {
+    fn dequeue(&mut self, pids: &[u32]) {
         self.active.retain_mut(|w| {
-            !w.cleanup().is_ok() 
+            let found = w.get_pid().as_ref().map(|pid| pids.contains(pid)).unwrap_or(false);
+            if found {
+                let _ = w.cleanup();
+            }
+            !found
         });
         for _ in 0..(self.capacity - self.active.len()) {
             if let Some(worker) = self.backlog.pop_front() {

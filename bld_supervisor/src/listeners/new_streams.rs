@@ -11,6 +11,7 @@ use tokio::net::UnixListener;
 use tokio::sync::mpsc::Sender;
 use tokio::time::sleep;
 use tracing::{debug, error};
+use uuid::Uuid;
 
 type SyncMutex<T> = std::sync::Mutex<T>;
 type AsyncMutex<T> = tokio::sync::Mutex<T>;
@@ -65,10 +66,10 @@ impl UnixSocketNewStreamsListener {
             sleep(Duration::from_millis(300)).await;
 
             let mut readers = readers.lock().await;
-            let mut resolved_servers: Vec<usize> = vec![];
-            let mut resolved_workers: Vec<(usize, u32)> = vec![];
+            let mut resolved_servers: Vec<Uuid> = vec![];
+            let mut resolved_workers: Vec<(Uuid, u32)> = vec![];
 
-            for (i, reader) in readers.iter_mut().enumerate() {
+            for reader in readers.iter_mut() {
                 debug!("iterating new stream readers");
                 match reader.try_read().await {
                     Ok(Some(messages)) => {
@@ -76,11 +77,11 @@ impl UnixSocketNewStreamsListener {
                             match message {
                                 UnixSocketMessage::ServerAck => {
                                     debug!("message ServerAck was sent");
-                                    resolved_servers.push(i);
+                                    resolved_servers.push(reader.get_id());
                                 }
                                 UnixSocketMessage::WorkerAck { pid } => {
                                     debug!("message WorkerAck ({pid}) was sent");
-                                    resolved_workers.push((i, *pid));
+                                    resolved_workers.push((reader.get_id(), *pid));
                                 }
                                 _ => {}
                             }
@@ -94,22 +95,26 @@ impl UnixSocketNewStreamsListener {
                 }
             }
 
-            for i in resolved_servers {
-                let reader = readers.remove(i);
-                let _ = server_tx
-                    .send(UnixSocketServerReader::new(reader.into()))
-                    .await;
-                debug!("transfering stream to the server handling thread");
+            for id in resolved_servers {
+                if let Some(idx) = readers.iter().position(|r| r.get_id() == id) {
+                    let reader = readers.remove(idx);
+                    let _ = server_tx
+                        .send(UnixSocketServerReader::new(reader.into()))
+                        .await;
+                    debug!("transfering stream to the server handling thread");
+                }
             }
 
             let mut queue = queue.lock().unwrap();
-            for (ri, pid) in resolved_workers {
+            for (rid, pid) in resolved_workers {
                 if queue.contains(pid) {
-                    let reader = readers.remove(ri);
-                    let _ = worker_tx
-                        .send(UnixSocketWorkerReader::new(pid, reader.into()))
-                        .await;
-                    debug!("transfering stream to the worker handling thread");
+                    if let Some(idx) = readers.iter().position(|r| r.get_id() == rid) {
+                        let reader = readers.remove(idx);
+                        let _ = worker_tx
+                            .send(UnixSocketWorkerReader::new(pid, reader.into()))
+                            .await;
+                        debug!("transfering stream to the worker handling thread");
+                    }
                 }
             }
         }
