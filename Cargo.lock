@@ -532,8 +532,14 @@ dependencies = [
 name = "bld_supervisor"
 version = "0.1.0"
 dependencies = [
+ "actix",
+ "actix-codec",
+ "actix-http",
+ "actix-web",
+ "actix-web-actors",
  "anyhow",
  "async-trait",
+ "awc",
  "bld_config",
  "bld_core",
  "serde",

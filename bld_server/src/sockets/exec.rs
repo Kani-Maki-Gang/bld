@@ -8,11 +8,11 @@ use bld_core::database::pipeline_runs;
 use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
 use bld_core::scanner::{FileScanner, Scanner};
 use bld_runner::messages::ExecInfo;
-use bld_supervisor::base::{UnixSocketMessage, UnixSocketWrite};
-use bld_supervisor::client::UnixSocketWriter;
+use bld_supervisor::base::ServerMessages;
 use bld_utils::fs::IsYaml;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
+use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tracing::error;
@@ -21,7 +21,7 @@ use uuid::Uuid;
 pub struct ExecutePipelineSocket {
     hb: Instant,
     config: web::Data<BldConfig>,
-    supervisor: web::Data<Mutex<UnixSocketWriter>>,
+    enqueue_tx: web::Data<Mutex<Sender<ServerMessages>>>,
     pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     proxy: web::Data<ServerPipelineProxy>,
     user: User,
@@ -33,14 +33,14 @@ impl ExecutePipelineSocket {
     pub fn new(
         user: User,
         config: web::Data<BldConfig>,
-        supervisor: web::Data<Mutex<UnixSocketWriter>>,
+        enqueue_tx: web::Data<Mutex<Sender<ServerMessages>>>,
         pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
         proxy: web::Data<ServerPipelineProxy>,
     ) -> Self {
         Self {
             hb: Instant::now(),
             config,
-            supervisor,
+            enqueue_tx,
             pool,
             proxy,
             user,
@@ -82,11 +82,7 @@ impl ExecutePipelineSocket {
         }
     }
 
-    fn enqueue_worker(
-        &mut self,
-        ctx: &mut <Self as Actor>::Context,
-        data: &str,
-    ) -> anyhow::Result<()> {
+    fn enqueue_worker(&mut self, data: &str) -> anyhow::Result<()> {
         let info = serde_json::from_str::<ExecInfo>(data)?;
         let path = self.proxy.path(&info.name)?;
         if !path.is_yaml() {
@@ -111,19 +107,13 @@ impl ExecutePipelineSocket {
         self.scanner = Some(FileScanner::new(Arc::clone(&self.config), &run_id));
         self.run_id = Some(run_id.clone());
 
-        let supervisor = self.supervisor.clone();
-        let enqueue_future = async move {
-            let supervisor = supervisor.lock().unwrap();
-            let _ = supervisor
-                .try_write(&UnixSocketMessage::ServerEnqueue {
-                    pipeline: info.name.to_string(),
-                    run_id,
-                    variables,
-                    environment,
-                })
-                .await;
-        };
-        enqueue_future.into_actor(self).spawn(ctx);
+        let tx = self.enqueue_tx.lock().unwrap();
+        tx.send(ServerMessages::Enqueue {
+            pipeline: info.name.to_string(),
+            run_id,
+            variables,
+            environment,
+        })?;
 
         Ok(())
     }
@@ -144,10 +134,10 @@ impl Actor for ExecutePipelineSocket {
 }
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSocket {
-    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, mut ctx: &mut Self::Context) {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(txt)) => {
-                if let Err(e) = self.enqueue_worker(&mut ctx, &txt) {
+                if let Err(e) = self.enqueue_worker(&txt) {
                     error!("{}", e.to_string());
                     ctx.text("Unable to run pipeline");
                     ctx.stop();
@@ -174,13 +164,13 @@ pub async fn ws_exec(
     req: HttpRequest,
     stream: web::Payload,
     cfg: web::Data<BldConfig>,
-    supervisor: web::Data<Mutex<UnixSocketWriter>>,
+    enqueue_tx: web::Data<Mutex<Sender<ServerMessages>>>,
     pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     proxy: web::Data<ServerPipelineProxy>,
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{req:?}");
-    let socket = ExecutePipelineSocket::new(user, cfg, supervisor, pool, proxy);
+    let socket = ExecutePipelineSocket::new(user, cfg, enqueue_tx, pool, proxy);
     let res = ws::start(socket, &req, stream);
     println!("{res:?}");
     res

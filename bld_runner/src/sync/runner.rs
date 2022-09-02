@@ -7,11 +7,11 @@ use bld_config::BldConfig;
 use bld_core::execution::Execution;
 use bld_core::logger::Logger;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_supervisor::base::{UnixSocketMessage, UnixSocketWrite};
-use bld_supervisor::client::UnixSocketWriter;
+use bld_supervisor::base::WorkerMessages;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>>>>;
@@ -34,7 +34,7 @@ pub struct RunnerBuilder {
     lg: Option<AtomicLog>,
     prx: Option<AtomicProxy>,
     pip: Option<String>,
-    sock: Arc<Option<UnixSocketWriter>>,
+    ipc_sender: Arc<Option<Sender<WorkerMessages>>>,
     env: Option<AtomicVars>,
     vars: Option<AtomicVars>,
     is_child: bool,
@@ -76,8 +76,8 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn socket(mut self, sock: Arc<Option<UnixSocketWriter>>) -> Self {
-        self.sock = sock;
+    pub fn ipc_sender(mut self, sender: Arc<Option<Sender<WorkerMessages>>>) -> Self {
+        self.ipc_sender = sender;
         self
     }
 
@@ -161,7 +161,7 @@ impl RunnerBuilder {
             lg,
             prx,
             pip: pipeline,
-            sock: self.sock,
+            ipc_sender: self.ipc_sender,
             env,
             vars,
             platform,
@@ -178,7 +178,7 @@ pub struct Runner {
     lg: AtomicLog,
     prx: AtomicProxy,
     pip: Pipeline,
-    sock: Arc<Option<UnixSocketWriter>>,
+    ipc_sender: Arc<Option<Sender<WorkerMessages>>>,
     env: AtomicVars,
     vars: AtomicVars,
     platform: TargetPlatform,
@@ -210,17 +210,17 @@ impl Runner {
         exec.check_stop_signal()
     }
 
-    async fn socket_ping(&self) -> anyhow::Result<()> {
-        if let Some(stream) = Option::as_ref(&self.sock) {
-            stream.try_write(&UnixSocketMessage::WorkerPing).await?;
+    async fn ipc_send_ack(&self) -> anyhow::Result<()> {
+        if let Some(sender) = Option::as_ref(&self.ipc_sender) {
+            sender.send(WorkerMessages::Completed)?;
         }
         Ok(())
     }
 
-    async fn socket_exit(&self) -> anyhow::Result<()> {
+    async fn ipc_send_completed(&self) -> anyhow::Result<()> {
         if !self.is_child {
-            if let Some(stream) = Option::as_ref(&self.sock) {
-                stream.try_write(&UnixSocketMessage::WorkerExit).await?;
+            if let Some(sender) = Option::as_ref(&self.ipc_sender) {
+                sender.send(WorkerMessages::Completed)?;
             }
         }
         Ok(())
@@ -274,7 +274,6 @@ impl Runner {
     }
 
     async fn artifacts(&self, name: &Option<String>) -> anyhow::Result<()> {
-        self.socket_ping().await?;
         for artifact in self.pip.artifacts.iter().filter(|a| &a.after == name) {
             let can_continue = (artifact.method == Some(PUSH.to_string())
                 || artifact.method == Some(GET.to_string()))
@@ -311,7 +310,6 @@ impl Runner {
 
     async fn steps(&mut self) -> anyhow::Result<()> {
         for step in &self.pip.steps {
-            self.socket_ping().await?;
             self.step(step).await?;
             self.artifacts(&step.name).await?;
             self.exec_check_stop_signal()?;
@@ -341,12 +339,11 @@ impl Runner {
                 .logger(self.lg.clone())
                 .environment(self.env.clone())
                 .variables(self.vars.clone())
-                .socket(self.sock.clone())
+                .ipc_sender(self.ipc_sender.clone())
                 .is_child(true)
                 .build()
                 .await?;
             runner.run().await.await?;
-            self.socket_ping().await?;
             self.exec_check_stop_signal()?;
         }
         Ok(())
@@ -364,7 +361,6 @@ impl Runner {
                 }
                 TargetPlatform::Machine(machine) => machine.sh(&working_dir, &command)?,
             }
-            self.socket_ping().await?;
             self.exec_check_stop_signal()?;
         }
         Ok(())
@@ -383,6 +379,7 @@ impl Runner {
     pub async fn run(mut self) -> RecursiveFuture {
         Box::pin(async move {
             self.exec_persist_start();
+            self.ipc_send_ack().await?;
             self.info();
             match self.artifacts(&None).await {
                 Ok(_) => {
@@ -394,7 +391,7 @@ impl Runner {
             }
             self.exec_persist_end();
             self.dispose().await?;
-            self.socket_exit().await?;
+            self.ipc_send_completed().await?;
             Ok(())
         })
     }

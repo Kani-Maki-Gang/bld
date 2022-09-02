@@ -1,8 +1,7 @@
 pub mod base;
-pub mod client;
-mod listeners;
 mod queues;
-pub mod server;
+pub mod supervisor;
+pub mod sockets;
 
 #[cfg(test)]
 mod tests {

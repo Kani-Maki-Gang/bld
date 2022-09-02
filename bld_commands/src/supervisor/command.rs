@@ -1,6 +1,7 @@
 use crate::BldCommand;
 use actix_web::rt::System;
 use bld_config::{definitions::VERSION, BldConfig};
+use bld_supervisor::supervisor;
 use clap::{App as ClapApp, ArgMatches, SubCommand};
 use tracing::debug;
 
@@ -28,6 +29,6 @@ impl BldCommand for SupervisorCommand {
     fn exec(&self, _matches: &ArgMatches<'_>) -> anyhow::Result<()> {
         let config = BldConfig::load()?;
         debug!("starting supervisor");
-        System::new().block_on(async move { bld_supervisor::server::start(config).await })
+        System::new().block_on(async move { supervisor::start(config).await })
     }
 }
