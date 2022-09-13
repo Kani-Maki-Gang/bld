@@ -6,7 +6,7 @@ use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse}
 use actix_web_actors::ws;
 use bld_config::BldConfig;
 use std::time::{Duration, Instant};
-use tracing::debug;
+use tracing::{debug, info};
 
 type StdResult<T, V> = std::result::Result<T, V>;
 
@@ -25,7 +25,7 @@ impl HighAvailSocket {
 
     fn heartbeat(act: &Self, ctx: &mut <Self as Actor>::Context) {
         if Instant::now().duration_since(act.hb) > Duration::from_secs(10) {
-            println!("High availability websocket heartbeat failed. disconnecting!");
+            info!("High availability websocket heartbeat failed. disconnecting!");
             ctx.stop();
             return;
         }

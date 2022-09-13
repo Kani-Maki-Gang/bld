@@ -6,11 +6,9 @@ use actix::prelude::*;
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
-use tracing::info;
+use tracing::{debug, info};
 
 pub struct ActiveWorkerSocket {
-    hb: Instant,
     worker_pid: Option<u32>,
     worker_queue: web::Data<Mutex<WorkerQueue>>,
 }
@@ -18,19 +16,9 @@ pub struct ActiveWorkerSocket {
 impl ActiveWorkerSocket {
     pub fn new(worker_queue: web::Data<Mutex<WorkerQueue>>) -> Self {
         Self {
-            hb: Instant::now(),
             worker_pid: None,
             worker_queue,
         }
-    }
-
-    fn heartbeat(act: &Self, ctx: &mut <Self as Actor>::Context) {
-        if Instant::now().duration_since(act.hb) > Duration::from_secs(10) {
-            info!("queue websocket heartbeat failed, disconnecting");
-            ctx.stop();
-            return;
-        }
-        ctx.ping(b"");
     }
 
     fn handle_message(
@@ -65,27 +53,25 @@ impl ActiveWorkerSocket {
 impl Actor for ActiveWorkerSocket {
     type Context = ws::WebsocketContext<Self>;
 
-    fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_interval(Duration::from_millis(500), |act, ctx| {
-            ActiveWorkerSocket::heartbeat(act, ctx);
-        });
+    fn started(&mut self, _ctx: &mut Self::Context) {
+        debug!("active worker socket started");
+    }
+
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
+        debug!("active worker socket stopped");
     }
 }
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ActiveWorkerSocket {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        info!("message sent by worker");
         match msg {
             Ok(ws::Message::Binary(bytes)) => {
                 let _ = self.handle_message(&bytes, ctx);
             }
             Ok(ws::Message::Ping(msg)) => {
-                self.hb = Instant::now();
                 ctx.pong(&msg);
             }
-            Ok(ws::Message::Pong(_)) => {
-                self.hb = Instant::now();
-            }
+            Ok(ws::Message::Pong(_)) => {}
             Ok(ws::Message::Close(reason)) => {
                 ctx.close(reason);
                 self.cleanup(ctx);

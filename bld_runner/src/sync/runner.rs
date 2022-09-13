@@ -11,8 +11,8 @@ use bld_supervisor::base::WorkerMessages;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc::Sender;
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>>>>;
 type AtomicExec = Arc<Mutex<dyn Execution>>;
@@ -34,7 +34,7 @@ pub struct RunnerBuilder {
     lg: Option<AtomicLog>,
     prx: Option<AtomicProxy>,
     pip: Option<String>,
-    ipc_sender: Arc<Option<Sender<WorkerMessages>>>,
+    ipc: Arc<Option<Sender<WorkerMessages>>>,
     env: Option<AtomicVars>,
     vars: Option<AtomicVars>,
     is_child: bool,
@@ -76,8 +76,8 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn ipc_sender(mut self, sender: Arc<Option<Sender<WorkerMessages>>>) -> Self {
-        self.ipc_sender = sender;
+    pub fn ipc(mut self, sender: Arc<Option<Sender<WorkerMessages>>>) -> Self {
+        self.ipc = sender;
         self
     }
 
@@ -161,7 +161,7 @@ impl RunnerBuilder {
             lg,
             prx,
             pip: pipeline,
-            ipc_sender: self.ipc_sender,
+            ipc: self.ipc,
             env,
             vars,
             platform,
@@ -178,7 +178,7 @@ pub struct Runner {
     lg: AtomicLog,
     prx: AtomicProxy,
     pip: Pipeline,
-    ipc_sender: Arc<Option<Sender<WorkerMessages>>>,
+    ipc: Arc<Option<Sender<WorkerMessages>>>,
     env: AtomicVars,
     vars: AtomicVars,
     platform: TargetPlatform,
@@ -210,17 +210,10 @@ impl Runner {
         exec.check_stop_signal()
     }
 
-    async fn ipc_send_ack(&self) -> anyhow::Result<()> {
-        if let Some(sender) = Option::as_ref(&self.ipc_sender) {
-            sender.send(WorkerMessages::Completed)?;
-        }
-        Ok(())
-    }
-
     async fn ipc_send_completed(&self) -> anyhow::Result<()> {
         if !self.is_child {
-            if let Some(sender) = Option::as_ref(&self.ipc_sender) {
-                sender.send(WorkerMessages::Completed)?;
+            if let Some(ipc) = Option::as_ref(&self.ipc) {
+                ipc.send(WorkerMessages::Completed).await?;
             }
         }
         Ok(())
@@ -339,7 +332,7 @@ impl Runner {
                 .logger(self.lg.clone())
                 .environment(self.env.clone())
                 .variables(self.vars.clone())
-                .ipc_sender(self.ipc_sender.clone())
+                .ipc(self.ipc.clone())
                 .is_child(true)
                 .build()
                 .await?;
@@ -359,7 +352,7 @@ impl Runner {
                         .sh(&working_dir, &command, self.ex.clone())
                         .await?
                 }
-                TargetPlatform::Machine(machine) => machine.sh(&working_dir, &command)?,
+                TargetPlatform::Machine(machine) => machine.sh(&working_dir, &command).await?,
             }
             self.exec_check_stop_signal()?;
         }
@@ -379,7 +372,6 @@ impl Runner {
     pub async fn run(mut self) -> RecursiveFuture {
         Box::pin(async move {
             self.exec_persist_start();
-            self.ipc_send_ack().await?;
             self.info();
             match self.artifacts(&None).await {
                 Ok(_) => {

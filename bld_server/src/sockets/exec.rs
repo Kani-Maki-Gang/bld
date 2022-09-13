@@ -12,14 +12,14 @@ use bld_supervisor::base::ServerMessages;
 use bld_utils::fs::IsYaml;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
-use tracing::error;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::mpsc::Sender;
+use tokio::sync::Mutex;
+use tracing::{debug, error};
 use uuid::Uuid;
 
 pub struct ExecutePipelineSocket {
-    hb: Instant,
     config: web::Data<BldConfig>,
     enqueue_tx: web::Data<Mutex<Sender<ServerMessages>>>,
     pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
@@ -38,7 +38,6 @@ impl ExecutePipelineSocket {
         proxy: web::Data<ServerPipelineProxy>,
     ) -> Self {
         Self {
-            hb: Instant::now(),
             config,
             enqueue_tx,
             pool,
@@ -47,15 +46,6 @@ impl ExecutePipelineSocket {
             scanner: None,
             run_id: None,
         }
-    }
-
-    fn heartbeat(act: &Self, ctx: &mut <Self as Actor>::Context) {
-        if Instant::now().duration_since(act.hb) > Duration::from_secs(10) {
-            println!("Websocket heartbeat failed, disconnecting!");
-            ctx.stop();
-            return;
-        }
-        ctx.ping(b"");
     }
 
     fn scan(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
@@ -107,14 +97,20 @@ impl ExecutePipelineSocket {
         self.scanner = Some(FileScanner::new(Arc::clone(&self.config), &run_id));
         self.run_id = Some(run_id.clone());
 
-        let tx = self.enqueue_tx.lock().unwrap();
-        tx.send(ServerMessages::Enqueue {
-            pipeline: info.name.to_string(),
-            run_id,
-            variables,
-            environment,
-        })?;
-
+        let enqueue_tx = self.enqueue_tx.clone();
+        actix_web::rt::spawn(async move {
+            let tx = enqueue_tx.lock().await;
+            let msg = ServerMessages::Enqueue {
+                pipeline: info.name.to_string(),
+                run_id,
+                variables,
+                environment,
+            };
+            match tx.send(msg).await {
+                Ok(_) => debug!("sent message to supervisor receiver"),
+                Err(e) => error!("unable to send message to supervisor receiver. {e}"),
+            }
+        });
         Ok(())
     }
 }
@@ -124,7 +120,6 @@ impl Actor for ExecutePipelineSocket {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.run_interval(Duration::from_millis(500), |act, ctx| {
-            ExecutePipelineSocket::heartbeat(act, ctx);
             ExecutePipelineSocket::scan(act, ctx);
         });
         ctx.run_interval(Duration::from_secs(1), |act, ctx| {
@@ -144,11 +139,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSo
                 }
             }
             Ok(ws::Message::Ping(msg)) => {
-                self.hb = Instant::now();
                 ctx.pong(&msg);
             }
             Ok(ws::Message::Pong(_)) => {
-                self.hb = Instant::now();
             }
             Ok(ws::Message::Close(reason)) => {
                 ctx.close(reason);

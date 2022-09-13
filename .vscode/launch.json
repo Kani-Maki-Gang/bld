@@ -79,6 +79,24 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug executable 'bld' - supervisor mode",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=bld",
+                    "--package=bld"
+                ],
+                "filter": {
+                    "name": "bld",
+                    "kind": "bin"
+                }
+            },
+            "args": ["-v", "supervisor"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in executable 'bld'",
             "cargo": {
                 "args": [

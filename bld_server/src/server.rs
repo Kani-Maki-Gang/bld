@@ -4,31 +4,31 @@ use crate::endpoints::{
 };
 use crate::queue::EnqueueClient;
 use crate::sockets::{ws_exec, ws_high_avail, ws_monit};
-use actix::{Actor, io::SinkWrite, StreamHandler};
+use actix::{io::SinkWrite, Actor, Addr, StreamHandler};
 use actix_web::{middleware, web, App, HttpServer};
 use anyhow::anyhow;
 use awc::Client;
-use bld_config::{path, BldConfig};
+use bld_config::BldConfig;
 use bld_core::database::new_connection_pool;
 use bld_core::high_avail::HighAvail;
 use bld_core::proxies::ServerPipelineProxy;
 use bld_supervisor::base::ServerMessages;
 use futures::stream::StreamExt;
-use std::env::{set_var, temp_dir};
-use std::path::PathBuf;
-use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::{Arc, Mutex};
+use std::env::set_var;
+use std::sync::Arc;
+use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
-async fn start_web_server(
+async fn start_server(
     config: BldConfig,
-    host: &str,
+    host: String,
     port: i64,
-    enqueue_tx: Mutex<Sender<ServerMessages>>,
+    enqueue_tx: Sender<ServerMessages>,
 ) -> anyhow::Result<()> {
     info!("starting bld server at {}:{}", host, port);
     let pool = new_connection_pool(&config.local.db)?;
-    let enqueue_tx = web::Data::new(enqueue_tx);
+    let enqueue_tx = web::Data::new(Mutex::new(enqueue_tx));
     let ha = web::Data::new(HighAvail::new(&config, pool.clone()).await?);
     let pool = web::Data::new(pool);
     let cfg = web::Data::new(config);
@@ -68,13 +68,10 @@ async fn start_web_server(
     Ok(())
 }
 
-async fn start_supervisor_socket(
-    _socket_path: String,
-    enqueue_rx: Receiver<ServerMessages>,
-) -> anyhow::Result<()>
-{
-    // let url = format!("unix:/{socket_path}/ws-queue/");
-    let url = format!("http://127.0.0.1:7000/ws-queue/");
+async fn connect_to_supervisor(
+    mut enqueue_rx: Receiver<ServerMessages>,
+) -> anyhow::Result<Addr<EnqueueClient>> {
+    let url = format!("ws://127.0.0.1:7000/ws-queue/");
     debug!("establishing web socket connection on {}", url);
     let (_, framed) = Client::new().ws(url).connect().await.map_err(|e| {
         error!("{e}");
@@ -86,23 +83,28 @@ async fn start_supervisor_socket(
         EnqueueClient::new(SinkWrite::new(sink, ctx))
     });
     addr.send(ServerMessages::Ack).await?;
-    while let Ok(msg) = enqueue_rx.recv(){
+    while let Some(msg) = enqueue_rx.recv().await {
         addr.send(msg).await?;
     }
-    Ok(())
+    Ok(addr)
 }
 
-pub async fn start(
-    config: BldConfig,
-    host: &str,
-    port: i64,
-) -> anyhow::Result<()> {
-    let socket_path = path![temp_dir(), &config.local.unix_sock].display().to_string();
-    let (enqueue_tx, enqueue_rx) = channel::<ServerMessages>();
-    let enqueue_tx = Mutex::new(enqueue_tx);
-    let _ = tokio::join!(
-        start_web_server(config, host, port, enqueue_tx),
-        start_supervisor_socket(socket_path, enqueue_rx),
-    );
+
+pub async fn start(config: BldConfig, host: &str, port: i64) -> anyhow::Result<()> {
+    let host = host.to_string();
+    let (enqueue_tx, enqueue_rx) = channel(4096);
+    let web_server_handle = actix_web::rt::spawn(async move {
+        let _ = start_server(config, host, port, enqueue_tx).await.map_err(|e| {
+            error!("{e}");
+            e
+        });
+    });
+    let socket_handle = actix_web::rt::spawn(async move {
+        let _ = connect_to_supervisor(enqueue_rx).await.map_err(|e| {
+            error!("{e}");
+            e
+        });
+    });
+    let _ = futures::join!(web_server_handle, socket_handle);
     Ok(())
 }

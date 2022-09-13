@@ -9,29 +9,15 @@ use bld_core::workers::PipelineWorker;
 use std::env::current_exe;
 use std::process::Command;
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
 use tracing::{debug, error, info};
 
 pub struct QueueWorkerSocket {
-    hb: Instant,
     worker_queue: web::Data<Mutex<WorkerQueue>>,
 }
 
 impl QueueWorkerSocket {
     pub fn new(worker_queue: web::Data<Mutex<WorkerQueue>>) -> Self {
-        Self {
-            hb: Instant::now(),
-            worker_queue,
-        }
-    }
-
-    fn heartbeat(_act: &Self, ctx: &mut <Self as Actor>::Context) {
-        // if Instant::now().duration_since(act.hb) > Duration::from_secs(10) {
-        //     info!("queue websocket heartbeat failed, disconnecting");
-        //     ctx.stop();
-        //     return;
-        // }
-        ctx.ping(b"");
+        Self { worker_queue }
     }
 
     fn handle_message(&self, bytes: &web::Bytes) -> anyhow::Result<()> {
@@ -43,8 +29,7 @@ impl QueueWorkerSocket {
                 run_id,
                 variables,
                 environment,
-            } =>
-            {
+            } => {
                 info!("server sent an enqueue message for pipeline: {pipeline}");
                 let exe = current_exe().map_err(|e| {
                     error!("could not get the current executable. {e}");
@@ -64,7 +49,6 @@ impl QueueWorkerSocket {
                     command.arg("--environment");
                     command.arg(&environment);
                 }
-                info!("command for pipeline: {pipeline} was built successfully");
                 let mut queue = self.worker_queue.lock().unwrap();
                 queue.enqueue(PipelineWorker::new(command));
                 info!("worker for pipeline: {pipeline} has been queued");
@@ -77,10 +61,12 @@ impl QueueWorkerSocket {
 impl Actor for QueueWorkerSocket {
     type Context = ws::WebsocketContext<Self>;
 
-    fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_interval(Duration::from_millis(500), |act, ctx| {
-            QueueWorkerSocket::heartbeat(act, ctx);
-        });
+    fn started(&mut self, _ctx: &mut Self::Context) {
+        debug!("queue socket started");
+    }
+
+    fn stopped(&mut self, _: &mut Self::Context) {
+        info!("server connection stopped");
     }
 }
 
@@ -88,16 +74,15 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for QueueWorkerSocket
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Binary(bytes)) => {
-                debug!("received binary message");
-                let _ = self.handle_message(&bytes);
+                debug!("received binary message from server");
+                if let Err(e) = self.handle_message(&bytes) {
+                    error!("handling message error. {e}");
+                }
             }
             Ok(ws::Message::Ping(msg)) => {
-                self.hb = Instant::now();
                 ctx.pong(&msg);
             }
-            Ok(ws::Message::Pong(_)) => {
-                self.hb = Instant::now();
-            }
+            Ok(ws::Message::Pong(_)) => {}
             Ok(ws::Message::Close(reason)) => {
                 ctx.close(reason);
                 ctx.stop();

@@ -1,24 +1,21 @@
 use crate::run::parse_variables;
-use crate::worker::WorkerClient;
 use crate::BldCommand;
 use actix::{io::SinkWrite, Actor, StreamHandler};
+use actix_web::rt::System;
 use anyhow::anyhow;
 use awc::Client;
-use bld_config::{path, BldConfig};
+use bld_config::BldConfig;
 use bld_core::database::{new_connection_pool, pipeline_runs};
 use bld_core::execution::PipelineExecution;
 use bld_core::logger::FileLogger;
 use bld_core::proxies::ServerPipelineProxy;
 use bld_runner::RunnerBuilder;
 use bld_supervisor::base::WorkerMessages;
+use bld_supervisor::sockets::WorkerClient;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::stream::StreamExt;
-use std::collections::HashMap;
-use std::env::temp_dir;
-use std::path::PathBuf;
-use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::{Arc, Mutex};
-use tokio::runtime::Runtime;
+use std::sync::Arc;
+use tokio::sync::mpsc::{channel, Receiver};
 use tracing::{debug, error};
 
 const WORKER: &str = "worker";
@@ -71,66 +68,59 @@ impl BldCommand for WorkerCommand {
     }
 
     fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
-        let config = BldConfig::load()?;
-        let pipeline = matches.value_of(PIPELINE).unwrap_or_default().to_string();
-        let run_id = matches.value_of(RUN_ID).unwrap_or_default().to_string();
+        let cfg = Arc::new(BldConfig::load()?);
+        let pipeline = Arc::new(matches.value_of(PIPELINE).unwrap_or_default().to_string());
+        let run_id = Arc::new(matches.value_of(RUN_ID).unwrap_or_default().to_string());
         let variables = Arc::new(parse_variables(matches, VARIABLES));
         let environment = Arc::new(parse_variables(matches, ENVIRONMENT));
-        let (worker_tx, worker_rx) = channel::<WorkerMessages>();
-        let socket_path = path![temp_dir(), &config.local.unix_sock]
-            .display()
-            .to_string();
-        let rt = Runtime::new()?;
-        rt.block_on(async move {
-            let _ = tokio::join!(
-                start_runner(config, pipeline, run_id, variables, environment, worker_tx),
-                connect_to_supervisor(socket_path, worker_rx),
-            );
+        let pool = Arc::new(new_connection_pool(&cfg.local.db)?);
+        let conn = pool.get()?;
+        let pipeline_run = pipeline_runs::select_by_id(&conn, &run_id)?;
+        let start_date_time = pipeline_run.start_date_time;
+        let proxy = Arc::new(ServerPipelineProxy::new(cfg.clone(), pool.clone()));
+        let logger = FileLogger::atom(cfg.clone(), &run_id)?;
+        let exec = PipelineExecution::atom(pool, &run_id)?;
+        let (worker_tx, worker_rx) = channel(4096);
+        let worker_tx = Arc::new(Some(worker_tx));
+        System::new().block_on(async move {
+            let socket_handle = actix_web::rt::spawn(async move {
+                let _ = connect_to_supervisor(worker_rx).await.map_err(|e| {
+                    error!("{e}");
+                    e
+                });
+            });
+            let runner_handle = actix_web::rt::spawn(async move {
+                if let Ok(runner) = RunnerBuilder::default()
+                    .run_id(&run_id)
+                    .run_start_time(&start_date_time)
+                    .config(cfg)
+                    .proxy(proxy)
+                    .pipeline(&pipeline)
+                    .execution(exec)
+                    .logger(logger)
+                    .environment(environment)
+                    .variables(variables)
+                    .ipc(worker_tx)
+                    .build()
+                    .await
+                {
+                    let _ = runner.run().await.await.map_err(|e| {
+                        error!("{e}");
+                        e
+                    });
+                }
+            });
+            let _ = futures::join!(socket_handle, runner_handle);
         });
         Ok(())
     }
 }
 
-async fn start_runner(
-    config: BldConfig,
-    pipeline: String,
-    run_id: String,
-    variables: Arc<HashMap<String, String>>,
-    environment: Arc<HashMap<String, String>>,
-    worker_tx: Sender<WorkerMessages>,
-) -> anyhow::Result<()> {
-    let cfg = Arc::new(config);
-    let pool = Arc::new(new_connection_pool(&cfg.local.db)?);
-    let conn = pool.get()?;
-    let pipeline_run = pipeline_runs::select_by_id(&conn, &run_id)?;
-    let start_date_time = pipeline_run.start_date_time;
-    let proxy = Arc::new(ServerPipelineProxy::new(cfg.clone(), pool.clone()));
-    let logger = Arc::new(Mutex::new(FileLogger::new(cfg.clone(), &run_id)?));
-    let exec = Arc::new(Mutex::new(PipelineExecution::new(pool, &run_id)?));
-    let runner = RunnerBuilder::default()
-        .run_id(&run_id)
-        .run_start_time(&start_date_time)
-        .config(cfg.clone())
-        .proxy(proxy)
-        .pipeline(&pipeline)
-        .execution(exec)
-        .logger(logger)
-        .environment(environment)
-        .variables(variables)
-        .ipc_sender(Arc::new(Some(worker_tx)))
-        .build()
-        .await?;
-    runner.run().await.await
-}
-
-async fn connect_to_supervisor(
-    _socket_path: String,
-    worker_rx: Receiver<WorkerMessages>,
-) -> anyhow::Result<()> {
-    // let url = format!("unix://{socket_path}/ws-worker/");
-    let url = format!("http://127.0.0.1:7000/ws-worker/");
+async fn connect_to_supervisor(mut worker_rx: Receiver<WorkerMessages>) -> anyhow::Result<()> {
+    let url = format!("ws://127.0.0.1:7000/ws-worker/");
     debug!("establishing web socket connection on {}", url);
-    let (_, framed) = Client::new().ws(url).connect().await.map_err(|e| {
+    let client = Client::new().ws(url).connect();
+    let (_, framed) = client.await.map_err(|e| {
         error!("{e}");
         anyhow!(e.to_string())
     })?;
@@ -140,8 +130,13 @@ async fn connect_to_supervisor(
         WorkerClient::new(SinkWrite::new(sink, ctx))
     });
     addr.send(WorkerMessages::Ack).await?;
-    while let Ok(msg) = worker_rx.recv() {
-        addr.send(msg).await?;
+    addr.send(WorkerMessages::WhoAmI {
+        pid: std::process::id(),
+    })
+    .await?;
+    while let Some(msg) = worker_rx.recv().await {
+        debug!("sending message to supervisor {:?}", msg);
+        addr.send(msg).await?
     }
     Ok(())
 }

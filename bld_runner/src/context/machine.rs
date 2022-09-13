@@ -45,8 +45,7 @@ impl Machine {
         self.copy(from, to)
     }
 
-    pub fn sh(&self, working_dir: &Option<String>, input: &str) -> anyhow::Result<()> {
-        let mut logger = self.lg.lock().unwrap();
+    pub async fn sh(&self, working_dir: &Option<String>, input: &str) -> anyhow::Result<()> {
         let os_name = os_name();
         let current_dir = working_dir.as_ref().unwrap_or(&self.tmp_dir).to_string();
         let current_dir = if Path::new(&current_dir).is_relative() {
@@ -75,7 +74,10 @@ impl Machine {
         if process.stdout.len() > 0 {
             write!(output, "{}", String::from_utf8_lossy(&process.stdout))?;
         }
-        logger.dump(&output);
+        {
+            let mut logger = self.lg.lock().unwrap();
+            logger.dump(&output);
+        }
 
         Ok(())
     }

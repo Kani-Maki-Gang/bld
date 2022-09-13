@@ -1,7 +1,7 @@
 pub mod base;
 mod queues;
-pub mod supervisor;
 pub mod sockets;
+pub mod supervisor;
 
 #[cfg(test)]
 mod tests {

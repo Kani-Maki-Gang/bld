@@ -3,7 +3,7 @@ use crate::execution::Execution;
 use anyhow::bail;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 pub struct PipelineExecution {
     pub pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
@@ -11,14 +11,18 @@ pub struct PipelineExecution {
 }
 
 impl PipelineExecution {
-    pub fn new(
-        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
-        run_id: &str,
-    ) -> anyhow::Result<Self> {
-        Ok(Self {
+    pub fn new(pool: Arc<Pool<ConnectionManager<SqliteConnection>>>, run_id: &str) -> Self {
+        Self {
             pool,
             run_id: run_id.to_string(),
-        })
+        }
+    }
+
+    pub fn atom(
+        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        run_id: &str,
+    ) -> anyhow::Result<Arc<Mutex<Self>>> {
+        Ok(Arc::new(Mutex::new(Self::new(pool, run_id))))
     }
 }
 

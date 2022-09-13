@@ -10,10 +10,9 @@ use bld_core::scanner::{FileScanner, Scanner};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 pub struct MonitorPipelineSocket {
-    hb: Instant,
     id: String,
     pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
     config: web::Data<BldConfig>,
@@ -26,21 +25,11 @@ impl MonitorPipelineSocket {
         config: web::Data<BldConfig>,
     ) -> Self {
         Self {
-            hb: Instant::now(),
             id: String::new(),
             pool,
             config,
             scanner: None,
         }
-    }
-
-    fn heartbeat(act: &Self, ctx: &mut <Self as Actor>::Context) {
-        if Instant::now().duration_since(act.hb) > Duration::from_secs(10) {
-            println!("Websocket heartbeat failed, disconnecting!");
-            ctx.stop();
-            return;
-        }
-        ctx.ping(b"");
     }
 
     fn scan(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
@@ -92,7 +81,6 @@ impl Actor for MonitorPipelineSocket {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.run_interval(Duration::from_millis(500), |act, ctx| {
-            MonitorPipelineSocket::heartbeat(act, ctx);
             MonitorPipelineSocket::scan(act, ctx);
         });
         ctx.run_interval(Duration::from_secs(1), |act, ctx| {
@@ -112,11 +100,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MonitorPipelineSo
                 }
             }
             Ok(ws::Message::Ping(msg)) => {
-                self.hb = Instant::now();
                 ctx.pong(&msg);
             }
             Ok(ws::Message::Pong(_)) => {
-                self.hb = Instant::now();
             }
             Ok(ws::Message::Close(reason)) => {
                 ctx.close(reason);

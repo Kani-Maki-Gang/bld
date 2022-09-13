@@ -35,7 +35,18 @@
         "program": "${workspaceRoot}/target/debug/bld",
         "args": ["-v", "server"]
       }
+    },
+    "supervisor_mode": {
+      "adapter": "CodeLLDB",
+      "filetypes": ["rust"],
+      "variables": {
+        "CARGO_BUILD_IGNORED": { "shell": "cargo build" }
+      },
+      "configuration": {
+        "request": "launch",
+        "program": "${workspaceRoot}/target/debug/bld",
+        "args": ["-v", "supervisor"]
+      }
     }
-
   }
 }

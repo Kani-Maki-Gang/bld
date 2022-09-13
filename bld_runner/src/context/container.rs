@@ -13,12 +13,14 @@ use std::thread::sleep;
 use std::time::Duration;
 use tar::Archive;
 
+type AtomicLogger = Arc<Mutex<dyn Logger>>;
+
 pub struct Container {
     pub config: Option<Arc<BldConfig>>,
     pub img: String,
     pub client: Option<Docker>,
     pub id: Option<String>,
-    pub lg: Arc<Mutex<dyn Logger>>,
+    pub lg: AtomicLogger,
 }
 
 impl Container {
@@ -42,11 +44,7 @@ impl Container {
         Ok(host)
     }
 
-    async fn pull(
-        client: &Docker,
-        image: &str,
-        logger: &mut Arc<Mutex<dyn Logger>>,
-    ) -> anyhow::Result<()> {
+    async fn pull(client: &Docker, image: &str, logger: &mut AtomicLogger) -> anyhow::Result<()> {
         let options = ImageListOptions::builder().filter_name(image).build();
         let images = client.images().list(&options).await?;
         if images.is_empty() {
@@ -72,7 +70,7 @@ impl Container {
         client: &Docker,
         image: &str,
         env: &[String],
-        logger: &mut Arc<Mutex<dyn Logger>>,
+        logger: &mut AtomicLogger,
     ) -> anyhow::Result<String> {
         Container::pull(client, image, logger).await?;
         let options = ContainerOptions::builder(image).env(env).tty(true).build();
@@ -85,7 +83,7 @@ impl Container {
         img: &str,
         cfg: Arc<BldConfig>,
         env: Arc<HashMap<String, String>>,
-        lg: Arc<Mutex<dyn Logger>>,
+        lg: AtomicLogger,
     ) -> anyhow::Result<Self> {
         let client = Container::docker(&cfg)?;
         let env: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
