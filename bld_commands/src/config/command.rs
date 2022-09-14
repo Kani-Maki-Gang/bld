@@ -32,13 +32,17 @@ impl ConfigCommand {
         }
         println!("- ha-mode: {}", local.ha_mode);
         println!("- node-id: {:?}", local.node_id);
-        println!("- host: {}", local.host);
-        println!("- port: {}", local.port);
+        println!("- server:");
+        println!("  - host: {}", local.server.host);
+        println!("  - port: {}", local.server.port);
+        println!("  - pipelines: {}", local.server.pipelines);
+        println!("- supervisor:");
+        println!("  - host: {}", local.supervisor.host);
+        println!("  - port: {}", local.supervisor.port);
+        println!("  - workers: {}", local.supervisor.workers);
         println!("- logs: {}", local.logs);
         println!("- db: {}", local.db);
-        println!("- server_pipelines: {}", local.server_pipelines);
         println!("- docker-url: {}", local.docker_url);
-        println!("- unix-socket: {}", local.unix_sock);
         Ok(())
     }
 

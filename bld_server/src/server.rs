@@ -21,7 +21,7 @@ use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
 async fn start_server(
-    config: BldConfig,
+    config: web::Data<BldConfig>,
     host: String,
     port: i64,
     enqueue_tx: Sender<ServerMessages>,
@@ -31,15 +31,14 @@ async fn start_server(
     let enqueue_tx = web::Data::new(Mutex::new(enqueue_tx));
     let ha = web::Data::new(HighAvail::new(&config, pool.clone()).await?);
     let pool = web::Data::new(pool);
-    let cfg = web::Data::new(config);
     let prx = web::Data::new(ServerPipelineProxy::new(
-        Arc::clone(&cfg),
+        Arc::clone(&config),
         Arc::clone(&pool),
     ));
     set_var("RUST_LOG", "actix_server=info,actix_web=debug");
     HttpServer::new(move || {
         App::new()
-            .app_data(cfg.clone())
+            .app_data(config.clone())
             .app_data(enqueue_tx.clone())
             .app_data(ha.clone())
             .app_data(pool.clone())
@@ -69,9 +68,10 @@ async fn start_server(
 }
 
 async fn connect_to_supervisor(
+    config: Arc<BldConfig>,
     mut enqueue_rx: Receiver<ServerMessages>,
 ) -> anyhow::Result<Addr<EnqueueClient>> {
-    let url = format!("ws://127.0.0.1:7000/ws-queue/");
+    let url = format!("ws://{}:{}/ws-queue/", config.local.supervisor.host, config.local.supervisor.port);
     debug!("establishing web socket connection on {}", url);
     let (_, framed) = Client::new().ws(url).connect().await.map_err(|e| {
         error!("{e}");
@@ -91,16 +91,18 @@ async fn connect_to_supervisor(
 
 
 pub async fn start(config: BldConfig, host: &str, port: i64) -> anyhow::Result<()> {
+    let cfg = web::Data::new(config);
+    let socket_cfg = Arc::clone(&cfg);
     let host = host.to_string();
     let (enqueue_tx, enqueue_rx) = channel(4096);
     let web_server_handle = actix_web::rt::spawn(async move {
-        let _ = start_server(config, host, port, enqueue_tx).await.map_err(|e| {
+        let _ = start_server(cfg, host, port, enqueue_tx).await.map_err(|e| {
             error!("{e}");
             e
         });
     });
     let socket_handle = actix_web::rt::spawn(async move {
-        let _ = connect_to_supervisor(enqueue_rx).await.map_err(|e| {
+        let _ = connect_to_supervisor(socket_cfg, enqueue_rx).await.map_err(|e| {
             error!("{e}");
             e
         });

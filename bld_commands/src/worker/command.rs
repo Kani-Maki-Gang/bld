@@ -69,6 +69,7 @@ impl BldCommand for WorkerCommand {
 
     fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
         let cfg = Arc::new(BldConfig::load()?);
+        let socket_cfg = Arc::clone(&cfg);
         let pipeline = Arc::new(matches.value_of(PIPELINE).unwrap_or_default().to_string());
         let run_id = Arc::new(matches.value_of(RUN_ID).unwrap_or_default().to_string());
         let variables = Arc::new(parse_variables(matches, VARIABLES));
@@ -84,7 +85,7 @@ impl BldCommand for WorkerCommand {
         let worker_tx = Arc::new(Some(worker_tx));
         System::new().block_on(async move {
             let socket_handle = actix_web::rt::spawn(async move {
-                let _ = connect_to_supervisor(worker_rx).await.map_err(|e| {
+                let _ = connect_to_supervisor(socket_cfg, worker_rx).await.map_err(|e| {
                     error!("{e}");
                     e
                 });
@@ -116,8 +117,8 @@ impl BldCommand for WorkerCommand {
     }
 }
 
-async fn connect_to_supervisor(mut worker_rx: Receiver<WorkerMessages>) -> anyhow::Result<()> {
-    let url = format!("ws://127.0.0.1:7000/ws-worker/");
+async fn connect_to_supervisor(config: Arc<BldConfig>, mut worker_rx: Receiver<WorkerMessages>) -> anyhow::Result<()> {
+    let url = format!("ws://{}:{}/ws-worker/", config.local.supervisor.host, config.local.supervisor.port);
     debug!("establishing web socket connection on {}", url);
     let client = Client::new().ws(url).connect();
     let (_, framed) = client.await.map_err(|e| {

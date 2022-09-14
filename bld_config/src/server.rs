@@ -1,10 +1,48 @@
-use crate::{Auth, OAuth2Info};
+use crate::{definitions, Auth, OAuth2Info};
 use anyhow::anyhow;
 use async_raft::NodeId;
 use yaml_rust::Yaml;
 
 #[derive(Debug)]
-pub struct BldServerConfig {
+pub struct BldLocalServerConfig {
+    pub host: String,
+    pub port: i64,
+    pub pipelines: String,
+}
+
+impl BldLocalServerConfig {
+    pub fn load(yaml: &Yaml) -> anyhow::Result<Self> {
+        let host = yaml["host"]
+            .as_str()
+            .unwrap_or(definitions::LOCAL_SERVER_HOST)
+            .to_string();
+        let port = yaml["port"]
+            .as_i64()
+            .unwrap_or(definitions::LOCAL_SERVER_PORT);
+        let pipelines = yaml["pipelines"]
+            .as_str()
+            .unwrap_or(definitions::LOCAL_SERVER_PIPELINES)
+            .to_string();
+        Ok(Self {
+            host,
+            port,
+            pipelines
+        })
+    }
+} 
+
+impl Default for BldLocalServerConfig {
+    fn default() -> Self {
+        Self {
+            host: definitions::LOCAL_SERVER_HOST.to_string(),
+            port: definitions::LOCAL_SERVER_PORT,
+            pipelines: definitions::LOCAL_SERVER_PIPELINES.to_string(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct BldRemoteServerConfig {
     pub name: String,
     pub host: String,
     pub port: i64,
@@ -13,7 +51,7 @@ pub struct BldServerConfig {
     pub same_auth_as: Option<String>,
 }
 
-impl BldServerConfig {
+impl BldRemoteServerConfig {
     pub fn load(yaml: &Yaml) -> anyhow::Result<Self> {
         let name = yaml["server"]
             .as_str()

@@ -5,6 +5,7 @@ mod local;
 mod path;
 mod remote;
 mod server;
+mod supervisor;
 
 pub use auth::*;
 pub use errors::*;
@@ -12,6 +13,7 @@ pub use local::*;
 pub use path::*;
 pub use remote::*;
 pub use server::*;
+pub use supervisor::*;
 
 use std::path::PathBuf;
 use tracing::debug;

@@ -15,13 +15,15 @@ pub const TOOL_DEFAULT_CONFIG_FILE: &str = "config.yaml";
 
 pub const LOCAL_SERVER_HOST: &str = "127.0.0.1";
 pub const LOCAL_SERVER_PORT: i64 = 6080;
+pub const LOCAL_SERVER_PIPELINES: &str = ".bld/server_pipelines";
+pub const LOCAL_SUPERVISOR_HOST: &str = "127.0.0.1";
+pub const LOCAL_SUPERVISOR_PORT: i64 = 7080;
+pub const LOCAL_SUPERVISOR_WORKERS: i64 = 5;
 pub const LOCAL_HA_MODE: bool = false;
 pub const LOCAL_LOGS: &str = ".bld/logs";
 pub const LOCAL_DB: &str = ".bld/db";
-pub const LOCAL_SERVER_PIPELINES: &str = ".bld/server_pipelines";
 pub const LOCAL_DOCKER_URL: &str = "tcp://127.0.0.1:2376";
 pub const LOCAL_MACHINE_TMP_DIR: &str = ".bld/tmp";
-pub const LOCAL_UNIX_SOCKET: &str = "server.sock";
 pub const REMOTE_SERVER_NAME: &str = "demo_server";
 pub const REMOTE_SERVER_HOST: &str = "127.0.0.1";
 pub const REMOTE_SERVER_PORT: i64 = 6080;
@@ -39,11 +41,16 @@ pub fn default_server_config() -> String {
     format!(
         r"local:
     ha-mode: {LOCAL_HA_MODE}
-    host: {LOCAL_SERVER_HOST}
-    port: {LOCAL_SERVER_PORT}
+    server:
+        host: {LOCAL_SERVER_HOST}
+        port: {LOCAL_SERVER_PORT}
+        pipelines: {LOCAL_SERVER_PIPELINES}
+    supervisor:
+        host: {LOCAL_SUPERVISOR_HOST}
+        port: {LOCAL_SUPERVISOR_PORT}
+        workers: {LOCAL_SUPERVISOR_WORKERS}
     logs: {LOCAL_LOGS}
     db: {LOCAL_DB}
-    server-pipelines: {LOCAL_SERVER_PIPELINES}
     docker-url: {LOCAL_DOCKER_URL}"
     )
 }

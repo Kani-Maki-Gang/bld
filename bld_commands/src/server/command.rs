@@ -42,12 +42,12 @@ impl BldCommand for ServerCommand {
         let config = BldConfig::load()?;
         let host = matches
             .value_of("host")
-            .unwrap_or(&config.local.host)
+            .unwrap_or(&config.local.server.host)
             .to_string();
         let port = matches
             .value_of("port")
-            .map(|port| port.parse::<i64>().unwrap_or(config.local.port))
-            .unwrap_or(config.local.port);
+            .map(|port| port.parse::<i64>().unwrap_or(config.local.server.port))
+            .unwrap_or(config.local.server.port);
         debug!("running {SERVER} subcommand with --host: {host} --port: {port}",);
         let res =
             System::new().block_on(async move { bld_server::start(config, &host, port).await });
