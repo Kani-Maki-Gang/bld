@@ -14,13 +14,14 @@ use bld_core::high_avail::HighAvail;
 use bld_core::proxies::ServerPipelineProxy;
 use bld_supervisor::base::ServerMessages;
 use futures::stream::StreamExt;
-use std::env::set_var;
+use std::env::{current_exe, set_var};
 use std::sync::Arc;
+use tokio::process::{Child, Command};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
-async fn start_server(
+async fn spawn_server(
     config: web::Data<BldConfig>,
     host: String,
     port: i64,
@@ -67,11 +68,14 @@ async fn start_server(
     Ok(())
 }
 
-async fn connect_to_supervisor(
+async fn supervisor_socket(
     config: Arc<BldConfig>,
     mut enqueue_rx: Receiver<ServerMessages>,
 ) -> anyhow::Result<Addr<EnqueueClient>> {
-    let url = format!("ws://{}:{}/ws-queue/", config.local.supervisor.host, config.local.supervisor.port);
+    let url = format!(
+        "ws://{}:{}/ws-queue/",
+        config.local.supervisor.host, config.local.supervisor.port
+    );
     debug!("establishing web socket connection on {}", url);
     let (_, framed) = Client::new().ws(url).connect().await.map_err(|e| {
         error!("{e}");
@@ -89,24 +93,32 @@ async fn connect_to_supervisor(
     Ok(addr)
 }
 
+fn create_supervisor() -> anyhow::Result<Child> {
+    Ok(Command::new(current_exe()?).arg("supervisor").spawn()?)
+}
 
-pub async fn start(config: BldConfig, host: &str, port: i64) -> anyhow::Result<()> {
-    let cfg = web::Data::new(config);
-    let socket_cfg = Arc::clone(&cfg);
-    let host = host.to_string();
+pub async fn start(config: BldConfig, host: String, port: i64) -> anyhow::Result<()> {
+    let config = web::Data::new(config);
+    let config_clone = Arc::clone(&config);
+    let mut supervisor = create_supervisor()?; // set to kill the supervisor process on drop.
     let (enqueue_tx, enqueue_rx) = channel(4096);
     let web_server_handle = actix_web::rt::spawn(async move {
-        let _ = start_server(cfg, host, port, enqueue_tx).await.map_err(|e| {
-            error!("{e}");
-            e
-        });
+        let _ = spawn_server(config, host, port, enqueue_tx)
+            .await
+            .map_err(|e| {
+                error!("{e}");
+                e
+            });
     });
     let socket_handle = actix_web::rt::spawn(async move {
-        let _ = connect_to_supervisor(socket_cfg, enqueue_rx).await.map_err(|e| {
-            error!("{e}");
-            e
-        });
+        let _ = supervisor_socket(config_clone, enqueue_rx)
+            .await
+            .map_err(|e| {
+                error!("{e}");
+                e
+            });
     });
     let _ = futures::join!(web_server_handle, socket_handle);
+	supervisor.kill().await?;
     Ok(())
 }
