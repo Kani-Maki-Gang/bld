@@ -9,6 +9,7 @@ pub mod high_avail;
 pub mod logger;
 pub mod proxies;
 pub mod scanner;
+pub mod workers;
 
 #[cfg(test)]
 mod tests {

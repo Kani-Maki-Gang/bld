@@ -1,39 +1,42 @@
-use crate::database::pipeline_runs::{self, PipelineRuns};
+use crate::database::pipeline_runs;
 use crate::execution::Execution;
-use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
+use anyhow::bail;
+use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use tracing::debug;
+use std::sync::{Arc, Mutex};
 
-const EMPTY_STRING: String = String::new();
-
-pub struct PipelineExecWrapper {
-    pub pipeline_run: PipelineRuns,
-    pub connection: PooledConnection<ConnectionManager<SqliteConnection>>,
+pub struct PipelineExecution {
+    pub pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
+    pub run_id: String,
 }
 
-impl PipelineExecWrapper {
-    pub fn new(
-        pool: &Pool<ConnectionManager<SqliteConnection>>,
-        pipeline_run: PipelineRuns,
-    ) -> anyhow::Result<Self> {
-        Ok(Self {
-            pipeline_run,
-            connection: pool.get()?,
-        })
+impl PipelineExecution {
+    pub fn new(pool: Arc<Pool<ConnectionManager<SqliteConnection>>>, run_id: &str) -> Self {
+        Self {
+            pool,
+            run_id: run_id.to_string(),
+        }
+    }
+
+    pub fn atom(
+        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        run_id: &str,
+    ) -> anyhow::Result<Arc<Mutex<Self>>> {
+        Ok(Arc::new(Mutex::new(Self::new(pool, run_id))))
     }
 }
 
-impl Execution for PipelineExecWrapper {
-    fn update_running(&mut self, running: bool) -> anyhow::Result<()> {
-        self.pipeline_run =
-            pipeline_runs::update_running(&self.connection, &self.pipeline_run.id, running)?;
-        debug!(
-            "updated pipeline run of id: {}, name: {} with new values running: {}, end_date_time: {}",
-            self.pipeline_run.id,
-            self.pipeline_run.name,
-            self.pipeline_run.running,
-            self.pipeline_run.end_date_time.as_ref().unwrap_or(&EMPTY_STRING)
-        );
-        Ok(())
+impl Execution for PipelineExecution {
+    fn update_state(&mut self, state: &str) -> anyhow::Result<()> {
+        let conn = self.pool.get()?;
+        pipeline_runs::update_state(&conn, &self.run_id, state).map(|_| ())
+    }
+
+    fn check_stop_signal(&self) -> anyhow::Result<()> {
+        let conn = self.pool.get()?;
+        pipeline_runs::select_by_id(&conn, &self.run_id).and_then(|r| match r.stopped {
+            Some(true) => bail!(""),
+            _ => Ok(()),
+        })
     }
 }

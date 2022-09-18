@@ -1,13 +1,13 @@
 use crate::socket::ExecInfo;
 use actix::io::{SinkWrite, WriteHandler};
-use actix::{Actor, ActorContext, AsyncContext, Context, Handler, StreamHandler};
+use actix::{Actor, ActorContext, Context, Handler, StreamHandler};
 use actix_codec::Framed;
-use actix_web::{rt::System, web::Bytes};
+use actix_web::rt::System;
 use awc::error::WsProtocolError;
 use awc::ws::{Codec, Frame, Message};
 use awc::BoxedSocket;
 use futures::stream::SplitSink;
-use std::time::Duration;
+use tracing::debug;
 
 pub struct ExecClient {
     writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>,
@@ -17,23 +17,17 @@ impl ExecClient {
     pub fn new(writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>) -> Self {
         Self { writer }
     }
-
-    fn heartbeat(&mut self, ctx: &mut Context<Self>) {
-        ctx.run_interval(Duration::new(1, 0), |act, ctx| {
-            let _ = act.writer.write(Message::Ping(Bytes::from_static(b"")));
-            act.heartbeat(ctx);
-        });
-    }
 }
 
 impl Actor for ExecClient {
     type Context = Context<Self>;
 
-    fn started(&mut self, ctx: &mut Context<Self>) {
-        self.heartbeat(ctx)
+    fn started(&mut self, _ctx: &mut Context<Self>) {
+        debug!("exec socket started");
     }
 
-    fn stopped(&mut self, _: &mut Context<Self>) {
+    fn stopped(&mut self, _ctx: &mut Context<Self>) {
+        debug!("exec socket stopped");
         if let Some(current) = System::try_current() {
             current.stop();
         }

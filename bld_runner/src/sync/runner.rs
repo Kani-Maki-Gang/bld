@@ -1,23 +1,22 @@
-use crate::CheckStopSignal;
 use crate::{BuildStep, Container, Machine, Pipeline, RunsOn};
 use anyhow::anyhow;
 use bld_config::definitions::{
     ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN,
 };
 use bld_config::BldConfig;
-use bld_core::execution::{EmptyExec, Execution};
+use bld_core::execution::Execution;
 use bld_core::logger::Logger;
 use bld_core::proxies::PipelineFileSystemProxy;
+use bld_supervisor::base::WorkerMessages;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc::Sender;
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>>>>;
 type AtomicExec = Arc<Mutex<dyn Execution>>;
 type AtomicLog = Arc<Mutex<dyn Logger>>;
-type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
 type AtomicVars = Arc<HashMap<String, String>>;
 type AtomicProxy = Arc<dyn PipelineFileSystemProxy>;
 
@@ -35,9 +34,10 @@ pub struct RunnerBuilder {
     lg: Option<AtomicLog>,
     prx: Option<AtomicProxy>,
     pip: Option<String>,
-    cm: Option<AtomicRecv>,
+    ipc: Arc<Option<Sender<WorkerMessages>>>,
     env: Option<AtomicVars>,
     vars: Option<AtomicVars>,
+    is_child: bool,
 }
 
 impl RunnerBuilder {
@@ -76,8 +76,8 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn receiver(mut self, cm: Option<AtomicRecv>) -> Self {
-        self.cm = cm;
+    pub fn ipc(mut self, sender: Arc<Option<Sender<WorkerMessages>>>) -> Self {
+        self.ipc = sender;
         self
     }
 
@@ -88,6 +88,11 @@ impl RunnerBuilder {
 
     pub fn variables(mut self, vars: AtomicVars) -> Self {
         self.vars = Some(vars);
+        self
+    }
+
+    pub fn is_child(mut self, is_child: bool) -> Self {
+        self.is_child = is_child;
         self
     }
 
@@ -156,10 +161,11 @@ impl RunnerBuilder {
             lg,
             prx,
             pip: pipeline,
-            cm: self.cm,
+            ipc: self.ipc,
             env,
             vars,
             platform,
+            is_child: self.is_child,
         })
     }
 }
@@ -172,26 +178,45 @@ pub struct Runner {
     lg: AtomicLog,
     prx: AtomicProxy,
     pip: Pipeline,
-    cm: Option<AtomicRecv>,
+    ipc: Arc<Option<Sender<WorkerMessages>>>,
     env: AtomicVars,
     vars: AtomicVars,
     platform: TargetPlatform,
+    is_child: bool,
 }
 
 impl Runner {
-    fn dumpln(&self, message: &str) {
+    fn log_dumpln(&self, message: &str) {
         let mut lg = self.lg.lock().unwrap();
         lg.dumpln(message);
     }
 
-    fn persist_start(&mut self) {
-        let mut exec = self.ex.lock().unwrap();
-        let _ = exec.update_running(true);
+    fn exec_persist_start(&self) {
+        if !self.is_child {
+            let mut exec = self.ex.lock().unwrap();
+            let _ = exec.update_state("running");
+        }
     }
 
-    fn persist_end(&mut self) {
-        let mut exec = self.ex.lock().unwrap();
-        let _ = exec.update_running(false);
+    fn exec_persist_end(&self) {
+        if !self.is_child {
+            let mut exec = self.ex.lock().unwrap();
+            let _ = exec.update_state("finished");
+        }
+    }
+
+    fn exec_check_stop_signal(&self) -> anyhow::Result<()> {
+        let exec = self.ex.lock().unwrap();
+        exec.check_stop_signal()
+    }
+
+    async fn ipc_send_completed(&self) -> anyhow::Result<()> {
+        if !self.is_child {
+            if let Some(ipc) = Option::as_ref(&self.ipc) {
+                ipc.send(WorkerMessages::Completed).await?;
+            }
+        }
+        Ok(())
     }
 
     fn info(&self) {
@@ -277,10 +302,10 @@ impl Runner {
     }
 
     async fn steps(&mut self) -> anyhow::Result<()> {
-        for step in self.pip.steps.iter() {
+        for step in &self.pip.steps {
             self.step(step).await?;
             self.artifacts(&step.name).await?;
-            self.cm.check_stop_signal()?;
+            self.exec_check_stop_signal()?;
         }
         Ok(())
     }
@@ -303,15 +328,16 @@ impl Runner {
                 .config(self.cfg.clone())
                 .proxy(self.prx.clone())
                 .pipeline(call)
-                .execution(EmptyExec::atom())
+                .execution(self.ex.clone())
                 .logger(self.lg.clone())
-                .receiver(self.cm.as_ref().cloned())
                 .environment(self.env.clone())
                 .variables(self.vars.clone())
+                .ipc(self.ipc.clone())
+                .is_child(true)
                 .build()
                 .await?;
             runner.run().await.await?;
-            self.cm.check_stop_signal()?;
+            self.exec_check_stop_signal()?;
         }
         Ok(())
     }
@@ -322,11 +348,13 @@ impl Runner {
             let command = self.apply_context(command);
             match &self.platform {
                 TargetPlatform::Container(container) => {
-                    container.sh(&working_dir, &command, &self.cm).await?
+                    container
+                        .sh(&working_dir, &command, self.ex.clone())
+                        .await?
                 }
-                TargetPlatform::Machine(machine) => machine.sh(&working_dir, &command)?,
+                TargetPlatform::Machine(machine) => machine.sh(&working_dir, &command).await?,
             }
-            self.cm.check_stop_signal()?;
+            self.exec_check_stop_signal()?;
         }
         Ok(())
     }
@@ -343,18 +371,20 @@ impl Runner {
 
     pub async fn run(mut self) -> RecursiveFuture {
         Box::pin(async move {
-            self.persist_start();
+            self.exec_persist_start();
             self.info();
             match self.artifacts(&None).await {
                 Ok(_) => {
                     if let Err(e) = self.steps().await {
-                        self.dumpln(&e.to_string());
+                        self.log_dumpln(&e.to_string());
                     }
                 }
-                Err(e) => self.dumpln(&e.to_string()),
+                Err(e) => self.log_dumpln(&e.to_string()),
             }
-            self.persist_end();
-            self.dispose().await
+            self.exec_persist_end();
+            self.dispose().await?;
+            self.ipc_send_completed().await?;
+            Ok(())
         })
     }
 }

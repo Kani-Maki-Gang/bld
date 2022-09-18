@@ -2,21 +2,25 @@
 
 use crate::extractors::User;
 use actix::prelude::*;
-use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
+use actix_web::{
+    error::ErrorUnauthorized,
+    web::{Data, Payload},
+    Error, HttpRequest, HttpResponse,
+};
 use actix_web_actors::ws;
 use bld_config::BldConfig;
 use std::time::{Duration, Instant};
-use tracing::debug;
+use tracing::{debug, info};
 
 type StdResult<T, V> = std::result::Result<T, V>;
 
 pub struct HighAvailSocket {
-    _config: web::Data<BldConfig>,
+    _config: Data<BldConfig>,
     hb: Instant,
 }
 
 impl HighAvailSocket {
-    pub fn new(config: web::Data<BldConfig>) -> Self {
+    pub fn new(config: Data<BldConfig>) -> Self {
         Self {
             _config: config,
             hb: Instant::now(),
@@ -25,7 +29,7 @@ impl HighAvailSocket {
 
     fn heartbeat(act: &Self, ctx: &mut <Self as Actor>::Context) {
         if Instant::now().duration_since(act.hb) > Duration::from_secs(10) {
-            println!("High availability websocket heartbeat failed. disconnecting!");
+            info!("High availability websocket heartbeat failed. disconnecting!");
             ctx.stop();
             return;
         }
@@ -68,8 +72,8 @@ impl StreamHandler<StdResult<ws::Message, ws::ProtocolError>> for HighAvailSocke
 pub async fn ws_high_avail(
     user: Option<User>,
     req: HttpRequest,
-    stream: web::Payload,
-    config: web::Data<BldConfig>,
+    stream: Payload,
+    config: Data<BldConfig>,
 ) -> StdResult<HttpResponse, Error> {
     debug!("starting high avail web socket");
     if user.is_none() {

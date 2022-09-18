@@ -12,6 +12,8 @@ pub mod remove;
 pub mod run;
 pub mod server;
 pub mod stop;
+pub mod supervisor;
+pub mod worker;
 
 pub use cli::*;
 

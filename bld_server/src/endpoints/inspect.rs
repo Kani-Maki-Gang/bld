@@ -1,18 +1,17 @@
 use crate::extractors::User;
-use actix_web::{post, web, HttpResponse, Responder};
-use bld_config::BldConfig;
-use bld_core::database::pipeline;
+use actix_web::{
+    post,
+    web::{Data, Json},
+    HttpResponse, Responder,
+};
 use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
-use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::sqlite::SqliteConnection;
-use std::sync::Arc;
 use tracing::info;
 
 #[post("/inspect")]
 pub async fn inspect(
     user: Option<User>,
-    prx: web::Data<ServerPipelineProxy>,
-    body: web::Json<String>,
+    prx: Data<ServerPipelineProxy>,
+    body: Json<String>,
 ) -> impl Responder {
     info!("Reached handler for /inspect route");
     if user.is_none() {

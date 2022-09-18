@@ -70,8 +70,7 @@ impl BldCommand for RunCommand {
         let config = BldConfig::load()?;
         let pipeline = matches
             .value_of("pipeline")
-            .or(Some(TOOL_DEFAULT_PIPELINE))
-            .unwrap()
+            .unwrap_or(TOOL_DEFAULT_PIPELINE)
             .to_string();
         let detach = matches.is_present("detach");
         let env = parse_variables(matches, "environment");
@@ -131,15 +130,15 @@ impl BldCommand for RunCommand {
     }
 }
 
-fn parse_variables(matches: &ArgMatches<'_>, arg: &str) -> HashMap<String, String> {
+pub fn parse_variables(matches: &ArgMatches<'_>, arg: &str) -> HashMap<String, String> {
     matches
         .values_of(arg)
         .map(|variable| {
             variable
                 .map(|v| {
                     let mut split = v.split('=');
-                    let name = split.next().or(Some("")).unwrap().to_string();
-                    let value = split.next().or(Some("")).unwrap().to_string();
+                    let name = split.next().unwrap_or("").to_string();
+                    let value = split.next().unwrap_or("").to_string();
                     (name, value)
                 })
                 .collect::<HashMap<String, String>>()

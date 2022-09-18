@@ -1,39 +1,46 @@
 use crate::scanner::Scanner;
-use anyhow::anyhow;
+use bld_config::{path, BldConfig};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::path::Path;
-
-fn file_not_found() -> anyhow::Result<FileScanner> {
-    Err(anyhow!("file not found"))
-}
+use std::path::PathBuf;
+use std::sync::Arc;
 
 pub struct FileScanner {
-    file_handle: File,
-    _index: usize,
+    path: PathBuf,
+    file_handle: Option<File>,
+    _cfg: Arc<BldConfig>,
 }
 
 impl FileScanner {
-    pub fn new(path: &str) -> anyhow::Result<Self> {
-        let fpath = Path::new(path);
-        let file_handle = match fpath.is_file() {
-            true => File::open(path)?,
-            false => return file_not_found(),
+    pub fn new(cfg: Arc<BldConfig>, run_id: &str) -> Self {
+        Self {
+            path: path![&cfg.local.logs, run_id],
+            file_handle: None,
+            _cfg: cfg,
+        }
+    }
+
+    fn try_open(&mut self) {
+        if self.file_handle.is_some() {
+            return;
+        }
+        self.file_handle = match self.path.is_file() {
+            true => File::open(&self.path).map(Some).unwrap_or(None),
+            false => None,
         };
-        Ok(Self {
-            file_handle,
-            _index: 0,
-        })
     }
 }
 
 impl Scanner for FileScanner {
     fn fetch(&mut self) -> Vec<String> {
-        let mut content = Vec::<String>::new();
-        let reader = BufReader::new(&self.file_handle);
-        for (_i, line) in reader.lines().enumerate() {
-            if let Ok(line) = line {
-                content.push(line);
+        self.try_open();
+        let mut content: Vec<String> = vec![];
+        if let Some(file_handle) = &self.file_handle {
+            let reader = BufReader::new(file_handle);
+            for (_i, line) in reader.lines().enumerate() {
+                if let Ok(line) = line {
+                    content.push(line);
+                }
             }
         }
         content

@@ -10,7 +10,11 @@ impl EmptyExec {
 }
 
 impl Execution for EmptyExec {
-    fn update_running(&mut self, _running: bool) -> anyhow::Result<()> {
+    fn update_state(&mut self, _state: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn check_stop_signal(&self) -> anyhow::Result<()> {
         Ok(())
     }
 }

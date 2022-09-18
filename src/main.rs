@@ -27,11 +27,13 @@ fn main() {
         list::ListCommand::boxed(),
         remove::RemoveCommand::boxed(),
         monit::MonitCommand::boxed(),
+        supervisor::SupervisorCommand::boxed(),
         push::PushCommand::boxed(),
         pull::PullCommand::boxed(),
         run::RunCommand::boxed(),
         server::ServerCommand::boxed(),
         stop::StopCommand::boxed(),
+        worker::WorkerCommand::boxed(),
     ];
 
     let cli = App::new("Bld")

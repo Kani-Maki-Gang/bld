@@ -221,11 +221,12 @@ This will send a request to the provided validation url in order to fetch the us
 ```yaml
 local:
     enable-server: true 
+    server:
+      host: 127.0.0.1
+      port: 6080
     auth:
       method: oauth2
       validation-url: https://api.github.com/user
-    host: 127.0.0.1
-    port: 6080
     logs: .bld/logs
     db: .bld/db
     docker-url: tcp://127.0.0.1:2376

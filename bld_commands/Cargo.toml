@@ -14,6 +14,7 @@ awc = "3.0.0"
 bld_config = { path = "../bld_config" }
 bld_utils = { path = "../bld_utils" }
 bld_core = { path = "../bld_core" }
+bld_supervisor = { path = "../bld_supervisor" }
 bld_runner = { path = "../bld_runner" }
 bld_server = { path = "../bld_server" }
 chrono = "0.4.19"

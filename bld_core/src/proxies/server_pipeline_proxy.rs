@@ -31,7 +31,7 @@ impl PipelineFileSystemProxy for ServerPipelineProxy {
         let conn = self.pool.get()?;
         let pip = pipeline::select_by_name(&conn, name)?;
         Ok(path![
-            &self.config.local.server_pipelines,
+            &self.config.local.server.pipelines,
             format!("{}.yaml", pip.id)
         ])
     }

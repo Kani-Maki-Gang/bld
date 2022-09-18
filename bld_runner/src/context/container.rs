@@ -1,6 +1,6 @@
-use crate::CheckStopSignal;
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use bld_config::BldConfig;
+use bld_core::execution::Execution;
 use bld_core::logger::Logger;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
@@ -8,34 +8,33 @@ use shiplift::tty::TtyChunk;
 use shiplift::{ContainerOptions, Docker, ExecContainerOptions, ImageListOptions, PullOptions};
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
 use tar::Archive;
 
-type AtomicRecv = Arc<Mutex<Receiver<bool>>>;
+type AtomicLogger = Arc<Mutex<dyn Logger>>;
 
 pub struct Container {
     pub config: Option<Arc<BldConfig>>,
     pub img: String,
     pub client: Option<Docker>,
     pub id: Option<String>,
-    pub lg: Arc<Mutex<dyn Logger>>,
+    pub lg: AtomicLogger,
 }
 
 impl Container {
     fn get_client(&self) -> anyhow::Result<&Docker> {
         match &self.client {
             Some(client) => Ok(client),
-            None => Err(anyhow!("container not started")),
+            None => bail!("container not started"),
         }
     }
 
     fn get_id(&self) -> anyhow::Result<&str> {
         match &self.id {
             Some(id) => Ok(id),
-            None => Err(anyhow!("container id not found")),
+            None => bail!("container id not found"),
         }
     }
 
@@ -45,11 +44,7 @@ impl Container {
         Ok(host)
     }
 
-    async fn pull(
-        client: &Docker,
-        image: &str,
-        logger: &mut Arc<Mutex<dyn Logger>>,
-    ) -> anyhow::Result<()> {
+    async fn pull(client: &Docker, image: &str, logger: &mut AtomicLogger) -> anyhow::Result<()> {
         let options = ImageListOptions::builder().filter_name(image).build();
         let images = client.images().list(&options).await?;
         if images.is_empty() {
@@ -75,7 +70,7 @@ impl Container {
         client: &Docker,
         image: &str,
         env: &[String],
-        logger: &mut Arc<Mutex<dyn Logger>>,
+        logger: &mut AtomicLogger,
     ) -> anyhow::Result<String> {
         Container::pull(client, image, logger).await?;
         let options = ContainerOptions::builder(image).env(env).tty(true).build();
@@ -88,7 +83,7 @@ impl Container {
         img: &str,
         cfg: Arc<BldConfig>,
         env: Arc<HashMap<String, String>>,
-        lg: Arc<Mutex<dyn Logger>>,
+        lg: AtomicLogger,
     ) -> anyhow::Result<Self> {
         let client = Container::docker(&cfg)?;
         let env: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
@@ -123,7 +118,7 @@ impl Container {
         &self,
         working_dir: &Option<String>,
         input: &str,
-        cm: &Option<AtomicRecv>,
+        ex: Arc<Mutex<dyn Execution>>,
     ) -> anyhow::Result<()> {
         let client = self.get_client()?;
         let id = self.get_id()?;
@@ -141,7 +136,10 @@ impl Container {
         let container = client.containers().get(id);
         let mut exec_iter = container.exec(&options);
         while let Some(result) = exec_iter.next().await {
-            cm.check_stop_signal()?;
+            {
+                let exec = ex.lock().unwrap();
+                exec.check_stop_signal()?
+            }
             let chunk = match result {
                 Ok(TtyChunk::StdOut(bytes)) => String::from_utf8(bytes).unwrap(),
                 Ok(TtyChunk::StdErr(bytes)) => String::from_utf8(bytes).unwrap(),

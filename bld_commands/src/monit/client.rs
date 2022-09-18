@@ -1,13 +1,12 @@
 use actix::io::{SinkWrite, WriteHandler};
-use actix::{Actor, ActorContext, AsyncContext, Context, Handler, StreamHandler, System};
+use actix::{Actor, ActorContext, Context, Handler, StreamHandler, System};
 use actix_codec::Framed;
-use actix_web::web::Bytes;
 use awc::error::WsProtocolError;
 use awc::ws::{Codec, Frame, Message};
 use awc::BoxedSocket;
 use bld_server::requests::MonitInfo;
 use futures::stream::SplitSink;
-use std::time::Duration;
+use tracing::debug;
 
 pub struct MonitClient {
     writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>,
@@ -17,24 +16,20 @@ impl MonitClient {
     pub fn new(writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>) -> Self {
         Self { writer }
     }
-
-    fn heartbeat(&mut self, ctx: &mut Context<Self>) {
-        ctx.run_interval(Duration::new(1, 0), |act, ctx| {
-            let _ = act.writer.write(Message::Ping(Bytes::from_static(b"")));
-            act.heartbeat(ctx);
-        });
-    }
 }
 
 impl Actor for MonitClient {
     type Context = Context<Self>;
 
-    fn started(&mut self, ctx: &mut Context<Self>) {
-        self.heartbeat(ctx)
+    fn started(&mut self, _ctx: &mut Context<Self>) {
+        debug!("monit socket started");
     }
 
-    fn stopped(&mut self, _: &mut Context<Self>) {
-        System::current().stop();
+    fn stopped(&mut self, _ctx: &mut Context<Self>) {
+        debug!("monit socket stoppped");
+        if let Some(sys) = System::try_current() {
+            sys.stop();
+        }
     }
 }
 

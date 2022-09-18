@@ -22,7 +22,7 @@ pub struct ExecConnectionInfo {
 }
 
 async fn remote_invoke(info: ExecConnectionInfo) -> anyhow::Result<()> {
-    let url = format!("http://{}:{}/ws-exec/", info.host, info.port);
+    let url = format!("ws://{}:{}/ws-exec/", info.host, info.port);
     debug!("establishing web socker connection on {}", url);
     let mut client = Client::new().ws(url);
     for (key, value) in info.headers.iter() {

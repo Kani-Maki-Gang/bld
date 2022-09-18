@@ -3,6 +3,7 @@ use bld_config::definitions::LOCAL_MACHINE_TMP_DIR;
 use bld_config::{os_name, path, OSname};
 use bld_core::logger::Logger;
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
@@ -44,14 +45,9 @@ impl Machine {
         self.copy(from, to)
     }
 
-    pub fn sh(&self, working_dir: &Option<String>, input: &str) -> anyhow::Result<()> {
-        let mut logger = self.lg.lock().unwrap();
+    pub async fn sh(&self, working_dir: &Option<String>, input: &str) -> anyhow::Result<()> {
         let os_name = os_name();
-        let current_dir = working_dir
-            .as_ref()
-            .or(Some(&self.tmp_dir))
-            .unwrap()
-            .to_string();
+        let current_dir = working_dir.as_ref().unwrap_or(&self.tmp_dir).to_string();
         let current_dir = if Path::new(&current_dir).is_relative() {
             path![&self.tmp_dir, current_dir].display().to_string()
         } else {
@@ -71,9 +67,17 @@ impl Machine {
         command.current_dir(current_dir);
 
         let process = command.output()?;
-        let mut output = String::from_utf8_lossy(&process.stderr).to_string();
-        output.push_str(&format!("\r\n{}", String::from_utf8_lossy(&process.stdout)));
-        logger.dump(&output);
+        let mut output = String::new();
+        if process.stderr.len() > 0 {
+            write!(output, "{}\r\n", String::from_utf8_lossy(&process.stderr))?;
+        }
+        if process.stdout.len() > 0 {
+            write!(output, "{}", String::from_utf8_lossy(&process.stdout))?;
+        }
+        {
+            let mut logger = self.lg.lock().unwrap();
+            logger.dump(&output);
+        }
 
         Ok(())
     }

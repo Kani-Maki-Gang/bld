@@ -1,21 +1,20 @@
 use crate::extractors::User;
-use actix_web::{post, web, HttpResponse, Responder};
+use actix_web::{
+    post,
+    web::{Data, Json},
+    HttpResponse, Responder,
+};
 use anyhow::anyhow;
-use bld_config::BldConfig;
-use bld_core::database::pipeline;
 use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
 use bld_runner::Pipeline;
-use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::sqlite::SqliteConnection;
 use std::collections::HashMap;
-use std::sync::Arc;
 use tracing::{debug, info};
 
 #[post("/deps")]
 pub async fn deps(
     user: Option<User>,
-    prx: web::Data<ServerPipelineProxy>,
-    body: web::Json<String>,
+    prx: Data<ServerPipelineProxy>,
+    body: Json<String>,
 ) -> impl Responder {
     info!("Reached handler for /deps route");
     if user.is_none() {

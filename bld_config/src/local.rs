@@ -1,5 +1,4 @@
-use crate::definitions;
-use crate::AuthValidation;
+use crate::{definitions, AuthValidation, BldLocalServerConfig, BldLocalSupervisorConfig};
 use anyhow::anyhow;
 use async_raft::NodeId;
 use tracing::debug;
@@ -9,11 +8,10 @@ use yaml_rust::Yaml;
 pub struct BldLocalConfig {
     pub ha_mode: bool,
     pub node_id: Option<NodeId>,
-    pub host: String,
-    pub port: i64,
+    pub server: BldLocalServerConfig,
+    pub supervisor: BldLocalSupervisorConfig,
     pub logs: String,
     pub db: String,
-    pub server_pipelines: String,
     pub auth: AuthValidation,
     pub docker_url: String,
 }
@@ -25,13 +23,8 @@ impl BldLocalConfig {
             .as_bool()
             .unwrap_or(definitions::LOCAL_HA_MODE);
         let node_id = local_yaml["node-id"].as_i64().map(|n| n as NodeId);
-        let host = local_yaml["host"]
-            .as_str()
-            .unwrap_or(definitions::LOCAL_SERVER_HOST)
-            .to_string();
-        let port = local_yaml["port"]
-            .as_i64()
-            .unwrap_or(definitions::LOCAL_SERVER_PORT);
+        let server = BldLocalServerConfig::load(&local_yaml["server"])?;
+        let supervisor = BldLocalSupervisorConfig::load(&local_yaml["supervisor"])?;
         let logs = local_yaml["logs"]
             .as_str()
             .unwrap_or(definitions::LOCAL_LOGS)
@@ -39,10 +32,6 @@ impl BldLocalConfig {
         let db = local_yaml["db"]
             .as_str()
             .unwrap_or(definitions::LOCAL_DB)
-            .to_string();
-        let server_pipelines = local_yaml["server-pipelines"]
-            .as_str()
-            .unwrap_or(definitions::LOCAL_SERVER_PIPELINES)
             .to_string();
         let docker_url = local_yaml["docker-url"]
             .as_str()
@@ -52,11 +41,10 @@ impl BldLocalConfig {
         let instance = Self {
             ha_mode,
             node_id,
-            host,
-            port,
+            server,
+            supervisor,
             logs,
             db,
-            server_pipelines,
             auth,
             docker_url,
         };
@@ -82,8 +70,12 @@ impl BldLocalConfig {
         debug!("loaded local configuration");
         debug!("ha-mode: {}", self.ha_mode);
         debug!("node-id: {:?}", self.node_id);
-        debug!("host: {}", self.host);
-        debug!("port: {}", self.port);
+        debug!("server > host: {}", self.server.host);
+        debug!("server > port: {}", self.server.port);
+        debug!("server > pipelines: {}", self.server.pipelines);
+        debug!("supervisor > host {}", self.supervisor.host);
+        debug!("supervisor > port {}", self.supervisor.port);
+        debug!("supervisor > workers {}", self.supervisor.workers);
         debug!("logs: {}", self.logs);
         debug!("db: {}", self.db);
         debug!("docker-url: {}", self.docker_url);
@@ -99,11 +91,10 @@ impl Default for BldLocalConfig {
         Self {
             ha_mode: definitions::LOCAL_HA_MODE,
             node_id: None,
-            host: definitions::LOCAL_SERVER_HOST.to_string(),
-            port: definitions::LOCAL_SERVER_PORT,
+            server: BldLocalServerConfig::default(),
+            supervisor: BldLocalSupervisorConfig::default(),
             logs: definitions::LOCAL_LOGS.to_string(),
             db: definitions::LOCAL_DB.to_string(),
-            server_pipelines: definitions::LOCAL_SERVER_PIPELINES.to_string(),
             auth: AuthValidation::None,
             docker_url: definitions::LOCAL_DOCKER_URL.to_string(),
         }
