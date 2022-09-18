@@ -1,13 +1,17 @@
 use crate::extractors::User;
-use actix_web::{post, web, HttpResponse};
+use actix_web::{
+    post,
+    web::{Data, Json},
+    HttpResponse,
+};
 use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
 use tracing::info;
 
 #[post("/remove")]
 pub async fn remove(
     user: Option<User>,
-    prx: web::Data<ServerPipelineProxy>,
-    body: web::Json<String>,
+    prx: Data<ServerPipelineProxy>,
+    body: Json<String>,
 ) -> HttpResponse {
     info!("Reached handler for /remove route");
     if user.is_none() {

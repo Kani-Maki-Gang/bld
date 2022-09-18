@@ -5,7 +5,12 @@ use crate::endpoints::{
 use crate::queue::EnqueueClient;
 use crate::sockets::{ws_exec, ws_high_avail, ws_monit};
 use actix::{io::SinkWrite, Actor, Addr, StreamHandler};
-use actix_web::{middleware, web, App, HttpServer};
+use actix_web::{
+    middleware,
+    rt::spawn,
+    web::{get, resource, Data},
+    App, HttpServer,
+};
 use anyhow::anyhow;
 use awc::Client;
 use bld_config::BldConfig;
@@ -22,17 +27,17 @@ use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
 async fn spawn_server(
-    config: web::Data<BldConfig>,
+    config: Data<BldConfig>,
     host: String,
     port: i64,
     enqueue_tx: Sender<ServerMessages>,
 ) -> anyhow::Result<()> {
     info!("starting bld server at {}:{}", host, port);
     let pool = new_connection_pool(&config.local.db)?;
-    let enqueue_tx = web::Data::new(Mutex::new(enqueue_tx));
-    let ha = web::Data::new(HighAvail::new(&config, pool.clone()).await?);
-    let pool = web::Data::new(pool);
-    let prx = web::Data::new(ServerPipelineProxy::new(
+    let enqueue_tx = Data::new(Mutex::new(enqueue_tx));
+    let ha = Data::new(HighAvail::new(&config, pool.clone()).await?);
+    let pool = Data::new(pool);
+    let prx = Data::new(ServerPipelineProxy::new(
         Arc::clone(&config),
         Arc::clone(&pool),
     ));
@@ -58,9 +63,9 @@ async fn spawn_server(
             .service(pull)
             .service(stop)
             .service(inspect)
-            .service(web::resource("/ws-exec/").route(web::get().to(ws_exec)))
-            .service(web::resource("/ws-monit/").route(web::get().to(ws_monit)))
-            .service(web::resource("/ws-ha/").route(web::get().to(ws_high_avail)))
+            .service(resource("/ws-exec/").route(get().to(ws_exec)))
+            .service(resource("/ws-monit/").route(get().to(ws_monit)))
+            .service(resource("/ws-ha/").route(get().to(ws_high_avail)))
     })
     .bind(format!("{host}:{port}"))?
     .run()
@@ -98,11 +103,11 @@ fn create_supervisor() -> anyhow::Result<Child> {
 }
 
 pub async fn start(config: BldConfig, host: String, port: i64) -> anyhow::Result<()> {
-    let config = web::Data::new(config);
+    let config = Data::new(config);
     let config_clone = Arc::clone(&config);
     let mut supervisor = create_supervisor()?; // set to kill the supervisor process on drop.
     let (enqueue_tx, enqueue_rx) = channel(4096);
-    let web_server_handle = actix_web::rt::spawn(async move {
+    let web_server_handle = spawn(async move {
         let _ = spawn_server(config, host, port, enqueue_tx)
             .await
             .map_err(|e| {
@@ -110,7 +115,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> anyhow::Result
                 e
             });
     });
-    let socket_handle = actix_web::rt::spawn(async move {
+    let socket_handle = spawn(async move {
         let _ = supervisor_socket(config_clone, enqueue_rx)
             .await
             .map_err(|e| {

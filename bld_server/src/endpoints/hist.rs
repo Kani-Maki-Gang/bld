@@ -1,5 +1,5 @@
 use crate::extractors::User;
-use actix_web::{get, web, HttpResponse, Responder};
+use actix_web::{get, web::Data, HttpResponse, Responder};
 use bld_core::database::pipeline_runs;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
@@ -8,7 +8,7 @@ use tracing::info;
 #[get("/hist")]
 pub async fn hist(
     user: Option<User>,
-    db_pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
+    db_pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
 ) -> impl Responder {
     info!("Reached handler for /hist route");
     if user.is_none() {

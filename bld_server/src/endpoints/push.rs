@@ -1,6 +1,10 @@
 use crate::extractors::User;
 use crate::requests::PushInfo;
-use actix_web::{post, web, HttpResponse, Responder};
+use actix_web::{
+    post,
+    web::{Data, Json},
+    HttpResponse, Responder,
+};
 use bld_core::database::pipeline;
 use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
 use diesel::r2d2::{ConnectionManager, Pool};
@@ -11,9 +15,9 @@ use uuid::Uuid;
 #[post("/push")]
 pub async fn push(
     user: Option<User>,
-    prx: web::Data<ServerPipelineProxy>,
-    pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
-    info: web::Json<PushInfo>,
+    prx: Data<ServerPipelineProxy>,
+    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    info: Json<PushInfo>,
 ) -> impl Responder {
     info!("Reached handler for /push route");
     if user.is_none() {

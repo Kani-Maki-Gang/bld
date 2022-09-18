@@ -3,7 +3,10 @@ use crate::{
     queues::WorkerQueue,
 };
 use actix::prelude::*;
-use actix_web::{web, Error, HttpRequest, HttpResponse};
+use actix_web::{
+    web::{Bytes, Data, Payload},
+    Error, HttpRequest, HttpResponse,
+};
 use actix_web_actors::ws;
 use bld_core::workers::PipelineWorker;
 use std::env::current_exe;
@@ -12,15 +15,15 @@ use std::sync::Mutex;
 use tracing::{debug, error, info};
 
 pub struct QueueWorkerSocket {
-    worker_queue: web::Data<Mutex<WorkerQueue>>,
+    worker_queue: Data<Mutex<WorkerQueue>>,
 }
 
 impl QueueWorkerSocket {
-    pub fn new(worker_queue: web::Data<Mutex<WorkerQueue>>) -> Self {
+    pub fn new(worker_queue: Data<Mutex<WorkerQueue>>) -> Self {
         Self { worker_queue }
     }
 
-    fn handle_message(&self, bytes: &web::Bytes) -> anyhow::Result<()> {
+    fn handle_message(&self, bytes: &Bytes) -> anyhow::Result<()> {
         let msg: ServerMessages = serde_json::from_slice(&bytes[..])?;
         match msg {
             ServerMessages::Ack => info!("a new server connection was acknowledged"),
@@ -94,8 +97,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for QueueWorkerSocket
 
 pub async fn ws_queue_worker(
     req: HttpRequest,
-    stream: web::Payload,
-    worker_queue: web::Data<Mutex<WorkerQueue>>,
+    stream: Payload,
+    worker_queue: Data<Mutex<WorkerQueue>>,
 ) -> Result<HttpResponse, Error> {
     let socket = QueueWorkerSocket::new(worker_queue);
     ws::start(socket, &req, stream)

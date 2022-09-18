@@ -1,5 +1,9 @@
 use crate::extractors::User;
-use actix_web::{post, web, HttpResponse, Responder};
+use actix_web::{
+    post,
+    web::{Data, Json},
+    HttpResponse, Responder,
+};
 use bld_core::database::pipeline_runs;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
@@ -8,8 +12,8 @@ use tracing::info;
 #[post("/stop")]
 pub async fn stop(
     user: Option<User>,
-    pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
-    req: web::Json<String>,
+    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    req: Json<String>,
 ) -> impl Responder {
     info!("Reached handler for /stop route");
     if user.is_none() {

@@ -1,5 +1,5 @@
 use crate::extractors::User;
-use actix_web::{get, web, HttpResponse};
+use actix_web::{get, web::Data, HttpResponse};
 use bld_core::database::pipeline;
 use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
 use bld_utils::fs::IsYaml;
@@ -10,8 +10,8 @@ use tracing::info;
 #[get("/list")]
 pub async fn list(
     user: Option<User>,
-    prx: web::Data<ServerPipelineProxy>,
-    pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
+    prx: Data<ServerPipelineProxy>,
+    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
 ) -> HttpResponse {
     info!("Reached handler for /list route");
     if user.is_none() {

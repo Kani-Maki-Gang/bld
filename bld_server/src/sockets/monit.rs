@@ -1,7 +1,11 @@
 use crate::extractors::User;
 use crate::requests::MonitInfo;
 use actix::prelude::*;
-use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
+use actix_web::{
+    error::ErrorUnauthorized,
+    web::{Data, Payload},
+    Error, HttpRequest, HttpResponse,
+};
 use actix_web_actors::ws;
 use anyhow::anyhow;
 use bld_config::BldConfig;
@@ -14,15 +18,15 @@ use std::time::Duration;
 
 pub struct MonitorPipelineSocket {
     id: String,
-    pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
-    config: web::Data<BldConfig>,
+    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    config: Data<BldConfig>,
     scanner: Option<FileScanner>,
 }
 
 impl MonitorPipelineSocket {
     pub fn new(
-        pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
-        config: web::Data<BldConfig>,
+        pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+        config: Data<BldConfig>,
     ) -> Self {
         Self {
             id: String::new(),
@@ -115,9 +119,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MonitorPipelineSo
 pub async fn ws_monit(
     user: Option<User>,
     req: HttpRequest,
-    stream: web::Payload,
-    pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
-    config: web::Data<BldConfig>,
+    stream: Payload,
+    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    config: Data<BldConfig>,
 ) -> Result<HttpResponse, Error> {
     if user.is_none() {
         return Err(ErrorUnauthorized(""));

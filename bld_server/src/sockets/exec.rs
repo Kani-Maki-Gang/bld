@@ -1,6 +1,11 @@
 use crate::extractors::User;
 use actix::prelude::*;
-use actix_web::{error::ErrorUnauthorized, web, Error, HttpRequest, HttpResponse};
+use actix_web::{
+    error::ErrorUnauthorized,
+    rt::spawn,
+    web::{Data, Payload},
+    Error, HttpRequest, HttpResponse,
+};
 use actix_web_actors::ws;
 use anyhow::anyhow;
 use bld_config::BldConfig;
@@ -20,10 +25,10 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 pub struct ExecutePipelineSocket {
-    config: web::Data<BldConfig>,
-    enqueue_tx: web::Data<Mutex<Sender<ServerMessages>>>,
-    pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
-    proxy: web::Data<ServerPipelineProxy>,
+    config: Data<BldConfig>,
+    enqueue_tx: Data<Mutex<Sender<ServerMessages>>>,
+    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    proxy: Data<ServerPipelineProxy>,
     user: User,
     scanner: Option<FileScanner>,
     run_id: Option<String>,
@@ -32,10 +37,10 @@ pub struct ExecutePipelineSocket {
 impl ExecutePipelineSocket {
     pub fn new(
         user: User,
-        config: web::Data<BldConfig>,
-        enqueue_tx: web::Data<Mutex<Sender<ServerMessages>>>,
-        pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
-        proxy: web::Data<ServerPipelineProxy>,
+        config: Data<BldConfig>,
+        enqueue_tx: Data<Mutex<Sender<ServerMessages>>>,
+        pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+        proxy: Data<ServerPipelineProxy>,
     ) -> Self {
         Self {
             config,
@@ -102,7 +107,7 @@ impl ExecutePipelineSocket {
         self.run_id = Some(run_id.clone());
 
         let enqueue_tx = self.enqueue_tx.clone();
-        actix_web::rt::spawn(async move {
+        spawn(async move {
             let tx = enqueue_tx.lock().await;
             let msg = ServerMessages::Enqueue {
                 pipeline: info.name.to_string(),
@@ -158,11 +163,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSo
 pub async fn ws_exec(
     user: Option<User>,
     req: HttpRequest,
-    stream: web::Payload,
-    cfg: web::Data<BldConfig>,
-    enqueue_tx: web::Data<Mutex<Sender<ServerMessages>>>,
-    pool: web::Data<Pool<ConnectionManager<SqliteConnection>>>,
-    proxy: web::Data<ServerPipelineProxy>,
+    stream: Payload,
+    cfg: Data<BldConfig>,
+    enqueue_tx: Data<Mutex<Sender<ServerMessages>>>,
+    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    proxy: Data<ServerPipelineProxy>,
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{req:?}");

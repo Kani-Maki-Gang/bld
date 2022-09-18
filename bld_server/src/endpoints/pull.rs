@@ -1,14 +1,18 @@
 use crate::extractors::User;
 use crate::responses::PullResponse;
-use actix_web::{post, web, HttpResponse, Responder};
+use actix_web::{
+    post,
+    web::{Data, Json},
+    HttpResponse, Responder,
+};
 use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
 use tracing::info;
 
 #[post("/pull")]
 pub async fn pull(
     user: Option<User>,
-    prx: web::Data<ServerPipelineProxy>,
-    body: web::Json<String>,
+    prx: Data<ServerPipelineProxy>,
+    body: Json<String>,
 ) -> impl Responder {
     info!("Reached handler for /pull route");
     if user.is_none() {

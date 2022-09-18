@@ -1,12 +1,16 @@
-use actix_web::{post, web, HttpResponse, Responder};
+use actix_web::{
+    post,
+    web::{Data, Json},
+    HttpResponse, Responder,
+};
 use async_raft::raft::{AppendEntriesRequest, InstallSnapshotRequest, VoteRequest};
 use bld_core::high_avail::{AgentRequest, HighAvail};
 use tracing::{debug, error, info};
 
 #[post("/ha/appendEntries")]
 pub async fn ha_append_entries(
-    body: web::Json<AppendEntriesRequest<AgentRequest>>,
-    ha: web::Data<HighAvail>,
+    body: Json<AppendEntriesRequest<AgentRequest>>,
+    ha: Data<HighAvail>,
 ) -> impl Responder {
     info!("Reached handler for /ha/appendEntries route");
     let body = body.into_inner();
@@ -22,8 +26,8 @@ pub async fn ha_append_entries(
 
 #[post("/ha/installSnapshot")]
 pub async fn ha_install_snapshot(
-    body: web::Json<InstallSnapshotRequest>,
-    ha: web::Data<HighAvail>,
+    body: Json<InstallSnapshotRequest>,
+    ha: Data<HighAvail>,
 ) -> impl Responder {
     info!("Reached handler for /ha/installSnapshot route");
     let body = body.into_inner();
@@ -37,7 +41,7 @@ pub async fn ha_install_snapshot(
 }
 
 #[post("/ha/vote")]
-pub async fn ha_vote(body: web::Json<VoteRequest>, ha: web::Data<HighAvail>) -> impl Responder {
+pub async fn ha_vote(body: Json<VoteRequest>, ha: Data<HighAvail>) -> impl Responder {
     info!("Reached handler for /ha/vote route");
     let body = body.into_inner();
     if let HighAvail::Enabled(th) = ha.get_ref() {

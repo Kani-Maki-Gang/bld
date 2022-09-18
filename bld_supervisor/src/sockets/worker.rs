@@ -3,18 +3,21 @@ use crate::{
     queues::WorkerQueue,
 };
 use actix::prelude::*;
-use actix_web::{web, Error, HttpRequest, HttpResponse};
+use actix_web::{
+    web::{Bytes, Data, Payload},
+    Error, HttpRequest, HttpResponse,
+};
 use actix_web_actors::ws;
 use std::sync::Mutex;
 use tracing::{debug, error, info};
 
 pub struct ActiveWorkerSocket {
     worker_pid: Option<u32>,
-    worker_queue: web::Data<Mutex<WorkerQueue>>,
+    worker_queue: Data<Mutex<WorkerQueue>>,
 }
 
 impl ActiveWorkerSocket {
-    pub fn new(worker_queue: web::Data<Mutex<WorkerQueue>>) -> Self {
+    pub fn new(worker_queue: Data<Mutex<WorkerQueue>>) -> Self {
         Self {
             worker_pid: None,
             worker_queue,
@@ -23,7 +26,7 @@ impl ActiveWorkerSocket {
 
     fn handle_message(
         &mut self,
-        bytes: &web::Bytes,
+        bytes: &Bytes,
         ctx: &mut <Self as Actor>::Context,
     ) -> anyhow::Result<()> {
         let msg: WorkerMessages = serde_json::from_slice(&bytes[..])?;
@@ -85,8 +88,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ActiveWorkerSocke
 
 pub async fn ws_active_worker(
     req: HttpRequest,
-    stream: web::Payload,
-    worker_queue: web::Data<Mutex<WorkerQueue>>,
+    stream: Payload,
+    worker_queue: Data<Mutex<WorkerQueue>>,
 ) -> Result<HttpResponse, Error> {
     let socket = ActiveWorkerSocket::new(worker_queue);
     ws::start(socket, &req, stream)
