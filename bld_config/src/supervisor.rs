@@ -23,7 +23,7 @@ impl BldLocalSupervisorConfig {
         Ok(Self {
             host,
             port,
-            workers
+            workers,
         })
     }
 }

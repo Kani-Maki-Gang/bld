@@ -6,7 +6,7 @@ use actix::prelude::*;
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use std::sync::Mutex;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 pub struct ActiveWorkerSocket {
     worker_pid: Option<u32>,
@@ -44,7 +44,9 @@ impl ActiveWorkerSocket {
     fn cleanup(&self, ctx: &mut <Self as Actor>::Context) {
         if let Some(pid) = self.worker_pid {
             let mut queue = self.worker_queue.lock().unwrap();
-            queue.dequeue(&vec![pid]);
+            if let Err(e) = queue.dequeue(pid) {
+                error!("{e}");
+            }
         }
         ctx.stop();
     }

@@ -2,13 +2,22 @@ use anyhow::anyhow;
 use std::process::{Child, Command, ExitStatus};
 
 pub struct PipelineWorker {
+    run_id: String,
     cmd: Command,
     child: Option<Child>,
 }
 
 impl PipelineWorker {
-    pub fn new(cmd: Command) -> Self {
-        Self { cmd, child: None }
+    pub fn new(run_id: String, cmd: Command) -> Self {
+        Self {
+            run_id,
+            cmd,
+            child: None,
+        }
+    }
+
+    pub fn get_run_id(&self) -> &str {
+        &self.run_id
     }
 
     pub fn get_pid(&self) -> Option<u32> {

@@ -102,8 +102,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MonitorPipelineSo
             Ok(ws::Message::Ping(msg)) => {
                 ctx.pong(&msg);
             }
-            Ok(ws::Message::Pong(_)) => {
-            }
+            Ok(ws::Message::Pong(_)) => {}
             Ok(ws::Message::Close(reason)) => {
                 ctx.close(reason);
                 ctx.stop();

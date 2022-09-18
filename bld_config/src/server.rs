@@ -26,10 +26,10 @@ impl BldLocalServerConfig {
         Ok(Self {
             host,
             port,
-            pipelines
+            pipelines,
         })
     }
-} 
+}
 
 impl Default for BldLocalServerConfig {
     fn default() -> Self {

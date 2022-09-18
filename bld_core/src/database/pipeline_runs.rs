@@ -97,7 +97,7 @@ pub fn insert(
     let run = InsertPipelineRun {
         id: pip_id,
         name: pip_name,
-        state: "queued",
+        state: "initial",
         user: pip_user,
     };
     conn.transaction(|| {

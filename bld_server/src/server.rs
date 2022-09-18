@@ -119,6 +119,6 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> anyhow::Result
             });
     });
     let _ = futures::join!(web_server_handle, socket_handle);
-	supervisor.kill().await?;
+    supervisor.kill().await?;
     Ok(())
 }

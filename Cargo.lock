@@ -542,6 +542,7 @@ dependencies = [
  "awc",
  "bld_config",
  "bld_core",
+ "diesel",
  "futures",
  "serde",
  "serde_derive",

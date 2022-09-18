@@ -16,6 +16,7 @@ anyhow = "1.0.40"
 async-trait = "0.1.50"
 bld_config = { path = "../bld_config" }
 bld_core = { path = "../bld_core" }
+diesel = { version = "1.4.6", features = ["sqlite", "r2d2"] }
 futures = "0.3.15"
 serde = "1.0.126"
 serde_derive = "1.0.126"

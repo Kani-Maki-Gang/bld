@@ -50,7 +50,7 @@ impl QueueWorkerSocket {
                     command.arg(&environment);
                 }
                 let mut queue = self.worker_queue.lock().unwrap();
-                queue.enqueue(PipelineWorker::new(command));
+                queue.enqueue(PipelineWorker::new(run_id, command))?;
                 info!("worker for pipeline: {pipeline} has been queued");
             }
         }

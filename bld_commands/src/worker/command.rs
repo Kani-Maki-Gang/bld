@@ -85,10 +85,12 @@ impl BldCommand for WorkerCommand {
         let worker_tx = Arc::new(Some(worker_tx));
         System::new().block_on(async move {
             let socket_handle = actix_web::rt::spawn(async move {
-                let _ = connect_to_supervisor(socket_cfg, worker_rx).await.map_err(|e| {
-                    error!("{e}");
-                    e
-                });
+                let _ = connect_to_supervisor(socket_cfg, worker_rx)
+                    .await
+                    .map_err(|e| {
+                        error!("{e}");
+                        e
+                    });
             });
             let runner_handle = actix_web::rt::spawn(async move {
                 if let Ok(runner) = RunnerBuilder::default()
@@ -117,8 +119,14 @@ impl BldCommand for WorkerCommand {
     }
 }
 
-async fn connect_to_supervisor(config: Arc<BldConfig>, mut worker_rx: Receiver<WorkerMessages>) -> anyhow::Result<()> {
-    let url = format!("ws://{}:{}/ws-worker/", config.local.supervisor.host, config.local.supervisor.port);
+async fn connect_to_supervisor(
+    config: Arc<BldConfig>,
+    mut worker_rx: Receiver<WorkerMessages>,
+) -> anyhow::Result<()> {
+    let url = format!(
+        "ws://{}:{}/ws-worker/",
+        config.local.supervisor.host, config.local.supervisor.port
+    );
     debug!("establishing web socket connection on {}", url);
     let client = Client::new().ws(url).connect();
     let (_, framed) = client.await.map_err(|e| {

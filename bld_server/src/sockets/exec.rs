@@ -62,6 +62,10 @@ impl ExecutePipelineSocket {
             if let Some(run_id) = act.run_id.as_ref() {
                 match pipeline_runs::select_by_id(&connection, run_id) {
                     Ok(run) if run.state == "finished" => ctx.stop(),
+                    Ok(run) if run.state == "queued" => {
+                        ctx.text("run with id {run_id} has been queued, use the monit command to see the output when it's started");
+                        ctx.stop()
+                    }
                     Err(_) => {
                         ctx.text("internal server error");
                         ctx.stop();
@@ -141,8 +145,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSo
             Ok(ws::Message::Ping(msg)) => {
                 ctx.pong(&msg);
             }
-            Ok(ws::Message::Pong(_)) => {
-            }
+            Ok(ws::Message::Pong(_)) => {}
             Ok(ws::Message::Close(reason)) => {
                 ctx.close(reason);
                 ctx.stop();
