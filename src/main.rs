@@ -8,11 +8,11 @@ use tracing_subscriber::filter::LevelFilter;
 const VERBOSITY: &str = "verbosity";
 
 fn tracing_level(matches: &ArgMatches) -> LevelFilter {
-	if matches.is_present(VERBOSITY) {
-		LevelFilter::DEBUG
-	} else {
-		LevelFilter::INFO
-	}
+    if matches.is_present(VERBOSITY) {
+        LevelFilter::DEBUG
+    } else {
+        LevelFilter::INFO
+    }
 }
 
 fn tracing(matches: &ArgMatches) {
