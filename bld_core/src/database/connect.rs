@@ -21,12 +21,11 @@ impl SqliteConnectionOptions {
         if self.enable_wal {
             let _ = write!(
                 pragma,
-                "{}",
                 "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;"
             );
         }
         if self.enabld_foreign_keys {
-            let _ = write!(pragma, "{}", "PRAGMA foreign_keys = ON;");
+            let _ = write!(pragma, "PRAGMA foreign_keys = ON;");
         }
         if let Some(duration) = self.busy_timeout {
             let _ = write!(pragma, "PRAGMA busy_timeout = {};", duration.as_millis());

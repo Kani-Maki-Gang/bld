@@ -68,10 +68,10 @@ impl Machine {
 
         let process = command.output()?;
         let mut output = String::new();
-        if process.stderr.len() > 0 {
+        if process.stderr.is_empty() {
             write!(output, "{}\r\n", String::from_utf8_lossy(&process.stderr))?;
         }
-        if process.stdout.len() > 0 {
+        if process.stdout.is_empty() {
             write!(output, "{}", String::from_utf8_lossy(&process.stdout))?;
         }
         {
