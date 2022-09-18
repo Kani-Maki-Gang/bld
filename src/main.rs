@@ -1,17 +1,21 @@
+use anyhow::anyhow;
 use bld_commands::*;
 use bld_config::definitions::VERSION;
 use bld_utils::term::print_error;
 use clap::{App, Arg, ArgMatches};
 use tracing_subscriber::filter::LevelFilter;
 
-fn tracing_level(matches: &ArgMatches<'_>) -> LevelFilter {
-    match matches.occurrences_of("v") {
-        0 => LevelFilter::INFO,
-        _ => LevelFilter::DEBUG,
+const VERBOSITY: &str = "verbosity";
+
+fn tracing_level(matches: &ArgMatches) -> LevelFilter {
+    if matches.is_present(VERBOSITY) {
+        LevelFilter::DEBUG
+    } else {
+        LevelFilter::INFO
     }
 }
 
-fn tracing(matches: &ArgMatches<'_>) {
+fn tracing(matches: &ArgMatches) {
     tracing_subscriber::fmt()
         .with_max_level(tracing_level(matches))
         .init()
@@ -43,13 +47,13 @@ fn main() {
             commands
                 .iter()
                 .map(|c| c.interface())
-                .collect::<Vec<App<'static, 'static>>>(),
+                .collect::<Vec<App<'static>>>(),
         )
         .arg(
-            Arg::with_name("v")
-                .short("v")
-                .multiple(true)
+            Arg::with_name(VERBOSITY)
+                .short('v')
                 .required(false)
+                .takes_value(false)
                 .help("Sets the level of verbosity"),
         )
         .get_matches();
@@ -57,11 +61,11 @@ fn main() {
     tracing(&cli);
 
     let result = match cli.subcommand() {
-        (id, Some(matches)) => commands
+        Some((id, matches)) => commands
             .iter()
             .find(|c| c.id() == id)
-            .map(|c| c.exec(matches))
-            .unwrap_or_else(|| Ok(())),
+            .ok_or_else(|| anyhow!("unknown subcommand"))
+            .and_then(|c| c.exec(matches)),
         _ => Ok(()),
     };
 

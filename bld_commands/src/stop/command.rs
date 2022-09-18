@@ -23,15 +23,15 @@ impl BldCommand for StopCommand {
         STOP
     }
 
-    fn interface(&self) -> App<'static, 'static> {
+    fn interface(&self) -> App<'static> {
         let id = Arg::with_name(ID)
-            .short("i")
+            .short('i')
             .long("id")
             .help("The id of a pipeline running on a server")
             .required(true)
             .takes_value(true);
         let server = Arg::with_name(SERVER)
-            .short("s")
+            .short('s')
             .long("server")
             .help("The name of the server that the pipeline is running")
             .takes_value(true);
@@ -41,7 +41,7 @@ impl BldCommand for StopCommand {
             .args(&[id, server])
     }
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
         let config = BldConfig::load()?;
         let id = matches
             .value_of(ID)

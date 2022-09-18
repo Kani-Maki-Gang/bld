@@ -22,9 +22,9 @@ impl BldCommand for HistCommand {
         HIST
     }
 
-    fn interface(&self) -> App<'static, 'static> {
+    fn interface(&self) -> App<'static> {
         let server = Arg::with_name(SERVER)
-            .short("s")
+            .short('s')
             .long("server")
             .takes_value(true)
             .help("The name of the server from which to fetch execution history");
@@ -34,7 +34,7 @@ impl BldCommand for HistCommand {
             .args(&[server])
     }
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
         let config = BldConfig::load()?;
         let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
         debug!("running {} subcommand with --server: {}", HIST, srv.name);

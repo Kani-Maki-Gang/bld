@@ -96,13 +96,13 @@ impl BldCommand for ConfigCommand {
         CONFIG
     }
 
-    fn interface(&self) -> App<'static, 'static> {
+    fn interface(&self) -> App<'static> {
         let local = Arg::with_name(LOCAL)
-            .short("l")
+            .short('l')
             .long("local")
             .help("List configuration for local options");
         let remote = Arg::with_name(REMOTE)
-            .short("r")
+            .short('r')
             .long("remote")
             .help("List configuration for remote options");
         SubCommand::with_name(CONFIG)
@@ -111,7 +111,7 @@ impl BldCommand for ConfigCommand {
             .args(&[local, remote])
     }
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
         let config = BldConfig::load()?;
         if matches.is_present(LOCAL) {
             return Self::list_locals(&config.local);
