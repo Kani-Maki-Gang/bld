@@ -31,14 +31,14 @@ impl BldCommand for PullCommand {
         PULL
     }
 
-    fn interface(&self) -> App<'static, 'static> {
+    fn interface(&self) -> App<'static> {
         let server = Arg::with_name(SERVER)
-            .short("s")
+            .short('s')
             .long(SERVER)
             .help("The name of the bld server")
             .takes_value(true);
         let pipeline = Arg::with_name(PIPELINE)
-            .short("p")
+            .short('p')
             .long(PIPELINE)
             .help("The name of the pipeline")
             .takes_value(true);
@@ -52,7 +52,7 @@ impl BldCommand for PullCommand {
             .args(&[server, pipeline, ignore_deps])
     }
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
         let config = BldConfig::load()?;
         let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
         let pip = matches

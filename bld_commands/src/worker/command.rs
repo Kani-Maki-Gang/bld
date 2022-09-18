@@ -37,27 +37,27 @@ impl BldCommand for WorkerCommand {
         WORKER
     }
 
-    fn interface(&self) -> App<'static, 'static> {
+    fn interface(&self) -> App<'static> {
         let pipeline = Arg::with_name(PIPELINE)
-            .short("p")
+            .short('p')
             .long(PIPELINE)
             .help("The pipeline id in the current bld server instance")
             .takes_value(true)
             .required(true);
         let run_id = Arg::with_name(RUN_ID)
-            .short("r")
+            .short('r')
             .long(RUN_ID)
             .help("The target pipeline run id")
             .takes_value(true)
             .required(true);
         let variables = Arg::with_name(VARIABLES)
-            .short("v")
+            .short('v')
             .long(VARIABLES)
             .help("Define values for variables in the server pipeline")
             .multiple(true)
             .takes_value(true);
         let environment = Arg::with_name(ENVIRONMENT)
-            .short("e")
+            .short('e')
             .long(ENVIRONMENT)
             .help("Define values for environment variables in the server pipeline")
             .multiple(true)
@@ -67,7 +67,7 @@ impl BldCommand for WorkerCommand {
             .args(&[pipeline, run_id, variables, environment])
     }
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
         let cfg = Arc::new(BldConfig::load()?);
         let socket_cfg = Arc::clone(&cfg);
         let pipeline = Arc::new(matches.value_of(PIPELINE).unwrap_or_default().to_string());

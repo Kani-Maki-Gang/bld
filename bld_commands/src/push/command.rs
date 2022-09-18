@@ -29,14 +29,14 @@ impl BldCommand for PushCommand {
         PUSH
     }
 
-    fn interface(&self) -> App<'static, 'static> {
+    fn interface(&self) -> App<'static> {
         let pipeline = Arg::with_name(PIPELINE)
-            .short("p")
+            .short('p')
             .long("pipeline")
             .help("The name of the pipeline to push")
             .takes_value(true);
         let server = Arg::with_name(SERVER)
-            .short("s")
+            .short('s')
             .long("server")
             .help("The name of the server to push changes to")
             .takes_value(true);
@@ -50,7 +50,7 @@ impl BldCommand for PushCommand {
             .args(&[pipeline, server, ignore])
     }
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
         let config = BldConfig::load()?;
         let pip = matches
             .value_of(PIPELINE)

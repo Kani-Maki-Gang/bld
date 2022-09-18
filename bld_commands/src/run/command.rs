@@ -33,29 +33,29 @@ impl BldCommand for RunCommand {
         RUN
     }
 
-    fn interface(&self) -> App<'static, 'static> {
+    fn interface(&self) -> App<'static> {
         let pipeline = Arg::with_name(PIPELINE)
-            .short("p")
+            .short('p')
             .long(PIPELINE)
             .help("Path to pipeline script")
             .takes_value(true);
         let server = Arg::with_name(SERVER)
-            .short("s")
+            .short('s')
             .long(SERVER)
             .help("The name of the server to run the pipeline")
             .takes_value(true);
         let detach = Arg::with_name(DETACH)
-            .short("d")
+            .short('d')
             .long(DETACH)
             .help("Detaches from the run execution (for server mode runs)");
         let variables = Arg::with_name(VARIABLES)
-            .short("v")
+            .short('v')
             .long(VARIABLES)
             .help("Define values for variables of a pipeline")
             .multiple(true)
             .takes_value(true);
         let environment = Arg::with_name(ENVIRONMENT)
-            .short("e")
+            .short('e')
             .long(ENVIRONMENT)
             .help("Define values for environment variables of a pipeline")
             .multiple(true)
@@ -66,7 +66,7 @@ impl BldCommand for RunCommand {
             .args(&[pipeline, server, detach, variables, environment])
     }
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
         let config = BldConfig::load()?;
         let pipeline = matches
             .value_of("pipeline")
@@ -130,7 +130,7 @@ impl BldCommand for RunCommand {
     }
 }
 
-pub fn parse_variables(matches: &ArgMatches<'_>, arg: &str) -> HashMap<String, String> {
+pub fn parse_variables(matches: &ArgMatches, arg: &str) -> HashMap<String, String> {
     matches
         .values_of(arg)
         .map(|variable| {

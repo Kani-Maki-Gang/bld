@@ -26,9 +26,10 @@ opt-level = 3
 debug = false
 
 [dependencies]
+anyhow = "1.0.40"
 bld_config = { path = "bld_config" }
 bld_utils = { path = "bld_utils" }
 bld_commands = { path = "bld_commands" }
-clap = "2.33.3"
+clap = "3.2.22"
 tracing = "0.1.26"
 tracing-subscriber = "0.2.19"

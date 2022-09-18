@@ -25,9 +25,9 @@ impl BldCommand for InitCommand {
         INIT
     }
 
-    fn interface(&self) -> App<'static, 'static> {
+    fn interface(&self) -> App<'static> {
         let server = Arg::with_name(SERVER)
-            .short("s")
+            .short('s')
             .long("server")
             .help("Initialize configuration for a bld server");
         SubCommand::with_name(INIT)
@@ -36,7 +36,7 @@ impl BldCommand for InitCommand {
             .arg(server)
     }
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
         let build_dir_exists = build_dir_exists()?;
         if !build_dir_exists {
             let is_server = matches.is_present(SERVER);

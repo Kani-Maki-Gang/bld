@@ -41,19 +41,19 @@ impl BldCommand for MonitCommand {
         MONIT
     }
 
-    fn interface(&self) -> App<'static, 'static> {
+    fn interface(&self) -> App<'static> {
         let pipeline_id = Arg::with_name(PIPELINE_ID)
-            .short("i")
+            .short('i')
             .long("pipeline-id")
             .help("The id of the pipeline to monitor. Takes precedence over pipeline")
             .takes_value(true);
         let pipeline = Arg::with_name(PIPELINE)
-            .short("p")
+            .short('p')
             .long("pipeline")
             .help("The name of the pipeline of which to monitor the last run")
             .takes_value(true);
         let server = Arg::with_name(SERVER)
-            .short("s")
+            .short('s')
             .long("server")
             .help("The name of the server to monitor")
             .takes_value(true);
@@ -67,7 +67,7 @@ impl BldCommand for MonitCommand {
             .args(&vec![pipeline_id, pipeline, server, last])
     }
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
         let config = BldConfig::load()?;
         let pip_id = matches.value_of(PIPELINE_ID).map(|x| x.to_string());
         let pip_name = matches.value_of(PIPELINE).map(|x| x.to_string());

@@ -23,15 +23,15 @@ impl BldCommand for InspectCommand {
         INSPECT
     }
 
-    fn interface(&self) -> App<'static, 'static> {
+    fn interface(&self) -> App<'static> {
         let pipeline = Arg::with_name(PIPELINE)
             .long("pipeline")
-            .short("p")
+            .short('p')
             .help("The name of the pipeline to inspect")
             .takes_value(true);
         let server = Arg::with_name(SERVER)
             .long("server")
-            .short("s")
+            .short('s')
             .help("The name of the server from which to inspect the pipeline")
             .takes_value(true);
         SubCommand::with_name(INSPECT)
@@ -40,7 +40,7 @@ impl BldCommand for InspectCommand {
             .args(&[pipeline, server])
     }
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
         let config = BldConfig::load()?;
         let pip = matches
             .value_of(PIPELINE)

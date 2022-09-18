@@ -24,14 +24,14 @@ impl BldCommand for RemoveCommand {
         REMOVE
     }
 
-    fn interface(&self) -> App<'static, 'static> {
+    fn interface(&self) -> App<'static> {
         let server = Arg::with_name(SERVER)
-            .short("s")
+            .short('s')
             .long(SERVER)
             .takes_value(true)
             .help("The name of the bld server");
         let pipeline = Arg::with_name(PIPELINE)
-            .short("p")
+            .short('p')
             .long(PIPELINE)
             .takes_value(true)
             .help("The name of the pipeline");
@@ -41,12 +41,12 @@ impl BldCommand for RemoveCommand {
             .args(&vec![server, pipeline])
     }
 
-    fn exec(&self, matches: &ArgMatches<'_>) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
         System::new().block_on(async move { do_remove(matches).await })
     }
 }
 
-async fn do_remove(matches: &ArgMatches<'_>) -> anyhow::Result<()> {
+async fn do_remove(matches: &ArgMatches) -> anyhow::Result<()> {
     let config = BldConfig::load()?;
     let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
     let pipeline = matches
