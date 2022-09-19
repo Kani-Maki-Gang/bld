@@ -49,6 +49,6 @@ impl BldCommand for ServerCommand {
             .map(|port| port.parse::<i64>().unwrap_or(config.local.server.port))
             .unwrap_or(config.local.server.port);
         debug!("running {SERVER} subcommand with --host: {host} --port: {port}",);
-		System::new().block_on(async move { bld_server::start(config, host, port).await })
+        System::new().block_on(async move { bld_server::start(config, host, port).await })
     }
 }

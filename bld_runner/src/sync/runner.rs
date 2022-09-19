@@ -359,31 +359,43 @@ impl Runner {
         Ok(())
     }
 
-    async fn dispose(&self) -> anyhow::Result<()> {
+    fn start(&self) -> anyhow::Result<()> {
+        self.exec_persist_start();
+        self.info();
+        Ok(())
+    }
+
+    async fn execute(&mut self) -> anyhow::Result<()> {
+        match self.artifacts(&None).await {
+            Ok(_) => {
+                if let Err(e) = self.steps().await {
+                    self.log_dumpln(&e.to_string());
+                }
+            }
+            Err(e) => self.log_dumpln(&e.to_string()),
+        }
+        Ok(())
+    }
+
+    async fn cleanup(&self) -> anyhow::Result<()> {
+        self.exec_persist_end();
         if self.pip.dispose {
             match &self.platform {
-                TargetPlatform::Machine(machine) => machine.dispose()?,
+                // checking if the runner is a child in order to not cleanup the temp dir for the whole run
+                TargetPlatform::Machine(machine) if !self.is_child => machine.dispose()?,
                 TargetPlatform::Container(container) => container.dispose().await?,
+                _ => {}
             }
         }
+        self.ipc_send_completed().await?;
         Ok(())
     }
 
     pub async fn run(mut self) -> RecursiveFuture {
         Box::pin(async move {
-            self.exec_persist_start();
-            self.info();
-            match self.artifacts(&None).await {
-                Ok(_) => {
-                    if let Err(e) = self.steps().await {
-                        self.log_dumpln(&e.to_string());
-                    }
-                }
-                Err(e) => self.log_dumpln(&e.to_string()),
-            }
-            self.exec_persist_end();
-            self.dispose().await?;
-            self.ipc_send_completed().await?;
+            self.start()?;
+            self.execute().await?;
+            self.cleanup().await?;
             Ok(())
         })
     }
