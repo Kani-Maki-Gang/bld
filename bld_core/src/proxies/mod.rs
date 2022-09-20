@@ -5,10 +5,10 @@ use bld_utils::fs::IsYaml;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::{
-    fs::{create_dir_all, remove_file, read_to_string, File},
+    fs::{create_dir_all, read_to_string, remove_file, File},
     io::Write,
+    path::PathBuf,
     sync::Arc,
-    path::PathBuf
 };
 
 pub enum PipelineFileSystemProxy {
@@ -16,15 +16,13 @@ pub enum PipelineFileSystemProxy {
     Server {
         config: Arc<BldConfig>,
         pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
-    }
+    },
 }
 
 impl PipelineFileSystemProxy {
     pub fn path(&self, name: &str) -> anyhow::Result<PathBuf> {
         match self {
-            Self::Local => {
-                Ok(path![std::env::current_dir()?, TOOL_DIR, name])
-            },
+            Self::Local => Ok(path![std::env::current_dir()?, TOOL_DIR, name]),
             Self::Server { config, pool } => {
                 let conn = pool.get()?;
                 let pip = pipeline::select_by_name(&conn, name)?;
@@ -41,8 +39,8 @@ impl PipelineFileSystemProxy {
             Self::Local => {
                 let path = self.path(name)?;
                 Ok(read_to_string(path)?)
-            },
-            Self::Server { config: _, pool: _ }=> {
+            }
+            Self::Server { config: _, pool: _ } => {
                 let path = self.path(name)?;
                 if path.is_yaml() {
                     return Ok(read_to_string(path)?);
@@ -64,7 +62,7 @@ impl PipelineFileSystemProxy {
                 let mut handle = File::create(&path)?;
                 handle.write_all(content.as_bytes())?;
                 Ok(())
-            },
+            }
             Self::Server { config: _, pool: _ } => {
                 let path = self.path(name)?;
                 if path.is_yaml() {

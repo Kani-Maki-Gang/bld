@@ -78,7 +78,10 @@ impl BldCommand for WorkerCommand {
         let conn = pool.get()?;
         let pipeline_run = pipeline_runs::select_by_id(&conn, &run_id)?;
         let start_date_time = pipeline_run.start_date_time;
-        let proxy = Arc::new(PipelineFileSystemProxy::Server{ config: cfg.clone(), pool: pool.clone() });
+        let proxy = Arc::new(PipelineFileSystemProxy::Server {
+            config: cfg.clone(),
+            pool: pool.clone(),
+        });
         let logger = Logger::file_atom(cfg.clone(), &run_id)?;
         let exec = Execution::pipeline_atom(pool, &run_id);
         let (worker_tx, worker_rx) = channel(4096);
