@@ -9,7 +9,7 @@ pub enum Execution {
     Pipeline {
         pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
         run_id: String,
-    }
+    },
 }
 
 impl Execution {
@@ -17,10 +17,13 @@ impl Execution {
         Arc::new(Mutex::new(Self::Empty))
     }
 
-    pub fn pipeline_atom(pool: Arc<Pool<ConnectionManager<SqliteConnection>>>, run_id: &str) -> Arc<Mutex<Self>> {
+    pub fn pipeline_atom(
+        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        run_id: &str,
+    ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self::Pipeline {
             pool,
-            run_id: run_id.to_string()
+            run_id: run_id.to_string(),
         }))
     }
 
