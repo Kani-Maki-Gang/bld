@@ -16,7 +16,7 @@ use awc::Client;
 use bld_config::BldConfig;
 use bld_core::database::new_connection_pool;
 use bld_core::high_avail::HighAvail;
-use bld_core::proxies::ServerPipelineProxy;
+use bld_core::proxies::PipelineFileSystemProxy;
 use bld_supervisor::base::ServerMessages;
 use futures::stream::StreamExt;
 use std::env::{current_exe, set_var};
@@ -37,10 +37,10 @@ async fn spawn_server(
     let enqueue_tx = Data::new(Mutex::new(enqueue_tx));
     let ha = Data::new(HighAvail::new(&config, pool.clone()).await?);
     let pool = Data::new(pool);
-    let prx = Data::new(ServerPipelineProxy::new(
-        Arc::clone(&config),
-        Arc::clone(&pool),
-    ));
+    let prx = Data::new(PipelineFileSystemProxy::Server {
+        config: Arc::clone(&config),
+        pool: Arc::clone(&pool),
+    });
     set_var("RUST_LOG", "actix_server=info,actix_web=debug");
     HttpServer::new(move || {
         App::new()

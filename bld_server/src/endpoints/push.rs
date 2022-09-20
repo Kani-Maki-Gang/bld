@@ -6,7 +6,7 @@ use actix_web::{
     HttpResponse, Responder,
 };
 use bld_core::database::pipeline;
-use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
+use bld_core::proxies::PipelineFileSystemProxy;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use tracing::info;
@@ -15,7 +15,7 @@ use uuid::Uuid;
 #[post("/push")]
 pub async fn push(
     user: Option<User>,
-    prx: Data<ServerPipelineProxy>,
+    prx: Data<PipelineFileSystemProxy>,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
     info: Json<PushInfo>,
 ) -> impl Responder {
@@ -30,7 +30,7 @@ pub async fn push(
 }
 
 fn do_push(
-    prx: &impl PipelineFileSystemProxy,
+    prx: &PipelineFileSystemProxy,
     pool: &Pool<ConnectionManager<SqliteConnection>>,
     info: &PushInfo,
 ) -> anyhow::Result<()> {

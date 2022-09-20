@@ -1,7 +1,7 @@
 use crate::extractors::User;
 use actix_web::{get, web::Data, HttpResponse};
 use bld_core::database::pipeline;
-use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
+use bld_core::proxies::PipelineFileSystemProxy;
 use bld_utils::fs::IsYaml;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
@@ -10,7 +10,7 @@ use tracing::info;
 #[get("/list")]
 pub async fn list(
     user: Option<User>,
-    prx: Data<ServerPipelineProxy>,
+    prx: Data<PipelineFileSystemProxy>,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
 ) -> HttpResponse {
     info!("Reached handler for /list route");
@@ -24,7 +24,7 @@ pub async fn list(
 }
 
 fn find_pipelines(
-    prx: &impl PipelineFileSystemProxy,
+    prx: &PipelineFileSystemProxy,
     pool: &Pool<ConnectionManager<SqliteConnection>>,
 ) -> anyhow::Result<String> {
     let conn = pool.get()?;

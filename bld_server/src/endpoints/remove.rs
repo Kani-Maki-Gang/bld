@@ -4,13 +4,13 @@ use actix_web::{
     web::{Data, Json},
     HttpResponse,
 };
-use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
+use bld_core::proxies::PipelineFileSystemProxy;
 use tracing::info;
 
 #[post("/remove")]
 pub async fn remove(
     user: Option<User>,
-    prx: Data<ServerPipelineProxy>,
+    prx: Data<PipelineFileSystemProxy>,
     body: Json<String>,
 ) -> HttpResponse {
     info!("Reached handler for /remove route");

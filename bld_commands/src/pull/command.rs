@@ -2,7 +2,7 @@ use crate::BldCommand;
 use actix_web::rt::System;
 use anyhow::anyhow;
 use bld_config::{definitions::VERSION, BldConfig};
-use bld_core::proxies::{LocalPipelineProxy, PipelineFileSystemProxy};
+use bld_core::proxies::PipelineFileSystemProxy;
 use bld_server::responses::PullResponse;
 use bld_utils::errors::auth_for_server_invalid;
 use bld_utils::fs::IsYaml;
@@ -123,7 +123,7 @@ async fn do_pull(
 }
 
 fn save_pipeline(data: PullResponse) -> anyhow::Result<()> {
-    let path = LocalPipelineProxy::default().path(&data.name)?;
+    let path = PipelineFileSystemProxy::Local.path(&data.name)?;
     if path.is_yaml() {
         remove_file(&path)?;
     } else if let Some(parent) = path.parent() {

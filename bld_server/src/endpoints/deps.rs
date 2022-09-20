@@ -5,7 +5,7 @@ use actix_web::{
     HttpResponse, Responder,
 };
 use anyhow::anyhow;
-use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
+use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::Pipeline;
 use std::collections::HashMap;
 use tracing::{debug, info};
@@ -13,7 +13,7 @@ use tracing::{debug, info};
 #[post("/deps")]
 pub async fn deps(
     user: Option<User>,
-    prx: Data<ServerPipelineProxy>,
+    prx: Data<PipelineFileSystemProxy>,
     body: Json<String>,
 ) -> impl Responder {
     info!("Reached handler for /deps route");
@@ -27,7 +27,7 @@ pub async fn deps(
     }
 }
 
-fn do_deps(prx: &impl PipelineFileSystemProxy, name: &str) -> anyhow::Result<Vec<String>> {
+fn do_deps(prx: &PipelineFileSystemProxy, name: &str) -> anyhow::Result<Vec<String>> {
     deps_recursive(prx, name).map(|mut hs| {
         hs.remove(name);
         hs.into_iter().map(|(n, _)| n).collect()
@@ -35,7 +35,7 @@ fn do_deps(prx: &impl PipelineFileSystemProxy, name: &str) -> anyhow::Result<Vec
 }
 
 fn deps_recursive(
-    prx: &impl PipelineFileSystemProxy,
+    prx: &PipelineFileSystemProxy,
     name: &str,
 ) -> anyhow::Result<HashMap<String, String>> {
     debug!("Parsing pipeline {name}");

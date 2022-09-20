@@ -13,7 +13,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use tar::Archive;
 
-type AtomicLogger = Arc<Mutex<dyn Logger>>;
+type AtomicLogger = Arc<Mutex<Logger>>;
 
 pub struct Container {
     pub config: Option<Arc<BldConfig>>,
@@ -118,7 +118,7 @@ impl Container {
         &self,
         working_dir: &Option<String>,
         input: &str,
-        ex: Arc<Mutex<dyn Execution>>,
+        ex: Arc<Mutex<Execution>>,
     ) -> anyhow::Result<()> {
         let client = self.get_client()?;
         let id = self.get_id()?;
