@@ -4,13 +4,13 @@ use actix_web::{
     web::{Data, Json},
     HttpResponse, Responder,
 };
-use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
+use bld_core::proxies::PipelineFileSystemProxy;
 use tracing::info;
 
 #[post("/inspect")]
 pub async fn inspect(
     user: Option<User>,
-    prx: Data<ServerPipelineProxy>,
+    prx: Data<PipelineFileSystemProxy>,
     body: Json<String>,
 ) -> impl Responder {
     info!("Reached handler for /inspect route");

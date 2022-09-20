@@ -8,7 +8,7 @@ use bld_config::BldConfig;
 use bld_core::database::{new_connection_pool, pipeline_runs};
 use bld_core::execution::Execution;
 use bld_core::logger::Logger;
-use bld_core::proxies::ServerPipelineProxy;
+use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::RunnerBuilder;
 use bld_supervisor::base::WorkerMessages;
 use bld_supervisor::sockets::WorkerClient;
@@ -78,7 +78,7 @@ impl BldCommand for WorkerCommand {
         let conn = pool.get()?;
         let pipeline_run = pipeline_runs::select_by_id(&conn, &run_id)?;
         let start_date_time = pipeline_run.start_date_time;
-        let proxy = Arc::new(ServerPipelineProxy::new(cfg.clone(), pool.clone()));
+        let proxy = Arc::new(PipelineFileSystemProxy::Server{ config: cfg.clone(), pool: pool.clone() });
         let logger = Logger::file_atom(cfg.clone(), &run_id)?;
         let exec = Execution::pipeline_atom(pool, &run_id);
         let (worker_tx, worker_rx) = channel(4096);

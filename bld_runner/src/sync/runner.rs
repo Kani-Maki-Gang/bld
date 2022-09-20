@@ -18,7 +18,7 @@ type RecursiveFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>>>>;
 type AtomicExec = Arc<Mutex<Execution>>;
 type AtomicLog = Arc<Mutex<Logger>>;
 type AtomicVars = Arc<HashMap<String, String>>;
-type AtomicProxy = Arc<dyn PipelineFileSystemProxy>;
+type AtomicProxy = Arc<PipelineFileSystemProxy>;
 
 pub enum TargetPlatform {
     Machine(Box<Machine>),

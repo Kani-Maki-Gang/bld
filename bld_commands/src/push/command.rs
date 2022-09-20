@@ -2,7 +2,7 @@ use crate::BldCommand;
 use actix_web::rt::System;
 use anyhow::anyhow;
 use bld_config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION, BldConfig};
-use bld_core::proxies::{LocalPipelineProxy, PipelineFileSystemProxy};
+use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::Pipeline;
 use bld_server::requests::PushInfo;
 use bld_utils::errors::auth_for_server_invalid;
@@ -85,7 +85,7 @@ async fn do_push(
 ) -> anyhow::Result<()> {
     let mut pipelines = vec![PushInfo::new(
         &name,
-        &LocalPipelineProxy::default().read(&name)?,
+        &PipelineFileSystemProxy::Local.read(&name)?,
     )];
     if !ignore_deps {
         print!("Resolving dependecies...");
@@ -126,7 +126,7 @@ fn deps(name: &str) -> anyhow::Result<HashMap<String, String>> {
 
 fn deps_recursive(name: &str) -> anyhow::Result<HashMap<String, String>> {
     debug!("Parsing pipeline {name}");
-    let src = LocalPipelineProxy::default()
+    let src = PipelineFileSystemProxy::Local
         .read(name)
         .map_err(|_| anyhow!("Pipeline {name} not found"))?;
     let pipeline = Pipeline::parse(&src)?;

@@ -5,13 +5,13 @@ use actix_web::{
     web::{Data, Json},
     HttpResponse, Responder,
 };
-use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
+use bld_core::proxies::PipelineFileSystemProxy;
 use tracing::info;
 
 #[post("/pull")]
 pub async fn pull(
     user: Option<User>,
-    prx: Data<ServerPipelineProxy>,
+    prx: Data<PipelineFileSystemProxy>,
     body: Json<String>,
 ) -> impl Responder {
     info!("Reached handler for /pull route");

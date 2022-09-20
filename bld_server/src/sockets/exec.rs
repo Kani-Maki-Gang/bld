@@ -10,7 +10,7 @@ use actix_web_actors::ws;
 use anyhow::anyhow;
 use bld_config::BldConfig;
 use bld_core::database::pipeline_runs;
-use bld_core::proxies::{PipelineFileSystemProxy, ServerPipelineProxy};
+use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::scanner::{FileScanner, Scanner};
 use bld_runner::messages::ExecInfo;
 use bld_supervisor::base::ServerMessages;
@@ -28,7 +28,7 @@ pub struct ExecutePipelineSocket {
     config: Data<BldConfig>,
     enqueue_tx: Data<Mutex<Sender<ServerMessages>>>,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
-    proxy: Data<ServerPipelineProxy>,
+    proxy: Data<PipelineFileSystemProxy>,
     user: User,
     scanner: Option<FileScanner>,
     run_id: Option<String>,
@@ -40,7 +40,7 @@ impl ExecutePipelineSocket {
         config: Data<BldConfig>,
         enqueue_tx: Data<Mutex<Sender<ServerMessages>>>,
         pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
-        proxy: Data<ServerPipelineProxy>,
+        proxy: Data<PipelineFileSystemProxy>,
     ) -> Self {
         Self {
             config,
@@ -167,7 +167,7 @@ pub async fn ws_exec(
     cfg: Data<BldConfig>,
     enqueue_tx: Data<Mutex<Sender<ServerMessages>>>,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
-    proxy: Data<ServerPipelineProxy>,
+    proxy: Data<PipelineFileSystemProxy>,
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{req:?}");
