@@ -1,18 +1,16 @@
 use bld_config::{path, BldConfig};
-use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 use std::{
     fs::File,
     io::Write,
+    path::PathBuf,
     sync::{Arc, Mutex},
-    path::PathBuf
 };
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 pub enum Logger {
     Empty,
     Shell,
-    File {
-        handle: File
-    }
+    File { handle: File },
 }
 
 impl Logger {
@@ -30,16 +28,16 @@ impl Logger {
             handle: match path.is_file() {
                 true => File::open(&path)?,
                 false => File::create(&path)?,
-            }
+            },
         })))
     }
 
     pub fn dump(&mut self, text: &str) {
         match self {
-            Self::Empty => {},
+            Self::Empty => {}
             Self::Shell => {
                 print!("{}", text);
-            },
+            }
             Self::File { handle } => {
                 if let Err(e) = writeln!(handle, "{text}") {
                     eprintln!("Couldn't write to file: {e}");
@@ -50,10 +48,10 @@ impl Logger {
 
     pub fn dumpln(&mut self, text: &str) {
         match self {
-            Self::Empty => {},
+            Self::Empty => {}
             Self::Shell => {
                 println!("{text}");
-            },
+            }
             Self::File { handle } => {
                 if let Err(e) = writeln!(handle, "{text}") {
                     eprintln!("Couldn't write to file: {e}");
@@ -64,13 +62,13 @@ impl Logger {
 
     pub fn info(&mut self, text: &str) {
         match self {
-            Self::Empty => {},
+            Self::Empty => {}
             Self::Shell => {
                 let mut stdout = StandardStream::stdout(ColorChoice::Always);
                 let _ = stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)));
                 let _ = writeln!(&mut stdout, "{text}");
                 let _ = stdout.set_color(ColorSpec::new().set_fg(None));
-            },
+            }
             Self::File { handle } => {
                 if let Err(e) = writeln!(handle, "{text}") {
                     eprintln!("Couldn't write to file: {e}");
@@ -81,13 +79,13 @@ impl Logger {
 
     pub fn error(&mut self, text: &str) {
         match self {
-            Self::Empty => {},
+            Self::Empty => {}
             Self::Shell => {
                 let mut stderr = StandardStream::stderr(ColorChoice::Always);
                 let _ = stderr.set_color(ColorSpec::new().set_fg(Some(Color::Red)));
                 let _ = writeln!(&mut stderr, "{text}");
                 let _ = stderr.set_color(ColorSpec::new().set_fg(None));
-            },
+            }
             Self::File { handle } => {
                 if let Err(e) = writeln!(handle, "{text}") {
                     eprintln!("Couldn't write to file: {e}");
