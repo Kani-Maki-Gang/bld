@@ -118,7 +118,7 @@ impl Container {
         &self,
         working_dir: &Option<String>,
         input: &str,
-        ex: Arc<Mutex<dyn Execution>>,
+        ex: Arc<Mutex<Execution>>,
     ) -> anyhow::Result<()> {
         let client = self.get_client()?;
         let id = self.get_id()?;

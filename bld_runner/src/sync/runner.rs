@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::Sender;
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>>>>;
-type AtomicExec = Arc<Mutex<dyn Execution>>;
+type AtomicExec = Arc<Mutex<Execution>>;
 type AtomicLog = Arc<Mutex<dyn Logger>>;
 type AtomicVars = Arc<HashMap<String, String>>;
 type AtomicProxy = Arc<dyn PipelineFileSystemProxy>;

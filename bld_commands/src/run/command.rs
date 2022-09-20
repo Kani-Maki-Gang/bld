@@ -1,6 +1,6 @@
 use crate::BldCommand;
 use bld_config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION, BldConfig};
-use bld_core::execution::EmptyExec;
+use bld_core::execution::Execution;
 use bld_core::logger::ShellLogger;
 use bld_core::proxies::LocalPipelineProxy;
 use bld_runner::{self, ExecConnectionInfo, RunnerBuilder};
@@ -117,7 +117,7 @@ impl BldCommand for RunCommand {
                         .config(Arc::new(config))
                         .proxy(Arc::new(LocalPipelineProxy))
                         .pipeline(&pipeline)
-                        .execution(EmptyExec::atom())
+                        .execution(Execution::empty_atom())
                         .logger(ShellLogger::atom())
                         .environment(Arc::new(env))
                         .variables(Arc::new(vars))
