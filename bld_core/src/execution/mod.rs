@@ -32,7 +32,7 @@ impl Execution {
             Self::Empty => Ok(()),
             Self::Pipeline { pool, run_id } => {
                 let conn = pool.get()?;
-                pipeline_runs::update_state(&conn, &run_id, state).map(|_| ())
+                pipeline_runs::update_state(&conn, run_id, state).map(|_| ())
             }
         }
     }
@@ -42,7 +42,7 @@ impl Execution {
             Self::Empty => Ok(()),
             Self::Pipeline { pool, run_id } => {
                 let conn = pool.get()?;
-                pipeline_runs::select_by_id(&conn, &run_id).and_then(|r| match r.stopped {
+                pipeline_runs::select_by_id(&conn, run_id).and_then(|r| match r.stopped {
                     Some(true) => bail!(""),
                     _ => Ok(()),
                 })
