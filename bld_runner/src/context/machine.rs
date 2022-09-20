@@ -15,14 +15,14 @@ fn could_not_spawn_shell() -> anyhow::Result<()> {
 pub struct Machine {
     tmp_dir: String,
     env: Arc<HashMap<String, String>>,
-    lg: Arc<Mutex<dyn Logger>>,
+    lg: Arc<Mutex<Logger>>,
 }
 
 impl Machine {
     pub fn new(
         id: &str,
         env: Arc<HashMap<String, String>>,
-        lg: Arc<Mutex<dyn Logger>>,
+        lg: Arc<Mutex<Logger>>,
     ) -> anyhow::Result<Self> {
         let tmp_path = path![std::env::current_dir()?, LOCAL_MACHINE_TMP_DIR, id];
         let tmp_dir = tmp_path.display().to_string();

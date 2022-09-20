@@ -13,7 +13,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use tar::Archive;
 
-type AtomicLogger = Arc<Mutex<dyn Logger>>;
+type AtomicLogger = Arc<Mutex<Logger>>;
 
 pub struct Container {
     pub config: Option<Arc<BldConfig>>,

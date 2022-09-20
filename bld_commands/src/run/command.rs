@@ -1,7 +1,7 @@
 use crate::BldCommand;
 use bld_config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION, BldConfig};
 use bld_core::execution::Execution;
-use bld_core::logger::ShellLogger;
+use bld_core::logger::Logger;
 use bld_core::proxies::LocalPipelineProxy;
 use bld_runner::{self, ExecConnectionInfo, RunnerBuilder};
 use bld_utils::errors::auth_for_server_invalid;
@@ -118,7 +118,7 @@ impl BldCommand for RunCommand {
                         .proxy(Arc::new(LocalPipelineProxy))
                         .pipeline(&pipeline)
                         .execution(Execution::empty_atom())
-                        .logger(ShellLogger::atom())
+                        .logger(Logger::shell_atom())
                         .environment(Arc::new(env))
                         .variables(Arc::new(vars))
                         .build()
