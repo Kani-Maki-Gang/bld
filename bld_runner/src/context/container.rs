@@ -1,26 +1,30 @@
 use anyhow::{anyhow, bail};
 use bld_config::BldConfig;
-use bld_core::execution::Execution;
-use bld_core::logger::Logger;
+use bld_core::{context::Context, execution::Execution, logger::Logger};
 use futures::TryStreamExt;
 use futures_util::StreamExt;
-use shiplift::tty::TtyChunk;
-use shiplift::{ContainerOptions, Docker, ExecContainerOptions, ImageListOptions, PullOptions};
-use std::collections::HashMap;
-use std::path::Path;
-use std::sync::{Arc, Mutex};
-use std::thread::sleep;
-use std::time::Duration;
+use shiplift::{
+    tty::TtyChunk, ContainerOptions, Docker, ExecContainerOptions, ImageListOptions, PullOptions,
+};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::{Arc, Mutex},
+    thread::sleep,
+    time::Duration,
+};
 use tar::Archive;
+use tracing::error;
 
 type AtomicLogger = Arc<Mutex<Logger>>;
 
 pub struct Container {
-    pub config: Option<Arc<BldConfig>>,
-    pub img: String,
-    pub client: Option<Docker>,
     pub id: Option<String>,
-    pub lg: AtomicLogger,
+    pub config: Option<Arc<BldConfig>>,
+    pub image: String,
+    pub client: Option<Docker>,
+    pub logger: AtomicLogger,
+    pub containers: Arc<Mutex<Context>>,
 }
 
 impl Container {
@@ -80,20 +84,26 @@ impl Container {
     }
 
     pub async fn new(
-        img: &str,
-        cfg: Arc<BldConfig>,
+        image: &str,
+        config: Arc<BldConfig>,
         env: Arc<HashMap<String, String>>,
-        lg: AtomicLogger,
+        logger: AtomicLogger,
+        containers: Arc<Mutex<Context>>,
     ) -> anyhow::Result<Self> {
-        let client = Container::docker(&cfg)?;
+        let client = Container::docker(&config)?;
         let env: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
-        let id = Container::create(&client, img, &env, &mut lg.clone()).await?;
+        let id = Container::create(&client, image, &env, &mut logger.clone()).await?;
+        {
+            let mut containers = containers.lock().unwrap();
+            containers.add(&id)?;
+        }
         Ok(Self {
-            config: Some(cfg),
-            img: img.to_string(),
+            config: Some(config),
+            image: image.to_string(),
             client: Some(client),
             id: Some(id),
-            lg,
+            logger,
+            containers,
         })
     }
 
@@ -147,7 +157,7 @@ impl Container {
                 Err(e) => return Err(anyhow!(e)),
             };
             {
-                let mut logger = self.lg.lock().unwrap();
+                let mut logger = self.logger.lock().unwrap();
                 logger.dump(&chunk);
             }
             sleep(Duration::from_millis(100));
@@ -158,8 +168,20 @@ impl Container {
     pub async fn dispose(&self) -> anyhow::Result<()> {
         let client = self.get_client()?;
         let id = self.get_id()?;
-        client.containers().get(id).stop(None).await?;
-        client.containers().get(id).delete().await?;
+        if let Err(e) = client.containers().get(id).stop(None).await {
+            error!("could not stop container, {e}");
+            let mut containers = self.containers.lock().unwrap();
+            containers.faulted(id)?;
+            bail!(e);
+        }
+        if let Err(e) = client.containers().get(id).delete().await {
+            error!("could not stop container, {e}");
+            let mut containers = self.containers.lock().unwrap();
+            containers.faulted(id)?;
+            bail!(e);
+        }
+        let mut containers = self.containers.lock().unwrap();
+        containers.remove(id)?;
         Ok(())
     }
 }

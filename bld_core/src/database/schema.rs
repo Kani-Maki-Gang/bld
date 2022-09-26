@@ -86,6 +86,16 @@ table! {
 }
 
 table! {
+    pipeline_run_containers (id) {
+        id -> Text,
+        run_id -> Text,
+        container_id -> Text,
+        state -> Text,
+        date_created -> Text,
+    }
+}
+
+table! {
     pipeline_runs (id) {
         id -> Text,
         name -> Text,
@@ -101,6 +111,7 @@ joinable!(ha_client_serial_responses -> ha_state_machine (state_machine_id));
 joinable!(ha_client_status -> ha_state_machine (state_machine_id));
 joinable!(ha_members -> ha_snapshot (snapshot_id));
 joinable!(ha_members_after_consensus -> ha_snapshot (snapshot_id));
+joinable!(pipeline_run_containers -> pipeline_runs (run_id));
 
 allow_tables_to_appear_in_same_query!(
     ha_client_serial_responses,
@@ -112,5 +123,6 @@ allow_tables_to_appear_in_same_query!(
     ha_snapshot,
     ha_state_machine,
     pipeline,
+    pipeline_run_containers,
     pipeline_runs,
 );

@@ -1,17 +1,19 @@
-use crate::{BuildStep, Container, Machine, Pipeline, RunsOn};
+use crate::{BuildStep, Container, Machine, Pipeline, RunsOn, TargetPlatform};
 use anyhow::anyhow;
-use bld_config::definitions::{
-    ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN,
+use bld_config::{
+    definitions::{ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN},
+    BldConfig,
 };
-use bld_config::BldConfig;
-use bld_core::execution::Execution;
-use bld_core::logger::Logger;
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::{
+    context::Context, execution::Execution, logger::Logger, proxies::PipelineFileSystemProxy,
+};
 use bld_supervisor::base::WorkerMessages;
-use std::collections::HashMap;
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    future::Future,
+    pin::Pin,
+    sync::{Arc, Mutex},
+};
 use tokio::sync::mpsc::Sender;
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>>>>;
@@ -19,11 +21,7 @@ type AtomicExec = Arc<Mutex<Execution>>;
 type AtomicLog = Arc<Mutex<Logger>>;
 type AtomicVars = Arc<HashMap<String, String>>;
 type AtomicProxy = Arc<PipelineFileSystemProxy>;
-
-pub enum TargetPlatform {
-    Machine(Box<Machine>),
-    Container(Box<Container>),
-}
+type AtomicContext = Arc<Mutex<Context>>;
 
 #[derive(Default)]
 pub struct RunnerBuilder {
@@ -37,6 +35,7 @@ pub struct RunnerBuilder {
     ipc: Arc<Option<Sender<WorkerMessages>>>,
     env: Option<AtomicVars>,
     vars: Option<AtomicVars>,
+    context: Option<AtomicContext>,
     is_child: bool,
 }
 
@@ -91,6 +90,11 @@ impl RunnerBuilder {
         self
     }
 
+    pub fn context(mut self, context: AtomicContext) -> Self {
+        self.context = Some(context);
+        self
+    }
+
     pub fn is_child(mut self, is_child: bool) -> Self {
         self.is_child = is_child;
         self
@@ -139,13 +143,23 @@ impl RunnerBuilder {
                 })
                 .collect(),
         );
+        let context = self
+            .context
+            .ok_or_else(|| anyhow!("no container handler was provided"))?;
         let platform = match &pipeline.runs_on {
             RunsOn::Machine => {
                 let machine = Machine::new(&id, env.clone(), lg.clone())?;
                 TargetPlatform::Machine(Box::new(machine))
             }
             RunsOn::Docker(img) => {
-                let container = Container::new(img, cfg.clone(), env.clone(), lg.clone()).await?;
+                let container = Container::new(
+                    img,
+                    cfg.clone(),
+                    env.clone(),
+                    lg.clone(),
+                    context.clone(),
+                )
+                .await?;
                 TargetPlatform::Container(Box::new(container))
             }
         };
@@ -164,6 +178,7 @@ impl RunnerBuilder {
             ipc: self.ipc,
             env,
             vars,
+            context,
             platform,
             is_child: self.is_child,
         })
@@ -181,6 +196,7 @@ pub struct Runner {
     ipc: Arc<Option<Sender<WorkerMessages>>>,
     env: AtomicVars,
     vars: AtomicVars,
+    context: AtomicContext,
     platform: TargetPlatform,
     is_child: bool,
 }
@@ -191,18 +207,22 @@ impl Runner {
         lg.dumpln(message);
     }
 
-    fn exec_persist_start(&self) {
+    async fn exec_persist_start(&self) {
+        let mut exec = self.ex.lock().unwrap();
         if !self.is_child {
-            let mut exec = self.ex.lock().unwrap();
             let _ = exec.update_state("running");
         }
     }
 
-    fn exec_persist_end(&self) {
+    async fn exec_persist_end(&self) -> anyhow::Result<()> {
+        let mut exec = self.ex.lock().unwrap();
         if !self.is_child {
-            let mut exec = self.ex.lock().unwrap();
             let _ = exec.update_state("finished");
         }
+        if self.pip.dispose {
+            self.platform.dispose(self.is_child).await?;
+        }
+        Ok(())
     }
 
     fn exec_check_stop_signal(&self) -> anyhow::Result<()> {
@@ -282,15 +302,9 @@ impl Runner {
                         "[bld] Copying artifacts from: {from} into container to: {to}",
                     ));
                 }
-                let result = match (&self.platform, &method[..]) {
-                    (TargetPlatform::Container(container), PUSH) => {
-                        container.copy_into(&from, &to).await
-                    }
-                    (TargetPlatform::Container(container), GET) => {
-                        container.copy_from(&from, &to).await
-                    }
-                    (TargetPlatform::Machine(machine), PUSH) => machine.copy_into(&from, &to),
-                    (TargetPlatform::Machine(machine), GET) => machine.copy_from(&from, &to),
+                let result = match &method[..] {
+                    PUSH => self.platform.push(&from, &to).await,
+                    GET => self.platform.get(&from, &to).await,
                     _ => unreachable!(),
                 };
                 if !artifact.ignore_errors {
@@ -333,6 +347,7 @@ impl Runner {
                 .environment(self.env.clone())
                 .variables(self.vars.clone())
                 .ipc(self.ipc.clone())
+                .context(self.context.clone())
                 .is_child(true)
                 .build()
                 .await?;
@@ -346,26 +361,20 @@ impl Runner {
         for command in step.commands.iter() {
             let working_dir = step.working_dir.as_ref().map(|wd| self.apply_context(wd));
             let command = self.apply_context(command);
-            match &self.platform {
-                TargetPlatform::Container(container) => {
-                    container
-                        .sh(&working_dir, &command, self.ex.clone())
-                        .await?
-                }
-                TargetPlatform::Machine(machine) => machine.sh(&working_dir, &command).await?,
-            }
+            self.platform
+                .shell(&working_dir, &command, self.ex.clone())
+                .await?;
             self.exec_check_stop_signal()?;
         }
         Ok(())
     }
 
-    fn start(&self) -> anyhow::Result<()> {
-        self.exec_persist_start();
+    async fn start(&self) {
+        self.exec_persist_start().await;
         self.info();
-        Ok(())
     }
 
-    async fn execute(&mut self) -> anyhow::Result<()> {
+    async fn execute(&mut self) {
         match self.artifacts(&None).await {
             Ok(_) => {
                 if let Err(e) = self.steps().await {
@@ -374,27 +383,18 @@ impl Runner {
             }
             Err(e) => self.log_dumpln(&e.to_string()),
         }
-        Ok(())
     }
 
     async fn cleanup(&self) -> anyhow::Result<()> {
-        self.exec_persist_end();
-        if self.pip.dispose {
-            match &self.platform {
-                // checking if the runner is a child in order to not cleanup the temp dir for the whole run
-                TargetPlatform::Machine(machine) if !self.is_child => machine.dispose()?,
-                TargetPlatform::Container(container) => container.dispose().await?,
-                _ => {}
-            }
-        }
+        self.exec_persist_end().await?;
         self.ipc_send_completed().await?;
         Ok(())
     }
 
     pub async fn run(mut self) -> RecursiveFuture {
         Box::pin(async move {
-            self.start()?;
-            self.execute().await?;
+            self.start().await;
+            self.execute().await;
             self.cleanup().await?;
             Ok(())
         })

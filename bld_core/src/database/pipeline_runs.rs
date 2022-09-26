@@ -7,7 +7,8 @@ use diesel::sqlite::SqliteConnection;
 use diesel::Queryable;
 use tracing::{debug, error};
 
-#[derive(Debug, Queryable)]
+#[derive(Debug, Identifiable, Queryable)]
+#[table_name = "pipeline_runs"]
 pub struct PipelineRuns {
     pub id: String,
     pub name: String,

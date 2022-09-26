@@ -1,17 +1,18 @@
-use crate::run::parse_variables;
-use crate::BldCommand;
+use crate::{run::parse_variables, BldCommand};
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use actix_web::rt::System;
 use anyhow::anyhow;
 use awc::Client;
 use bld_config::BldConfig;
-use bld_core::database::{new_connection_pool, pipeline_runs};
-use bld_core::execution::Execution;
-use bld_core::logger::Logger;
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::{
+    context::Context,
+    database::{new_connection_pool, pipeline_runs},
+    execution::Execution,
+    logger::Logger,
+    proxies::PipelineFileSystemProxy,
+};
 use bld_runner::RunnerBuilder;
-use bld_supervisor::base::WorkerMessages;
-use bld_supervisor::sockets::WorkerClient;
+use bld_supervisor::{base::WorkerMessages, sockets::WorkerClient};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::stream::StreamExt;
 use std::sync::Arc;
@@ -83,7 +84,8 @@ impl BldCommand for WorkerCommand {
             pool: pool.clone(),
         });
         let logger = Logger::file_atom(cfg.clone(), &run_id)?;
-        let exec = Execution::pipeline_atom(pool, &run_id);
+        let exec = Execution::pipeline_atom(pool.clone(), &run_id);
+        let context = Context::containers_atom(pool.clone(), &run_id);
         let (worker_tx, worker_rx) = channel(4096);
         let worker_tx = Arc::new(Some(worker_tx));
         System::new().block_on(async move {
@@ -106,6 +108,7 @@ impl BldCommand for WorkerCommand {
                     .logger(logger)
                     .environment(environment)
                     .variables(variables)
+                    .context(context)
                     .ipc(worker_tx)
                     .build()
                     .await
