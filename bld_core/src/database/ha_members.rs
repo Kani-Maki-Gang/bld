@@ -1,7 +1,7 @@
 use crate::database::ha_snapshot::HighAvailSnapshot;
 use crate::database::schema::ha_members;
 use crate::database::schema::ha_members::dsl::*;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
@@ -37,7 +37,7 @@ impl InsertHighAvailMembers {
 pub fn select(
     conn: &SqliteConnection,
     sn: &HighAvailSnapshot,
-) -> anyhow::Result<Vec<HighAvailMembers>> {
+) -> Result<Vec<HighAvailMembers>> {
     debug!(
         "loading high availability members of snapshot with id: {}",
         sn.id
@@ -60,7 +60,7 @@ pub fn select(
 pub fn select_last_rows(
     conn: &SqliteConnection,
     rows: i64,
-) -> anyhow::Result<Vec<HighAvailMembers>> {
+) -> Result<Vec<HighAvailMembers>> {
     debug!("loading last {} rows of high availability members", rows);
     ha_members
         .order(id.desc())
@@ -79,7 +79,7 @@ pub fn select_last_rows(
 pub fn insert_many(
     conn: &SqliteConnection,
     models: Vec<InsertHighAvailMembers>,
-) -> anyhow::Result<Vec<HighAvailMembers>> {
+) -> Result<Vec<HighAvailMembers>> {
     debug!("inserting multiple high availability members");
     conn.transaction(|| {
         diesel::insert_into(ha_members)

@@ -1,9 +1,6 @@
 use crate::extractors::User;
-use actix_web::{
-    post,
-    web::{Data, Json},
-    HttpResponse,
-};
+use actix_web::web::{Data, Json};
+use actix_web::{post, HttpResponse};
 use bld_core::proxies::PipelineFileSystemProxy;
 use tracing::info;
 

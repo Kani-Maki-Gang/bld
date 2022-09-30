@@ -1,6 +1,6 @@
 use crate::auth::Login;
 use crate::BldCommand;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use bld_config::{definitions::VERSION, Auth, BldConfig};
 use bld_utils::errors::auth_for_server_invalid;
 use clap::{App, Arg, ArgMatches, SubCommand};
@@ -34,7 +34,7 @@ impl BldCommand for AuthCommand {
             .args(&[server])
     }
 
-    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
         let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
         debug!("running {} subcommand with --server: {}", LOGIN, &srv.name);

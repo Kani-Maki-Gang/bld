@@ -1,4 +1,5 @@
 use crate::extractors::User;
+use anyhow::Result;
 use actix_web::{get, web::Data, HttpResponse, Responder};
 use bld_core::database::pipeline_runs;
 use diesel::r2d2::{ConnectionManager, Pool};
@@ -20,7 +21,7 @@ pub async fn hist(
     }
 }
 
-fn history_info(db_pool: &Pool<ConnectionManager<SqliteConnection>>) -> anyhow::Result<String> {
+fn history_info(db_pool: &Pool<ConnectionManager<SqliteConnection>>) -> Result<String> {
     let connection = db_pool.get()?;
     let pipeline_runs = pipeline_runs::select_all(&connection).unwrap_or_else(|_| vec![]);
     let mut info = String::new();

@@ -1,22 +1,19 @@
 use crate::{BuildStep, Container, Machine, Pipeline, RunsOn, TargetPlatform};
-use anyhow::anyhow;
-use bld_config::{
-    definitions::{ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN},
-    BldConfig,
-};
-use bld_core::{
-    context::Context, execution::Execution, logger::Logger, proxies::PipelineFileSystemProxy,
-};
+use anyhow::{anyhow, Result};
+use bld_config::definitions::{ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN};
+use bld_config::BldConfig;
+use bld_core::context::Context; 
+use bld_core::execution::Execution;
+use bld_core::logger::Logger;
+use bld_core::proxies::PipelineFileSystemProxy;
 use bld_supervisor::base::WorkerMessages;
-use std::{
-    collections::HashMap,
-    future::Future,
-    pin::Pin,
-    sync::{Arc, Mutex},
-};
+use std::collections::HashMap;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::Sender;
 
-type RecursiveFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>>>>;
+type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 type AtomicExec = Arc<Mutex<Execution>>;
 type AtomicLog = Arc<Mutex<Logger>>;
 type AtomicVars = Arc<HashMap<String, String>>;
@@ -100,7 +97,7 @@ impl RunnerBuilder {
         self
     }
 
-    pub async fn build(self) -> anyhow::Result<Runner> {
+    pub async fn build(self) -> Result<Runner> {
         let id = self.run_id.ok_or_else(|| anyhow!("no run id provided"))?;
         let cfg = self
             .cfg
@@ -209,7 +206,7 @@ impl Runner {
         }
     }
 
-    async fn exec_persist_end(&self) -> anyhow::Result<()> {
+    async fn exec_persist_end(&self) -> Result<()> {
         if !self.is_child {
             let mut exec = self.ex.lock().unwrap();
             let _ = exec.set_as_finished();
@@ -220,12 +217,12 @@ impl Runner {
         Ok(())
     }
 
-    fn exec_check_stop_signal(&self) -> anyhow::Result<()> {
+    fn exec_check_stop_signal(&self) -> Result<()> {
         let exec = self.ex.lock().unwrap();
         exec.check_stop_signal()
     }
 
-    async fn ipc_send_completed(&self) -> anyhow::Result<()> {
+    async fn ipc_send_completed(&self) -> Result<()> {
         if !self.is_child {
             if let Some(ipc) = Option::as_ref(&self.ipc) {
                 ipc.send(WorkerMessages::Completed).await?;
@@ -281,7 +278,7 @@ impl Runner {
         self.apply_variables(&txt)
     }
 
-    async fn artifacts(&self, name: &Option<String>) -> anyhow::Result<()> {
+    async fn artifacts(&self, name: &Option<String>) -> Result<()> {
         for artifact in self.pip.artifacts.iter().filter(|a| &a.after == name) {
             let can_continue = (artifact.method == Some(PUSH.to_string())
                 || artifact.method == Some(GET.to_string()))
@@ -310,7 +307,7 @@ impl Runner {
         Ok(())
     }
 
-    async fn steps(&mut self) -> anyhow::Result<()> {
+    async fn steps(&mut self) -> Result<()> {
         for step in &self.pip.steps {
             self.step(step).await?;
             self.artifacts(&step.name).await?;
@@ -319,7 +316,7 @@ impl Runner {
         Ok(())
     }
 
-    async fn step(&self, step: &BuildStep) -> anyhow::Result<()> {
+    async fn step(&self, step: &BuildStep) -> Result<()> {
         if let Some(name) = &step.name {
             let mut logger = self.lg.lock().unwrap();
             logger.info(&format!("[bld] Step: {name}"));
@@ -329,7 +326,7 @@ impl Runner {
         Ok(())
     }
 
-    async fn call(&self, step: &BuildStep) -> anyhow::Result<()> {
+    async fn call(&self, step: &BuildStep) -> Result<()> {
         for call in &step.call {
             let runner = RunnerBuilder::default()
                 .run_id(&self.run_id)
@@ -352,7 +349,7 @@ impl Runner {
         Ok(())
     }
 
-    async fn sh(&self, step: &BuildStep) -> anyhow::Result<()> {
+    async fn sh(&self, step: &BuildStep) -> Result<()> {
         for command in step.commands.iter() {
             let working_dir = step.working_dir.as_ref().map(|wd| self.apply_context(wd));
             let command = self.apply_context(command);
@@ -380,7 +377,7 @@ impl Runner {
         }
     }
 
-    async fn cleanup(&self) -> anyhow::Result<()> {
+    async fn cleanup(&self) -> Result<()> {
         self.exec_persist_end().await?;
         self.ipc_send_completed().await?;
         Ok(())

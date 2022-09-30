@@ -15,6 +15,7 @@ pub use remote::*;
 pub use server::*;
 pub use supervisor::*;
 
+use anyhow::Result;
 use std::path::PathBuf;
 use tracing::debug;
 use yaml_rust::YamlLoader;
@@ -26,7 +27,7 @@ pub struct BldConfig {
 }
 
 impl BldConfig {
-    pub fn load() -> anyhow::Result<Self> {
+    pub fn load() -> Result<Self> {
         let path = path![
             std::env::current_dir()?,
             definitions::TOOL_DIR,

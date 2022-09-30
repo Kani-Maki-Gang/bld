@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use std::process::{Child, Command, ExitStatus};
 
 pub struct PipelineWorker {
@@ -28,14 +28,14 @@ impl PipelineWorker {
         self.child.as_ref().map(|c| c.id() == pid).unwrap_or(false)
     }
 
-    fn try_wait(&mut self) -> anyhow::Result<Option<ExitStatus>> {
+    fn try_wait(&mut self) -> Result<Option<ExitStatus>> {
         self.child
             .as_mut()
             .ok_or_else(|| anyhow!("worker has not spawned"))
             .and_then(|c| c.try_wait().map_err(|e| anyhow!(e)))
     }
 
-    pub fn spawn(&mut self) -> anyhow::Result<()> {
+    pub fn spawn(&mut self) -> Result<()> {
         self.child = Some(self.cmd.spawn().map_err(|e| anyhow!(e))?);
         Ok(())
     }
@@ -44,7 +44,7 @@ impl PipelineWorker {
         self.try_wait().is_ok()
     }
 
-    pub fn cleanup(&mut self) -> anyhow::Result<ExitStatus> {
+    pub fn cleanup(&mut self) -> Result<ExitStatus> {
         self.try_wait()
             .map_err(|_| anyhow!("command is still running. cannot cleanup"))
             .and_then(|_| {

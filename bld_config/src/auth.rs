@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, Scope, TokenUrl};
 use yaml_rust::Yaml;
 
@@ -13,7 +13,7 @@ pub struct OAuth2Info {
 }
 
 impl OAuth2Info {
-    pub fn load(host: &str, port: i64, yaml: &Yaml) -> anyhow::Result<Box<Self>> {
+    pub fn load(host: &str, port: i64, yaml: &Yaml) -> Result<Box<Self>> {
         let auth_url = AuthUrl::new(
             yaml["auth-url"]
                 .as_str()

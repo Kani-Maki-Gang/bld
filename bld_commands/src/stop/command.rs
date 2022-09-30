@@ -1,7 +1,8 @@
 use crate::BldCommand;
 use actix_web::rt::System;
-use anyhow::anyhow;
-use bld_config::{definitions::VERSION, BldConfig};
+use anyhow::{anyhow, Result};
+use bld_config::definitions::VERSION;
+use bld_config::BldConfig;
 use bld_utils::errors::auth_for_server_invalid;
 use bld_utils::request;
 use clap::{App, Arg, ArgMatches, SubCommand};
@@ -41,7 +42,7 @@ impl BldCommand for StopCommand {
             .args(&[id, server])
     }
 
-    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
         let id = matches
             .value_of(ID)

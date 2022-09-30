@@ -1,6 +1,6 @@
 use crate::database::schema::ha_state_machine;
 use crate::database::schema::ha_state_machine::dsl::*;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
@@ -17,7 +17,7 @@ pub struct HighAvailStateMachine {
     pub date_updated: String,
 }
 
-pub fn select_first(conn: &SqliteConnection) -> anyhow::Result<HighAvailStateMachine> {
+pub fn select_first(conn: &SqliteConnection) -> Result<HighAvailStateMachine> {
     debug!("loading the first entry of high availability state machine");
     ha_state_machine
         .first(conn)
@@ -34,7 +34,7 @@ pub fn select_first(conn: &SqliteConnection) -> anyhow::Result<HighAvailStateMac
         })
 }
 
-pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailStateMachine> {
+pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailStateMachine> {
     debug!("loading the last entry of high availability state machine");
     ha_state_machine
         .order(id.desc())
@@ -52,7 +52,7 @@ pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailStateMach
         })
 }
 
-pub fn select_by_id(conn: &SqliteConnection, sm_id: i32) -> anyhow::Result<HighAvailStateMachine> {
+pub fn select_by_id(conn: &SqliteConnection, sm_id: i32) -> Result<HighAvailStateMachine> {
     debug!("loading high availability state machine with id: {}", sm_id);
     ha_state_machine
         .filter(id.eq(sm_id))
@@ -73,7 +73,7 @@ pub fn select_by_id(conn: &SqliteConnection, sm_id: i32) -> anyhow::Result<HighA
 pub fn insert(
     conn: &SqliteConnection,
     sm_last_applied_log: i32,
-) -> anyhow::Result<HighAvailStateMachine> {
+) -> Result<HighAvailStateMachine> {
     debug!(
         "inserting high availability state machine with last applied log: {:?}",
         sm_last_applied_log
@@ -100,7 +100,7 @@ pub fn update(
     conn: &SqliteConnection,
     sm_id: i32,
     sm_last_applied_log: i32,
-) -> anyhow::Result<HighAvailStateMachine> {
+) -> Result<HighAvailStateMachine> {
     debug!(
         "updating high availability state machine with id: {}",
         sm_id

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::high_avail::{Agent, AgentRequest};
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use async_raft::config::Config;
 use async_raft::network::RaftNetwork;
 use async_raft::raft::{
@@ -22,11 +22,11 @@ pub struct HighAvailRouter {
 }
 
 impl HighAvailRouter {
-    pub async fn new(config: Arc<Config>, agents: HashSet<Agent>) -> anyhow::Result<Self> {
+    pub async fn new(config: Arc<Config>, agents: HashSet<Agent>) -> Result<Self> {
         Ok(Self { config, agents })
     }
 
-    fn agent(&self, id: &NodeId) -> anyhow::Result<&Agent> {
+    fn agent(&self, id: &NodeId) -> Result<&Agent> {
         let agent = self
             .agents
             .iter()
@@ -35,7 +35,7 @@ impl HighAvailRouter {
         Ok(agent)
     }
 
-    async fn post<T>(&self, sub_url: &str, target: NodeId, body: T) -> anyhow::Result<String>
+    async fn post<T>(&self, sub_url: &str, target: NodeId, body: T) -> Result<String>
     where
         T: 'static + Serialize,
     {
@@ -51,7 +51,7 @@ impl RaftNetwork<AgentRequest> for HighAvailRouter {
         &self,
         target: NodeId,
         rpc: AppendEntriesRequest<AgentRequest>,
-    ) -> anyhow::Result<AppendEntriesResponse> {
+    ) -> Result<AppendEntriesResponse> {
         let res = self.post("/ha/appendEntries", target, rpc).await?;
         debug!(
             "sent append entries request to node: {} with result: {}",
@@ -64,7 +64,7 @@ impl RaftNetwork<AgentRequest> for HighAvailRouter {
         &self,
         target: NodeId,
         rpc: InstallSnapshotRequest,
-    ) -> anyhow::Result<InstallSnapshotResponse> {
+    ) -> Result<InstallSnapshotResponse> {
         let res = self.post("/ha/installSnapshot", target, rpc).await?;
         debug!(
             "sent install snapshot request to node: {} with result: {}",
@@ -73,7 +73,7 @@ impl RaftNetwork<AgentRequest> for HighAvailRouter {
         Ok(serde_json::from_str(&res)?)
     }
 
-    async fn vote(&self, target: NodeId, rpc: VoteRequest) -> anyhow::Result<VoteResponse> {
+    async fn vote(&self, target: NodeId, rpc: VoteRequest) -> Result<VoteResponse> {
         let res = self.post("/ha/vote", target, rpc).await?;
         debug!("sent vote request to node: {} with result: {}", target, res);
         Ok(serde_json::from_str(&res)?)

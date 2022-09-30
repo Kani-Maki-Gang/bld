@@ -1,4 +1,5 @@
 use crate::definitions;
+use anyhow::Result;
 use yaml_rust::Yaml;
 
 #[derive(Debug)]
@@ -9,7 +10,7 @@ pub struct BldLocalSupervisorConfig {
 }
 
 impl BldLocalSupervisorConfig {
-    pub fn load(yaml: &Yaml) -> anyhow::Result<Self> {
+    pub fn load(yaml: &Yaml) -> Result<Self> {
         let host = yaml["host"]
             .as_str()
             .unwrap_or(definitions::LOCAL_SUPERVISOR_HOST)

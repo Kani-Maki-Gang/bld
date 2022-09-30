@@ -1,6 +1,6 @@
 use crate::BldCommand;
 use actix_web::rt::System;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use bld_config::{definitions::VERSION, BldConfig};
 use bld_utils::errors::auth_for_server_invalid;
 use bld_utils::request;
@@ -41,12 +41,12 @@ impl BldCommand for RemoveCommand {
             .args(&vec![server, pipeline])
     }
 
-    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> Result<()> {
         System::new().block_on(async move { do_remove(matches).await })
     }
 }
 
-async fn do_remove(matches: &ArgMatches) -> anyhow::Result<()> {
+async fn do_remove(matches: &ArgMatches) -> Result<()> {
     let config = BldConfig::load()?;
     let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
     let pipeline = matches

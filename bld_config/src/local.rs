@@ -1,5 +1,5 @@
 use crate::{definitions, AuthValidation, BldLocalServerConfig, BldLocalSupervisorConfig};
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use async_raft::NodeId;
 use tracing::debug;
 use yaml_rust::Yaml;
@@ -17,7 +17,7 @@ pub struct BldLocalConfig {
 }
 
 impl BldLocalConfig {
-    pub fn load(yaml: &Yaml) -> anyhow::Result<Self> {
+    pub fn load(yaml: &Yaml) -> Result<Self> {
         let local_yaml = &yaml["local"];
         let ha_mode = local_yaml["ha-mode"]
             .as_bool()
@@ -52,7 +52,7 @@ impl BldLocalConfig {
         Ok(instance)
     }
 
-    fn auth_load(yaml: &Yaml) -> anyhow::Result<AuthValidation> {
+    fn auth_load(yaml: &Yaml) -> Result<AuthValidation> {
         let auth_validation = match yaml["auth"]["method"].as_str() {
             Some("ldap") => AuthValidation::Ldap,
             Some("oauth2") => AuthValidation::OAuth2(

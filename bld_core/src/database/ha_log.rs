@@ -1,6 +1,6 @@
 use crate::database::schema::ha_log;
 use crate::database::schema::ha_log::dsl::*;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use async_raft::raft::{Entry, EntryPayload};
 use async_raft::AppData;
 use diesel::prelude::*;
@@ -73,7 +73,7 @@ impl<T: AppData> From<&Entry<T>> for InsertHighAvailLog {
     }
 }
 
-pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailLog> {
+pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailLog> {
     debug!("loading the last entry of high availability log");
     ha_log
         .order(id.desc())
@@ -88,7 +88,7 @@ pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailLog> {
         })
 }
 
-pub fn select_last_rows(conn: &SqliteConnection, rows: i64) -> anyhow::Result<Vec<HighAvailLog>> {
+pub fn select_last_rows(conn: &SqliteConnection, rows: i64) -> Result<Vec<HighAvailLog>> {
     debug!("loading the last {} rows of high availability log", rows);
     ha_log
         .order(id.desc())
@@ -104,7 +104,7 @@ pub fn select_last_rows(conn: &SqliteConnection, rows: i64) -> anyhow::Result<Ve
         })
 }
 
-pub fn select_by_id(conn: &SqliteConnection, lg_id: i32) -> anyhow::Result<HighAvailLog> {
+pub fn select_by_id(conn: &SqliteConnection, lg_id: i32) -> Result<HighAvailLog> {
     debug!("loading high availability log with id: {}", lg_id);
     ha_log
         .filter(id.eq(lg_id))
@@ -123,7 +123,7 @@ pub fn select_between_ids(
     conn: &SqliteConnection,
     lg_start_id: i32,
     lg_end_id: i32,
-) -> anyhow::Result<Vec<HighAvailLog>> {
+) -> Result<Vec<HighAvailLog>> {
     debug!(
         "loading high availability logs from id: {} to id: {}",
         lg_start_id, lg_end_id
@@ -141,7 +141,7 @@ pub fn select_between_ids(
         })
 }
 
-pub fn select_by_payload_type(conn: &SqliteConnection) -> anyhow::Result<HighAvailLog> {
+pub fn select_by_payload_type(conn: &SqliteConnection) -> Result<HighAvailLog> {
     debug!("loading high availability log with either config_change or snapshot payload types");
     ha_log
         .filter(payload_type.eq(CONFIG_CHANGE))
@@ -158,7 +158,7 @@ pub fn select_by_payload_type(conn: &SqliteConnection) -> anyhow::Result<HighAva
         })
 }
 
-pub fn select_first_by_date_created_desc(conn: &SqliteConnection) -> anyhow::Result<HighAvailLog> {
+pub fn select_first_by_date_created_desc(conn: &SqliteConnection) -> Result<HighAvailLog> {
     debug!("loading first high availability log ordered by descending creation date");
     ha_log
         .order(date_created.desc())
@@ -176,7 +176,7 @@ pub fn select_first_by_date_created_desc(conn: &SqliteConnection) -> anyhow::Res
 pub fn select_config_greater_than_id(
     conn: &SqliteConnection,
     lg_id: i32,
-) -> anyhow::Result<HighAvailLog> {
+) -> Result<HighAvailLog> {
     debug!(
         "loading high availability logs with greater id than: {}",
         lg_id
@@ -194,7 +194,7 @@ pub fn select_config_greater_than_id(
         })
 }
 
-pub fn insert(conn: &SqliteConnection, model: InsertHighAvailLog) -> anyhow::Result<HighAvailLog> {
+pub fn insert(conn: &SqliteConnection, model: InsertHighAvailLog) -> Result<HighAvailLog> {
     debug!("inserting new high availability log: {:?}", model);
     conn.transaction(|| {
         diesel::insert_into(ha_log)
@@ -214,7 +214,7 @@ pub fn insert(conn: &SqliteConnection, model: InsertHighAvailLog) -> anyhow::Res
 pub fn insert_many(
     conn: &SqliteConnection,
     models: Vec<InsertHighAvailLog>,
-) -> anyhow::Result<Vec<HighAvailLog>> {
+) -> Result<Vec<HighAvailLog>> {
     debug!("inserting multiple high availability log entries");
     conn.transaction(|| {
         diesel::insert_into(ha_log)
@@ -234,7 +234,7 @@ pub fn insert_many(
     })
 }
 
-pub fn delete(conn: &SqliteConnection) -> anyhow::Result<()> {
+pub fn delete(conn: &SqliteConnection) -> Result<()> {
     debug!("deleting all high availability logs");
     diesel::delete(ha_log)
         .execute(conn)
@@ -245,7 +245,7 @@ pub fn delete(conn: &SqliteConnection) -> anyhow::Result<()> {
         })
 }
 
-pub fn delete_by_ids(conn: &SqliteConnection, lg_ids: Vec<i32>) -> anyhow::Result<()> {
+pub fn delete_by_ids(conn: &SqliteConnection, lg_ids: Vec<i32>) -> Result<()> {
     debug!("deleting high availability log entries");
     diesel::delete(ha_log.filter(id.eq_any(lg_ids)))
         .execute(conn)
@@ -259,7 +259,7 @@ pub fn delete_by_ids(conn: &SqliteConnection, lg_ids: Vec<i32>) -> anyhow::Resul
         })
 }
 
-pub fn delete_from_id(conn: &SqliteConnection, lg_id: i32) -> anyhow::Result<()> {
+pub fn delete_from_id(conn: &SqliteConnection, lg_id: i32) -> Result<()> {
     debug!(
         "deleting high availability log entries starting from id: {}",
         lg_id
@@ -273,7 +273,7 @@ pub fn delete_from_id(conn: &SqliteConnection, lg_id: i32) -> anyhow::Result<()>
         })
 }
 
-pub fn delete_until_id(conn: &SqliteConnection, lg_id: i32) -> anyhow::Result<()> {
+pub fn delete_until_id(conn: &SqliteConnection, lg_id: i32) -> Result<()> {
     debug!(
         "deleting high availability logs less than equal to: {}",
         lg_id

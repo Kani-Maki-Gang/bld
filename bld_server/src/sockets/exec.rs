@@ -5,7 +5,7 @@ use actix_web::rt::spawn;
 use actix_web::web::{Data, Payload};
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::database::pipeline_runs::{self, PR_STATE_FINISHED, PR_STATE_QUEUED};
 use bld_core::proxies::PipelineFileSystemProxy;
@@ -79,7 +79,7 @@ impl ExecutePipelineSocket {
         }
     }
 
-    fn enqueue_worker(&mut self, data: &str) -> anyhow::Result<()> {
+    fn enqueue_worker(&mut self, data: &str) -> Result<()> {
         let info = serde_json::from_str::<ExecInfo>(data)?;
         let path = self.proxy.path(&info.name)?;
         if !path.is_yaml() {

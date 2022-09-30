@@ -1,20 +1,22 @@
-use crate::{run::parse_variables, BldCommand};
-use actix::{io::SinkWrite, Actor, StreamHandler};
+use crate::run::parse_variables;
+use crate::BldCommand;
+use actix::io::SinkWrite;
+use actix::{Actor, StreamHandler};
 use actix_web::rt::{spawn, System};
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use awc::Client;
 use bld_config::BldConfig;
-use bld_core::{
-    context::Context,
-    database::{new_connection_pool, pipeline_runs},
-    execution::Execution,
-    logger::Logger,
-    proxies::PipelineFileSystemProxy,
-};
+use bld_core::context::Context;
+use bld_core::database::{new_connection_pool, pipeline_runs};
+use bld_core::execution::Execution;
+use bld_core::logger::Logger;
+use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::RunnerBuilder;
-use bld_supervisor::{base::WorkerMessages, sockets::WorkerClient};
+use bld_supervisor::base::WorkerMessages;
+use bld_supervisor::sockets::WorkerClient;
 use clap::{App, Arg, ArgMatches, SubCommand};
-use futures::{join, stream::StreamExt};
+use futures::join;
+use futures::stream::StreamExt;
 use std::sync::Arc;
 use tokio::sync::mpsc::{channel, Receiver};
 use tracing::{debug, error};
@@ -68,7 +70,7 @@ impl BldCommand for WorkerCommand {
             .args(&[pipeline, run_id, variables, environment])
     }
 
-    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let cfg = Arc::new(BldConfig::load()?);
         let socket_cfg = Arc::clone(&cfg);
         let pipeline = Arc::new(matches.value_of(PIPELINE).unwrap_or_default().to_string());
@@ -128,7 +130,7 @@ impl BldCommand for WorkerCommand {
 async fn connect_to_supervisor(
     config: Arc<BldConfig>,
     mut worker_rx: Receiver<WorkerMessages>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let url = format!(
         "ws://{}:{}/ws-worker/",
         config.local.supervisor.host, config.local.supervisor.port

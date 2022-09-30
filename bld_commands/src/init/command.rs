@@ -1,5 +1,5 @@
 use crate::BldCommand;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use bld_config::definitions;
 use bld_config::path;
 use bld_utils::term::print_info;
@@ -36,7 +36,7 @@ impl BldCommand for InitCommand {
             .arg(server)
     }
 
-    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let build_dir_exists = build_dir_exists()?;
         if !build_dir_exists {
             let is_server = matches.is_present(SERVER);
@@ -56,11 +56,11 @@ impl BldCommand for InitCommand {
     }
 }
 
-fn print_dir_created(dir: &str) -> anyhow::Result<()> {
+fn print_dir_created(dir: &str) -> Result<()> {
     print_info(&format!("{} directory created", dir))
 }
 
-fn build_dir_exists() -> anyhow::Result<bool> {
+fn build_dir_exists() -> Result<bool> {
     let curr_dir = std::env::current_dir()?;
     for entry in fs::read_dir(&curr_dir)? {
         let entry = entry?;
@@ -77,14 +77,14 @@ fn build_dir_exists() -> anyhow::Result<bool> {
     Ok(false)
 }
 
-fn create_build_dir() -> anyhow::Result<()> {
+fn create_build_dir() -> Result<()> {
     let path = Path::new(definitions::TOOL_DIR);
     fs::create_dir(path)?;
     print_dir_created(definitions::TOOL_DIR)?;
     Ok(())
 }
 
-fn create_logs_dir(is_server: bool) -> anyhow::Result<()> {
+fn create_logs_dir(is_server: bool) -> Result<()> {
     if is_server {
         let path = Path::new(definitions::LOCAL_LOGS);
         fs::create_dir(path)?;
@@ -93,7 +93,7 @@ fn create_logs_dir(is_server: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn create_db_dir(is_server: bool) -> anyhow::Result<()> {
+fn create_db_dir(is_server: bool) -> Result<()> {
     if is_server {
         let path = Path::new(definitions::LOCAL_DB);
         fs::create_dir(path)?;
@@ -102,7 +102,7 @@ fn create_db_dir(is_server: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn create_server_pipelines_dir(is_server: bool) -> anyhow::Result<()> {
+fn create_server_pipelines_dir(is_server: bool) -> Result<()> {
     if is_server {
         let path = Path::new(definitions::LOCAL_SERVER_PIPELINES);
         fs::create_dir(path)?;
@@ -111,7 +111,7 @@ fn create_server_pipelines_dir(is_server: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn create_default_yaml() -> anyhow::Result<()> {
+fn create_default_yaml() -> Result<()> {
     let path = path![
         definitions::TOOL_DIR,
         definitions::TOOL_DEFAULT_PIPELINE_FILE
@@ -124,7 +124,7 @@ fn create_default_yaml() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn create_config_yaml(is_server: bool) -> anyhow::Result<()> {
+fn create_config_yaml(is_server: bool) -> Result<()> {
     let path = path![definitions::TOOL_DIR, definitions::TOOL_DEFAULT_CONFIG_FILE];
     let content = match is_server {
         true => definitions::default_server_config(),

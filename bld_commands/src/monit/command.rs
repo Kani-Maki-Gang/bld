@@ -2,7 +2,7 @@ use crate::monit::MonitClient;
 use crate::BldCommand;
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use actix_web::rt::System;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use awc::Client;
 use bld_config::{definitions::VERSION, BldConfig};
 use bld_server::requests::MonitInfo;
@@ -67,7 +67,7 @@ impl BldCommand for MonitCommand {
             .args(&vec![pipeline_id, pipeline, server, last])
     }
 
-    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
         let pip_id = matches.value_of(PIPELINE_ID).map(|x| x.to_string());
         let pip_name = matches.value_of(PIPELINE).map(|x| x.to_string());
@@ -99,7 +99,7 @@ impl BldCommand for MonitCommand {
     }
 }
 
-async fn request(info: MonitConnectionInfo) -> anyhow::Result<()> {
+async fn request(info: MonitConnectionInfo) -> Result<()> {
     let url = format!("ws://{}:{}/ws-monit/", info.host, info.port);
     debug!("establishing web socket connection on {}", url);
     let mut client = Client::new().ws(url);
@@ -121,7 +121,7 @@ async fn request(info: MonitConnectionInfo) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn spawn(info: MonitConnectionInfo) -> anyhow::Result<()> {
+fn spawn(info: MonitConnectionInfo) -> Result<()> {
     debug!("spawing actix system");
     let sys = System::new();
     let res = sys.block_on(request(info));

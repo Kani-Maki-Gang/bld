@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use bld_utils::errors::err_variable_in_yaml;
 use std::fmt::{self, Display, Formatter};
 use yaml_rust::{Yaml, YamlLoader};
@@ -102,7 +102,7 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    pub fn parse(src: &str) -> anyhow::Result<Pipeline> {
+    pub fn parse(src: &str) -> Result<Pipeline> {
         let yaml = YamlLoader::load_from_str(src)?;
         if yaml.is_empty() {
             return Err(anyhow!("invalid yaml"));
@@ -112,7 +112,7 @@ impl Pipeline {
         Ok(pipeline)
     }
 
-    pub fn load(yaml: &Yaml) -> anyhow::Result<Self> {
+    pub fn load(yaml: &Yaml) -> Result<Self> {
         Ok(Self {
             name: yaml["name"].as_str().map(|n| n.to_string()),
             runs_on: match yaml["runs-on"].as_str() {
@@ -127,7 +127,7 @@ impl Pipeline {
         })
     }
 
-    fn variables(yaml: &Yaml, section: &str) -> anyhow::Result<Vec<Variable>> {
+    fn variables(yaml: &Yaml, section: &str) -> Result<Vec<Variable>> {
         let mut variables = Vec::<Variable>::new();
         if let Some(entries) = &yaml[section].as_vec() {
             for variable in entries.iter() {

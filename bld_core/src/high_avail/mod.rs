@@ -8,7 +8,7 @@ pub use agent::*;
 pub use network::*;
 pub use storage::*;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use async_raft::config::Config;
 use async_raft::raft::{
     AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest, InstallSnapshotResponse,
@@ -44,7 +44,7 @@ impl HighAvailThread {
     pub async fn new(
         config: &BldConfig,
         pool: Pool<ConnectionManager<SqliteConnection>>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self> {
         let (agent, agents) = agent_info(config)?;
         let node_id = agent.id();
         let raft_config = Arc::new(Config::build("raft-group".into()).validate()?);
@@ -65,7 +65,7 @@ impl HighAvailThread {
     }
 }
 
-fn agent_info(config: &BldConfig) -> anyhow::Result<(Agent, HashSet<Agent>)> {
+fn agent_info(config: &BldConfig) -> Result<(Agent, HashSet<Agent>)> {
     let node_id = config
         .local
         .node_id
@@ -91,7 +91,7 @@ impl HighAvail {
     pub async fn new(
         config: &BldConfig,
         pool: Pool<ConnectionManager<SqliteConnection>>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self> {
         Ok(match config.local.ha_mode {
             true => Self::Enabled(HighAvailThread::new(config, pool).await?),
             false => Self::Disabled,

@@ -1,4 +1,5 @@
 use crate::BldCommand;
+use anyhow::Result;
 use bld_config::definitions::{TOOL_DEFAULT_PIPELINE, VERSION};
 use bld_config::BldConfig;
 use bld_core::context::Context;
@@ -68,7 +69,7 @@ impl BldCommand for RunCommand {
             .args(&[pipeline, server, detach, variables, environment])
     }
 
-    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
         let pipeline = matches
             .value_of("pipeline")

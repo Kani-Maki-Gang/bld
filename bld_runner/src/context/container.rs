@@ -1,16 +1,15 @@
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, Result};
 use bld_config::BldConfig;
-use bld_core::{context::Context, execution::Execution, logger::Logger};
+use bld_core::context::Context; 
+use bld_core::execution::Execution; 
+use bld_core::logger::Logger;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
-use shiplift::{
-    tty::TtyChunk, ContainerOptions, Docker, ExecContainerOptions, ImageListOptions, PullOptions,
-};
-use std::{
-    collections::HashMap,
-    path::Path,
-    sync::{Arc, Mutex},
-};
+use shiplift::tty::TtyChunk;
+use shiplift::{ContainerOptions, Docker, ExecContainerOptions, ImageListOptions, PullOptions};
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::{Arc, Mutex};
 use tar::Archive;
 use tracing::error;
 
@@ -26,27 +25,27 @@ pub struct Container {
 }
 
 impl Container {
-    fn get_client(&self) -> anyhow::Result<&Docker> {
+    fn get_client(&self) -> Result<&Docker> {
         match &self.client {
             Some(client) => Ok(client),
             None => bail!("container not started"),
         }
     }
 
-    fn get_id(&self) -> anyhow::Result<&str> {
+    fn get_id(&self) -> Result<&str> {
         match &self.id {
             Some(id) => Ok(id),
             None => bail!("container id not found"),
         }
     }
 
-    fn docker(config: &Arc<BldConfig>) -> anyhow::Result<Docker> {
+    fn docker(config: &Arc<BldConfig>) -> Result<Docker> {
         let url = config.local.docker_url.parse()?;
         let host = Docker::host(url);
         Ok(host)
     }
 
-    async fn pull(client: &Docker, image: &str, logger: &mut AtomicLogger) -> anyhow::Result<()> {
+    async fn pull(client: &Docker, image: &str, logger: &mut AtomicLogger) -> Result<()> {
         let options = ImageListOptions::builder().filter_name(image).build();
         let images = client.images().list(&options).await?;
         if images.is_empty() {
@@ -69,7 +68,7 @@ impl Container {
         image: &str,
         env: &[String],
         logger: &mut AtomicLogger,
-    ) -> anyhow::Result<String> {
+    ) -> Result<String> {
         Container::pull(client, image, logger).await?;
         let options = ContainerOptions::builder(image).env(env).tty(true).build();
         let info = client.containers().create(&options).await?;
@@ -83,7 +82,7 @@ impl Container {
         env: Arc<HashMap<String, String>>,
         logger: AtomicLogger,
         containers: Arc<Mutex<Context>>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self> {
         let client = Container::docker(&config)?;
         let env: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
         let id = Container::create(&client, image, &env, &mut logger.clone()).await?;
@@ -101,7 +100,7 @@ impl Container {
         })
     }
 
-    pub async fn copy_from(&self, from: &str, to: &str) -> anyhow::Result<()> {
+    pub async fn copy_from(&self, from: &str, to: &str) -> Result<()> {
         let client = self.get_client()?;
         let container = client.containers().get(self.get_id()?);
         let bytes = container.copy_from(Path::new(from)).try_concat().await?;
@@ -110,7 +109,7 @@ impl Container {
         Ok(())
     }
 
-    pub async fn copy_into(&self, from: &str, to: &str) -> anyhow::Result<()> {
+    pub async fn copy_into(&self, from: &str, to: &str) -> Result<()> {
         let client = self.get_client()?;
         let container = client.containers().get(self.get_id()?);
         let content = std::fs::read(from)?;
@@ -123,7 +122,7 @@ impl Container {
         working_dir: &Option<String>,
         input: &str,
         ex: Arc<Mutex<Execution>>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         let client = self.get_client()?;
         let id = self.get_id()?;
         let input = working_dir
@@ -156,7 +155,7 @@ impl Container {
         Ok(())
     }
 
-    pub async fn dispose(&self) -> anyhow::Result<()> {
+    pub async fn dispose(&self) -> Result<()> {
         let client = self.get_client()?;
         let id = self.get_id()?;
         if let Err(e) = client.containers().get(id).stop(None).await {

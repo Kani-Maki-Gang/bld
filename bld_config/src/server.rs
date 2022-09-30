@@ -1,5 +1,5 @@
 use crate::{definitions, Auth, OAuth2Info};
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use async_raft::NodeId;
 use yaml_rust::Yaml;
 
@@ -11,7 +11,7 @@ pub struct BldLocalServerConfig {
 }
 
 impl BldLocalServerConfig {
-    pub fn load(yaml: &Yaml) -> anyhow::Result<Self> {
+    pub fn load(yaml: &Yaml) -> Result<Self> {
         let host = yaml["host"]
             .as_str()
             .unwrap_or(definitions::LOCAL_SERVER_HOST)
@@ -52,7 +52,7 @@ pub struct BldRemoteServerConfig {
 }
 
 impl BldRemoteServerConfig {
-    pub fn load(yaml: &Yaml) -> anyhow::Result<Self> {
+    pub fn load(yaml: &Yaml) -> Result<Self> {
         let name = yaml["server"]
             .as_str()
             .ok_or_else(|| anyhow!("Server entry must have a name"))?

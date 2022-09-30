@@ -1,4 +1,5 @@
 use crate::BldCommand;
+use anyhow::Result;
 use actix_web::rt::System;
 use bld_config::{definitions::VERSION, BldConfig};
 use bld_utils::errors::auth_for_server_invalid;
@@ -34,7 +35,7 @@ impl BldCommand for HistCommand {
             .args(&[server])
     }
 
-    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
         let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
         debug!("running {} subcommand with --server: {}", HIST, srv.name);

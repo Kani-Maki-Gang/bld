@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use crate::database::schema::pipeline;
 use crate::database::schema::pipeline::dsl::*;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
@@ -22,7 +22,7 @@ struct InsertPipeline<'a> {
     pub name: &'a str,
 }
 
-pub fn select_all(conn: &SqliteConnection) -> anyhow::Result<Vec<Pipeline>> {
+pub fn select_all(conn: &SqliteConnection) -> Result<Vec<Pipeline>> {
     debug!("loading all pipelines from the database");
     pipeline
         .load(conn)
@@ -36,7 +36,7 @@ pub fn select_all(conn: &SqliteConnection) -> anyhow::Result<Vec<Pipeline>> {
         })
 }
 
-pub fn select_by_id(conn: &SqliteConnection, pip_id: &str) -> anyhow::Result<Pipeline> {
+pub fn select_by_id(conn: &SqliteConnection, pip_id: &str) -> Result<Pipeline> {
     debug!("loading pipeline with id: {pip_id} from the database");
     pipeline
         .filter(id.eq(pip_id))
@@ -51,7 +51,7 @@ pub fn select_by_id(conn: &SqliteConnection, pip_id: &str) -> anyhow::Result<Pip
         })
 }
 
-pub fn select_by_name(conn: &SqliteConnection, pip_name: &str) -> anyhow::Result<Pipeline> {
+pub fn select_by_name(conn: &SqliteConnection, pip_name: &str) -> Result<Pipeline> {
     debug!("loading pipeline with name: {pip_name} from the database");
     pipeline
         .filter(name.eq(pip_name))
@@ -66,7 +66,7 @@ pub fn select_by_name(conn: &SqliteConnection, pip_name: &str) -> anyhow::Result
         })
 }
 
-pub fn insert(conn: &SqliteConnection, pip_id: &str, pip_name: &str) -> anyhow::Result<Pipeline> {
+pub fn insert(conn: &SqliteConnection, pip_id: &str, pip_name: &str) -> Result<Pipeline> {
     debug!("inserting new pipeline to the database");
     let model = InsertPipeline {
         id: pip_id,
@@ -87,7 +87,7 @@ pub fn insert(conn: &SqliteConnection, pip_id: &str, pip_name: &str) -> anyhow::
     })
 }
 
-pub fn delete(conn: &SqliteConnection, pip_id: &str) -> anyhow::Result<()> {
+pub fn delete(conn: &SqliteConnection, pip_id: &str) -> Result<()> {
     debug!("deleting pipeline with id: {pip_id} from the database");
     conn.transaction(|| {
         diesel::delete(pipeline.filter(id.eq(pip_id)))
@@ -102,7 +102,7 @@ pub fn delete(conn: &SqliteConnection, pip_id: &str) -> anyhow::Result<()> {
     })
 }
 
-pub fn delete_by_name(conn: &SqliteConnection, pip_name: &str) -> anyhow::Result<()> {
+pub fn delete_by_name(conn: &SqliteConnection, pip_name: &str) -> Result<()> {
     debug!("deleting pipeline with name: {pip_name} from the database");
     conn.transaction(|| {
         diesel::delete(pipeline.filter(name.eq(pip_name)))
