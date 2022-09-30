@@ -2,4 +2,4 @@
 /.build
 /.bld
 /.vscode
-*/**.vimspector*
+/.vimspector.json

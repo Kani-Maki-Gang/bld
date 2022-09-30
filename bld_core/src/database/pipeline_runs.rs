@@ -1,11 +1,16 @@
 use crate::database::schema::pipeline_runs;
 use crate::database::schema::pipeline_runs::dsl::*;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
 use diesel::Queryable;
 use tracing::{debug, error};
+
+pub const PR_STATE_INITIAL: &str = "initial";
+pub const PR_STATE_QUEUED: &str = "queued";
+pub const PR_STATE_RUNNING: &str = "running";
+pub const PR_STATE_FINISHED: &str = "finished";
 
 #[derive(Debug, Identifiable, Queryable)]
 #[table_name = "pipeline_runs"]
@@ -28,7 +33,7 @@ struct InsertPipelineRun<'a> {
     pub user: &'a str,
 }
 
-pub fn select_all(conn: &SqliteConnection) -> anyhow::Result<Vec<PipelineRuns>> {
+pub fn select_all(conn: &SqliteConnection) -> Result<Vec<PipelineRuns>> {
     debug!("loading all pipeline runs from the database");
     pipeline_runs
         .order(start_date_time)
@@ -43,7 +48,22 @@ pub fn select_all(conn: &SqliteConnection) -> anyhow::Result<Vec<PipelineRuns>> 
         })
 }
 
-pub fn select_by_id(conn: &SqliteConnection, pip_id: &str) -> anyhow::Result<PipelineRuns> {
+pub fn select_running_by_id(conn: &SqliteConnection, run_id: &str) -> Result<PipelineRuns> {
+    debug!("loading pipeline run with id: {run_id} that is in a running state");
+    pipeline_runs
+        .filter(id.eq(run_id).and(state.eq(PR_STATE_RUNNING)))
+        .first(conn)
+        .map(|p| {
+            debug!("loaded pipeline runs successfully");
+            p
+        })
+        .map_err(|e| {
+            error!("could not load pipeline run due to: {e}");
+            anyhow!(e)
+        })
+}
+
+pub fn select_by_id(conn: &SqliteConnection, pip_id: &str) -> Result<PipelineRuns> {
     debug!("loading pipeline with id: {pip_id} from the database");
     pipeline_runs
         .filter(id.eq(pip_id))
@@ -58,7 +78,7 @@ pub fn select_by_id(conn: &SqliteConnection, pip_id: &str) -> anyhow::Result<Pip
         })
 }
 
-pub fn select_by_name(conn: &SqliteConnection, pip_name: &str) -> anyhow::Result<PipelineRuns> {
+pub fn select_by_name(conn: &SqliteConnection, pip_name: &str) -> Result<PipelineRuns> {
     debug!("loading pipeline with name: {pip_name} from the database");
     pipeline_runs
         .filter(name.eq(pip_name))
@@ -73,7 +93,7 @@ pub fn select_by_name(conn: &SqliteConnection, pip_name: &str) -> anyhow::Result
         })
 }
 
-pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<PipelineRuns> {
+pub fn select_last(conn: &SqliteConnection) -> Result<PipelineRuns> {
     debug!("loading the last invoked pipeline from the database");
     pipeline_runs
         .order(start_date_time.desc())
@@ -93,12 +113,12 @@ pub fn insert(
     pip_id: &str,
     pip_name: &str,
     pip_user: &str,
-) -> anyhow::Result<PipelineRuns> {
+) -> Result<PipelineRuns> {
     debug!("inserting new pipeline to the database");
     let run = InsertPipelineRun {
         id: pip_id,
         name: pip_name,
-        state: "initial",
+        state: PR_STATE_INITIAL,
         user: pip_user,
     };
     conn.transaction(|| {
@@ -123,7 +143,7 @@ pub fn update_state(
     conn: &SqliteConnection,
     pip_id: &str,
     pip_state: &str,
-) -> anyhow::Result<PipelineRuns> {
+) -> Result<PipelineRuns> {
     debug!("updating pipeline id: {pip_id} with values state: {pip_state}");
     conn.transaction(|| {
         diesel::update(pipeline_runs.filter(id.eq(pip_id)))
@@ -144,7 +164,7 @@ pub fn update_stopped(
     conn: &SqliteConnection,
     pip_id: &str,
     pip_stopped: bool,
-) -> anyhow::Result<PipelineRuns> {
+) -> Result<PipelineRuns> {
     debug!("updating pipeline id: {pip_id} with values stopped: {pip_stopped}");
     conn.transaction(|| {
         diesel::update(pipeline_runs.filter(id.eq(pip_id)))

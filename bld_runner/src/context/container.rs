@@ -10,8 +10,6 @@ use std::{
     collections::HashMap,
     path::Path,
     sync::{Arc, Mutex},
-    thread::sleep,
-    time::Duration,
 };
 use tar::Archive;
 use tracing::error;
@@ -58,13 +56,9 @@ impl Container {
             }
             let options = PullOptions::builder().image(image).build();
             let mut pull_iter = client.images().pull(&options);
-            while let Some(progress) = pull_iter.next().await {
-                let info = progress?;
-                {
-                    let mut logger = logger.lock().unwrap();
-                    logger.dumpln(&info.to_string());
-                }
-                sleep(Duration::from_millis(100));
+            while let Some(Ok(progress)) = pull_iter.next().await {
+                let mut logger = logger.lock().unwrap();
+                logger.dumpln(&progress.to_string());
             }
         }
         Ok(())
@@ -156,11 +150,8 @@ impl Container {
                 Ok(TtyChunk::StdIn(_)) => unreachable!(),
                 Err(e) => return Err(anyhow!(e)),
             };
-            {
-                let mut logger = self.logger.lock().unwrap();
-                logger.dump(&chunk);
-            }
-            sleep(Duration::from_millis(100));
+            let mut logger = self.logger.lock().unwrap();
+            logger.dump(&chunk);
         }
         Ok(())
     }

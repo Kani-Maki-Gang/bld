@@ -1,24 +1,16 @@
 use crate::BldCommand;
-use bld_config::{
-    definitions::{TOOL_DEFAULT_PIPELINE, VERSION}, 
-    BldConfig
-};
-use bld_core::{
-    context::Context,
-    execution::Execution,
-    logger::Logger,
-    proxies::PipelineFileSystemProxy,
-};
+use bld_config::definitions::{TOOL_DEFAULT_PIPELINE, VERSION};
+use bld_config::BldConfig;
+use bld_core::context::Context;
+use bld_core::execution::Execution;
+use bld_core::logger::Logger;
+use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::{self, ExecConnectionInfo, RunnerBuilder};
-use bld_utils::{
-    errors::auth_for_server_invalid,
-    request::headers,
-};
+use bld_utils::errors::auth_for_server_invalid;
+use bld_utils::request::headers;
 use clap::{App, Arg, ArgMatches, SubCommand};
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use tokio::runtime::Runtime;
 use tracing::debug;
 use uuid::Uuid;

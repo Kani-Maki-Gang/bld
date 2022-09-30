@@ -152,14 +152,9 @@ impl RunnerBuilder {
                 TargetPlatform::Machine(Box::new(machine))
             }
             RunsOn::Docker(img) => {
-                let container = Container::new(
-                    img,
-                    cfg.clone(),
-                    env.clone(),
-                    lg.clone(),
-                    context.clone(),
-                )
-                .await?;
+                let container =
+                    Container::new(img, cfg.clone(), env.clone(), lg.clone(), context.clone())
+                        .await?;
                 TargetPlatform::Container(Box::new(container))
             }
         };
@@ -210,14 +205,14 @@ impl Runner {
     async fn exec_persist_start(&self) {
         let mut exec = self.ex.lock().unwrap();
         if !self.is_child {
-            let _ = exec.update_state("running");
+            let _ = exec.set_as_running();
         }
     }
 
     async fn exec_persist_end(&self) -> anyhow::Result<()> {
         let mut exec = self.ex.lock().unwrap();
         if !self.is_child {
-            let _ = exec.update_state("finished");
+            let _ = exec.set_as_finished();
         }
         if self.pip.dispose {
             self.platform.dispose(self.is_child).await?;

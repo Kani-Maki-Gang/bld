@@ -1,10 +1,9 @@
 use crate::database::pipeline_run_containers::{
-    self, InsertPipelineRunContainer, PipelineRunContainers,
+    self, InsertPipelineRunContainer, PipelineRunContainers, PRC_STATE_FAULTED, PRC_STATE_REMOVED,
 };
-use diesel::{
-    r2d2::{ConnectionManager, Pool},
-    sqlite::SqliteConnection,
-};
+use anyhow::Result;
+use diesel::r2d2::{ConnectionManager, Pool};
+use diesel::sqlite::SqliteConnection;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
@@ -14,7 +13,7 @@ pub enum Context {
         pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
         run_id: String,
         instances: Vec<PipelineRunContainers>,
-    }
+    },
 }
 
 impl Context {
@@ -22,18 +21,21 @@ impl Context {
         pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
         run_id: &str,
     ) -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self::Containers { pool, run_id: run_id.to_string(), instances: vec![] }))
+        Arc::new(Mutex::new(Self::Containers {
+            pool,
+            run_id: run_id.to_string(),
+            instances: vec![],
+        }))
     }
 
-    pub fn add(&mut self, container_id: &str) -> anyhow::Result<()> {
+    pub fn add(&mut self, container_id: &str) -> Result<()> {
         match self {
             Self::Empty => Ok(()),
             Self::Containers {
                 pool,
                 run_id,
-                instances
-            } =>
-            {
+                instances,
+            } => {
                 let conn = pool.get()?;
                 let instance = pipeline_run_containers::insert(
                     &conn,
@@ -50,42 +52,48 @@ impl Context {
         }
     }
 
-    pub fn remove(&mut self, container_id: &str) -> anyhow::Result<()> {
+    pub fn remove(&mut self, container_id: &str) -> Result<()> {
         match self {
             Self::Empty => Ok(()),
             Self::Containers {
                 pool,
                 run_id: _,
-                instances
-            } =>
-            {
+                instances,
+            } => {
                 if let Some(idx) = instances
                     .iter()
                     .position(|i| i.container_id == container_id)
                 {
                     let conn = pool.get()?;
-                    instances[idx] = pipeline_run_containers::update_state(&conn, &instances[idx].id, "removed")?;
+                    instances[idx] = pipeline_run_containers::update_state(
+                        &conn,
+                        &instances[idx].id,
+                        PRC_STATE_REMOVED,
+                    )?;
                 }
                 Ok(())
             }
         }
     }
 
-    pub fn faulted(&mut self, container_id: &str) -> anyhow::Result<()> {
+    pub fn faulted(&mut self, container_id: &str) -> Result<()> {
         match self {
             Self::Empty => Ok(()),
             Self::Containers {
                 pool,
                 run_id: _,
-                instances
-            } =>
-            {
+                instances,
+            } => {
                 if let Some(idx) = instances
                     .iter()
                     .position(|i| i.container_id == container_id)
                 {
                     let conn = pool.get()?;
-                    instances[idx] = pipeline_run_containers::update_state(&conn, &instances[idx].id, "faulted")?;
+                    instances[idx] = pipeline_run_containers::update_state(
+                        &conn,
+                        &instances[idx].id,
+                        PRC_STATE_FAULTED,
+                    )?;
                 }
                 Ok(())
             }

@@ -11,12 +11,12 @@ use actix_web_actors::ws;
 use std::sync::Mutex;
 use tracing::{debug, error, info};
 
-pub struct ActiveWorkerSocket {
+pub struct WorkerSocket {
     worker_pid: Option<u32>,
     worker_queue: Data<Mutex<WorkerQueue>>,
 }
 
-impl ActiveWorkerSocket {
+impl WorkerSocket {
     pub fn new(worker_queue: Data<Mutex<WorkerQueue>>) -> Self {
         Self {
             worker_pid: None,
@@ -46,6 +46,7 @@ impl ActiveWorkerSocket {
 
     fn cleanup(&self, ctx: &mut <Self as Actor>::Context) {
         if let Some(pid) = self.worker_pid {
+            debug!("dequeue of worker with pid: {}", pid);
             let mut queue = self.worker_queue.lock().unwrap();
             if let Err(e) = queue.dequeue(pid) {
                 error!("{e}");
@@ -55,19 +56,20 @@ impl ActiveWorkerSocket {
     }
 }
 
-impl Actor for ActiveWorkerSocket {
+impl Actor for WorkerSocket {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
         debug!("active worker socket started");
     }
 
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
+    fn stopped(&mut self, ctx: &mut Self::Context) {
+        self.cleanup(ctx);
         debug!("active worker socket stopped");
     }
 }
 
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ActiveWorkerSocket {
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WorkerSocket {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Binary(bytes)) => {
@@ -76,21 +78,17 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ActiveWorkerSocke
             Ok(ws::Message::Ping(msg)) => {
                 ctx.pong(&msg);
             }
-            Ok(ws::Message::Pong(_)) => {}
-            Ok(ws::Message::Close(reason)) => {
-                ctx.close(reason);
-                self.cleanup(ctx);
-            }
-            _ => self.cleanup(ctx),
+            Ok(ws::Message::Close(reason)) => ctx.close(reason),
+            _ => {}
         }
     }
 }
 
-pub async fn ws_active_worker(
+pub async fn ws_worker_socket(
     req: HttpRequest,
     stream: Payload,
     worker_queue: Data<Mutex<WorkerQueue>>,
 ) -> Result<HttpResponse, Error> {
-    let socket = ActiveWorkerSocket::new(worker_queue);
+    let socket = WorkerSocket::new(worker_queue);
     ws::start(socket, &req, stream)
 }

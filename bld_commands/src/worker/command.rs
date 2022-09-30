@@ -1,6 +1,6 @@
 use crate::{run::parse_variables, BldCommand};
 use actix::{io::SinkWrite, Actor, StreamHandler};
-use actix_web::rt::System;
+use actix_web::rt::{spawn, System};
 use anyhow::anyhow;
 use awc::Client;
 use bld_config::BldConfig;
@@ -14,7 +14,7 @@ use bld_core::{
 use bld_runner::RunnerBuilder;
 use bld_supervisor::{base::WorkerMessages, sockets::WorkerClient};
 use clap::{App, Arg, ArgMatches, SubCommand};
-use futures::stream::StreamExt;
+use futures::{join, stream::StreamExt};
 use std::sync::Arc;
 use tokio::sync::mpsc::{channel, Receiver};
 use tracing::{debug, error};
@@ -89,16 +89,13 @@ impl BldCommand for WorkerCommand {
         let (worker_tx, worker_rx) = channel(4096);
         let worker_tx = Arc::new(Some(worker_tx));
         System::new().block_on(async move {
-            let socket_handle = actix_web::rt::spawn(async move {
-                let _ = connect_to_supervisor(socket_cfg, worker_rx)
-                    .await
-                    .map_err(|e| {
-                        error!("{e}");
-                        e
-                    });
+            let socket_handle = spawn(async move {
+                if let Err(e) = connect_to_supervisor(socket_cfg, worker_rx).await {
+                    error!("{e}");
+                }
             });
-            let runner_handle = actix_web::rt::spawn(async move {
-                if let Ok(runner) = RunnerBuilder::default()
+            let runner_handle = spawn(async move {
+                match RunnerBuilder::default()
                     .run_id(&run_id)
                     .run_start_time(&start_date_time)
                     .config(cfg)
@@ -113,13 +110,16 @@ impl BldCommand for WorkerCommand {
                     .build()
                     .await
                 {
-                    let _ = runner.run().await.await.map_err(|e| {
-                        error!("{e}");
-                        e
-                    });
+                    Ok(runner) => {
+                        let _ = runner.run().await.await.map_err(|e| {
+                            error!("{e}");
+                            e
+                        });
+                    }
+                    Err(e) => error!("failed on building the runner, {e}"),
                 }
             });
-            let _ = futures::join!(socket_handle, runner_handle);
+            let _ = join!(socket_handle, runner_handle);
         });
         Ok(())
     }

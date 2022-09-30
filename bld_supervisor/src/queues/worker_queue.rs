@@ -1,12 +1,16 @@
 use crate::base::Queue;
+use actix_web::rt::spawn;
 use actix_web::web::Data;
-use bld_core::database::pipeline_runs;
+use anyhow::Result;
+use bld_config::BldConfig;
+use bld_core::database::pipeline_run_containers::{self, PRC_STATE_REMOVED};
+use bld_core::database::pipeline_runs::{self, PR_STATE_FINISHED, PR_STATE_QUEUED};
 use bld_core::workers::PipelineWorker;
-use diesel::{
-    r2d2::{ConnectionManager, Pool},
-    SqliteConnection,
-};
+use diesel::r2d2::{ConnectionManager, Pool};
+use diesel::sqlite::SqliteConnection;
+use shiplift::{Docker, RmContainerOptions};
 use std::collections::VecDeque;
+use tracing::{debug, error, info};
 
 /// The QueueManager is initialized with a capacity of active workers.
 /// If there are more workers than the specified capacity, the queue manager
@@ -15,28 +19,44 @@ pub struct WorkerQueue {
     capacity: usize,
     active: Vec<PipelineWorker>,
     backlog: VecDeque<PipelineWorker>,
+    config: Data<BldConfig>,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
 }
 
 impl WorkerQueue {
-    pub fn new(capacity: usize, pool: Data<Pool<ConnectionManager<SqliteConnection>>>) -> Self {
+    pub fn new(
+        capacity: usize,
+        config: Data<BldConfig>,
+        pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    ) -> Self {
+        let config_clone = config.clone();
+        let pool_clone = pool.clone();
+        spawn(async move {
+            if let Err(e) = try_cleanup_containers(config_clone, pool_clone).await {
+                error!("error while cleaning up containers, {e}");
+            }
+        });
         Self {
             capacity,
             active: Vec::with_capacity(capacity),
             backlog: VecDeque::new(),
+            config,
             pool,
         }
     }
 
-    fn activate(&mut self, mut worker: PipelineWorker) -> anyhow::Result<()> {
-        worker.spawn()?;
+    fn activate(&mut self, mut worker: PipelineWorker) -> Result<()> {
+        worker.spawn().map_err(|e| {
+            error!("{e}");
+            e
+        })?;
         self.active.push(worker);
         Ok(())
     }
 
-    fn add_backlog(&mut self, worker: PipelineWorker) -> anyhow::Result<()> {
+    fn add_backlog(&mut self, worker: PipelineWorker) -> Result<()> {
         let conn = self.pool.get()?;
-        pipeline_runs::update_state(&conn, worker.get_run_id(), "queued")?;
+        pipeline_runs::update_state(&conn, worker.get_run_id(), PR_STATE_QUEUED)?;
         self.backlog.push_back(worker);
         Ok(())
     }
@@ -44,7 +64,7 @@ impl WorkerQueue {
 
 impl Queue<PipelineWorker> for WorkerQueue {
     /// Used to spawn the child process of the worker and add it to the active workers vector.
-    fn enqueue(&mut self, item: PipelineWorker) -> anyhow::Result<()> {
+    fn enqueue(&mut self, item: PipelineWorker) -> Result<()> {
         if self.active.len() < self.capacity {
             self.activate(item)?;
         } else {
@@ -56,7 +76,7 @@ impl Queue<PipelineWorker> for WorkerQueue {
     /// This method will check for a worker that have finished executing and will remove them from
     /// the active workers collection. It will pop the appropriate amount of workers from the
     /// backlog vector, spawn them and add them as active.
-    fn dequeue(&mut self, pid: u32) -> anyhow::Result<()> {
+    fn dequeue(&mut self, pid: u32) -> Result<()> {
         self.active.retain_mut(|w| {
             let found = w
                 .get_pid()
@@ -64,7 +84,9 @@ impl Queue<PipelineWorker> for WorkerQueue {
                 .map(|wpid| pid == *wpid)
                 .unwrap_or(false);
             if found {
-                let _ = w.cleanup();
+                if let Err(e) = try_cleanup_process(self.pool.clone(), w) {
+                    error!("error while cleaning up worker process, {e}");
+                }
             }
             !found
         });
@@ -73,6 +95,13 @@ impl Queue<PipelineWorker> for WorkerQueue {
                 self.activate(worker)?;
             }
         }
+        let config = self.config.clone();
+        let pool = self.pool.clone();
+        spawn(async move {
+            if let Err(e) = try_cleanup_containers(config, pool).await {
+                error!("error while cleaning up containers, {e}");
+            }
+        });
         Ok(())
     }
 
@@ -83,4 +112,52 @@ impl Queue<PipelineWorker> for WorkerQueue {
             .or_else(|| self.backlog.iter().find(|w| w.has_pid(pid)))
             .is_some()
     }
+}
+
+/// This function will call the clean up method for the worker and check
+/// the current state of the run id. If its set as running, the worker did not
+/// complete successfully so it will be set to finished and all of its associated
+/// containers will be set as faulted in order to be cleaned up later.
+fn try_cleanup_process(
+    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    worker: &mut PipelineWorker,
+) -> Result<()> {
+    debug!("starting worker process cleanup");
+    if let Err(e) = worker.cleanup() {
+        error!("error when trying to cleanup the worker process, {e}");
+    }
+    let run_id = worker.get_run_id();
+    let conn = pool.get()?;
+    let _ = pipeline_runs::select_running_by_id(&conn, run_id)?;
+    let _ = pipeline_runs::update_state(&conn, run_id, PR_STATE_FINISHED);
+    let _ = pipeline_run_containers::update_running_containers_to_faulted(&conn, run_id);
+    Ok(())
+}
+
+/// This function will fetch all containers with faulted state, try to stop and remove them
+/// using the docker engine API and then set their state as removed.
+pub async fn try_cleanup_containers(
+    config: Data<BldConfig>,
+    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+) -> Result<()> {
+    let conn = pool.get()?;
+    let run_containers = pipeline_run_containers::select_faulted(&conn)?;
+    info!("found {} faulted containers", run_containers.len());
+    let url = config.local.docker_url.parse()?;
+    let client = Docker::host(url);
+    for info in run_containers {
+        let container = client.containers().get(&info.container_id);
+        if let Err(e) = container.stop(None).await {
+            error!("could not stop container {}, {e}", info.container_id);
+        }
+        if let Err(e) = container
+            .remove(RmContainerOptions::builder().force(true).build())
+            .await
+        {
+            error!("could not remove container {}, {e}", info.container_id);
+            continue;
+        }
+        let _ = pipeline_run_containers::update_state(&conn, &info.id, PRC_STATE_REMOVED);
+    }
+    Ok(())
 }
