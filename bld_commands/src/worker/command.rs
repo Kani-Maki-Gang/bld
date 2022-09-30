@@ -85,7 +85,7 @@ impl BldCommand for WorkerCommand {
         });
         let logger = Logger::file_atom(cfg.clone(), &run_id)?;
         let exec = Execution::pipeline_atom(pool.clone(), &run_id);
-        let context = Context::containers_atom(pool.clone(), &run_id);
+        let context = Context::containers_atom(pool, &run_id);
         let (worker_tx, worker_rx) = channel(4096);
         let worker_tx = Arc::new(Some(worker_tx));
         System::new().block_on(async move {

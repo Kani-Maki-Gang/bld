@@ -41,7 +41,7 @@ impl Context {
                     &conn,
                     InsertPipelineRunContainer {
                         id: &Uuid::new_v4().to_string(),
-                        run_id: &run_id,
+                        run_id,
                         container_id,
                         state: "active",
                     },

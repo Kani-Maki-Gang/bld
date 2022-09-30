@@ -210,8 +210,8 @@ impl Runner {
     }
 
     async fn exec_persist_end(&self) -> anyhow::Result<()> {
-        let mut exec = self.ex.lock().unwrap();
         if !self.is_child {
+            let mut exec = self.ex.lock().unwrap();
             let _ = exec.set_as_finished();
         }
         if self.pip.dispose {
