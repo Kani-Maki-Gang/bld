@@ -1,12 +1,17 @@
 use crate::extractors::User;
-use actix_web::{get, web::Data, HttpResponse, Responder};
+use actix_web::{
+    get,
+    web::{Data, Query},
+    HttpResponse, Responder,
+};
 use bld_core::database::pipeline_runs;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use tracing::info;
 
-#[get("/hist")]
+#[get("/hist/state/:")]
 pub async fn hist(
+    query: Query<String>,
     user: Option<User>,
     db_pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
 ) -> impl Responder {
@@ -14,15 +19,20 @@ pub async fn hist(
     if user.is_none() {
         return HttpResponse::Unauthorized().body("");
     }
-    match history_info(db_pool.get_ref()) {
+    let state = query.into_inner();
+    match history_info(db_pool.get_ref(), &state) {
         Ok(ls) => HttpResponse::Ok().body(ls),
         Err(_) => HttpResponse::BadRequest().body(""),
     }
 }
 
-fn history_info(db_pool: &Pool<ConnectionManager<SqliteConnection>>) -> anyhow::Result<String> {
+fn history_info(
+    db_pool: &Pool<ConnectionManager<SqliteConnection>>,
+    state: &str,
+) -> anyhow::Result<String> {
     let connection = db_pool.get()?;
-    let pipeline_runs = pipeline_runs::select_all(&connection).unwrap_or_else(|_| vec![]);
+    let pipeline_runs =
+        pipeline_runs::select_with_filters(&connection, state).unwrap_or_else(|_| vec![]);
     let mut info = String::new();
     if !pipeline_runs.is_empty() {
         info = format!(

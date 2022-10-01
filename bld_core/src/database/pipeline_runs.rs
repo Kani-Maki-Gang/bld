@@ -42,6 +42,24 @@ pub fn select_all(conn: &SqliteConnection) -> anyhow::Result<Vec<PipelineRuns>> 
         })
 }
 
+pub fn select_with_filters(
+    conn: &SqliteConnection,
+    flt_state: &str,
+) -> anyhow::Result<Vec<PipelineRuns>> {
+    debug!("loading pipeline runs from the database with filters:");
+    pipeline_runs
+        .filter(state.eq(flt_state))
+        .order(start_date_time)
+        .load(conn)
+        .map(|p| {
+            debug!("loaded all pipeline runs successfully");
+            p
+        })
+        .map_err(|e| {
+            error!("could not load pipeline runs due to: {e}");
+            anyhow!(e)
+        })
+}
 pub fn select_by_id(conn: &SqliteConnection, pip_id: &str) -> anyhow::Result<PipelineRuns> {
     debug!("loading pipeline with id: {pip_id} from the database");
     pipeline_runs
