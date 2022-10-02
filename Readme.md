@@ -1,5 +1,5 @@
 # BLD
-A simple CI/CD tool.
+A simple and blazingly fast CI/CD tool.
 
 # Features
 - [x] Running a pipeline on the executing machine or on a docker container.
