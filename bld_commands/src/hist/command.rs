@@ -1,6 +1,6 @@
 use crate::BldCommand;
-use anyhow::Result;
 use actix_web::rt::System;
+use anyhow::Result;
 use bld_config::{definitions::VERSION, BldConfig};
 use bld_utils::errors::auth_for_server_invalid;
 use bld_utils::request;

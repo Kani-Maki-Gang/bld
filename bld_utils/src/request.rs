@@ -37,11 +37,7 @@ pub async fn get(url: String, headers: HashMap<String, String>) -> Result<String
     }
 }
 
-pub async fn post<T>(
-    url: String,
-    headers: HashMap<String, String>,
-    body: T,
-) -> Result<String>
+pub async fn post<T>(url: String, headers: HashMap<String, String>, body: T) -> Result<String>
 where
     T: 'static + Serialize,
 {

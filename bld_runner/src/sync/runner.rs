@@ -1,8 +1,10 @@
 use crate::{BuildStep, Container, Machine, Pipeline, RunsOn, TargetPlatform};
 use anyhow::{anyhow, Result};
-use bld_config::definitions::{ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN};
+use bld_config::definitions::{
+    ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN,
+};
 use bld_config::BldConfig;
-use bld_core::context::Context; 
+use bld_core::context::Context;
 use bld_core::execution::Execution;
 use bld_core::logger::Logger;
 use bld_core::proxies::PipelineFileSystemProxy;

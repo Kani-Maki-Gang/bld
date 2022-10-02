@@ -1,5 +1,5 @@
-use actix_web::{post, HttpResponse, Responder};
 use actix_web::web::{Data, Json};
+use actix_web::{post, HttpResponse, Responder};
 use async_raft::raft::{AppendEntriesRequest, InstallSnapshotRequest, VoteRequest};
 use bld_core::high_avail::{AgentRequest, HighAvail};
 use tracing::{debug, error, info};

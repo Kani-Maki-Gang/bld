@@ -70,10 +70,7 @@ pub fn select_by_id(conn: &SqliteConnection, sm_id: i32) -> Result<HighAvailStat
         })
 }
 
-pub fn insert(
-    conn: &SqliteConnection,
-    sm_last_applied_log: i32,
-) -> Result<HighAvailStateMachine> {
+pub fn insert(conn: &SqliteConnection, sm_last_applied_log: i32) -> Result<HighAvailStateMachine> {
     debug!(
         "inserting high availability state machine with last applied log: {:?}",
         sm_last_applied_log

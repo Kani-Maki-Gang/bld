@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result, Error};
+use anyhow::{anyhow, Error, Result};
 
 pub fn err_variable_in_yaml() -> Error {
     anyhow!("error in variable section")

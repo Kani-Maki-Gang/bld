@@ -1,6 +1,6 @@
 use crate::extractors::User;
-use anyhow::Result;
 use actix_web::{get, web::Data, HttpResponse, Responder};
+use anyhow::Result;
 use bld_core::database::pipeline_runs;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;

@@ -113,10 +113,9 @@ impl BldCommand for WorkerCommand {
                     .await
                 {
                     Ok(runner) => {
-                        let _ = runner.run().await.await.map_err(|e| {
-                            error!("{e}");
-                            e
-                        });
+                        if let Err(e) = runner.run().await.await {
+                            error!("error with runner, {e}");
+                        }
                     }
                     Err(e) => error!("failed on building the runner, {e}"),
                 }

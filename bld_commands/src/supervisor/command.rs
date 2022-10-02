@@ -1,6 +1,6 @@
 use crate::BldCommand;
-use anyhow::Result;
 use actix_web::rt::System;
+use anyhow::Result;
 use bld_config::definitions::VERSION;
 use bld_config::BldConfig;
 use bld_supervisor::supervisor;

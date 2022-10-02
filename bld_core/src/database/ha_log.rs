@@ -173,10 +173,7 @@ pub fn select_first_by_date_created_desc(conn: &SqliteConnection) -> Result<High
         })
 }
 
-pub fn select_config_greater_than_id(
-    conn: &SqliteConnection,
-    lg_id: i32,
-) -> Result<HighAvailLog> {
+pub fn select_config_greater_than_id(conn: &SqliteConnection, lg_id: i32) -> Result<HighAvailLog> {
     debug!(
         "loading high availability logs with greater id than: {}",
         lg_id
