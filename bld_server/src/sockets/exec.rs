@@ -17,6 +17,7 @@ use bld_supervisor::base::ServerMessages;
 use bld_utils::fs::IsYaml;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
@@ -92,16 +93,8 @@ impl ExecutePipelineSocket {
         let run_id = Uuid::new_v4().to_string();
         let conn = self.pool.get()?;
         pipeline_runs::insert(&conn, &run_id, &info.name, &self.user.name)?;
-        let variables = info.variables.map(|hmap| {
-            hmap.iter()
-                .map(|(k, v)| format!("{k}={v}"))
-                .fold(String::new(), |acc, n| format!("{acc} {n}"))
-        });
-        let environment = info.environment.map(|hmap| {
-            hmap.iter()
-                .map(|(k, v)| format!("{k}={v}"))
-                .fold(String::new(), |acc, n| format!("{acc} {n}"))
-        });
+        let variables = info.variables.map(hash_map_to_var_string);
+        let environment = info.environment.map(hash_map_to_var_string);
 
         self.scanner = Some(FileScanner::new(Arc::clone(&self.config), &run_id));
         self.run_id = Some(run_id.clone());
@@ -158,6 +151,13 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSo
             _ => ctx.stop(),
         }
     }
+}
+
+fn hash_map_to_var_string(hmap: HashMap<String, String>) -> String {
+    hmap.iter()
+        .map(|(k, v)| format!("{k}={v}"))
+        .collect::<Vec<String>>()
+        .join(" ")
 }
 
 pub async fn ws_exec(
