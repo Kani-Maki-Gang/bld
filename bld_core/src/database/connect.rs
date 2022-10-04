@@ -1,7 +1,10 @@
 use crate::database::run_migrations;
-use bld_config::{definitions::DB_NAME, path};
+use anyhow::Result;
+use bld_config::definitions::DB_NAME;
+use bld_config::path;
 use diesel::connection::SimpleConnection;
 use diesel::r2d2::{ConnectionManager, CustomizeConnection, Error, Pool};
+use diesel::result::Error as DieselError;
 use diesel::sqlite::SqliteConnection;
 use std::fmt::Write;
 use std::path::PathBuf;
@@ -16,7 +19,7 @@ struct SqliteConnectionOptions {
 }
 
 impl SqliteConnectionOptions {
-    fn customize(&self, conn: &mut SqliteConnection) -> Result<(), diesel::result::Error> {
+    fn customize(&self, conn: &mut SqliteConnection) -> Result<(), DieselError> {
         let mut pragma = String::new();
         if self.enable_wal {
             let _ = write!(
@@ -43,7 +46,7 @@ impl CustomizeConnection<SqliteConnection, Error> for SqliteConnectionOptions {
     }
 }
 
-pub fn new_connection_pool(db: &str) -> anyhow::Result<Pool<ConnectionManager<SqliteConnection>>> {
+pub fn new_connection_pool(db: &str) -> Result<Pool<ConnectionManager<SqliteConnection>>> {
     let path = path![db, DB_NAME].as_path().display().to_string();
     debug!("creating sqlite connection pool");
     let pool = Pool::builder()

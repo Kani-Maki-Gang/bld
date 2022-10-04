@@ -1,6 +1,8 @@
 use crate::BldCommand;
 use actix_web::rt::System;
-use bld_config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION, BldConfig};
+use anyhow::Result;
+use bld_config::definitions::{TOOL_DEFAULT_PIPELINE, VERSION};
+use bld_config::BldConfig;
 use bld_utils::errors::auth_for_server_invalid;
 use bld_utils::request;
 use clap::{App, Arg, ArgMatches, SubCommand};
@@ -40,7 +42,7 @@ impl BldCommand for InspectCommand {
             .args(&[pipeline, server])
     }
 
-    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
         let pip = matches
             .value_of(PIPELINE)

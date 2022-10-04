@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use bld_config::definitions;
 use bld_config::OAuth2Info;
 use oauth2::basic::BasicClient;
@@ -20,7 +20,7 @@ fn oauth2_input_summary() {
     println!("After logging in input both the provided code and state here.");
 }
 
-fn persist_access_token(server: &str, token: &str) -> anyhow::Result<()> {
+fn persist_access_token(server: &str, token: &str) -> Result<()> {
     let mut path = PathBuf::new();
     path.push(definitions::REMOTE_SERVER_OAUTH2);
     if !path.is_dir() {
@@ -35,7 +35,7 @@ fn persist_access_token(server: &str, token: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn stdin_with_label(label: &str) -> anyhow::Result<String> {
+fn stdin_with_label(label: &str) -> Result<String> {
     let mut value = String::new();
     println!("{label}: ");
     stdin().read_line(&mut value)?;
@@ -43,11 +43,11 @@ fn stdin_with_label(label: &str) -> anyhow::Result<String> {
 }
 
 pub trait Login {
-    fn login(&self, server: &str) -> anyhow::Result<String>;
+    fn login(&self, server: &str) -> Result<String>;
 }
 
 impl Login for OAuth2Info {
-    fn login(&self, server: &str) -> anyhow::Result<String> {
+    fn login(&self, server: &str) -> Result<String> {
         let client = BasicClient::new(
             self.client_id.clone(),
             Some(self.client_secret.clone()),

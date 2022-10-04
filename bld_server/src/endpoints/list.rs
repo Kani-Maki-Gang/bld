@@ -1,5 +1,6 @@
 use crate::extractors::User;
 use actix_web::{get, web::Data, HttpResponse};
+use anyhow::Result;
 use bld_core::database::pipeline;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_utils::fs::IsYaml;
@@ -26,7 +27,7 @@ pub async fn list(
 fn find_pipelines(
     prx: &PipelineFileSystemProxy,
     pool: &Pool<ConnectionManager<SqliteConnection>>,
-) -> anyhow::Result<String> {
+) -> Result<String> {
     let conn = pool.get()?;
     let pips = pipeline::select_all(&conn)?
         .iter()

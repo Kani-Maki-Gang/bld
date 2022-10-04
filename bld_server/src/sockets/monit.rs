@@ -1,20 +1,16 @@
-use crate::extractors::User;
-use crate::requests::MonitInfo;
+use crate::{extractors::User, requests::MonitInfo};
 use actix::prelude::*;
-use actix_web::{
-    error::ErrorUnauthorized,
-    web::{Data, Payload},
-    Error, HttpRequest, HttpResponse,
-};
+use actix_web::error::ErrorUnauthorized;
+use actix_web::web::{Data, Payload};
+use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::database::pipeline_runs;
+use bld_core::database::pipeline_runs::{self, PR_STATE_FINISHED};
 use bld_core::scanner::{FileScanner, Scanner};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 pub struct MonitorPipelineSocket {
     id: String,
@@ -48,7 +44,7 @@ impl MonitorPipelineSocket {
     fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
         if let Ok(connection) = act.pool.get() {
             match pipeline_runs::select_by_id(&connection, &act.id) {
-                Ok(run) if run.state == "finished" => ctx.stop(),
+                Ok(run) if run.state == PR_STATE_FINISHED => ctx.stop(),
                 Err(_) => {
                     ctx.text("internal server error");
                     ctx.stop();
@@ -58,7 +54,7 @@ impl MonitorPipelineSocket {
         }
     }
 
-    fn dependencies(&mut self, data: &str) -> anyhow::Result<()> {
+    fn dependencies(&mut self, data: &str) -> Result<()> {
         let data = serde_json::from_str::<MonitInfo>(data)?;
         let conn = self.pool.get()?;
 

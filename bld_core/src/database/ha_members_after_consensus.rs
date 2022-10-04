@@ -1,7 +1,7 @@
 use crate::database::ha_snapshot::HighAvailSnapshot;
 use crate::database::schema::ha_members_after_consensus;
 use crate::database::schema::ha_members_after_consensus::dsl::*;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
@@ -37,7 +37,7 @@ impl InsertHighAvailMembersAfterConsensus {
 pub fn select(
     conn: &SqliteConnection,
     sn: &HighAvailSnapshot,
-) -> anyhow::Result<Vec<HighAvailMembersAfterConsensus>> {
+) -> Result<Vec<HighAvailMembersAfterConsensus>> {
     debug!(
         "loading high availability members after consensus of snapshot with id: {}",
         sn.id
@@ -63,7 +63,7 @@ pub fn select(
 pub fn select_last_rows(
     conn: &SqliteConnection,
     rows: i64,
-) -> anyhow::Result<Vec<HighAvailMembersAfterConsensus>> {
+) -> Result<Vec<HighAvailMembersAfterConsensus>> {
     debug!(
         "loading the last {} rows high availability members after consensus",
         rows
@@ -88,7 +88,7 @@ pub fn select_last_rows(
 pub fn insert_many(
     conn: &SqliteConnection,
     models: Vec<InsertHighAvailMembersAfterConsensus>,
-) -> anyhow::Result<Vec<HighAvailMembersAfterConsensus>> {
+) -> Result<Vec<HighAvailMembersAfterConsensus>> {
     debug!("inserting multiple high availability members after consensus");
     conn.transaction(|| {
         diesel::insert_into(ha_members_after_consensus)

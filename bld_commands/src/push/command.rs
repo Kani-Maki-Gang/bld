@@ -1,6 +1,6 @@
 use crate::BldCommand;
 use actix_web::rt::System;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use bld_config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION, BldConfig};
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::Pipeline;
@@ -50,7 +50,7 @@ impl BldCommand for PushCommand {
             .args(&[pipeline, server, ignore])
     }
 
-    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
         let pip = matches
             .value_of(PIPELINE)
@@ -82,7 +82,7 @@ async fn do_push(
     headers: HashMap<String, String>,
     name: String,
     ignore_deps: bool,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let mut pipelines = vec![PushInfo::new(
         &name,
         &PipelineFileSystemProxy::Local.read(&name)?,
@@ -117,14 +117,14 @@ async fn do_push(
     Ok(())
 }
 
-fn deps(name: &str) -> anyhow::Result<HashMap<String, String>> {
+fn deps(name: &str) -> Result<HashMap<String, String>> {
     deps_recursive(name).map(|mut hs| {
         hs.remove(name);
         hs.into_iter().collect()
     })
 }
 
-fn deps_recursive(name: &str) -> anyhow::Result<HashMap<String, String>> {
+fn deps_recursive(name: &str) -> Result<HashMap<String, String>> {
     debug!("Parsing pipeline {name}");
     let src = PipelineFileSystemProxy::Local
         .read(name)

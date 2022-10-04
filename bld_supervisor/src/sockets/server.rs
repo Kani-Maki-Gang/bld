@@ -14,11 +14,11 @@ use std::process::Command;
 use std::sync::Mutex;
 use tracing::{debug, error, info};
 
-pub struct QueueWorkerSocket {
+pub struct ServerSocket {
     worker_queue: Data<Mutex<WorkerQueue>>,
 }
 
-impl QueueWorkerSocket {
+impl ServerSocket {
     pub fn new(worker_queue: Data<Mutex<WorkerQueue>>) -> Self {
         Self { worker_queue }
     }
@@ -61,7 +61,7 @@ impl QueueWorkerSocket {
     }
 }
 
-impl Actor for QueueWorkerSocket {
+impl Actor for ServerSocket {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
@@ -73,7 +73,7 @@ impl Actor for QueueWorkerSocket {
     }
 }
 
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for QueueWorkerSocket {
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ServerSocket {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Binary(bytes)) => {
@@ -95,11 +95,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for QueueWorkerSocket
     }
 }
 
-pub async fn ws_queue_worker(
+pub async fn ws_server_socket(
     req: HttpRequest,
     stream: Payload,
     worker_queue: Data<Mutex<WorkerQueue>>,
 ) -> Result<HttpResponse, Error> {
-    let socket = QueueWorkerSocket::new(worker_queue);
+    let socket = ServerSocket::new(worker_queue);
     ws::start(socket, &req, stream)
 }

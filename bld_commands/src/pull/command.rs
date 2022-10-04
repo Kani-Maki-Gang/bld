@@ -1,6 +1,6 @@
 use crate::BldCommand;
 use actix_web::rt::System;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use bld_config::{definitions::VERSION, BldConfig};
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_server::responses::PullResponse;
@@ -52,7 +52,7 @@ impl BldCommand for PullCommand {
             .args(&[server, pipeline, ignore_deps])
     }
 
-    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
         let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
         let pip = matches
@@ -84,7 +84,7 @@ async fn do_pull(
     headers: HashMap<String, String>,
     name: String,
     ignore_deps: bool,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let mut pipelines = vec![name.to_string()];
     if !ignore_deps {
         let metadata_url = format!("http://{host}:{port}/deps");
@@ -122,7 +122,7 @@ async fn do_pull(
     Ok(())
 }
 
-fn save_pipeline(data: PullResponse) -> anyhow::Result<()> {
+fn save_pipeline(data: PullResponse) -> Result<()> {
     let path = PipelineFileSystemProxy::Local.path(&data.name)?;
     if path.is_yaml() {
         remove_file(&path)?;

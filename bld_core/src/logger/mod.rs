@@ -1,10 +1,9 @@
+use anyhow::Result;
 use bld_config::{path, BldConfig};
-use std::{
-    fs::File,
-    io::Write,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::fs::File;
+use std::io::Write;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 pub enum Logger {
@@ -22,7 +21,7 @@ impl Logger {
         Arc::new(Mutex::new(Self::Shell))
     }
 
-    pub fn file_atom(config: Arc<BldConfig>, run_id: &str) -> anyhow::Result<Arc<Mutex<Self>>> {
+    pub fn file_atom(config: Arc<BldConfig>, run_id: &str) -> Result<Arc<Mutex<Self>>> {
         let path = path![&config.local.logs, run_id];
         Ok(Arc::new(Mutex::new(Self::File {
             handle: match path.is_file() {

@@ -1,10 +1,12 @@
 use crate::run::parse_variables;
 use crate::BldCommand;
-use actix::{io::SinkWrite, Actor, StreamHandler};
-use actix_web::rt::System;
-use anyhow::anyhow;
+use actix::io::SinkWrite;
+use actix::{Actor, StreamHandler};
+use actix_web::rt::{spawn, System};
+use anyhow::{anyhow, Result};
 use awc::Client;
 use bld_config::BldConfig;
+use bld_core::context::Context;
 use bld_core::database::{new_connection_pool, pipeline_runs};
 use bld_core::execution::Execution;
 use bld_core::logger::Logger;
@@ -13,6 +15,7 @@ use bld_runner::RunnerBuilder;
 use bld_supervisor::base::WorkerMessages;
 use bld_supervisor::sockets::WorkerClient;
 use clap::{App, Arg, ArgMatches, SubCommand};
+use futures::join;
 use futures::stream::StreamExt;
 use std::sync::Arc;
 use tokio::sync::mpsc::{channel, Receiver};
@@ -67,7 +70,7 @@ impl BldCommand for WorkerCommand {
             .args(&[pipeline, run_id, variables, environment])
     }
 
-    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let cfg = Arc::new(BldConfig::load()?);
         let socket_cfg = Arc::clone(&cfg);
         let pipeline = Arc::new(matches.value_of(PIPELINE).unwrap_or_default().to_string());
@@ -83,20 +86,18 @@ impl BldCommand for WorkerCommand {
             pool: pool.clone(),
         });
         let logger = Logger::file_atom(cfg.clone(), &run_id)?;
-        let exec = Execution::pipeline_atom(pool, &run_id);
+        let exec = Execution::pipeline_atom(pool.clone(), &run_id);
+        let context = Context::containers_atom(pool, &run_id);
         let (worker_tx, worker_rx) = channel(4096);
         let worker_tx = Arc::new(Some(worker_tx));
         System::new().block_on(async move {
-            let socket_handle = actix_web::rt::spawn(async move {
-                let _ = connect_to_supervisor(socket_cfg, worker_rx)
-                    .await
-                    .map_err(|e| {
-                        error!("{e}");
-                        e
-                    });
+            let socket_handle = spawn(async move {
+                if let Err(e) = connect_to_supervisor(socket_cfg, worker_rx).await {
+                    error!("{e}");
+                }
             });
-            let runner_handle = actix_web::rt::spawn(async move {
-                if let Ok(runner) = RunnerBuilder::default()
+            let runner_handle = spawn(async move {
+                match RunnerBuilder::default()
                     .run_id(&run_id)
                     .run_start_time(&start_date_time)
                     .config(cfg)
@@ -106,17 +107,20 @@ impl BldCommand for WorkerCommand {
                     .logger(logger)
                     .environment(environment)
                     .variables(variables)
+                    .context(context)
                     .ipc(worker_tx)
                     .build()
                     .await
                 {
-                    let _ = runner.run().await.await.map_err(|e| {
-                        error!("{e}");
-                        e
-                    });
+                    Ok(runner) => {
+                        if let Err(e) = runner.run().await.await {
+                            error!("error with runner, {e}");
+                        }
+                    }
+                    Err(e) => error!("failed on building the runner, {e}"),
                 }
             });
-            let _ = futures::join!(socket_handle, runner_handle);
+            let _ = join!(socket_handle, runner_handle);
         });
         Ok(())
     }
@@ -125,7 +129,7 @@ impl BldCommand for WorkerCommand {
 async fn connect_to_supervisor(
     config: Arc<BldConfig>,
     mut worker_rx: Receiver<WorkerMessages>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let url = format!(
         "ws://{}:{}/ws-worker/",
         config.local.supervisor.host, config.local.supervisor.port

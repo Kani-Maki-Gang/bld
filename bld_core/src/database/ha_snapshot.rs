@@ -1,6 +1,6 @@
 use crate::database::schema::ha_snapshot;
 use crate::database::schema::ha_snapshot::dsl::*;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
@@ -36,7 +36,7 @@ impl InsertHighAvailSnapshot {
     }
 }
 
-pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailSnapshot> {
+pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailSnapshot> {
     debug!("loading the last entry high availability snapshot");
     ha_snapshot
         .order(id.desc())
@@ -54,7 +54,7 @@ pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailSnapshot>
 pub fn insert(
     conn: &SqliteConnection,
     model: InsertHighAvailSnapshot,
-) -> anyhow::Result<HighAvailSnapshot> {
+) -> Result<HighAvailSnapshot> {
     debug!("inserting high availability snapshot: {:?}", model);
     conn.transaction(|| {
         diesel::insert_into(ha_snapshot)

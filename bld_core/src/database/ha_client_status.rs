@@ -1,7 +1,7 @@
 use crate::database::ha_state_machine::HighAvailStateMachine;
 use crate::database::schema::ha_client_status;
 use crate::database::schema::ha_client_status::dsl::*;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
@@ -38,7 +38,7 @@ impl<'a> InsertHighAvailClientStatus<'a> {
     }
 }
 
-pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailClientStatus> {
+pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailClientStatus> {
     debug!("loading last entry of high availability client status");
     ha_client_status
         .order(id.desc())
@@ -56,7 +56,7 @@ pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailClientSta
         })
 }
 
-pub fn select_by_id(conn: &SqliteConnection, cs_id: i32) -> anyhow::Result<HighAvailClientStatus> {
+pub fn select_by_id(conn: &SqliteConnection, cs_id: i32) -> Result<HighAvailClientStatus> {
     debug!(
         "loading high availability client status model with id: {}",
         cs_id
@@ -80,7 +80,7 @@ pub fn select_by_id(conn: &SqliteConnection, cs_id: i32) -> anyhow::Result<HighA
 pub fn insert(
     conn: &SqliteConnection,
     model: InsertHighAvailClientStatus,
-) -> anyhow::Result<HighAvailClientStatus> {
+) -> Result<HighAvailClientStatus> {
     debug!(
         "inserting high availability client status with status: {} for state machine: {}",
         model.status, model.state_machine_id
@@ -107,7 +107,7 @@ pub fn update(
     conn: &SqliteConnection,
     cs_id: i32,
     cs_status: &str,
-) -> anyhow::Result<HighAvailClientStatus> {
+) -> Result<HighAvailClientStatus> {
     debug!(
         "updating high availability client status: {} with status: {}",
         cs_id, cs_status

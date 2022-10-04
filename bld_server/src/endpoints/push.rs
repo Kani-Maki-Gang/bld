@@ -1,10 +1,8 @@
 use crate::extractors::User;
 use crate::requests::PushInfo;
-use actix_web::{
-    post,
-    web::{Data, Json},
-    HttpResponse, Responder,
-};
+use actix_web::web::{Data, Json};
+use actix_web::{post, HttpResponse, Responder};
+use anyhow::Result;
 use bld_core::database::pipeline;
 use bld_core::proxies::PipelineFileSystemProxy;
 use diesel::r2d2::{ConnectionManager, Pool};
@@ -33,7 +31,7 @@ fn do_push(
     prx: &PipelineFileSystemProxy,
     pool: &Pool<ConnectionManager<SqliteConnection>>,
     info: &PushInfo,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let conn = pool.get()?;
     if pipeline::select_by_name(&conn, &info.name).is_err() {
         let id = Uuid::new_v4().to_string();

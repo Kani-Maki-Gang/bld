@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use bld_config::{definitions::REMOTE_SERVER_OAUTH2, path, Auth};
 use reqwest::{Client, StatusCode};
 use serde::Serialize;
@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
-pub fn headers(server: &str, auth: &Auth) -> anyhow::Result<HashMap<String, String>> {
+pub fn headers(server: &str, auth: &Auth) -> Result<HashMap<String, String>> {
     let mut headers = HashMap::new();
     if let Auth::OAuth2(_info) = auth {
         if let Ok(token) = fs::read_to_string(path![REMOTE_SERVER_OAUTH2, server]) {
@@ -16,7 +16,7 @@ pub fn headers(server: &str, auth: &Auth) -> anyhow::Result<HashMap<String, Stri
     Ok(headers)
 }
 
-pub async fn get(url: String, headers: HashMap<String, String>) -> anyhow::Result<String> {
+pub async fn get(url: String, headers: HashMap<String, String>) -> Result<String> {
     let client = Client::new();
     let mut request = client.get(url);
     for (key, value) in headers.iter() {
@@ -37,11 +37,7 @@ pub async fn get(url: String, headers: HashMap<String, String>) -> anyhow::Resul
     }
 }
 
-pub async fn post<T>(
-    url: String,
-    headers: HashMap<String, String>,
-    body: T,
-) -> anyhow::Result<String>
+pub async fn post<T>(url: String, headers: HashMap<String, String>, body: T) -> Result<String>
 where
     T: 'static + Serialize,
 {

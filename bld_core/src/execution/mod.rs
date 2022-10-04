@@ -1,5 +1,5 @@
-use crate::database::pipeline_runs;
-use anyhow::bail;
+use crate::database::pipeline_runs::{self, PR_STATE_FINISHED, PR_STATE_RUNNING};
+use anyhow::{bail, Result};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::sync::{Arc, Mutex};
@@ -27,7 +27,7 @@ impl Execution {
         }))
     }
 
-    pub fn update_state(&mut self, state: &str) -> anyhow::Result<()> {
+    fn update_state(&mut self, state: &str) -> Result<()> {
         match self {
             Self::Empty => Ok(()),
             Self::Pipeline { pool, run_id } => {
@@ -37,7 +37,15 @@ impl Execution {
         }
     }
 
-    pub fn check_stop_signal(&self) -> anyhow::Result<()> {
+    pub fn set_as_running(&mut self) -> Result<()> {
+        self.update_state(PR_STATE_RUNNING)
+    }
+
+    pub fn set_as_finished(&mut self) -> Result<()> {
+        self.update_state(PR_STATE_FINISHED)
+    }
+
+    pub fn check_stop_signal(&self) -> Result<()> {
         match self {
             Self::Empty => Ok(()),
             Self::Pipeline { pool, run_id } => {

@@ -22,7 +22,7 @@ fn tracing(matches: &ArgMatches) {
 }
 
 fn main() {
-    let commands = vec![
+    let commands: Vec<Box<dyn BldCommand>> = vec![
         auth::AuthCommand::boxed(),
         config::ConfigCommand::boxed(),
         hist::HistCommand::boxed(),

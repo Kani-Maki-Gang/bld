@@ -1,6 +1,8 @@
 use crate::BldCommand;
 use actix_web::rt::System;
-use bld_config::{definitions::VERSION, BldConfig};
+use anyhow::Result;
+use bld_config::definitions::VERSION;
+use bld_config::BldConfig;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use tracing::debug;
 
@@ -38,7 +40,7 @@ impl BldCommand for ServerCommand {
             .args(&[host, port])
     }
 
-    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
         let host = matches
             .value_of("host")

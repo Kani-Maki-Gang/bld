@@ -1,15 +1,13 @@
 use crate::extractors::User;
 use actix::prelude::*;
-use actix_web::{
-    error::ErrorUnauthorized,
-    rt::spawn,
-    web::{Data, Payload},
-    Error, HttpRequest, HttpResponse,
-};
+use actix_web::error::ErrorUnauthorized;
+use actix_web::rt::spawn;
+use actix_web::web::{Data, Payload};
+use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::database::pipeline_runs;
+use bld_core::database::pipeline_runs::{self, PR_STATE_FINISHED, PR_STATE_QUEUED};
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::scanner::{FileScanner, Scanner};
 use bld_runner::messages::ExecInfo;
@@ -67,8 +65,8 @@ impl ExecutePipelineSocket {
         if let Ok(connection) = act.pool.get() {
             if let Some(run_id) = act.run_id.as_ref() {
                 match pipeline_runs::select_by_id(&connection, run_id) {
-                    Ok(run) if run.state == "finished" => ctx.stop(),
-                    Ok(run) if run.state == "queued" => {
+                    Ok(run) if run.state == PR_STATE_FINISHED => ctx.stop(),
+                    Ok(run) if run.state == PR_STATE_QUEUED => {
                         ctx.text("run with id {run_id} has been queued, use the monit command to see the output when it's started");
                         ctx.stop()
                     }
@@ -82,7 +80,7 @@ impl ExecutePipelineSocket {
         }
     }
 
-    fn enqueue_worker(&mut self, data: &str) -> anyhow::Result<()> {
+    fn enqueue_worker(&mut self, data: &str) -> Result<()> {
         let info = serde_json::from_str::<ExecInfo>(data)?;
         let path = self.proxy.path(&info.name)?;
         if !path.is_yaml() {

@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use bld_config::definitions::LOCAL_MACHINE_TMP_DIR;
 use bld_config::{os_name, path, OSname};
 use bld_core::logger::Logger;
@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 
-fn could_not_spawn_shell() -> anyhow::Result<()> {
+fn could_not_spawn_shell() -> Result<()> {
     Err(anyhow!("could not spawn shell"))
 }
 
@@ -23,7 +23,7 @@ impl Machine {
         id: &str,
         env: Arc<HashMap<String, String>>,
         lg: Arc<Mutex<Logger>>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self> {
         let tmp_path = path![std::env::current_dir()?, LOCAL_MACHINE_TMP_DIR, id];
         let tmp_dir = tmp_path.display().to_string();
         if !tmp_path.is_dir() {
@@ -32,20 +32,20 @@ impl Machine {
         Ok(Self { tmp_dir, env, lg })
     }
 
-    fn copy(&self, from: &str, to: &str) -> anyhow::Result<()> {
+    fn copy(&self, from: &str, to: &str) -> Result<()> {
         std::fs::copy(Path::new(from), Path::new(to))?;
         Ok(())
     }
 
-    pub fn copy_from(&self, from: &str, to: &str) -> anyhow::Result<()> {
+    pub fn copy_from(&self, from: &str, to: &str) -> Result<()> {
         self.copy(from, to)
     }
 
-    pub fn copy_into(&self, from: &str, to: &str) -> anyhow::Result<()> {
+    pub fn copy_into(&self, from: &str, to: &str) -> Result<()> {
         self.copy(from, to)
     }
 
-    pub async fn sh(&self, working_dir: &Option<String>, input: &str) -> anyhow::Result<()> {
+    pub async fn sh(&self, working_dir: &Option<String>, input: &str) -> Result<()> {
         let os_name = os_name();
         let current_dir = working_dir.as_ref().unwrap_or(&self.tmp_dir).to_string();
         let current_dir = if Path::new(&current_dir).is_relative() {
@@ -82,7 +82,7 @@ impl Machine {
         Ok(())
     }
 
-    pub fn dispose(&self) -> anyhow::Result<()> {
+    pub fn dispose(&self) -> Result<()> {
         std::fs::remove_dir_all(&self.tmp_dir)?;
         Ok(())
     }

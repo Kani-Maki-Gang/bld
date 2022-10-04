@@ -1,10 +1,7 @@
 use crate::extractors::User;
-use actix_web::{
-    post,
-    web::{Data, Json},
-    HttpResponse, Responder,
-};
-use anyhow::anyhow;
+use actix_web::web::{Data, Json};
+use actix_web::{post, HttpResponse, Responder};
+use anyhow::{anyhow, Result};
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::Pipeline;
 use std::collections::HashMap;
@@ -27,17 +24,14 @@ pub async fn deps(
     }
 }
 
-fn do_deps(prx: &PipelineFileSystemProxy, name: &str) -> anyhow::Result<Vec<String>> {
+fn do_deps(prx: &PipelineFileSystemProxy, name: &str) -> Result<Vec<String>> {
     deps_recursive(prx, name).map(|mut hs| {
         hs.remove(name);
         hs.into_iter().map(|(n, _)| n).collect()
     })
 }
 
-fn deps_recursive(
-    prx: &PipelineFileSystemProxy,
-    name: &str,
-) -> anyhow::Result<HashMap<String, String>> {
+fn deps_recursive(prx: &PipelineFileSystemProxy, name: &str) -> Result<HashMap<String, String>> {
     debug!("Parsing pipeline {name}");
     let src = prx
         .read(name)

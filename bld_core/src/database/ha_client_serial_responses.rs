@@ -1,7 +1,7 @@
 use crate::database::ha_state_machine::HighAvailStateMachine;
 use crate::database::schema::ha_client_serial_responses;
 use crate::database::schema::ha_client_serial_responses::dsl::*;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
@@ -46,7 +46,7 @@ impl<'a> InsertHighAvailClientSerialResponses<'a> {
     }
 }
 
-pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailClientSerialResponses> {
+pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailClientSerialResponses> {
     debug!("loading the last high availability client serial response");
     ha_client_serial_responses
         .order(id.desc())
@@ -67,7 +67,7 @@ pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailClientSer
 pub fn select_by_id(
     conn: &SqliteConnection,
     csr_id: i32,
-) -> anyhow::Result<HighAvailClientSerialResponses> {
+) -> Result<HighAvailClientSerialResponses> {
     debug!(
         "loading high availability client serial response with id: {}",
         csr_id
@@ -91,7 +91,7 @@ pub fn select_by_id(
 pub fn insert(
     conn: &SqliteConnection,
     model: InsertHighAvailClientSerialResponses,
-) -> anyhow::Result<HighAvailClientSerialResponses> {
+) -> Result<HighAvailClientSerialResponses> {
     debug!(
         "inserting high availability client serial responses model: {:?}",
         model

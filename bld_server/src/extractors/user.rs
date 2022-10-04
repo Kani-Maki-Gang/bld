@@ -3,7 +3,7 @@ use actix_web::error::ErrorUnauthorized;
 use actix_web::http::header::HeaderValue;
 use actix_web::web::Data;
 use actix_web::{Error, FromRequest, HttpRequest};
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use bld_config::{AuthValidation, BldConfig};
 use bld_utils::request;
 use futures::Future;
@@ -55,7 +55,7 @@ fn get_bearer(request: &HttpRequest) -> String {
         .to_string()
 }
 
-async fn oauth2_validate(url: String, bearer: String) -> anyhow::Result<User> {
+async fn oauth2_validate(url: String, bearer: String) -> Result<User> {
     let mut headers = HashMap::new();
     headers.insert("Authorization".to_string(), bearer);
     let res = request::get(url.to_string(), headers).await.map_err(|e| {

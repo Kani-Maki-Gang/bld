@@ -1,7 +1,7 @@
 use crate::BldCommand;
-use bld_config::{
-    definitions::VERSION, Auth, AuthValidation, BldConfig, BldLocalConfig, BldRemoteConfig,
-};
+use anyhow::Result;
+use bld_config::definitions::VERSION;
+use bld_config::{Auth, AuthValidation, BldConfig, BldLocalConfig, BldRemoteConfig};
 use bld_utils::term;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
@@ -16,7 +16,7 @@ impl ConfigCommand {
         Box::new(ConfigCommand)
     }
 
-    fn list_locals(local: &BldLocalConfig) -> anyhow::Result<()> {
+    fn list_locals(local: &BldLocalConfig) -> Result<()> {
         term::print_info("Local configuration:")?;
         match &local.auth {
             AuthValidation::OAuth2(url) => {
@@ -46,7 +46,7 @@ impl ConfigCommand {
         Ok(())
     }
 
-    fn list_remote(remote: &BldRemoteConfig) -> anyhow::Result<()> {
+    fn list_remote(remote: &BldRemoteConfig) -> Result<()> {
         term::print_info("Remote configuration:")?;
 
         for (i, server) in remote.servers.iter().enumerate() {
@@ -83,7 +83,7 @@ impl ConfigCommand {
         Ok(())
     }
 
-    fn list_all(config: &BldConfig) -> anyhow::Result<()> {
+    fn list_all(config: &BldConfig) -> Result<()> {
         Self::list_locals(&config.local)?;
         println!();
         Self::list_remote(&config.remote)?;
@@ -111,7 +111,7 @@ impl BldCommand for ConfigCommand {
             .args(&[local, remote])
     }
 
-    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
         if matches.is_present(LOCAL) {
             return Self::list_locals(&config.local);

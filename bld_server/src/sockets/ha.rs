@@ -2,11 +2,9 @@
 
 use crate::extractors::User;
 use actix::prelude::*;
-use actix_web::{
-    error::ErrorUnauthorized,
-    web::{Data, Payload},
-    Error, HttpRequest, HttpResponse,
-};
+use actix_web::error::ErrorUnauthorized;
+use actix_web::web::{Data, Payload};
+use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use bld_config::BldConfig;
 use std::time::{Duration, Instant};

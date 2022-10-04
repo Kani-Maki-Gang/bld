@@ -1,6 +1,6 @@
 use crate::database::schema::ha_hard_state;
 use crate::database::schema::ha_hard_state::dsl::*;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use async_raft::storage::HardState;
 use async_raft::NodeId;
 use diesel::prelude::*;
@@ -71,7 +71,7 @@ impl From<InsertHighAvailHardState> for HardState {
     }
 }
 
-pub fn select_first(conn: &SqliteConnection) -> anyhow::Result<HighAvailHardState> {
+pub fn select_first(conn: &SqliteConnection) -> Result<HighAvailHardState> {
     debug!("loading the first high availability hard state");
     ha_hard_state
         .first(conn)
@@ -88,7 +88,7 @@ pub fn select_first(conn: &SqliteConnection) -> anyhow::Result<HighAvailHardStat
         })
 }
 
-pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailHardState> {
+pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailHardState> {
     debug!("loading the last entry of high availability hard state");
     ha_hard_state
         .order(id.desc())
@@ -103,7 +103,7 @@ pub fn select_last(conn: &SqliteConnection) -> anyhow::Result<HighAvailHardState
         })
 }
 
-pub fn select_by_id(conn: &SqliteConnection, hs_id: i32) -> anyhow::Result<HighAvailHardState> {
+pub fn select_by_id(conn: &SqliteConnection, hs_id: i32) -> Result<HighAvailHardState> {
     debug!("loading high availability hard state with id: {}", hs_id);
     ha_hard_state
         .filter(id.eq(hs_id))
@@ -121,7 +121,7 @@ pub fn select_by_id(conn: &SqliteConnection, hs_id: i32) -> anyhow::Result<HighA
 pub fn insert(
     conn: &SqliteConnection,
     model: InsertHighAvailHardState,
-) -> anyhow::Result<HighAvailHardState> {
+) -> Result<HighAvailHardState> {
     debug!("inserting new high availability hard state: {:?}", model);
     conn.transaction(|| {
         diesel::insert_into(ha_hard_state::table)
@@ -146,7 +146,7 @@ pub fn update(
     hs_id: i32,
     hs_current_term: i32,
     hs_voted_for: Option<i32>,
-) -> anyhow::Result<HighAvailHardState> {
+) -> Result<HighAvailHardState> {
     debug!(
         "updateing the high availability hard state with id: {}",
         hs_id

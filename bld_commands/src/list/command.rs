@@ -1,6 +1,8 @@
 use crate::BldCommand;
 use actix_web::rt::System;
-use bld_config::{definitions::VERSION, BldConfig};
+use anyhow::Result;
+use bld_config::definitions::VERSION;
+use bld_config::BldConfig;
 use bld_utils::errors::auth_for_server_invalid;
 use bld_utils::request;
 use clap::{App, Arg, ArgMatches, SubCommand};
@@ -34,7 +36,7 @@ impl BldCommand for ListCommand {
             .args(&vec![server])
     }
 
-    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+    fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
         let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
         debug!("running {} subcommand with --server: {}", LIST, srv.name);
