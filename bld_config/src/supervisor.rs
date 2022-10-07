@@ -32,7 +32,7 @@ impl BldLocalSupervisorConfig {
         })
     }
 
-    pub fn protocol(&self) -> String {
+    pub fn http_protocol(&self) -> String {
         if self.tls.is_some() {
             "https".to_string()
         } else {

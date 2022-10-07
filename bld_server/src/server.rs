@@ -89,9 +89,10 @@ async fn supervisor_socket(
     config: Arc<BldConfig>,
     mut enqueue_rx: Receiver<ServerMessages>,
 ) -> Result<Addr<EnqueueClient>> {
+    let supervisor = &config.local.supervisor;
     let url = format!(
-        "ws://{}:{}/ws-server/",
-        config.local.supervisor.host, config.local.supervisor.port
+        "{}://{}:{}/ws-server/",
+        supervisor.ws_protocol(), supervisor.host, supervisor.port
     );
 
     debug!("establishing web socket connection on {}", url);

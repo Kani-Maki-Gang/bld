@@ -98,6 +98,7 @@ impl BldCommand for RunCommand {
                 bld_runner::on_server(ExecConnectionInfo {
                     host: srv.host.clone(),
                     port: srv.port,
+                    protocol: srv.ws_protocol(),
                     headers: headers(srv_name, auth)?,
                     detach,
                     pipeline,

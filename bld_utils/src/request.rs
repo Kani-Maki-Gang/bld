@@ -31,7 +31,7 @@ pub async fn get(url: String, headers: HashMap<String, String>) -> Result<String
             Err(anyhow!(msg))
         }
         st => Err(anyhow!(
-            "http request returned failed with status code: {}",
+            "request returned failed with status code: {}",
             st.to_string()
         )),
     }

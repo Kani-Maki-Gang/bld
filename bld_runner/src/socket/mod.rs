@@ -14,6 +14,7 @@ use tracing::debug;
 pub struct ExecConnectionInfo {
     pub host: String,
     pub port: i64,
+    pub protocol: String,
     pub headers: HashMap<String, String>,
     pub detach: bool,
     pub pipeline: String,
@@ -22,7 +23,7 @@ pub struct ExecConnectionInfo {
 }
 
 async fn remote_invoke(info: ExecConnectionInfo) -> anyhow::Result<()> {
-    let url = format!("ws://{}:{}/ws-exec/", info.host, info.port);
+    let url = format!("{}://{}:{}/ws-exec/", info.protocol, info.host, info.port);
     debug!("establishing web socker connection on {}", url);
     let mut client = Client::new().ws(url);
     for (key, value) in info.headers.iter() {
