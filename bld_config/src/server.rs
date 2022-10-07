@@ -1,4 +1,5 @@
-use crate::{definitions, Auth, OAuth2Info};
+use crate::definitions;
+use crate::{Auth, OAuth2Info, BldTlsConfig};
 use anyhow::{anyhow, Result};
 use async_raft::NodeId;
 use yaml_rust::Yaml;
@@ -7,6 +8,7 @@ use yaml_rust::Yaml;
 pub struct BldLocalServerConfig {
     pub host: String,
     pub port: i64,
+    pub tls: Option<BldTlsConfig>,
     pub pipelines: String,
 }
 
@@ -19,6 +21,7 @@ impl BldLocalServerConfig {
         let port = yaml["port"]
             .as_i64()
             .unwrap_or(definitions::LOCAL_SERVER_PORT);
+        let tls = BldTlsConfig::load(&yaml["tls"])?;
         let pipelines = yaml["pipelines"]
             .as_str()
             .unwrap_or(definitions::LOCAL_SERVER_PIPELINES)
@@ -26,6 +29,7 @@ impl BldLocalServerConfig {
         Ok(Self {
             host,
             port,
+            tls,
             pipelines,
         })
     }
@@ -36,6 +40,7 @@ impl Default for BldLocalServerConfig {
         Self {
             host: definitions::LOCAL_SERVER_HOST.to_string(),
             port: definitions::LOCAL_SERVER_PORT,
+            tls: None,
             pipelines: definitions::LOCAL_SERVER_PIPELINES.to_string(),
         }
     }
@@ -46,6 +51,7 @@ pub struct BldRemoteServerConfig {
     pub name: String,
     pub host: String,
     pub port: i64,
+    pub tls: bool,
     pub node_id: Option<NodeId>,
     pub auth: Auth,
     pub same_auth_as: Option<String>,
@@ -64,6 +70,9 @@ impl BldRemoteServerConfig {
         let port = yaml["port"]
             .as_i64()
             .ok_or_else(|| anyhow!("Server entry must define a port"))?;
+        let tls = yaml["tls"]
+            .as_bool()
+            .unwrap_or(false);
         let node_id = yaml["node-id"].as_i64().map(|n| n as NodeId);
         let auth = match yaml["auth"]["method"].as_str() {
             Some("ldap") => Auth::Ldap,
@@ -75,6 +84,7 @@ impl BldRemoteServerConfig {
             name,
             host,
             port,
+            tls,
             node_id,
             auth,
             same_auth_as,

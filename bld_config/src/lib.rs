@@ -4,6 +4,7 @@ mod errors;
 mod local;
 mod path;
 mod remote;
+mod tls;
 mod server;
 mod supervisor;
 
@@ -12,6 +13,7 @@ pub use errors::*;
 pub use local::*;
 pub use path::*;
 pub use remote::*;
+pub use tls::*;
 pub use server::*;
 pub use supervisor::*;
 
