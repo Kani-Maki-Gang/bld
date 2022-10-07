@@ -47,7 +47,8 @@ impl BldCommand for ListCommand {
             },
             None => (&srv.name, &srv.auth),
         };
-        let url = format!("http://{}:{}/list", srv.host, srv.port);
+        let protocol = srv.http_protocol();
+        let url = format!("{protocol}://{}:{}/list", srv.host, srv.port);
         let headers = request::headers(name, auth)?;
         debug!("sending http request to {}", url);
         System::new()

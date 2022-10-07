@@ -1,6 +1,5 @@
 use anyhow::{anyhow, Result};
 use yaml_rust::Yaml;
-use tracing::debug;
 
 #[derive(Debug)]
 pub struct BldTlsConfig {

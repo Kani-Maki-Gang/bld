@@ -56,7 +56,8 @@ impl BldCommand for StopCommand {
             },
             None => (&srv.name, &srv.auth),
         };
-        let url = format!("http://{}:{}/stop", srv.host, srv.port);
+        let protocol = srv.http_protocol();
+        let url = format!("{protocol}://{}:{}/stop", srv.host, srv.port);
         let headers = request::headers(name, auth)?;
         System::new().block_on(async move {
             request::post(url, headers, id).await.map(|r| {

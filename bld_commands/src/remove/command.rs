@@ -64,7 +64,8 @@ async fn do_remove(matches: &ArgMatches) -> Result<()> {
         },
         None => (&srv.name, &srv.auth),
     };
-    let url = format!("http://{}:{}/remove", srv.host, srv.port);
+    let protocol = srv.http_protocol();
+    let url = format!("{protocol}://{}:{}/remove", srv.host, srv.port);
     let headers = request::headers(name, auth)?;
     debug!("sending http request to {url}");
     request::post(url, headers, pipeline).await.map(|r| {

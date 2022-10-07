@@ -46,7 +46,8 @@ impl BldCommand for HistCommand {
             },
             None => (&srv.name, &srv.auth),
         };
-        let url = format!("http://{}:{}/hist", srv.host, srv.port);
+        let protocol = srv.http_protocol();
+        let url = format!("{protocol}://{}:{}/hist", srv.host, srv.port);
         let headers = request::headers(name, auth)?;
         debug!("sending http request to {}", url);
         System::new().block_on(async move {

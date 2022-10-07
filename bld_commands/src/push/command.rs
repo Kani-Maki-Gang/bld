@@ -71,7 +71,7 @@ impl BldCommand for PushCommand {
         };
         let headers = request::headers(name, auth)?;
         System::new().block_on(async move {
-            do_push(srv.host.clone(), srv.port, headers, pip, ignore).await
+            do_push(srv.host.clone(), srv.port, srv.http_protocol(), headers, pip, ignore).await
         })
     }
 }
@@ -79,6 +79,7 @@ impl BldCommand for PushCommand {
 async fn do_push(
     host: String,
     port: i64,
+    protocol: String,
     headers: HashMap<String, String>,
     name: String,
     ignore_deps: bool,
@@ -102,7 +103,7 @@ async fn do_push(
     }
     for info in pipelines.into_iter() {
         print!("Pushing {}...", info.name);
-        let url = format!("http://{}:{}/push", host, port);
+        let url = format!("{protocol}://{}:{}/push", host, port);
         debug!("sending http request to {}", url);
         let _ = request::post(url.clone(), headers.clone(), info)
             .await

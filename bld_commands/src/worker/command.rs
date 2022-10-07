@@ -140,8 +140,13 @@ async fn connect_to_supervisor(
     config: Arc<BldConfig>,
     mut worker_rx: Receiver<WorkerMessages>,
 ) -> Result<()> {
+    let protocol = if config.local.supervisor.tls.is_some() {
+        "wss"
+    } else {
+        "ws"
+    };
     let url = format!(
-        "ws://{}:{}/ws-worker/",
+        "{protocol}://{}:{}/ws-worker/",
         config.local.supervisor.host, config.local.supervisor.port
     );
 

@@ -33,6 +33,22 @@ impl BldLocalServerConfig {
             pipelines,
         })
     }
+
+    pub fn http_protocol(&self) -> String {
+        if self.tls.is_some() {
+            "https".to_string()
+        } else {
+            "http".to_string()
+        }
+    }
+
+    pub fn ws_protocol(&self) -> String {
+        if self.tls.is_some() {
+            "https".to_string()
+        } else {
+            "http".to_string()
+        }
+    }
 }
 
 impl Default for BldLocalServerConfig {
@@ -73,10 +89,11 @@ impl BldRemoteServerConfig {
         let tls = yaml["tls"]
             .as_bool()
             .unwrap_or(false);
+        let protocol = Self::http_protocol_internal(tls);
         let node_id = yaml["node-id"].as_i64().map(|n| n as NodeId);
         let auth = match yaml["auth"]["method"].as_str() {
             Some("ldap") => Auth::Ldap,
-            Some("oauth2") => Auth::OAuth2(OAuth2Info::load(&host, port, &yaml["auth"])?),
+            Some("oauth2") => Auth::OAuth2(OAuth2Info::load(&host, port, &protocol, &yaml["auth"])?),
             _ => Auth::None,
         };
         let same_auth_as = yaml["same-auth-as"].as_str().map(|s| s.to_string());
@@ -89,5 +106,29 @@ impl BldRemoteServerConfig {
             auth,
             same_auth_as,
         })
+    }
+
+    fn http_protocol_internal(tls: bool) -> String {
+        if tls {
+            "https".to_string()
+        } else {
+            "http".to_string()
+        }
+    }
+
+    /// Checks the value of the tls field and returns the appropriate form
+    /// of the http protocol to be used, either http or https.
+    pub fn http_protocol(&self) -> String {
+        Self::http_protocol_internal(self.tls)
+    }
+
+    /// Checks the value of the tls field and returns the appropriate form
+    /// of th ws protocol to be used, either ws or wss.
+    pub fn ws_protocol(&self) -> String {
+        if self.tls {
+            "wss".to_string()
+        } else {
+            "ws".to_string()
+        }
     }
 }

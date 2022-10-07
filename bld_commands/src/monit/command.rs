@@ -22,6 +22,7 @@ static LAST: &str = "last";
 struct MonitConnectionInfo {
     host: String,
     port: i64,
+    protocol: String,
     headers: HashMap<String, String>,
     pip_id: Option<String>,
     pip_name: Option<String>,
@@ -91,6 +92,7 @@ impl BldCommand for MonitCommand {
         spawn(MonitConnectionInfo {
             host: srv.host.to_string(),
             port: srv.port,
+            protocol: srv.ws_protocol(),
             headers: headers(name, auth)?,
             pip_id,
             pip_name,
@@ -100,7 +102,7 @@ impl BldCommand for MonitCommand {
 }
 
 async fn request(info: MonitConnectionInfo) -> Result<()> {
-    let url = format!("ws://{}:{}/ws-monit/", info.host, info.port);
+    let url = format!("{}://{}:{}/ws-monit/", info.protocol, info.host, info.port);
     debug!("establishing web socket connection on {}", url);
     let mut client = Client::new().ws(url);
     for (key, value) in info.headers.iter() {

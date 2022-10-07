@@ -31,6 +31,22 @@ impl BldLocalSupervisorConfig {
             workers,
         })
     }
+
+    pub fn protocol(&self) -> String {
+        if self.tls.is_some() {
+            "https".to_string()
+        } else {
+            "http".to_string()
+        }
+    }
+
+    pub fn ws_protocol(&self) -> String {
+        if self.tls.is_some() {
+            "wss".to_string()
+        } else {
+            "ws".to_string()
+        }
+    }
 }
 
 impl Default for BldLocalSupervisorConfig {
