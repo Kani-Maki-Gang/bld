@@ -77,7 +77,12 @@ fn agent_info(config: &BldConfig) -> Result<(Agent, HashSet<Agent>)> {
         let node_id = server
             .node_id
             .ok_or_else(|| anyhow!("server: {}, node_id not found", server.name))?;
-        agents.insert(Agent::new(node_id, &server.host, server.port, &server.http_protocol()));
+        agents.insert(Agent::new(
+            node_id,
+            &server.host,
+            server.port,
+            &server.http_protocol(),
+        ));
     }
     agents.insert(agent.clone());
     Ok((agent, agents))

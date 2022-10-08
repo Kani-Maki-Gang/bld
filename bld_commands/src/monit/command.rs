@@ -3,6 +3,7 @@ use crate::BldCommand;
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
+use awc::http::Version;
 use awc::Client;
 use bld_config::{definitions::VERSION, BldConfig};
 use bld_server::requests::MonitInfo;
@@ -103,21 +104,29 @@ impl BldCommand for MonitCommand {
 
 async fn request(info: MonitConnectionInfo) -> Result<()> {
     let url = format!("{}://{}:{}/ws-monit/", info.protocol, info.host, info.port);
+
     debug!("establishing web socket connection on {}", url);
-    let mut client = Client::new().ws(url);
+
+    let client = Client::builder()
+        .max_http_version(Version::HTTP_11)
+        .finish();
+    let mut client = client.ws(url);
     for (key, value) in info.headers.iter() {
         client = client.header(&key[..], &value[..]);
     }
     let (_, framed) = client.connect().await.map_err(|e| anyhow!(e.to_string()))?;
+
     let (sink, stream) = framed.split();
     let addr = MonitClient::create(|ctx| {
         MonitClient::add_stream(stream, ctx);
         MonitClient::new(SinkWrite::new(sink, ctx))
     });
+
     debug!(
         "sending data over: {:?} {:?} {}",
         info.pip_id, info.pip_name, info.pip_last
     );
+
     addr.send(MonitInfo::new(info.pip_id, info.pip_name, info.pip_last))
         .await?;
     Ok(())

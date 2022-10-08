@@ -71,7 +71,15 @@ impl BldCommand for PushCommand {
         };
         let headers = request::headers(name, auth)?;
         System::new().block_on(async move {
-            do_push(srv.host.clone(), srv.port, srv.http_protocol(), headers, pip, ignore).await
+            do_push(
+                srv.host.clone(),
+                srv.port,
+                srv.http_protocol(),
+                headers,
+                pip,
+                ignore,
+            )
+            .await
         })
     }
 }

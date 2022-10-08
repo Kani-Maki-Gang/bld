@@ -4,6 +4,7 @@ use actix::io::SinkWrite;
 use actix::{Actor, StreamHandler};
 use actix_web::rt::{spawn, System};
 use anyhow::{anyhow, Result};
+use awc::http::Version;
 use awc::Client;
 use bld_config::BldConfig;
 use bld_core::context::Context;
@@ -152,7 +153,10 @@ async fn connect_to_supervisor(
 
     debug!("establishing web socket connection on {}", url);
 
-    let client = Client::new().ws(url).connect();
+    let client = Client::builder()
+        .max_http_version(Version::HTTP_11)
+        .finish();
+    let client = client.ws(url).connect();
     let (_, framed) = client.await.map_err(|e| {
         error!("{e}");
         anyhow!(e.to_string())

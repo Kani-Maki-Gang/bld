@@ -9,15 +9,16 @@ use actix::{Actor, Addr, StreamHandler};
 use actix_web::rt::spawn;
 use actix_web::web::{get, resource, Data};
 use actix_web::{middleware, App, HttpServer};
-use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use anyhow::{anyhow, Result};
 use awc::Client;
+use awc::http::Version;
 use bld_config::BldConfig;
 use bld_core::database::new_connection_pool;
 use bld_core::high_avail::HighAvail;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_supervisor::base::ServerMessages;
 use futures::{join, stream::StreamExt};
+use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use std::env::{current_exe, set_var};
 use std::sync::Arc;
 use tokio::process::{Child, Command};
@@ -78,7 +79,7 @@ async fn spawn_server(
             builder.set_certificate_chain_file(&tls.cert_chain)?;
             server.bind_openssl(address, builder)?
         }
-        None => server.bind(address)?
+        None => server.bind(address)?,
     };
 
     server.run().await?;
@@ -92,12 +93,17 @@ async fn supervisor_socket(
     let supervisor = &config.local.supervisor;
     let url = format!(
         "{}://{}:{}/ws-server/",
-        supervisor.ws_protocol(), supervisor.host, supervisor.port
+        supervisor.ws_protocol(),
+        supervisor.host,
+        supervisor.port
     );
 
     debug!("establishing web socket connection on {}", url);
 
-    let (_, framed) = Client::new().ws(url).connect().await.map_err(|e| {
+    let client = Client::builder()
+        .max_http_version(Version::HTTP_11)
+        .finish();
+    let (_, framed) = client.ws(url).connect().await.map_err(|e| {
         error!("{e}");
         anyhow!(e.to_string())
     })?;
@@ -129,13 +135,13 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
 
     let web_server_handle = spawn(async move {
         if let Err(e) = spawn_server(config, host, port, enqueue_tx).await {
-            error!("{e}");
+            error!("web server error, {e}");
         }
     });
 
     let socket_handle = spawn(async move {
         if let Err(e) = supervisor_socket(config_clone, enqueue_rx).await {
-            error!("{e}");
+            error!("supervisor socket error, {e}");
         }
     });
 

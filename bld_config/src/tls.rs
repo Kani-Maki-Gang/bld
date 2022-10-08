@@ -22,7 +22,7 @@ impl BldTlsConfig {
             .to_string();
         Ok(Some(Self {
             cert_chain,
-            private_key
+            private_key,
         }))
     }
 }

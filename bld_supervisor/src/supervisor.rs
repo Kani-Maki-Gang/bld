@@ -2,10 +2,10 @@ use crate::queues::WorkerQueue;
 use crate::sockets::{ws_server_socket, ws_worker_socket};
 use actix_web::web::{get, resource, Data};
 use actix_web::{App, HttpServer};
-use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::database::new_connection_pool;
+use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use std::sync::Mutex;
 
 pub async fn start(config: BldConfig) -> Result<()> {
@@ -38,7 +38,7 @@ pub async fn start(config: BldConfig) -> Result<()> {
             builder.set_certificate_chain_file(&tls.cert_chain)?;
             server.bind_openssl(address, builder)?
         }
-        None => server.bind(address)?
+        None => server.bind(address)?,
     };
 
     server.run().await.map_err(|e| anyhow!(e))

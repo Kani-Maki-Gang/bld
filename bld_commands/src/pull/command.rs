@@ -73,7 +73,15 @@ impl BldCommand for PullCommand {
         };
         let headers = request::headers(name, auth)?;
         System::new().block_on(async move {
-            do_pull(srv.host.clone(), srv.port, srv.http_protocol(), headers, pip, ignore).await
+            do_pull(
+                srv.host.clone(),
+                srv.port,
+                srv.http_protocol(),
+                headers,
+                pip,
+                ignore,
+            )
+            .await
         })
     }
 }
