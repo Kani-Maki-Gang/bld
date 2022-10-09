@@ -330,12 +330,13 @@ impl Runner {
 
     async fn call(&self, step: &BuildStep) -> Result<()> {
         for call in &step.call {
+            let call = self.apply_context(call);
             let runner = RunnerBuilder::default()
                 .run_id(&self.run_id)
                 .run_start_time(&self.run_start_time)
                 .config(self.cfg.clone())
                 .proxy(self.prx.clone())
-                .pipeline(call)
+                .pipeline(&call)
                 .execution(self.ex.clone())
                 .logger(self.lg.clone())
                 .environment(self.env.clone())
