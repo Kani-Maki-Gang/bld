@@ -80,7 +80,9 @@ impl Login for OAuth2Info {
             .exchange_code(code)
             .request(http_client)
             .map_err(|e| anyhow!(e))?;
+
         persist_access_token(server, token_res.access_token().secret())?;
+
         Ok(String::new())
     }
 }

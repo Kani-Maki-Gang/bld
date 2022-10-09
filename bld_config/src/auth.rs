@@ -13,7 +13,7 @@ pub struct OAuth2Info {
 }
 
 impl OAuth2Info {
-    pub fn load(host: &str, port: i64, yaml: &Yaml) -> Result<Box<Self>> {
+    pub fn load(host: &str, port: i64, protocol: &str, yaml: &Yaml) -> Result<Box<Self>> {
         let auth_url = AuthUrl::new(
             yaml["auth-url"]
                 .as_str()
@@ -46,7 +46,7 @@ impl OAuth2Info {
             .filter(|y| y.is_some())
             .map(|y| Scope::new(y.unwrap().to_string()))
             .collect();
-        let redirect_url = RedirectUrl::new(format!("http://{host}:{port}/authRedirect"))?;
+        let redirect_url = RedirectUrl::new(format!("{protocol}://{host}:{port}/authRedirect"))?;
         Ok(Box::new(Self {
             auth_url,
             token_url,

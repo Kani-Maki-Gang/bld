@@ -73,9 +73,17 @@ impl BldLocalConfig {
         debug!("server > host: {}", self.server.host);
         debug!("server > port: {}", self.server.port);
         debug!("server > pipelines: {}", self.server.pipelines);
+        if let Some(tls) = &self.server.tls {
+            debug!("server > tls > cert-chain: {}", tls.cert_chain);
+            debug!("server > tls > private-key: {}", tls.private_key);
+        }
         debug!("supervisor > host {}", self.supervisor.host);
         debug!("supervisor > port {}", self.supervisor.port);
         debug!("supervisor > workers {}", self.supervisor.workers);
+        if let Some(tls) = &self.supervisor.tls {
+            debug!("supervisor > tls > cert-chain: {}", tls.cert_chain);
+            debug!("supervisor > tls > private-key: {}", tls.private_key);
+        }
         debug!("logs: {}", self.logs);
         debug!("db: {}", self.db);
         debug!("docker-url: {}", self.docker_url);

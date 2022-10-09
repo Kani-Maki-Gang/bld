@@ -7,14 +7,16 @@ pub struct Agent {
     id: NodeId,
     host: String,
     port: i64,
+    protocol: String,
 }
 
 impl Agent {
-    pub fn new(id: NodeId, host: &str, port: i64) -> Self {
+    pub fn new(id: NodeId, host: &str, port: i64, protocol: &str) -> Self {
         Self {
             id,
             host: host.to_string(),
             port,
+            protocol: protocol.to_string(),
         }
     }
 
@@ -28,6 +30,10 @@ impl Agent {
 
     pub fn port(&self) -> i64 {
         self.port
+    }
+
+    pub fn protocol(&self) -> &str {
+        &self.protocol
     }
 }
 

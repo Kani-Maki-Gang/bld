@@ -6,6 +6,7 @@ mod path;
 mod remote;
 mod server;
 mod supervisor;
+mod tls;
 
 pub use auth::*;
 pub use errors::*;
@@ -14,6 +15,7 @@ pub use path::*;
 pub use remote::*;
 pub use server::*;
 pub use supervisor::*;
+pub use tls::*;
 
 use anyhow::Result;
 use std::path::PathBuf;

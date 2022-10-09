@@ -4,6 +4,7 @@ use actix::io::SinkWrite;
 use actix::{Actor, StreamHandler};
 use actix_web::rt::{spawn, System};
 use anyhow::{anyhow, Result};
+use awc::http::Version;
 use awc::Client;
 use bld_config::BldConfig;
 use bld_core::context::Context;
@@ -96,6 +97,7 @@ impl BldCommand for WorkerCommand {
                     error!("{e}");
                 }
             });
+
             let runner_handle = spawn(async move {
                 match RunnerBuilder::default()
                     .run_id(&run_id)
@@ -120,9 +122,18 @@ impl BldCommand for WorkerCommand {
                     Err(e) => error!("failed on building the runner, {e}"),
                 }
             });
-            let _ = join!(socket_handle, runner_handle);
-        });
-        Ok(())
+
+            match join!(socket_handle, runner_handle) {
+                (Err(e), Ok(())) | (Ok(()), Err(e)) => error!("{e}"),
+                (Err(e1), Err(e2)) => {
+                    error!("{e1}");
+                    error!("{e2}");
+                }
+                _ => {}
+            }
+
+            Ok(())
+        })
     }
 }
 
@@ -130,29 +141,43 @@ async fn connect_to_supervisor(
     config: Arc<BldConfig>,
     mut worker_rx: Receiver<WorkerMessages>,
 ) -> Result<()> {
+    let protocol = if config.local.supervisor.tls.is_some() {
+        "wss"
+    } else {
+        "ws"
+    };
     let url = format!(
-        "ws://{}:{}/ws-worker/",
+        "{protocol}://{}:{}/ws-worker/",
         config.local.supervisor.host, config.local.supervisor.port
     );
+
     debug!("establishing web socket connection on {}", url);
-    let client = Client::new().ws(url).connect();
+
+    let client = Client::builder()
+        .max_http_version(Version::HTTP_11)
+        .finish();
+    let client = client.ws(url).connect();
     let (_, framed) = client.await.map_err(|e| {
         error!("{e}");
         anyhow!(e.to_string())
     })?;
+
     let (sink, stream) = framed.split();
     let addr = WorkerClient::create(|ctx| {
         WorkerClient::add_stream(stream, ctx);
         WorkerClient::new(SinkWrite::new(sink, ctx))
     });
+
     addr.send(WorkerMessages::Ack).await?;
     addr.send(WorkerMessages::WhoAmI {
         pid: std::process::id(),
     })
     .await?;
+
     while let Some(msg) = worker_rx.recv().await {
         debug!("sending message to supervisor {:?}", msg);
         addr.send(msg).await?
     }
+
     Ok(())
 }

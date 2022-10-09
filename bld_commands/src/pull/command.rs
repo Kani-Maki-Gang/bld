@@ -73,7 +73,15 @@ impl BldCommand for PullCommand {
         };
         let headers = request::headers(name, auth)?;
         System::new().block_on(async move {
-            do_pull(srv.host.clone(), srv.port, headers, pip, ignore).await
+            do_pull(
+                srv.host.clone(),
+                srv.port,
+                srv.http_protocol(),
+                headers,
+                pip,
+                ignore,
+            )
+            .await
         })
     }
 }
@@ -81,13 +89,14 @@ impl BldCommand for PullCommand {
 async fn do_pull(
     host: String,
     port: i64,
+    protocol: String,
     headers: HashMap<String, String>,
     name: String,
     ignore_deps: bool,
 ) -> Result<()> {
     let mut pipelines = vec![name.to_string()];
     if !ignore_deps {
-        let metadata_url = format!("http://{host}:{port}/deps");
+        let metadata_url = format!("{protocol}://{host}:{port}/deps");
         debug!("sending http request to {metadata_url}");
         print!("Fetching metadata for dependecies...");
         let mut deps = request::post(metadata_url, headers.clone(), name)
@@ -104,7 +113,7 @@ async fn do_pull(
         pipelines.append(&mut deps);
     }
     for pipeline in pipelines.iter() {
-        let url = format!("http://{host}:{port}/pull");
+        let url = format!("{protocol}://{host}:{port}/pull");
         debug!("sending http request to {url}");
         print!("Pulling pipeline {pipeline}...");
         let _ = request::post(url, headers.clone(), pipeline.to_string())

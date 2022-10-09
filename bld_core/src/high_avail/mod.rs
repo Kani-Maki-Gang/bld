@@ -70,13 +70,19 @@ fn agent_info(config: &BldConfig) -> Result<(Agent, HashSet<Agent>)> {
         .local
         .node_id
         .ok_or_else(|| anyhow!("node_id not found"))?;
-    let agent = Agent::new(node_id, &config.local.server.host, config.local.server.port);
+    let server = &config.local.server;
+    let agent = Agent::new(node_id, &server.host, server.port, &server.http_protocol());
     let mut agents = HashSet::new();
     for server in config.remote.servers.iter() {
         let node_id = server
             .node_id
             .ok_or_else(|| anyhow!("server: {}, node_id not found", server.name))?;
-        agents.insert(Agent::new(node_id, &server.host, server.port));
+        agents.insert(Agent::new(
+            node_id,
+            &server.host,
+            server.port,
+            &server.http_protocol(),
+        ));
     }
     agents.insert(agent.clone());
     Ok((agent, agents))
