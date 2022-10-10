@@ -4,8 +4,10 @@ use anyhow::Result;
 use bld_config::{definitions::VERSION, BldConfig};
 use bld_utils::errors::auth_for_server_invalid;
 use bld_utils::request;
+use bld_server::responses::HistoryEntry;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use tracing::debug;
+use tabled::{Table, Style};
 
 static HIST: &str = "hist";
 static SERVER: &str = "server";
@@ -51,9 +53,13 @@ impl BldCommand for HistCommand {
         let headers = request::headers(name, auth)?;
         debug!("sending http request to {}", url);
         System::new().block_on(async move {
-            request::get(url, headers).await.map(|r| {
-                println!("{r}");
-            })
+            let res = request::get(url, headers).await?;
+            let history: Vec<HistoryEntry> = serde_json::from_str(&res)?;
+            let table = Table::new(history)
+                .with(Style::modern())
+                .to_string();
+            println!("{table}");
+            Ok(())
         })
     }
 }
