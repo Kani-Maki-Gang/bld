@@ -257,7 +257,7 @@ state:
 # TLS
 
 #### Server configuration
-Server mode supports the configuration for setting a certificate. For most cases having the server behind a reverse proxy like nginx, lighhtpd etc, would be best.
+Server mode can be configured to use a certificate for https and wss connections. For most cases having the server behind a battle tested reverse proxy would be best.
 
 To configure the certificate see the below example
 ```yaml
@@ -279,7 +279,7 @@ local:
 The certificate should be of type PEM. Setting the tls option for the supervisor means that all communications between the server and the supervisor will be done using https and wss.
 
 #### Client configuration
-Connecting to a server with enabled tls, then the local configuration of a project should have the option of tls set to true. Below is an example.
+Connecting to a server with enabled tls, the local configuration should have the option of tls set to true, as seen in the below example.
 ```yaml
 local:
     docker-url: tcp://127.0.0.1:2376
