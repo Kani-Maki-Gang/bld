@@ -3,7 +3,7 @@ A simple and blazingly fast CI/CD tool.
 
 # Features
 - [x] Running a pipeline on the executing machine or on a docker container.
-- [x] Client and Server mode. 
+- [x] Client and Server mode.
 - [x] Authentication using an oauth2 service (Github, Google, Microsoft etc).
 
 # Commands
@@ -25,19 +25,19 @@ stop    | Stops a running pipeline on a server.
 
 # Usage
 ```bash
-# Examples of the various commands that bld exposes. In most commands that target a server, 
-# if a name is not provided the first server entry in the config file is selected. Additionaly 
+# Examples of the various commands that bld exposes. In most commands that target a server,
+# if a name is not provided the first server entry in the config file is selected. Additionaly
 # when a command requires a pipeline name, if not provided it will target the default pipeline.
 
 # Command to create the .bld directory and a default pipeline.
-bld init 
+bld init
 
 # Command to run the default pipeline.
 bld run
 
 # Command to run a specific pipeline on the local machine.
 # pipeline_name should be a yaml file in the .bld directory.
-bld run -p pipeline_name 
+bld run -p pipeline_name
 
 # Command to run a pipeline on local machine with variables.
 bld run -p pipeline_name -v VARIABLE1=value1 VARIABLE2=value2
@@ -82,8 +82,8 @@ bld inspect -p pipeline_name -s server_name
 ```yaml
 name: Default Pipeline
 runs-on: machine
-steps: 
-- name: echo 
+steps:
+- name: echo
   exec:
   - echo 'hello world'
 ```
@@ -122,7 +122,7 @@ runs-on: mcr.microsoft.com/dotnet/core/sdk:3.1
 
 variables:
 - BRANCH: master
-- CONFIG: release 
+- CONFIG: release
 
 artifacts:
 - method: push
@@ -131,16 +131,16 @@ artifacts:
 - method: get
   from: /some/path/in/the/container
   to: /some/path
-  after: build project 
+  after: build project
 
 steps:
 - name: fetch repository
   exec:
-  - git clone -b bld:var:BRANCH https://github.com/project/project.git  
+  - git clone -b bld:var:BRANCH https://github.com/project/project.git
 - name: build project
   working-dir: project
-  exec:  
-  - dotnet build -c bld:var:CONFIG 
+  exec:
+  - dotnet build -c bld:var:CONFIG
   - cp -r bin/release/netcoreapp3.1/linux-x64/* /output
 ```
 
@@ -160,20 +160,20 @@ artifacts:
 - method: get
   from: /some/path/in/the/container
   to: /some/path
-  after: build project 
+  after: build project
 
 steps:
 - name: Fetch repository
   exec:
   - git clone -b bld:var:BRANCH https://github.com/project/project.git
-- name: install dependencies 
+- name: install dependencies
   working-dir: project
   exec:
   - npm install
-- name: build project 
-  working-dir: project 
+- name: build project
+  working-dir: project
   exec:
-  - npm run bld:var:SCRIPT 
+  - npm run bld:var:SCRIPT
 ```
 
 #### Pipeline that invokes other pipelines
@@ -181,17 +181,17 @@ steps:
 name: pipeline that calls other pipelines
 steps:
 - name: Execute dotnet core pipeline
-  call: 
+  call:
   - dotnet_core_pipeline
-- name: Execute nodejs pipeline 
-  call: 
+- name: Execute nodejs pipeline
+  call:
   - nodejs_pipeline
 ```
 
 # Authentication
 
 Server mode does not have it's own authentication method but it uses external authentication services. In the future multiple ways of
-authentication will be supported. The only current method is using an existing oauth2 service (Github, Google, Microsoft etc). 
+authentication will be supported. The only current method is using an existing oauth2 service (Github, Google, Microsoft etc).
 Below is an example of authentication using a Github oauth2 app.
 
 #### Configuration of client to login using github
@@ -200,15 +200,15 @@ The below example assumes that a github oauth2 app has been setup.
 local:
   docker-url: tcp://127.0.0.1:2376
 remote:
-  - server: local_srv 
+  - server: local_srv
     host: 127.0.0.1
     port: 6080
     auth:
-      method: oauth2 
+      method: oauth2
       auth-url: https://github.com/login/oauth/authorize
       token-url: https://github.com/login/oauth/access_token
-      client-id: your_oauth2_app_client_id 
-      client-secret: your_oauth2_app_client_secret 
+      client-id: your_oauth2_app_client_id
+      client-secret: your_oauth2_app_client_secret
       scopes: ["public_repo", "user:email"]
   - server: local_srv_2
     host: 127.0.0.1
@@ -220,7 +220,7 @@ remote:
 This will send a request to the provided validation url in order to fetch the user info.
 ```yaml
 local:
-    enable-server: true 
+    enable-server: true
     server:
       host: 127.0.0.1
       port: 6080
@@ -234,7 +234,7 @@ local:
 
 #### Login process
 ```bash
-# Use the login command to generate a url that will provide you with a code and state 
+# Use the login command to generate a url that will provide you with a code and state
 # tokens used for the auth process
 bld login
 
@@ -252,6 +252,42 @@ state:
 
 # At this point by navigating to the generated url you will be able to get the code and state. Copy it to your terminal and a new
 # token will be created under .bld/oauth2 directory on a file with the target server as name.
+```
+
+# TLS
+
+#### Server configuration
+Server mode can be configured to use a certificate for https and wss connections. For most cases having the server behind a battle tested reverse proxy would be best.
+
+To configure the certificate see the below example
+```yaml
+local:
+    server:
+        host: 127.0.0.1
+        port: 6080
+        tls:
+            cert-chain: /path/to/server/certificate
+            private-key: /path/to/server/private-key
+    supervisor:
+        host: 127.0.0.1
+        port: 7080
+        tls:
+            cert-chain: /path/to/supervisor/certificate
+            private-key: /path/to/supervisor/private-key
+
+```
+The certificate should be of type PEM. Setting the tls option for the supervisor means that all communications between the server and the supervisor will be done using https and wss.
+
+#### Client configuration
+Connecting to a server with enabled tls, the local configuration should have the option of tls set to true, as seen in the below example.
+```yaml
+local:
+    docker-url: tcp://127.0.0.1:2376
+remote:
+    - server: local_srv
+      host: 127.0.0.1
+      port: 6080
+      tls: true
 ```
 
 # What to do next
