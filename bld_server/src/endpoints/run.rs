@@ -42,7 +42,10 @@ pub fn enqueue_worker(
     data: RunInfo,
 ) -> Result<String> {
     let path = proxy.path(&data.name)?;
-    debug!("enqueue pipeline with name: {} and path: {:?}", data.name, path);
+    debug!(
+        "enqueue pipeline with name: {} and path: {:?}",
+        data.name, path
+    );
     if !path.is_yaml() {
         bail!("pipeline file not found");
     }

@@ -106,7 +106,11 @@ impl BldCommand for RunCommand {
                 on_server(RunOnServer {
                     host: srv.host.clone(),
                     port: srv.port,
-                    protocol: if detach { srv.http_protocol() } else { srv.ws_protocol() },
+                    protocol: if detach {
+                        srv.http_protocol()
+                    } else {
+                        srv.ws_protocol()
+                    },
                     headers: headers(srv_name, auth)?,
                     detach,
                     pipeline,
@@ -226,14 +230,10 @@ async fn connect_to_exec_socket(data: RunOnServer) -> Result<()> {
 pub fn on_server(data: RunOnServer) -> Result<()> {
     debug!("spawing actix system");
     if data.detach {
-        System::new().block_on(async move {
-            send_run_request(data).await
-        })
+        System::new().block_on(async move { send_run_request(data).await })
     } else {
         let sys = System::new();
-        let res = sys.block_on(async move {
-            connect_to_exec_socket(data).await
-        });
+        let res = sys.block_on(async move { connect_to_exec_socket(data).await });
         sys.run()?;
         res
     }

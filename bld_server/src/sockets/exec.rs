@@ -1,5 +1,5 @@
-use crate::extractors::User;
 use crate::endpoints::enqueue_worker;
+use crate::extractors::User;
 use crate::requests::RunInfo;
 use actix::prelude::*;
 use actix_web::error::ErrorUnauthorized;
@@ -14,8 +14,8 @@ use bld_core::scanner::{FileScanner, Scanner};
 use bld_supervisor::base::ServerMessages;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use std::time::Duration;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tracing::error;
 
@@ -83,8 +83,9 @@ impl ExecutePipelineSocket {
             self.proxy.clone(),
             self.pool.clone(),
             self.enqueue_tx.clone(),
-            data
-        ).map(|run_id| {
+            data,
+        )
+        .map(|run_id| {
             self.scanner = Some(FileScanner::new(Arc::clone(&self.config), &run_id));
             self.run_id = Some(run_id);
             ()
