@@ -1,9 +1,7 @@
 mod context;
-mod socket;
 mod sync;
 
 pub use context::*;
-pub use socket::*;
 pub use sync::*;
 
 #[cfg(test)]

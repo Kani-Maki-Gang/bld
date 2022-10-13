@@ -2,12 +2,12 @@ use crate::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::{definitions::VERSION, BldConfig};
+use bld_server::responses::HistoryEntry;
 use bld_utils::errors::auth_for_server_invalid;
 use bld_utils::request;
-use bld_server::responses::HistoryEntry;
 use clap::{App, Arg, ArgMatches, SubCommand};
+use tabled::{Style, Table};
 use tracing::debug;
-use tabled::{Table, Style};
 
 static HIST: &str = "hist";
 static SERVER: &str = "server";
@@ -55,9 +55,7 @@ impl BldCommand for HistCommand {
         System::new().block_on(async move {
             let res = request::get(url, headers).await?;
             let history: Vec<HistoryEntry> = serde_json::from_str(&res)?;
-            let table = Table::new(history)
-                .with(Style::modern())
-                .to_string();
+            let table = Table::new(history).with(Style::modern()).to_string();
             println!("{table}");
             Ok(())
         })

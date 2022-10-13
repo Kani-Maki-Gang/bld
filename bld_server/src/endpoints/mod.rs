@@ -8,6 +8,7 @@ mod list;
 mod pull;
 mod push;
 mod remove;
+mod run;
 mod stop;
 
 pub use auth_redirect::*;
@@ -20,4 +21,5 @@ pub use list::*;
 pub use pull::*;
 pub use push::*;
 pub use remove::*;
+pub use run::*;
 pub use stop::*;

@@ -112,7 +112,7 @@ async fn do_push(
     for info in pipelines.into_iter() {
         print!("Pushing {}...", info.name);
         let url = format!("{protocol}://{}:{}/push", host, port);
-        debug!("sending http request to {}", url);
+        debug!("sending request to {url}");
         let _ = request::post(url.clone(), headers.clone(), info)
             .await
             .map(|_| {

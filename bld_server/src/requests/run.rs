@@ -4,13 +4,13 @@ use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug, Message)]
 #[rtype(result = "()")]
-pub struct ExecInfo {
+pub struct RunInfo {
     pub name: String,
     pub environment: Option<HashMap<String, String>>,
     pub variables: Option<HashMap<String, String>>,
 }
 
-impl ExecInfo {
+impl RunInfo {
     pub fn new(
         name: &str,
         env: Option<HashMap<String, String>>,
