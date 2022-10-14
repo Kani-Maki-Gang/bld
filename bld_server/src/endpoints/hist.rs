@@ -34,7 +34,7 @@ fn history_info(db_pool: &Pool<ConnectionManager<SqliteConnection>>) -> Result<V
                     user: p.user,
                     state: p.state,
                     start_date_time: p.start_date_time,
-                    end_date_time: p.end_date_time.unwrap_or_else(|| String::new()),
+                    end_date_time: p.end_date_time.unwrap_or_default(),
                 })
                 .collect()
         })

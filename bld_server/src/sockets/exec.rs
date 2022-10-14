@@ -88,7 +88,6 @@ impl ExecutePipelineSocket {
         .map(|run_id| {
             self.scanner = Some(FileScanner::new(Arc::clone(&self.config), &run_id));
             self.run_id = Some(run_id);
-            ()
         })
     }
 }

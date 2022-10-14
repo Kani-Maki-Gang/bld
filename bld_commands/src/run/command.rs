@@ -189,7 +189,6 @@ async fn send_run_request(data: RunOnServer) -> Result<()> {
         .await
         .map(|_| {
             println!("pipeline has been scheduled to run");
-            ()
         })
 }
 
