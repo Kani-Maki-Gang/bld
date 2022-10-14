@@ -1,6 +1,6 @@
 pub mod endpoints;
 pub mod extractors;
-pub mod queue;
+mod helpers;
 pub mod requests;
 pub mod responses;
 mod server;

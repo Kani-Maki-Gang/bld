@@ -1,5 +1,5 @@
-use crate::endpoints::enqueue_worker;
 use crate::extractors::User;
+use crate::helpers::enqueue_worker;
 use crate::requests::RunInfo;
 use actix::prelude::*;
 use actix_web::error::ErrorUnauthorized;

@@ -2,8 +2,7 @@ use crate::endpoints::{
     auth_redirect, deps, ha_append_entries, ha_install_snapshot, ha_vote, hist, home, inspect,
     list, pull, push, remove, run, stop,
 };
-use crate::queue::EnqueueClient;
-use crate::sockets::{ws_exec, ws_high_avail, ws_monit};
+use crate::sockets::{ws_exec, ws_high_avail, ws_monit, EnqueueClient};
 use actix::io::SinkWrite;
 use actix::{Actor, Addr, StreamHandler};
 use actix_web::rt::spawn;
