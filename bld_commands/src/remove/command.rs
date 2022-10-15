@@ -2,7 +2,6 @@ use crate::BldCommand;
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
 use bld_config::{definitions::VERSION, BldConfig};
-use bld_utils::errors::auth_for_server_invalid;
 use bld_utils::request;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use tracing::debug;
@@ -48,25 +47,19 @@ impl BldCommand for RemoveCommand {
 
 async fn do_remove(matches: &ArgMatches) -> Result<()> {
     let config = BldConfig::load()?;
-    let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
+    let server = config.remote.server_or_first(matches.value_of(SERVER))?;
     let pipeline = matches
         .value_of(PIPELINE)
         .ok_or_else(|| anyhow!("invalid pipeline"))?
         .to_string();
     debug!(
         "running {} subcommand with --server: {} and --pipeline: {pipeline}",
-        REMOVE, srv.name
+        REMOVE, server.name
     );
-    let (name, auth) = match &srv.same_auth_as {
-        Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
-            Some(srv) => (&srv.name, &srv.auth),
-            None => return auth_for_server_invalid(),
-        },
-        None => (&srv.name, &srv.auth),
-    };
-    let protocol = srv.http_protocol();
-    let url = format!("{protocol}://{}:{}/remove", srv.host, srv.port);
-    let headers = request::headers(name, auth)?;
+    let server_auth = config.remote.same_auth_as(server)?;
+    let protocol = server.http_protocol();
+    let url = format!("{protocol}://{}:{}/remove", server.host, server.port);
+    let headers = request::headers(&server_auth.name, &server_auth.auth)?;
     debug!("sending {protocol} request to {url}");
     request::post(url, headers, pipeline).await.map(|r| {
         println!("{r}");

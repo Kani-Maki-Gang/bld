@@ -7,7 +7,6 @@ use awc::http::Version;
 use awc::Client;
 use bld_config::{definitions::VERSION, BldConfig};
 use bld_server::requests::MonitInfo;
-use bld_utils::errors::auth_for_server_invalid;
 use bld_utils::request::headers;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::stream::StreamExt;
@@ -74,27 +73,21 @@ impl BldCommand for MonitCommand {
         let pip_id = matches.value_of(PIPELINE_ID).map(|x| x.to_string());
         let pip_name = matches.value_of(PIPELINE).map(|x| x.to_string());
         let pip_last = matches.is_present(LAST);
-        let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
+        let server = config.remote.server_or_first(matches.value_of(SERVER))?;
         debug!(
             "running {} subcommand with --pipeline-id: {:?}, --pipeline: {:?}, --server: {}, --last: {}",
             MONIT,
             pip_id,
             pip_name,
-            srv.name,
+            server.name,
             pip_last
         );
-        let (name, auth) = match &srv.same_auth_as {
-            Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
-                Some(srv) => (&srv.name, &srv.auth),
-                None => return auth_for_server_invalid(),
-            },
-            None => (&srv.name, &srv.auth),
-        };
+        let server_auth = config.remote.same_auth_as(server)?;
         spawn(MonitConnectionInfo {
-            host: srv.host.to_string(),
-            port: srv.port,
-            protocol: srv.ws_protocol(),
-            headers: headers(name, auth)?,
+            host: server.host.to_string(),
+            port: server.port,
+            protocol: server.ws_protocol(),
+            headers: headers(&server_auth.name, &server_auth.auth)?,
             pip_id,
             pip_name,
             pip_last,

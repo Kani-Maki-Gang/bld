@@ -6,23 +6,17 @@ use awc::http::Version;
 use awc::Client;
 use bld_config::definitions::{TOOL_DEFAULT_PIPELINE, VERSION};
 use bld_config::BldConfig;
-use bld_core::context::Context;
-use bld_core::execution::Execution;
 use bld_core::logger::Logger;
-use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::{self, RunnerBuilder};
 use bld_server::requests::RunInfo;
 use bld_server::sockets::ExecClient;
-use bld_utils::errors::auth_for_server_invalid;
 use bld_utils::request::{self, headers};
-use chrono::offset::Local;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use futures::stream::StreamExt;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tracing::debug;
-use uuid::Uuid;
 
 const RUN: &str = "run";
 const PIPELINE: &str = "pipeline";
@@ -88,30 +82,24 @@ impl BldCommand for RunCommand {
         let vars = parse_variables(matches, "variables");
         match matches.value_of("server") {
             Some(server) => {
-                let srv = config.remote.server(server)?;
-                let (srv_name, auth) = match &srv.same_auth_as {
-                    Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
-                        Some(srv) => (&srv.name, &srv.auth),
-                        None => return auth_for_server_invalid(),
-                    },
-                    None => (&srv.name, &srv.auth),
-                };
+                let server = config.remote.server(&server)?;
+                let server_auth = config.remote.same_auth_as(server)?;
                 debug!(
                     "running {} subcommand with --pipeline: {}, --variables: {:?}, --server: {}",
                     RUN,
                     pipeline,
                     vars,
-                    server.to_string()
+                    server.name,
                 );
                 on_server(RunOnServer {
-                    host: srv.host.clone(),
-                    port: srv.port,
+                    host: server.host.clone(),
+                    port: server.port,
                     protocol: if detach {
-                        srv.http_protocol()
+                        server.http_protocol()
                     } else {
-                        srv.ws_protocol()
+                        server.ws_protocol()
                     },
-                    headers: headers(srv_name, auth)?,
+                    headers: headers(&server_auth.name, &server_auth.auth)?,
                     detach,
                     pipeline,
                     environment: env,
@@ -123,21 +111,14 @@ impl BldCommand for RunCommand {
                     "running {} subcommand with --pipeline: {}, --variables: {:?}",
                     RUN, pipeline, vars
                 );
-                let id = Uuid::new_v4().to_string();
-                let start_time = Local::now().format("%F %X").to_string();
                 let rt = Runtime::new()?;
                 rt.block_on(async {
                     let runner = RunnerBuilder::default()
-                        .run_id(&id)
-                        .run_start_time(&start_time)
                         .config(Arc::new(config))
-                        .proxy(Arc::new(PipelineFileSystemProxy::Local))
                         .pipeline(&pipeline)
-                        .execution(Execution::empty_atom())
                         .logger(Logger::shell_atom())
                         .environment(Arc::new(env))
                         .variables(Arc::new(vars))
-                        .context(Arc::new(Mutex::new(Context::Empty)))
                         .build()
                         .await?;
                     runner.run().await.await
