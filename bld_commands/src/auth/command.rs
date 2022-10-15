@@ -2,7 +2,6 @@ use crate::auth::Login;
 use crate::BldCommand;
 use anyhow::{anyhow, Result};
 use bld_config::{definitions::VERSION, Auth, BldConfig};
-use bld_utils::errors::auth_for_server_invalid;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use tracing::debug;
 
@@ -36,22 +35,19 @@ impl BldCommand for AuthCommand {
 
     fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
-        let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
-        debug!("running {} subcommand with --server: {}", LOGIN, &srv.name);
-        let (name, auth) = match &srv.same_auth_as {
-            Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
-                Some(srv) => (&srv.name, &srv.auth),
-                None => return auth_for_server_invalid(),
-            },
-            None => (&srv.name, &srv.auth),
-        };
-        match auth {
+        let server = config.remote.server_or_first(matches.value_of(SERVER))?;
+        let server_auth = config.remote.same_auth_as(server)?;
+        debug!(
+            "running {} subcommand with --server: {}",
+            LOGIN, &server.name
+        );
+        match &server_auth.auth {
             Auth::OAuth2(info) => {
                 debug!(
                     "starting login process for server: {} with oauth2 method",
-                    name
+                    server.name
                 );
-                info.login(name)?;
+                info.login(&server_auth.name)?;
                 Ok(())
             }
             Auth::Ldap => Err(anyhow!("unsupported authentication method ldap")),

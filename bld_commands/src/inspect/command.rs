@@ -3,7 +3,6 @@ use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::definitions::{TOOL_DEFAULT_PIPELINE, VERSION};
 use bld_config::BldConfig;
-use bld_utils::errors::auth_for_server_invalid;
 use bld_utils::request;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use tracing::debug;
@@ -48,21 +47,15 @@ impl BldCommand for InspectCommand {
             .value_of(PIPELINE)
             .unwrap_or(TOOL_DEFAULT_PIPELINE)
             .to_string();
-        let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
+        let server = config.remote.server_or_first(matches.value_of(SERVER))?;
         debug!(
             "running {} subcommand with --pipeline: {}, --server: {}",
-            INSPECT, pip, srv.name
+            INSPECT, pip, server.name
         );
-        let (name, auth) = match &srv.same_auth_as {
-            Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
-                Some(srv) => (&srv.name, &srv.auth),
-                None => return auth_for_server_invalid(),
-            },
-            None => (&srv.name, &srv.auth),
-        };
-        let protocol = srv.http_protocol();
-        let url = format!("{protocol}://{}:{}/inspect", srv.host, srv.port);
-        let headers = request::headers(name, auth)?;
+        let server_auth = config.remote.same_auth_as(server)?;
+        let protocol = server.http_protocol();
+        let url = format!("{protocol}://{}:{}/inspect", server.host, server.port);
+        let headers = request::headers(&server_auth.name, &server_auth.auth)?;
         debug!("sending http request to {}", url);
         System::new().block_on(async move {
             request::post(url, headers, pip).await.map(|r| {

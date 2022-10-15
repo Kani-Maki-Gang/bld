@@ -1,4 +1,4 @@
-use crate::socket::ExecInfo;
+use crate::requests::RunInfo;
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, Context, Handler, StreamHandler};
 use actix_codec::Framed;
@@ -34,10 +34,10 @@ impl Actor for ExecClient {
     }
 }
 
-impl Handler<ExecInfo> for ExecClient {
+impl Handler<RunInfo> for ExecClient {
     type Result = ();
 
-    fn handle(&mut self, msg: ExecInfo, _ctx: &mut Self::Context) {
+    fn handle(&mut self, msg: RunInfo, _ctx: &mut Self::Context) {
         if let Ok(msg) = serde_json::to_string(&msg) {
             let _ = self.writer.write(Message::Text(msg.into()));
         }

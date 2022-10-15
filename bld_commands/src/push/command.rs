@@ -5,7 +5,6 @@ use bld_config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION, BldCo
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::Pipeline;
 use bld_server::requests::PushInfo;
-use bld_utils::errors::auth_for_server_invalid;
 use bld_utils::request;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashMap;
@@ -56,25 +55,19 @@ impl BldCommand for PushCommand {
             .value_of(PIPELINE)
             .unwrap_or(TOOL_DEFAULT_PIPELINE)
             .to_string();
-        let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
+        let server = config.remote.server_or_first(matches.value_of(SERVER))?;
         let ignore = matches.is_present(IGNORE_DEPS);
         debug!(
             "running {PUSH} subcommand with --server: {} and --pipeline: {pip}",
-            srv.name
+            server.name
         );
-        let (name, auth) = match &srv.same_auth_as {
-            Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
-                Some(srv) => (&srv.name, &srv.auth),
-                None => return auth_for_server_invalid(),
-            },
-            None => (&srv.name, &srv.auth),
-        };
-        let headers = request::headers(name, auth)?;
+        let server_auth = config.remote.same_auth_as(server)?;
+        let headers = request::headers(&server_auth.name, &server_auth.auth)?;
         System::new().block_on(async move {
             do_push(
-                srv.host.clone(),
-                srv.port,
-                srv.http_protocol(),
+                server.host.clone(),
+                server.port,
+                server.http_protocol(),
                 headers,
                 pip,
                 ignore,
@@ -112,7 +105,7 @@ async fn do_push(
     for info in pipelines.into_iter() {
         print!("Pushing {}...", info.name);
         let url = format!("{protocol}://{}:{}/push", host, port);
-        debug!("sending http request to {}", url);
+        debug!("sending request to {url}");
         let _ = request::post(url.clone(), headers.clone(), info)
             .await
             .map(|_| {

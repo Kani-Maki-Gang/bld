@@ -1,9 +1,8 @@
 use crate::endpoints::{
     auth_redirect, deps, ha_append_entries, ha_install_snapshot, ha_vote, hist, home, inspect,
-    list, pull, push, remove, stop,
+    list, pull, push, remove, run, stop,
 };
-use crate::queue::EnqueueClient;
-use crate::sockets::{ws_exec, ws_high_avail, ws_monit};
+use crate::sockets::{ws_exec, ws_high_avail, ws_monit, EnqueueClient};
 use actix::io::SinkWrite;
 use actix::{Actor, Addr, StreamHandler};
 use actix_web::rt::spawn;
@@ -23,7 +22,6 @@ use std::env::{current_exe, set_var};
 use std::sync::Arc;
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
 async fn spawn_server(
@@ -36,7 +34,7 @@ async fn spawn_server(
 
     let config_clone = config.clone();
     let pool = new_connection_pool(&config.local.db)?;
-    let enqueue_tx = Data::new(Mutex::new(enqueue_tx));
+    let enqueue_tx = Data::new(enqueue_tx);
     let ha = Data::new(HighAvail::new(&config, pool.clone()).await?);
     let pool = Data::new(pool);
     let prx = Data::new(PipelineFileSystemProxy::Server {
@@ -61,6 +59,7 @@ async fn spawn_server(
             .service(hist)
             .service(list)
             .service(remove)
+            .service(run)
             .service(push)
             .service(deps)
             .service(pull)
@@ -145,13 +144,14 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
         }
     });
 
-    match join!(web_server_handle, socket_handle) {
-        (Err(e), Ok(_)) | (Ok(_), Err(e)) => error!("{e}"),
-        (Err(e1), Err(e2)) => {
-            error!("{e1}");
-            error!("{e2}");
-        }
-        _ => {}
+    let result = join!(web_server_handle, socket_handle);
+
+    if let Err(e) = result.0 {
+        error!("{e}");
+    }
+
+    if let Err(e) = result.1 {
+        error!("{e}");
     }
 
     supervisor.kill().await?;

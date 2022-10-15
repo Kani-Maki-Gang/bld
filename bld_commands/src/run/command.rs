@@ -1,20 +1,12 @@
+use crate::run::invoke::InvokeRun;
 use crate::BldCommand;
 use anyhow::Result;
 use bld_config::definitions::{TOOL_DEFAULT_PIPELINE, VERSION};
 use bld_config::BldConfig;
-use bld_core::context::Context;
-use bld_core::execution::Execution;
-use bld_core::logger::Logger;
-use bld_core::proxies::PipelineFileSystemProxy;
-use bld_runner::{self, ExecConnectionInfo, RunnerBuilder};
-use bld_utils::errors::auth_for_server_invalid;
-use bld_utils::request::headers;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use tokio::runtime::Runtime;
+use std::fmt::Write;
 use tracing::debug;
-use uuid::Uuid;
 
 const RUN: &str = "run";
 const PIPELINE: &str = "pipeline";
@@ -72,66 +64,26 @@ impl BldCommand for RunCommand {
     fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
         let pipeline = matches
-            .value_of("pipeline")
+            .value_of(PIPELINE)
             .unwrap_or(TOOL_DEFAULT_PIPELINE)
             .to_string();
-        let detach = matches.is_present("detach");
-        let env = parse_variables(matches, "environment");
-        let vars = parse_variables(matches, "variables");
-        match matches.value_of("server") {
-            Some(server) => {
-                let srv = config.remote.server(server)?;
-                let (srv_name, auth) = match &srv.same_auth_as {
-                    Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
-                        Some(srv) => (&srv.name, &srv.auth),
-                        None => return auth_for_server_invalid(),
-                    },
-                    None => (&srv.name, &srv.auth),
-                };
-                debug!(
-                    "running {} subcommand with --pipeline: {}, --variables: {:?}, --server: {}",
-                    RUN,
-                    pipeline,
-                    vars,
-                    server.to_string()
-                );
-                bld_runner::on_server(ExecConnectionInfo {
-                    host: srv.host.clone(),
-                    port: srv.port,
-                    protocol: srv.ws_protocol(),
-                    headers: headers(srv_name, auth)?,
-                    detach,
-                    pipeline,
-                    environment: env,
-                    variables: vars,
-                })
-            }
-            None => {
-                debug!(
-                    "running {} subcommand with --pipeline: {}, --variables: {:?}",
-                    RUN, pipeline, vars
-                );
-                let id = Uuid::new_v4().to_string();
-                let start_time = chrono::offset::Local::now().format("%F %X").to_string();
-                let rt = Runtime::new()?;
-                rt.block_on(async {
-                    let runner = RunnerBuilder::default()
-                        .run_id(&id)
-                        .run_start_time(&start_time)
-                        .config(Arc::new(config))
-                        .proxy(Arc::new(PipelineFileSystemProxy::Local))
-                        .pipeline(&pipeline)
-                        .execution(Execution::empty_atom())
-                        .logger(Logger::shell_atom())
-                        .environment(Arc::new(env))
-                        .variables(Arc::new(vars))
-                        .context(Arc::new(Mutex::new(Context::Empty)))
-                        .build()
-                        .await?;
-                    runner.run().await.await
-                })
-            }
+        let detach = matches.is_present(DETACH);
+        let env = parse_variables(matches, ENVIRONMENT);
+        let vars = parse_variables(matches, VARIABLES);
+        let server = matches.value_of(SERVER);
+
+        let mut message = format!(
+            "running {} subcommand with --pipeline: {}, --variables: {:?}",
+            RUN, pipeline, vars
+        );
+
+        if let Some(server_name) = server {
+            write!(message, ", --server: {}", server_name)?;
         }
+
+        debug!(message);
+
+        InvokeRun::new(config, pipeline, server, vars, env, detach)?.start()
     }
 }
 

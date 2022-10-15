@@ -1,31 +1,27 @@
 use crate::extractors::User;
+use crate::helpers::enqueue_worker;
+use crate::requests::RunInfo;
 use actix::prelude::*;
 use actix_web::error::ErrorUnauthorized;
-use actix_web::rt::spawn;
 use actix_web::web::{Data, Payload};
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::database::pipeline_runs::{self, PR_STATE_FINISHED, PR_STATE_QUEUED};
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::scanner::{FileScanner, Scanner};
-use bld_runner::messages::ExecInfo;
 use bld_supervisor::base::ServerMessages;
-use bld_utils::fs::IsYaml;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
-use tokio::sync::Mutex;
-use tracing::{debug, error};
-use uuid::Uuid;
+use tracing::error;
 
 pub struct ExecutePipelineSocket {
     config: Data<BldConfig>,
-    enqueue_tx: Data<Mutex<Sender<ServerMessages>>>,
+    enqueue_tx: Data<Sender<ServerMessages>>,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
     proxy: Data<PipelineFileSystemProxy>,
     user: User,
@@ -37,7 +33,7 @@ impl ExecutePipelineSocket {
     pub fn new(
         user: User,
         config: Data<BldConfig>,
-        enqueue_tx: Data<Mutex<Sender<ServerMessages>>>,
+        enqueue_tx: Data<Sender<ServerMessages>>,
         pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
         proxy: Data<PipelineFileSystemProxy>,
     ) -> Self {
@@ -80,38 +76,19 @@ impl ExecutePipelineSocket {
         }
     }
 
-    fn enqueue_worker(&mut self, data: &str) -> Result<()> {
-        let info = serde_json::from_str::<ExecInfo>(data)?;
-        let path = self.proxy.path(&info.name)?;
-        if !path.is_yaml() {
-            let message = String::from("pipeline file not found");
-            return Err(anyhow!(message));
-        }
-
-        let run_id = Uuid::new_v4().to_string();
-        let conn = self.pool.get()?;
-        pipeline_runs::insert(&conn, &run_id, &info.name, &self.user.name)?;
-        let variables = info.variables.map(hash_map_to_var_string);
-        let environment = info.environment.map(hash_map_to_var_string);
-
-        self.scanner = Some(FileScanner::new(Arc::clone(&self.config), &run_id));
-        self.run_id = Some(run_id.clone());
-
-        let enqueue_tx = self.enqueue_tx.clone();
-        spawn(async move {
-            let tx = enqueue_tx.lock().await;
-            let msg = ServerMessages::Enqueue {
-                pipeline: info.name.to_string(),
-                run_id,
-                variables,
-                environment,
-            };
-            match tx.send(msg).await {
-                Ok(_) => debug!("sent message to supervisor receiver"),
-                Err(e) => error!("unable to send message to supervisor receiver. {e}"),
-            }
-        });
-        Ok(())
+    fn enqueue(&mut self, text: &str) -> Result<()> {
+        let data = serde_json::from_str::<RunInfo>(text)?;
+        enqueue_worker(
+            &self.user,
+            self.proxy.clone(),
+            self.pool.clone(),
+            self.enqueue_tx.clone(),
+            data,
+        )
+        .map(|run_id| {
+            self.scanner = Some(FileScanner::new(Arc::clone(&self.config), &run_id));
+            self.run_id = Some(run_id);
+        })
     }
 }
 
@@ -132,7 +109,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSo
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(txt)) => {
-                if let Err(e) = self.enqueue_worker(&txt) {
+                if let Err(e) = self.enqueue(&txt) {
                     error!("{}", e.to_string());
                     ctx.text("Unable to run pipeline");
                     ctx.stop();
@@ -151,19 +128,12 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSo
     }
 }
 
-fn hash_map_to_var_string(hmap: HashMap<String, String>) -> String {
-    hmap.iter()
-        .map(|(k, v)| format!("{k}={v}"))
-        .collect::<Vec<String>>()
-        .join(" ")
-}
-
 pub async fn ws_exec(
     user: Option<User>,
     req: HttpRequest,
     stream: Payload,
     cfg: Data<BldConfig>,
-    enqueue_tx: Data<Mutex<Sender<ServerMessages>>>,
+    enqueue_tx: Data<Sender<ServerMessages>>,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
     proxy: Data<PipelineFileSystemProxy>,
 ) -> Result<HttpResponse, Error> {

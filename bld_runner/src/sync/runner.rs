@@ -9,11 +9,13 @@ use bld_core::execution::Execution;
 use bld_core::logger::Logger;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_supervisor::base::WorkerMessages;
+use chrono::offset::Local;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::Sender;
+use uuid::Uuid;
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 type AtomicExec = Arc<Mutex<Execution>>;
@@ -22,30 +24,48 @@ type AtomicVars = Arc<HashMap<String, String>>;
 type AtomicProxy = Arc<PipelineFileSystemProxy>;
 type AtomicContext = Arc<Mutex<Context>>;
 
-#[derive(Default)]
 pub struct RunnerBuilder {
-    run_id: Option<String>,
-    run_start_time: Option<String>,
+    run_id: String,
+    run_start_time: String,
     cfg: Option<Arc<BldConfig>>,
-    ex: Option<AtomicExec>,
-    lg: Option<AtomicLog>,
-    prx: Option<AtomicProxy>,
+    ex: AtomicExec,
+    lg: AtomicLog,
+    prx: AtomicProxy,
     pip: Option<String>,
     ipc: Arc<Option<Sender<WorkerMessages>>>,
     env: Option<AtomicVars>,
     vars: Option<AtomicVars>,
-    context: Option<AtomicContext>,
+    context: AtomicContext,
     is_child: bool,
+}
+
+impl Default for RunnerBuilder {
+    fn default() -> Self {
+        Self {
+            run_id: Uuid::new_v4().to_string(),
+            run_start_time: Local::now().format("%F %X").to_string(),
+            cfg: None,
+            ex: Execution::empty_atom(),
+            lg: Logger::empty_atom(),
+            prx: Arc::new(PipelineFileSystemProxy::Local),
+            pip: None,
+            ipc: Arc::new(None),
+            env: None,
+            vars: None,
+            context: Arc::new(Mutex::new(Context::Empty)),
+            is_child: false,
+        }
+    }
 }
 
 impl RunnerBuilder {
     pub fn run_id(mut self, id: &str) -> Self {
-        self.run_id = Some(String::from(id));
+        self.run_id = String::from(id);
         self
     }
 
     pub fn run_start_time(mut self, time: &str) -> Self {
-        self.run_start_time = Some(String::from(time));
+        self.run_start_time = String::from(time);
         self
     }
 
@@ -55,12 +75,12 @@ impl RunnerBuilder {
     }
 
     pub fn execution(mut self, ex: AtomicExec) -> Self {
-        self.ex = Some(ex);
+        self.ex = ex;
         self
     }
 
     pub fn logger(mut self, lg: AtomicLog) -> Self {
-        self.lg = Some(lg);
+        self.lg = lg;
         self
     }
 
@@ -70,7 +90,7 @@ impl RunnerBuilder {
     }
 
     pub fn proxy(mut self, prx: AtomicProxy) -> Self {
-        self.prx = Some(prx);
+        self.prx = prx;
         self
     }
 
@@ -90,7 +110,7 @@ impl RunnerBuilder {
     }
 
     pub fn context(mut self, context: AtomicContext) -> Self {
-        self.context = Some(context);
+        self.context = context;
         self
     }
 
@@ -100,18 +120,11 @@ impl RunnerBuilder {
     }
 
     pub async fn build(self) -> Result<Runner> {
-        let id = self.run_id.ok_or_else(|| anyhow!("no run id provided"))?;
         let cfg = self
             .cfg
             .ok_or_else(|| anyhow!("no bld config instance provided"))?;
-        let lg = self
-            .lg
-            .ok_or_else(|| anyhow!("no logger instance provided"))?;
-        let prx = self
-            .prx
-            .ok_or_else(|| anyhow!("no pipeline file system proxy provided"))?;
         let pip_name = self.pip.ok_or_else(|| anyhow!("no pipeline provided"))?;
-        let pipeline = Pipeline::parse(&prx.read(&pip_name)?)?;
+        let pipeline = Pipeline::parse(&self.prx.read(&pip_name)?)?;
         let env = self
             .env
             .ok_or_else(|| anyhow!("no environment instance provided"))?;
@@ -142,37 +155,35 @@ impl RunnerBuilder {
                 })
                 .collect(),
         );
-        let context = self
-            .context
-            .ok_or_else(|| anyhow!("no container handler was provided"))?;
         let platform = match &pipeline.runs_on {
             RunsOn::Machine => {
-                let machine = Machine::new(&id, env.clone(), lg.clone())?;
+                let machine = Machine::new(&self.run_id, env.clone(), self.lg.clone())?;
                 TargetPlatform::Machine(Box::new(machine))
             }
             RunsOn::Docker(img) => {
-                let container =
-                    Container::new(img, cfg.clone(), env.clone(), lg.clone(), context.clone())
-                        .await?;
+                let container = Container::new(
+                    img,
+                    cfg.clone(),
+                    env.clone(),
+                    self.lg.clone(),
+                    self.context.clone(),
+                )
+                .await?;
                 TargetPlatform::Container(Box::new(container))
             }
         };
         Ok(Runner {
-            run_id: id,
-            run_start_time: self
-                .run_start_time
-                .ok_or_else(|| anyhow!("no run start time provided"))?,
+            run_id: self.run_id,
+            run_start_time: self.run_start_time,
             cfg,
-            ex: self
-                .ex
-                .ok_or_else(|| anyhow!("no executor instance provided"))?,
-            lg,
-            prx,
+            ex: self.ex,
+            lg: self.lg,
+            prx: self.prx,
             pip: pipeline,
             ipc: self.ipc,
             env,
             vars,
-            context,
+            context: self.context,
             platform,
             is_child: self.is_child,
         })

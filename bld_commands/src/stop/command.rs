@@ -3,7 +3,6 @@ use actix_web::rt::System;
 use anyhow::{anyhow, Result};
 use bld_config::definitions::VERSION;
 use bld_config::BldConfig;
-use bld_utils::errors::auth_for_server_invalid;
 use bld_utils::request;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
@@ -48,17 +47,11 @@ impl BldCommand for StopCommand {
             .value_of(ID)
             .ok_or_else(|| anyhow!("id is mandatory"))?
             .to_string();
-        let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
-        let (name, auth) = match &srv.same_auth_as {
-            Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
-                Some(srv) => (&srv.name, &srv.auth),
-                None => return auth_for_server_invalid(),
-            },
-            None => (&srv.name, &srv.auth),
-        };
-        let protocol = srv.http_protocol();
-        let url = format!("{protocol}://{}:{}/stop", srv.host, srv.port);
-        let headers = request::headers(name, auth)?;
+        let server = config.remote.server_or_first(matches.value_of(SERVER))?;
+        let server_auth = config.remote.same_auth_as(server)?;
+        let protocol = server.http_protocol();
+        let url = format!("{protocol}://{}:{}/stop", server.host, server.port);
+        let headers = request::headers(&server_auth.name, &server_auth.auth)?;
         System::new().block_on(async move {
             request::post(url, headers, id).await.map(|r| {
                 println!("{r}");

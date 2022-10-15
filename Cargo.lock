@@ -507,6 +507,7 @@ dependencies = [
  "bld_core",
  "bld_supervisor",
  "bld_utils",
+ "chrono",
  "futures",
  "futures-util",
  "serde",
@@ -516,6 +517,7 @@ dependencies = [
  "tar",
  "tokio",
  "tracing",
+ "uuid",
  "yaml-rust",
 ]
 

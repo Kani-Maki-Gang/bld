@@ -2,12 +2,11 @@ use crate::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::{definitions::VERSION, BldConfig};
-use bld_utils::errors::auth_for_server_invalid;
-use bld_utils::request;
 use bld_server::responses::HistoryEntry;
+use bld_utils::request;
 use clap::{App, Arg, ArgMatches, SubCommand};
+use tabled::{Style, Table};
 use tracing::debug;
-use tabled::{Table, Style};
 
 static HIST: &str = "hist";
 static SERVER: &str = "server";
@@ -39,25 +38,17 @@ impl BldCommand for HistCommand {
 
     fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
-        let srv = config.remote.server_or_first(matches.value_of(SERVER))?;
-        debug!("running {} subcommand with --server: {}", HIST, srv.name);
-        let (name, auth) = match &srv.same_auth_as {
-            Some(name) => match config.remote.servers.iter().find(|s| &s.name == name) {
-                Some(srv) => (&srv.name, &srv.auth),
-                None => return auth_for_server_invalid(),
-            },
-            None => (&srv.name, &srv.auth),
-        };
-        let protocol = srv.http_protocol();
-        let url = format!("{protocol}://{}:{}/hist", srv.host, srv.port);
-        let headers = request::headers(name, auth)?;
+        let server = config.remote.server_or_first(matches.value_of(SERVER))?;
+        debug!("running {} subcommand with --server: {}", HIST, server.name);
+        let server_auth = config.remote.same_auth_as(server)?;
+        let protocol = server.http_protocol();
+        let url = format!("{protocol}://{}:{}/hist", server.host, server.port);
+        let headers = request::headers(&server_auth.name, &server_auth.auth)?;
         debug!("sending http request to {}", url);
         System::new().block_on(async move {
             let res = request::get(url, headers).await?;
             let history: Vec<HistoryEntry> = serde_json::from_str(&res)?;
-            let table = Table::new(history)
-                .with(Style::modern())
-                .to_string();
+            let table = Table::new(history).with(Style::modern()).to_string();
             println!("{table}");
             Ok(())
         })
