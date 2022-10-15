@@ -1,4 +1,4 @@
-use crate::{BldRemoteServerConfig, err_no_server_in_config, err_server_not_in_config};
+use crate::{err_no_server_in_config, err_server_not_in_config, BldRemoteServerConfig};
 use anyhow::{bail, Result};
 use yaml_rust::Yaml;
 
@@ -38,10 +38,13 @@ impl BldRemoteConfig {
         }
     }
 
-    pub fn same_auth_as<'a>(&'a self, server: &'a BldRemoteServerConfig) -> Result<&'a BldRemoteServerConfig> {
+    pub fn same_auth_as<'a>(
+        &'a self,
+        server: &'a BldRemoteServerConfig,
+    ) -> Result<&'a BldRemoteServerConfig> {
         if let Some(name) = &server.same_auth_as {
             return match self.servers.iter().find(|s| &s.name == name) {
-                Some(srv) => Ok(&srv),
+                Some(srv) => Ok(srv),
                 None => bail!("could not parse auth settings for server"),
             };
         }

@@ -37,7 +37,10 @@ impl BldCommand for AuthCommand {
         let config = BldConfig::load()?;
         let server = config.remote.server_or_first(matches.value_of(SERVER))?;
         let server_auth = config.remote.same_auth_as(server)?;
-        debug!("running {} subcommand with --server: {}", LOGIN, &server.name);
+        debug!(
+            "running {} subcommand with --server: {}",
+            LOGIN, &server.name
+        );
         match &server_auth.auth {
             Auth::OAuth2(info) => {
                 debug!(

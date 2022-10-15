@@ -53,7 +53,7 @@ impl Default for RunnerBuilder {
             env: None,
             vars: None,
             context: Arc::new(Mutex::new(Context::Empty)),
-            is_child: false
+            is_child: false,
         }
     }
 }
@@ -161,9 +161,14 @@ impl RunnerBuilder {
                 TargetPlatform::Machine(Box::new(machine))
             }
             RunsOn::Docker(img) => {
-                let container =
-                    Container::new(img, cfg.clone(), env.clone(), self.lg.clone(), self.context.clone())
-                        .await?;
+                let container = Container::new(
+                    img,
+                    cfg.clone(),
+                    env.clone(),
+                    self.lg.clone(),
+                    self.context.clone(),
+                )
+                .await?;
                 TargetPlatform::Container(Box::new(container))
             }
         };
