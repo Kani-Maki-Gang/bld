@@ -8,6 +8,7 @@ use bld_core::database::pipeline_runs::{self, PR_STATE_FINISHED, PR_STATE_QUEUED
 use bld_core::workers::PipelineWorker;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
+use shiplift::errors::Error as ShipliftError;
 use shiplift::{Docker, RmContainerOptions};
 use std::collections::VecDeque;
 use tracing::{debug, error, info};
@@ -134,29 +135,41 @@ fn try_cleanup_process(
     Ok(())
 }
 
-/// This function will fetch all containers with faulted state, try to stop and remove them
-/// using the docker engine API and then set their state as removed.
+/// This function will fetch all containers with faulted state or those in active state
+/// with runs that have finished, and try to stop and remove them using the docker
+/// engine API and then set their state as removed.
 pub async fn try_cleanup_containers(
     config: Data<BldConfig>,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
 ) -> Result<()> {
     let conn = pool.get()?;
-    let run_containers = pipeline_run_containers::select_faulted(&conn)?;
-    info!("found {} faulted containers", run_containers.len());
+    let run_containers = pipeline_run_containers::select_in_invalid_state(&conn)?;
+    info!("found {} containers in invalid state", run_containers.len());
     let url = config.local.docker_url.parse()?;
     let client = Docker::host(url);
     for info in run_containers {
         let container = client.containers().get(&info.container_id);
-        if let Err(e) = container.stop(None).await {
-            error!("could not stop container {}, {e}", info.container_id);
+
+        match container.stop(None).await {
+            // container doesn't exist, move to the next part
+            Err(ShipliftError::Fault { code, .. }) if code.as_u16() == 404 => {}
+            Err(e) => error!("could not stop container {}, {:?}", info.container_id, e),
+            _ => {}
         }
-        if let Err(e) = container
+
+        match container
             .remove(RmContainerOptions::builder().force(true).build())
             .await
         {
-            error!("could not remove container {}, {e}", info.container_id);
-            continue;
+            // container doesn't exist, move to the next part
+            Err(ShipliftError::Fault { code, .. }) if code.as_u16() == 404 => {}
+            Err(e) => {
+                error!("could not remove container {}, {:?}", info.container_id, e);
+                continue;
+            }
+            _ => {}
         }
+
         let _ = pipeline_run_containers::update_state(&conn, &info.id, PRC_STATE_REMOVED);
     }
     Ok(())

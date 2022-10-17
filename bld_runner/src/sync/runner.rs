@@ -226,6 +226,8 @@ impl Runner {
         }
         if self.pip.dispose {
             self.platform.dispose(self.is_child).await?;
+        } else {
+            self.platform.keep_alive()?;
         }
         Ok(())
     }

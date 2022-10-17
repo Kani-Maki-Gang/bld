@@ -1,5 +1,6 @@
 use crate::database::pipeline_run_containers::{
-    self, InsertPipelineRunContainer, PipelineRunContainers, PRC_STATE_FAULTED, PRC_STATE_REMOVED,
+    self, InsertPipelineRunContainer, PipelineRunContainers, PRC_STATE_FAULTED,
+    PRC_STATE_KEEP_ALIVE, PRC_STATE_REMOVED,
 };
 use anyhow::Result;
 use diesel::r2d2::{ConnectionManager, Pool};
@@ -93,6 +94,30 @@ impl Context {
                         &conn,
                         &instances[idx].id,
                         PRC_STATE_FAULTED,
+                    )?;
+                }
+                Ok(())
+            }
+        }
+    }
+
+    pub fn keep_alive(&mut self, container_id: &str) -> Result<()> {
+        match self {
+            Self::Empty => Ok(()),
+            Self::Containers {
+                pool,
+                run_id: _,
+                instances,
+            } => {
+                if let Some(idx) = instances
+                    .iter()
+                    .position(|i| i.container_id == container_id)
+                {
+                    let conn = pool.get()?;
+                    instances[idx] = pipeline_run_containers::update_state(
+                        &conn,
+                        &instances[idx].id,
+                        PRC_STATE_KEEP_ALIVE,
                     )?;
                 }
                 Ok(())

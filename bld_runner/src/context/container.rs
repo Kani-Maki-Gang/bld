@@ -155,6 +155,12 @@ impl Container {
         Ok(())
     }
 
+    pub fn keep_alive(&self) -> Result<()> {
+        let id = self.get_id()?;
+        let mut containers = self.containers.lock().unwrap();
+        containers.keep_alive(id)
+    }
+
     pub async fn dispose(&self) -> Result<()> {
         let client = self.get_client()?;
         let id = self.get_id()?;
