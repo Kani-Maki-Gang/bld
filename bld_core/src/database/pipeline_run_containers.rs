@@ -1,9 +1,10 @@
-use crate::database::pipeline_runs::PipelineRuns;
+use crate::database::pipeline_runs::{PipelineRuns, PR_STATE_FINISHED};
 use crate::database::schema::pipeline_run_containers;
 use crate::database::schema::pipeline_run_containers::dsl::*;
+use crate::database::schema::pipeline_runs::dsl as pr_dsl;
 use anyhow::{anyhow, Result};
 use diesel::prelude::*;
-use diesel::query_dsl::RunQueryDsl;
+use diesel::query_dsl::{QueryDsl, RunQueryDsl};
 use diesel::sqlite::SqliteConnection;
 use diesel::{Associations, Identifiable, Insertable, Queryable};
 use tracing::{debug, error};
@@ -11,6 +12,7 @@ use tracing::{debug, error};
 pub const PRC_STATE_ACTIVE: &str = "active";
 pub const PRC_STATE_REMOVED: &str = "removed";
 pub const PRC_STATE_FAULTED: &str = "faulted";
+pub const PRC_STATE_KEEP_ALIVE: &str = "keep-alive"; // Set when the pipeline is configured to not dispose.
 
 #[derive(Debug, Associations, Identifiable, Queryable)]
 #[belongs_to(PipelineRuns, foreign_key = "run_id")]
@@ -64,9 +66,25 @@ pub fn select_by_id(conn: &SqliteConnection, prc_id: &str) -> Result<PipelineRun
         })
 }
 
-pub fn select_faulted(conn: &SqliteConnection) -> Result<Vec<PipelineRunContainers>> {
-    debug!("loading all faulted pipeline run containers");
-    pipeline_run_containers
+pub fn select_in_invalid_state(conn: &SqliteConnection) -> Result<Vec<PipelineRunContainers>> {
+    debug!("loading all pipeline run containers that are faulted or active but the associated run has finished");
+    let active_containers: Vec<(PipelineRuns, PipelineRunContainers)> = pr_dsl::pipeline_runs
+        .inner_join(pipeline_run_containers)
+        .filter(
+            pr_dsl::state
+                .eq(PR_STATE_FINISHED)
+                .and(state.eq(PRC_STATE_ACTIVE)),
+        )
+        .load(conn)
+        .map(|res| {
+            debug!("loaded active pipeline run containers with finished runs successfully");
+            res
+        })
+        .map_err(|e| {
+            debug!("could not load pipeline run containers, {e}");
+            anyhow!(e)
+        })?;
+    let mut faulted_containers = pipeline_run_containers
         .filter(state.eq(PRC_STATE_FAULTED))
         .load(conn)
         .map(|prc| {
@@ -76,7 +94,9 @@ pub fn select_faulted(conn: &SqliteConnection) -> Result<Vec<PipelineRunContaine
         .map_err(|e| {
             debug!("could not load pipeline run containers, {e}");
             anyhow!(e)
-        })
+        })?;
+    faulted_containers.append(&mut active_containers.into_iter().map(|r| r.1).collect());
+    Ok(faulted_containers)
 }
 
 pub fn insert(

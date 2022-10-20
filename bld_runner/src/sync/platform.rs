@@ -35,6 +35,13 @@ impl TargetPlatform {
         }
     }
 
+    pub fn keep_alive(&self) -> Result<()> {
+        match self {
+            Self::Container(container) => container.keep_alive(),
+            _ => Ok(()),
+        }
+    }
+
     pub async fn dispose(&self, in_child_runner: bool) -> Result<()> {
         match self {
             // checking if the runner is a child in order to not cleanup the temp dir for the whole run
