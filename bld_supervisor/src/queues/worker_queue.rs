@@ -124,14 +124,17 @@ fn try_cleanup_process(
     worker: &mut PipelineWorker,
 ) -> Result<()> {
     debug!("starting worker process cleanup");
+
     if let Err(e) = worker.cleanup() {
         error!("error when trying to cleanup the worker process, {e}");
     }
+
     let run_id = worker.get_run_id();
     let conn = pool.get()?;
     let _ = pipeline_runs::select_running_by_id(&conn, run_id)?;
     let _ = pipeline_runs::update_state(&conn, run_id, PR_STATE_FINISHED);
     let _ = pipeline_run_containers::update_running_containers_to_faulted(&conn, run_id);
+
     Ok(())
 }
 
@@ -144,33 +147,40 @@ pub async fn try_cleanup_containers(
 ) -> Result<()> {
     let conn = pool.get()?;
     let run_containers = pipeline_run_containers::select_in_invalid_state(&conn)?;
+
     info!("found {} containers in invalid state", run_containers.len());
+
     let url = config.local.docker_url.parse()?;
     let client = Docker::host(url);
+
     for info in run_containers {
         let container = client.containers().get(&info.container_id);
 
-        match container.stop(None).await {
+        let container_found = match container.stop(None).await {
             // container doesn't exist, move to the next part
-            Err(ShipliftError::Fault { code, .. }) if code.as_u16() == 404 => {}
-            Err(e) => error!("could not stop container {}, {:?}", info.container_id, e),
-            _ => {}
-        }
-
-        match container
-            .remove(RmContainerOptions::builder().force(true).build())
-            .await
-        {
-            // container doesn't exist, move to the next part
-            Err(ShipliftError::Fault { code, .. }) if code.as_u16() == 404 => {}
+            Err(ShipliftError::Fault { code, .. }) if code.as_u16() == 404 => false,
             Err(e) => {
-                error!("could not remove container {}, {:?}", info.container_id, e);
-                continue;
+                error!("could not stop container {}, {:?}", info.container_id, e);
+                true
             }
-            _ => {}
+            _ => true,
+        };
+
+        if container_found {
+            let options = RmContainerOptions::builder().force(true).build();
+            match container.remove(options).await {
+                // container doesn't exist, move to the next part
+                Err(ShipliftError::Fault { code, .. }) if code.as_u16() == 404 => {}
+                Err(e) => {
+                    error!("could not remove container {}, {:?}", info.container_id, e);
+                    continue;
+                }
+                _ => {}
+            }
         }
 
         let _ = pipeline_run_containers::update_state(&conn, &info.id, PRC_STATE_REMOVED);
     }
+
     Ok(())
 }
