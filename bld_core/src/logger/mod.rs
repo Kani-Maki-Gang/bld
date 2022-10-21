@@ -38,7 +38,7 @@ impl Logger {
                 print!("{}", text);
             }
             Self::File { handle } => {
-                if let Err(e) = writeln!(handle, "{text}") {
+                if let Err(e) = write!(handle, "{text}") {
                     eprintln!("Couldn't write to file: {e}");
                 }
             }
@@ -65,6 +65,23 @@ impl Logger {
             Self::Shell => {
                 let mut stdout = StandardStream::stdout(ColorChoice::Always);
                 let _ = stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)));
+                let _ = write!(&mut stdout, "{text}");
+                let _ = stdout.set_color(ColorSpec::new().set_fg(None));
+            }
+            Self::File { handle } => {
+                if let Err(e) = write!(handle, "{text}") {
+                    eprintln!("Couldn't write to file: {e}");
+                }
+            }
+        }
+    }
+
+    pub fn infoln(&mut self, text: &str) {
+        match self {
+            Self::Empty => {}
+            Self::Shell => {
+                let mut stdout = StandardStream::stdout(ColorChoice::Always);
+                let _ = stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)));
                 let _ = writeln!(&mut stdout, "{text}");
                 let _ = stdout.set_color(ColorSpec::new().set_fg(None));
             }
@@ -77,6 +94,23 @@ impl Logger {
     }
 
     pub fn error(&mut self, text: &str) {
+        match self {
+            Self::Empty => {}
+            Self::Shell => {
+                let mut stderr = StandardStream::stderr(ColorChoice::Always);
+                let _ = stderr.set_color(ColorSpec::new().set_fg(Some(Color::Red)));
+                let _ = write!(&mut stderr, "{text}");
+                let _ = stderr.set_color(ColorSpec::new().set_fg(None));
+            }
+            Self::File { handle } => {
+                if let Err(e) = write!(handle, "{text}") {
+                    eprintln!("Couldn't write to file: {e}");
+                }
+            }
+        }
+    }
+
+    pub fn errorln(&mut self, text: &str) {
         match self {
             Self::Empty => {}
             Self::Shell => {

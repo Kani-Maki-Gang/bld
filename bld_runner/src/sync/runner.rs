@@ -334,7 +334,7 @@ impl Runner {
     async fn step(&self, step: &BuildStep) -> Result<()> {
         if let Some(name) = &step.name {
             let mut logger = self.lg.lock().unwrap();
-            logger.info(&format!("[bld] Step: {name}"));
+            logger.infoln(&format!("[bld] Step: {name}"));
         }
         self.call(step).await?;
         self.sh(step).await?;
