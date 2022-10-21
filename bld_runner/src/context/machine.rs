@@ -1,11 +1,13 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use bld_config::definitions::LOCAL_MACHINE_TMP_DIR;
 use bld_config::{os_name, path, OSname};
 use bld_core::logger::Logger;
 use std::collections::HashMap;
+use std::env::current_dir;
 use std::fmt::Write;
+use std::fs::{copy, create_dir_all};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, ExitStatus};
 use std::sync::{Arc, Mutex};
 
 fn could_not_spawn_shell() -> Result<()> {
@@ -24,16 +26,16 @@ impl Machine {
         env: Arc<HashMap<String, String>>,
         lg: Arc<Mutex<Logger>>,
     ) -> Result<Self> {
-        let tmp_path = path![std::env::current_dir()?, LOCAL_MACHINE_TMP_DIR, id];
+        let tmp_path = path![current_dir()?, LOCAL_MACHINE_TMP_DIR, id];
         let tmp_dir = tmp_path.display().to_string();
         if !tmp_path.is_dir() {
-            std::fs::create_dir_all(tmp_path)?;
+            create_dir_all(tmp_path)?;
         }
         Ok(Self { tmp_dir, env, lg })
     }
 
     fn copy(&self, from: &str, to: &str) -> Result<()> {
-        std::fs::copy(Path::new(from), Path::new(to))?;
+        copy(Path::new(from), Path::new(to))?;
         Ok(())
     }
 
@@ -53,6 +55,7 @@ impl Machine {
         } else {
             current_dir
         };
+
         let (shell, mut args) = match &os_name {
             OSname::Windows => ("powershell.exe", Vec::<&str>::new()),
             OSname::Linux => ("bash", vec!["-c"]),
@@ -68,15 +71,22 @@ impl Machine {
 
         let process = command.output()?;
         let mut output = String::new();
+
         if !process.stderr.is_empty() {
-            write!(output, "{}\r\n", String::from_utf8_lossy(&process.stderr))?;
+            writeln!(output, "{}", String::from_utf8_lossy(&process.stderr))?;
         }
+
         if !process.stdout.is_empty() {
-            write!(output, "{}", String::from_utf8_lossy(&process.stdout))?;
+            writeln!(output, "{}", String::from_utf8_lossy(&process.stdout))?;
         }
+
         {
             let mut logger = self.lg.lock().unwrap();
             logger.dump(&output);
+        }
+
+        if !ExitStatus::success(&process.status) {
+            bail!("command finished with {}", process.status);
         }
 
         Ok(())
