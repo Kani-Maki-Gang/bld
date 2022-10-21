@@ -148,8 +148,6 @@ impl Container {
                 exec.check_stop_signal()?
             }
 
-            debug!("{:?}", result);
-
             let chunk = match result {
                 Ok(TtyChunk::StdOut(bytes)) => String::from_utf8(bytes)?,
                 Ok(TtyChunk::StdErr(bytes)) => String::from_utf8(bytes)?,
