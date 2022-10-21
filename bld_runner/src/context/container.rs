@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tar::Archive;
-use tracing::{debug, error};
+use tracing::error;
 
 type AtomicLogger = Arc<Mutex<Logger>>;
 

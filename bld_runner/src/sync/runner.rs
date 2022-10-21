@@ -384,7 +384,7 @@ impl Runner {
 
     async fn execute(&mut self) -> Result<()> {
         // using let expressions to log the errors and let an empty string be used
-        // by the final eprintln of main.
+        // by the final print_error of main.
 
         if let Err(e) = self.artifacts(&None).await {
             self.log_dump(&e.to_string());
