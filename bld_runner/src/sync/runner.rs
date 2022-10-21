@@ -1,5 +1,5 @@
 use crate::{BuildStep, Container, Machine, Pipeline, RunsOn, TargetPlatform};
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use bld_config::definitions::{
     ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN,
 };
@@ -207,9 +207,9 @@ pub struct Runner {
 }
 
 impl Runner {
-    fn log_dumpln(&self, message: &str) {
+    fn log_dump(&self, message: &str) {
         let mut lg = self.lg.lock().unwrap();
-        lg.dumpln(message);
+        lg.dump(message);
     }
 
     async fn exec_persist_start(&self) {
@@ -382,15 +382,21 @@ impl Runner {
         self.info();
     }
 
-    async fn execute(&mut self) {
-        match self.artifacts(&None).await {
-            Ok(_) => {
-                if let Err(e) = self.steps().await {
-                    self.log_dumpln(&e.to_string());
-                }
-            }
-            Err(e) => self.log_dumpln(&e.to_string()),
+    async fn execute(&mut self) -> Result<()> {
+        // using let expressions to log the errors and let an empty string be used
+        // by the final eprintln of main.
+
+        if let Err(e) = self.artifacts(&None).await {
+            self.log_dump(&e.to_string());
+            bail!("");
         }
+
+        if let Err(e) = self.steps().await {
+            self.log_dump(&e.to_string());
+            bail!("");
+        }
+
+        Ok(())
     }
 
     async fn cleanup(&self) -> Result<()> {
@@ -402,9 +408,9 @@ impl Runner {
     pub async fn run(mut self) -> RecursiveFuture {
         Box::pin(async move {
             self.start().await;
-            self.execute().await;
-            self.cleanup().await?;
-            Ok(())
+            let execution_result = self.execute().await;
+            let cleanup_result = self.cleanup().await;
+            execution_result.and(cleanup_result)
         })
     }
 }
