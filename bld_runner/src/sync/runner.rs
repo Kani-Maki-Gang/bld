@@ -186,6 +186,7 @@ impl RunnerBuilder {
             context: self.context,
             platform,
             is_child: self.is_child,
+            has_faulted: false,
         })
     }
 }
@@ -204,6 +205,7 @@ pub struct Runner {
     context: AtomicContext,
     platform: TargetPlatform,
     is_child: bool,
+    has_faulted: bool,
 }
 
 impl Runner {
@@ -222,7 +224,11 @@ impl Runner {
     async fn exec_persist_end(&self) -> Result<()> {
         if !self.is_child {
             let mut exec = self.ex.lock().unwrap();
-            let _ = exec.set_as_finished();
+            let _ = if self.has_faulted {
+                exec.set_as_faulted()
+            } else {
+                exec.set_as_finished()
+            };
         }
         if self.pip.dispose {
             self.platform.dispose(self.is_child).await?;
@@ -388,11 +394,13 @@ impl Runner {
 
         if let Err(e) = self.artifacts(&None).await {
             self.log_dump(&e.to_string());
+            self.has_faulted = true;
             bail!("");
         }
 
         if let Err(e) = self.steps().await {
             self.log_dump(&e.to_string());
+            self.has_faulted = true;
             bail!("");
         }
 

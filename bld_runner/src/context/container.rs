@@ -181,19 +181,19 @@ impl Container {
         if let Err(e) = client.containers().get(id).stop(None).await {
             error!("could not stop container, {e}");
             let mut containers = self.containers.lock().unwrap();
-            containers.faulted(id)?;
+            containers.set_as_faulted(id)?;
             bail!(e);
         }
 
         if let Err(e) = client.containers().get(id).delete().await {
             error!("could not stop container, {e}");
             let mut containers = self.containers.lock().unwrap();
-            containers.faulted(id)?;
+            containers.set_as_faulted(id)?;
             bail!(e);
         }
 
         let mut containers = self.containers.lock().unwrap();
-        containers.remove(id)?;
+        containers.set_as_removed(id)?;
 
         Ok(())
     }

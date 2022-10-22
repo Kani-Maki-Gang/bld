@@ -11,6 +11,7 @@ pub const PR_STATE_INITIAL: &str = "initial";
 pub const PR_STATE_QUEUED: &str = "queued";
 pub const PR_STATE_RUNNING: &str = "running";
 pub const PR_STATE_FINISHED: &str = "finished";
+pub const PR_STATE_FAULTED: &str = "faulted";
 
 #[derive(Debug, Identifiable, Queryable)]
 #[table_name = "pipeline_runs"]

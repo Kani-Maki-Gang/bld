@@ -53,7 +53,7 @@ impl Context {
         }
     }
 
-    pub fn remove(&mut self, container_id: &str) -> Result<()> {
+    pub fn set_as_removed(&mut self, container_id: &str) -> Result<()> {
         match self {
             Self::Empty => Ok(()),
             Self::Containers {
@@ -77,7 +77,7 @@ impl Context {
         }
     }
 
-    pub fn faulted(&mut self, container_id: &str) -> Result<()> {
+    pub fn set_as_faulted(&mut self, container_id: &str) -> Result<()> {
         match self {
             Self::Empty => Ok(()),
             Self::Containers {
