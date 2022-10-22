@@ -96,7 +96,7 @@ pub fn insert(
         "inserting high availability client serial responses model: {:?}",
         model
     );
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(ha_client_serial_responses)
             .values(model)
             .execute(conn)

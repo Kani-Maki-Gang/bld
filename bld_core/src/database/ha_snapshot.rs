@@ -56,7 +56,7 @@ pub fn insert(
     model: InsertHighAvailSnapshot,
 ) -> Result<HighAvailSnapshot> {
     debug!("inserting high availability snapshot: {:?}", model);
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(ha_snapshot)
             .values(&model)
             .execute(conn)

@@ -123,7 +123,7 @@ pub fn insert(
     model: InsertHighAvailHardState,
 ) -> Result<HighAvailHardState> {
     debug!("inserting new high availability hard state: {:?}", model);
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(ha_hard_state::table)
             .values(model)
             .execute(conn)
@@ -151,7 +151,7 @@ pub fn update(
         "updateing the high availability hard state with id: {}",
         hs_id
     );
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::update(ha_hard_state.filter(id.eq(hs_id)))
             .set((current_term.eq(hs_current_term), voted_for.eq(hs_voted_for)))
             .execute(conn)

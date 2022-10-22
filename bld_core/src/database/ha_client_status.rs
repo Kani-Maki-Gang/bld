@@ -85,7 +85,7 @@ pub fn insert(
         "inserting high availability client status with status: {} for state machine: {}",
         model.status, model.state_machine_id
     );
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(ha_client_status)
             .values(model)
             .execute(conn)
@@ -112,7 +112,7 @@ pub fn update(
         "updating high availability client status: {} with status: {}",
         cs_id, cs_status
     );
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::update(ha_client_status.filter(id.eq(cs_id)))
             .set(status.eq(cs_status))
             .execute(conn)

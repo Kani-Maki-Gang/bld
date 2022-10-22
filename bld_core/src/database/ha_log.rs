@@ -193,7 +193,7 @@ pub fn select_config_greater_than_id(conn: &mut SqliteConnection, lg_id: i32) ->
 
 pub fn insert(conn: &mut SqliteConnection, model: InsertHighAvailLog) -> Result<HighAvailLog> {
     debug!("inserting new high availability log: {:?}", model);
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(ha_log)
             .values(model)
             .execute(conn)
@@ -213,7 +213,7 @@ pub fn insert_many(
     models: Vec<InsertHighAvailLog>,
 ) -> Result<Vec<HighAvailLog>> {
     debug!("inserting multiple high availability log entries");
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(ha_log)
             .values(models)
             .execute(conn)

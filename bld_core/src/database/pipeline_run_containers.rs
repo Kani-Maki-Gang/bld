@@ -106,7 +106,7 @@ pub fn insert(
     model: InsertPipelineRunContainer,
 ) -> Result<PipelineRunContainers> {
     debug!("inserting pipeline run container");
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(pipeline_run_containers)
             .values(&model)
             .execute(conn)
@@ -127,7 +127,7 @@ pub fn update_state(
     prc_state: &str,
 ) -> Result<PipelineRunContainers> {
     debug!("updating pipeline run container with id: {prc_id} with new state: {prc_state}");
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::update(pipeline_run_containers.filter(id.eq(prc_id)))
             .set(state.eq(prc_state))
             .execute(conn)
@@ -137,7 +137,7 @@ pub fn update_state(
             })
             .and_then(|_| {
                 debug!("updated pipeline run containers successfully");
-                select_by_id(conn, prc_id)
+                select_by_id(&mut conn, prc_id)
             })
     })
 }
@@ -150,7 +150,7 @@ pub fn update_running_containers_to_faulted(
         "updating all pipeline run containers of run id: {} from state running to faulted",
         prc_run_id
     );
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::update(
             pipeline_run_containers.filter(run_id.eq(prc_run_id).and(state.eq(PRC_STATE_ACTIVE))),
         )

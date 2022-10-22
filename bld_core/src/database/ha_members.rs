@@ -75,7 +75,7 @@ pub fn insert_many(
     models: Vec<InsertHighAvailMembers>,
 ) -> Result<Vec<HighAvailMembers>> {
     debug!("inserting multiple high availability members");
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(ha_members)
             .values(&models)
             .execute(conn)

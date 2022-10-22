@@ -122,7 +122,7 @@ pub fn insert(
         state: PR_STATE_INITIAL,
         user: pip_user,
     };
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(pipeline_runs::table)
             .values(&run)
             .execute(conn)
@@ -146,7 +146,7 @@ pub fn update_state(
     pip_state: &str,
 ) -> Result<PipelineRuns> {
     debug!("updating pipeline id: {pip_id} with values state: {pip_state}");
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::update(pipeline_runs.filter(id.eq(pip_id)))
             .set(state.eq(pip_state))
             .execute(conn)
@@ -156,7 +156,7 @@ pub fn update_state(
             })
             .and_then(|_| {
                 debug!("updated pipeline successfully");
-                select_by_id(conn, pip_id)
+                select_by_id(&mut conn, pip_id)
             })
     })
 }
@@ -167,7 +167,7 @@ pub fn update_stopped(
     pip_stopped: bool,
 ) -> Result<PipelineRuns> {
     debug!("updating pipeline id: {pip_id} with values stopped: {pip_stopped}");
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::update(pipeline_runs.filter(id.eq(pip_id)))
             .set(stopped.eq(pip_stopped))
             .execute(conn)

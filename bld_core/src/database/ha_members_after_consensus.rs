@@ -90,7 +90,7 @@ pub fn insert_many(
     models: Vec<InsertHighAvailMembersAfterConsensus>,
 ) -> Result<Vec<HighAvailMembersAfterConsensus>> {
     debug!("inserting multiple high availability members after consensus");
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(ha_members_after_consensus)
             .values(&models)
             .execute(conn)

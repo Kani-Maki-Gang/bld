@@ -72,7 +72,7 @@ pub fn insert(conn: &mut SqliteConnection, pip_id: &str, pip_name: &str) -> Resu
         id: pip_id,
         name: pip_name,
     };
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(pipeline::table)
             .values(&model)
             .execute(conn)
@@ -89,7 +89,7 @@ pub fn insert(conn: &mut SqliteConnection, pip_id: &str, pip_name: &str) -> Resu
 
 pub fn delete(conn: &mut SqliteConnection, pip_id: &str) -> Result<()> {
     debug!("deleting pipeline with id: {pip_id} from the database");
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::delete(pipeline.filter(id.eq(pip_id)))
             .execute(conn)
             .map_err(|e| {
@@ -104,7 +104,7 @@ pub fn delete(conn: &mut SqliteConnection, pip_id: &str) -> Result<()> {
 
 pub fn delete_by_name(conn: &mut SqliteConnection, pip_name: &str) -> Result<()> {
     debug!("deleting pipeline with name: {pip_name} from the database");
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::delete(pipeline.filter(name.eq(pip_name)))
             .execute(conn)
             .map_err(|e| {
