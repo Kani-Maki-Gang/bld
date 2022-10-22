@@ -4,7 +4,9 @@ use actix_web::web::Data;
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::database::pipeline_run_containers::{self, PRC_STATE_REMOVED};
-use bld_core::database::pipeline_runs::{self, PR_STATE_FINISHED, PR_STATE_QUEUED};
+use bld_core::database::pipeline_runs::{
+    self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED,
+};
 use bld_core::workers::PipelineWorker;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
@@ -131,15 +133,19 @@ fn try_cleanup_process(
 
     let run_id = worker.get_run_id();
     let conn = pool.get()?;
-    let _ = pipeline_runs::select_running_by_id(&conn, run_id)?;
-    let _ = pipeline_runs::update_state(&conn, run_id, PR_STATE_FINISHED);
+    let run = pipeline_runs::select_running_by_id(&conn, run_id)?;
+
+    if run.state != PR_STATE_FINISHED || run.state != PR_STATE_FAULTED {
+        let _ = pipeline_runs::update_state(&conn, run_id, PR_STATE_FAULTED);
+    }
+
     let _ = pipeline_run_containers::update_running_containers_to_faulted(&conn, run_id);
 
     Ok(())
 }
 
 /// This function will fetch all containers with faulted state or those in active state
-/// with runs that have finished, and try to stop and remove them using the docker
+/// with runs that have either finished or faulted, and try to stop and remove them using the docker
 /// engine API and then set their state as removed.
 pub async fn try_cleanup_containers(
     config: Data<BldConfig>,

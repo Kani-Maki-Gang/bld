@@ -6,7 +6,7 @@ use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::database::pipeline_runs::{self, PR_STATE_FINISHED};
+use bld_core::database::pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED};
 use bld_core::scanner::{FileScanner, Scanner};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
@@ -44,7 +44,9 @@ impl MonitorPipelineSocket {
     fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
         if let Ok(connection) = act.pool.get() {
             match pipeline_runs::select_by_id(&connection, &act.id) {
-                Ok(run) if run.state == PR_STATE_FINISHED => ctx.stop(),
+                Ok(run) if run.state == PR_STATE_FINISHED || run.state == PR_STATE_FAULTED => {
+                    ctx.stop()
+                }
                 Err(_) => {
                     ctx.text("internal server error");
                     ctx.stop();

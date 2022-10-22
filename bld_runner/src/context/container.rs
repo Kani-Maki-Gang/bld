@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use bld_config::BldConfig;
 use bld_core::context::Context;
 use bld_core::execution::Execution;
@@ -6,7 +6,9 @@ use bld_core::logger::Logger;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
 use shiplift::tty::TtyChunk;
-use shiplift::{ContainerOptions, Docker, ExecContainerOptions, ImageListOptions, PullOptions};
+use shiplift::{
+    ContainerOptions, Docker, Exec, ExecContainerOptions, ImageListOptions, PullOptions,
+};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -130,28 +132,39 @@ impl Container {
             .map(|wd| format!("cd {wd} && {input}"))
             .or_else(|| Some(input.to_string()))
             .unwrap();
-        let cmd = vec!["bash", "-c", &input];
+
         let options = ExecContainerOptions::builder()
-            .cmd(cmd)
+            .cmd(vec!["bash", "-c", &input])
             .attach_stdout(true)
             .attach_stderr(true)
             .build();
-        let container = client.containers().get(id);
-        let mut exec_iter = container.exec(&options);
-        while let Some(result) = exec_iter.next().await {
+
+        let exec = Exec::create(client, id, &options).await?;
+        let mut exec_stream = exec.start();
+
+        while let Some(result) = exec_stream.next().await {
             {
                 let exec = ex.lock().unwrap();
                 exec.check_stop_signal()?
             }
+
             let chunk = match result {
-                Ok(TtyChunk::StdOut(bytes)) => String::from_utf8(bytes).unwrap(),
-                Ok(TtyChunk::StdErr(bytes)) => String::from_utf8(bytes).unwrap(),
+                Ok(TtyChunk::StdOut(bytes)) => String::from_utf8(bytes)?,
+                Ok(TtyChunk::StdErr(bytes)) => String::from_utf8(bytes)?,
                 Ok(TtyChunk::StdIn(_)) => unreachable!(),
-                Err(e) => return Err(anyhow!(e)),
+                Err(e) => bail!(e),
             };
+
             let mut logger = self.logger.lock().unwrap();
             logger.dump(&chunk);
         }
+
+        let inspect = exec.inspect().await?;
+        match inspect.exit_code {
+            Some(code) if code > 0 => bail!("command finished with exit code: {code}"),
+            _ => {}
+        }
+
         Ok(())
     }
 
@@ -164,20 +177,24 @@ impl Container {
     pub async fn dispose(&self) -> Result<()> {
         let client = self.get_client()?;
         let id = self.get_id()?;
+
         if let Err(e) = client.containers().get(id).stop(None).await {
             error!("could not stop container, {e}");
             let mut containers = self.containers.lock().unwrap();
-            containers.faulted(id)?;
+            containers.set_as_faulted(id)?;
             bail!(e);
         }
+
         if let Err(e) = client.containers().get(id).delete().await {
             error!("could not stop container, {e}");
             let mut containers = self.containers.lock().unwrap();
-            containers.faulted(id)?;
+            containers.set_as_faulted(id)?;
             bail!(e);
         }
+
         let mut containers = self.containers.lock().unwrap();
-        containers.remove(id)?;
+        containers.set_as_removed(id)?;
+
         Ok(())
     }
 }

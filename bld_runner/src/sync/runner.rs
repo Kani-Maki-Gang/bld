@@ -1,5 +1,5 @@
 use crate::{BuildStep, Container, Machine, Pipeline, RunsOn, TargetPlatform};
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use bld_config::definitions::{
     ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN,
 };
@@ -186,6 +186,7 @@ impl RunnerBuilder {
             context: self.context,
             platform,
             is_child: self.is_child,
+            has_faulted: false,
         })
     }
 }
@@ -204,12 +205,13 @@ pub struct Runner {
     context: AtomicContext,
     platform: TargetPlatform,
     is_child: bool,
+    has_faulted: bool,
 }
 
 impl Runner {
-    fn log_dumpln(&self, message: &str) {
+    fn log_dump(&self, message: &str) {
         let mut lg = self.lg.lock().unwrap();
-        lg.dumpln(message);
+        lg.dump(message);
     }
 
     async fn exec_persist_start(&self) {
@@ -222,7 +224,11 @@ impl Runner {
     async fn exec_persist_end(&self) -> Result<()> {
         if !self.is_child {
             let mut exec = self.ex.lock().unwrap();
-            let _ = exec.set_as_finished();
+            let _ = if self.has_faulted {
+                exec.set_as_faulted()
+            } else {
+                exec.set_as_finished()
+            };
         }
         if self.pip.dispose {
             self.platform.dispose(self.is_child).await?;
@@ -334,7 +340,7 @@ impl Runner {
     async fn step(&self, step: &BuildStep) -> Result<()> {
         if let Some(name) = &step.name {
             let mut logger = self.lg.lock().unwrap();
-            logger.info(&format!("[bld] Step: {name}"));
+            logger.infoln(&format!("[bld] Step: {name}"));
         }
         self.call(step).await?;
         self.sh(step).await?;
@@ -382,15 +388,23 @@ impl Runner {
         self.info();
     }
 
-    async fn execute(&mut self) {
-        match self.artifacts(&None).await {
-            Ok(_) => {
-                if let Err(e) = self.steps().await {
-                    self.log_dumpln(&e.to_string());
-                }
-            }
-            Err(e) => self.log_dumpln(&e.to_string()),
+    async fn execute(&mut self) -> Result<()> {
+        // using let expressions to log the errors and let an empty string be used
+        // by the final print_error of main.
+
+        if let Err(e) = self.artifacts(&None).await {
+            self.log_dump(&e.to_string());
+            self.has_faulted = true;
+            bail!("");
         }
+
+        if let Err(e) = self.steps().await {
+            self.log_dump(&e.to_string());
+            self.has_faulted = true;
+            bail!("");
+        }
+
+        Ok(())
     }
 
     async fn cleanup(&self) -> Result<()> {
@@ -402,9 +416,9 @@ impl Runner {
     pub async fn run(mut self) -> RecursiveFuture {
         Box::pin(async move {
             self.start().await;
-            self.execute().await;
-            self.cleanup().await?;
-            Ok(())
+            let execution_result = self.execute().await;
+            let cleanup_result = self.cleanup().await;
+            execution_result.and(cleanup_result)
         })
     }
 }

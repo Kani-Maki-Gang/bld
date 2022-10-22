@@ -1,4 +1,4 @@
-use crate::database::pipeline_runs::{self, PR_STATE_FINISHED, PR_STATE_RUNNING};
+use crate::database::pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_RUNNING};
 use anyhow::{bail, Result};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
@@ -43,6 +43,10 @@ impl Execution {
 
     pub fn set_as_finished(&mut self) -> Result<()> {
         self.update_state(PR_STATE_FINISHED)
+    }
+
+    pub fn set_as_faulted(&mut self) -> Result<()> {
+        self.update_state(PR_STATE_FAULTED)
     }
 
     pub fn check_stop_signal(&self) -> Result<()> {

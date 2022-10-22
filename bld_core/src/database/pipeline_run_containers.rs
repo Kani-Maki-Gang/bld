@@ -1,4 +1,4 @@
-use crate::database::pipeline_runs::{PipelineRuns, PR_STATE_FINISHED};
+use crate::database::pipeline_runs::{PipelineRuns, PR_STATE_FAULTED, PR_STATE_FINISHED};
 use crate::database::schema::pipeline_run_containers;
 use crate::database::schema::pipeline_run_containers::dsl::*;
 use crate::database::schema::pipeline_runs::dsl as pr_dsl;
@@ -67,21 +67,23 @@ pub fn select_by_id(conn: &SqliteConnection, prc_id: &str) -> Result<PipelineRun
 }
 
 pub fn select_in_invalid_state(conn: &SqliteConnection) -> Result<Vec<PipelineRunContainers>> {
-    debug!("loading all pipeline run containers that are faulted or active but the associated run has finished");
+    debug!("loading all pipeline run containers that are in an invalid state");
     let active_containers: Vec<(PipelineRuns, PipelineRunContainers)> = pr_dsl::pipeline_runs
         .inner_join(pipeline_run_containers)
         .filter(
             pr_dsl::state
-                .eq(PR_STATE_FINISHED)
+                .eq_any(&[PR_STATE_FINISHED, PR_STATE_FAULTED])
                 .and(state.eq(PRC_STATE_ACTIVE)),
         )
         .load(conn)
         .map(|res| {
-            debug!("loaded active pipeline run containers with finished runs successfully");
+            debug!(
+                "loaded active pipeline run containers with finished or faulted runs, successfully"
+            );
             res
         })
         .map_err(|e| {
-            debug!("could not load pipeline run containers, {e}");
+            error!("could not load pipeline run containers, {e}");
             anyhow!(e)
         })?;
     let mut faulted_containers = pipeline_run_containers
@@ -92,7 +94,7 @@ pub fn select_in_invalid_state(conn: &SqliteConnection) -> Result<Vec<PipelineRu
             prc
         })
         .map_err(|e| {
-            debug!("could not load pipeline run containers, {e}");
+            error!("could not load pipeline run containers, {e}");
             anyhow!(e)
         })?;
     faulted_containers.append(&mut active_containers.into_iter().map(|r| r.1).collect());

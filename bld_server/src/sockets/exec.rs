@@ -8,7 +8,9 @@ use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::database::pipeline_runs::{self, PR_STATE_FINISHED, PR_STATE_QUEUED};
+use bld_core::database::pipeline_runs::{
+    self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED,
+};
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::scanner::{FileScanner, Scanner};
 use bld_supervisor::base::ServerMessages;
@@ -61,7 +63,9 @@ impl ExecutePipelineSocket {
         if let Ok(connection) = act.pool.get() {
             if let Some(run_id) = act.run_id.as_ref() {
                 match pipeline_runs::select_by_id(&connection, run_id) {
-                    Ok(run) if run.state == PR_STATE_FINISHED => ctx.stop(),
+                    Ok(run) if run.state == PR_STATE_FINISHED || run.state == PR_STATE_FAULTED => {
+                        ctx.stop()
+                    }
                     Ok(run) if run.state == PR_STATE_QUEUED => {
                         ctx.text("run with id {run_id} has been queued, use the monit command to see the output when it's started");
                         ctx.stop()

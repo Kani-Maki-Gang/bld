@@ -69,9 +69,12 @@ fn main() {
         _ => Ok(()),
     };
 
-    if let Err(e) = result {
-        if let Err(e) = print_error(&e.to_string()) {
-            eprintln!("{e}");
+    match result.map_err(|e| e.to_string()) {
+        Err(e) if !e.is_empty() => {
+            if let Err(e) = print_error(&e) {
+                eprintln!("{e}");
+            }
         }
+        _ => {}
     }
 }
