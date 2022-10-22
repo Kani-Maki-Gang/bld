@@ -27,8 +27,8 @@ pub fn enqueue_worker(
     }
 
     let run_id = Uuid::new_v4().to_string();
-    let conn = pool.get()?;
-    let run = pipeline_runs::insert(&conn, &run_id, &data.name, &user.name)?;
+    let mut conn = pool.get()?;
+    let run = pipeline_runs::insert(&mut conn, &run_id, &data.name, &user.name)?;
 
     let variables = data.variables.map(hash_map_to_var_string);
     let environment = data.environment.map(hash_map_to_var_string);

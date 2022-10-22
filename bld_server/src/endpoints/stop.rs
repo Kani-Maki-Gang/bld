@@ -25,6 +25,6 @@ pub async fn stop(
 }
 
 fn do_stop(pool: &Pool<ConnectionManager<SqliteConnection>>, id: &str) -> Result<()> {
-    let conn = pool.get()?;
-    pipeline_runs::update_stopped(&conn, id, true).map(|_| ())
+    let mut conn = pool.get()?;
+    pipeline_runs::update_stopped(&mut conn, id, true).map(|_| ())
 }

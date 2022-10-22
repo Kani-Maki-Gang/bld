@@ -28,8 +28,8 @@ fn find_pipelines(
     prx: &PipelineFileSystemProxy,
     pool: &Pool<ConnectionManager<SqliteConnection>>,
 ) -> Result<String> {
-    let conn = pool.get()?;
-    let pips = pipeline::select_all(&conn)?
+    let mut conn = pool.get()?;
+    let pips = pipeline::select_all(&mut conn)?
         .iter()
         .map(|p| (p, prx.path(&p.name)))
         .filter(|(_, p)| p.is_ok())

@@ -35,7 +35,7 @@ impl InsertHighAvailMembersAfterConsensus {
 }
 
 pub fn select(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     sn: &HighAvailSnapshot,
 ) -> Result<Vec<HighAvailMembersAfterConsensus>> {
     debug!(
@@ -61,7 +61,7 @@ pub fn select(
 }
 
 pub fn select_last_rows(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     rows: i64,
 ) -> Result<Vec<HighAvailMembersAfterConsensus>> {
     debug!(
@@ -86,7 +86,7 @@ pub fn select_last_rows(
 }
 
 pub fn insert_many(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     models: Vec<InsertHighAvailMembersAfterConsensus>,
 ) -> Result<Vec<HighAvailMembersAfterConsensus>> {
     debug!("inserting multiple high availability members after consensus");

@@ -38,7 +38,7 @@ impl<'a> InsertHighAvailClientStatus<'a> {
     }
 }
 
-pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailClientStatus> {
+pub fn select_last(conn: &mut SqliteConnection) -> Result<HighAvailClientStatus> {
     debug!("loading last entry of high availability client status");
     ha_client_status
         .order(id.desc())
@@ -56,7 +56,7 @@ pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailClientStatus> {
         })
 }
 
-pub fn select_by_id(conn: &SqliteConnection, cs_id: i32) -> Result<HighAvailClientStatus> {
+pub fn select_by_id(conn: &mut SqliteConnection, cs_id: i32) -> Result<HighAvailClientStatus> {
     debug!(
         "loading high availability client status model with id: {}",
         cs_id
@@ -78,7 +78,7 @@ pub fn select_by_id(conn: &SqliteConnection, cs_id: i32) -> Result<HighAvailClie
 }
 
 pub fn insert(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     model: InsertHighAvailClientStatus,
 ) -> Result<HighAvailClientStatus> {
     debug!(
@@ -104,7 +104,7 @@ pub fn insert(
 }
 
 pub fn update(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     cs_id: i32,
     cs_status: &str,
 ) -> Result<HighAvailClientStatus> {

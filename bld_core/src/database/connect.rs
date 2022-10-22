@@ -58,7 +58,7 @@ pub fn new_connection_pool(db: &str) -> Result<Pool<ConnectionManager<SqliteConn
         }))
         .build(ConnectionManager::<SqliteConnection>::new(path))?;
     debug!("running migrations");
-    let conn = pool.get()?;
-    run_migrations(&conn)?;
+    let mut conn = pool.get()?;
+    run_migrations(&mut conn)?;
     Ok(pool)
 }

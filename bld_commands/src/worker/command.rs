@@ -79,8 +79,8 @@ impl BldCommand for WorkerCommand {
         let variables = Arc::new(parse_variables(matches, VARIABLES));
         let environment = Arc::new(parse_variables(matches, ENVIRONMENT));
         let pool = Arc::new(new_connection_pool(&cfg.local.db)?);
-        let conn = pool.get()?;
-        let pipeline_run = pipeline_runs::select_by_id(&conn, &run_id)?;
+        let mut conn = pool.get()?;
+        let pipeline_run = pipeline_runs::select_by_id(&mut conn, &run_id)?;
         let start_date_time = pipeline_run.start_date_time;
         let proxy = Arc::new(PipelineFileSystemProxy::Server {
             config: cfg.clone(),

@@ -24,8 +24,8 @@ impl PipelineFileSystemProxy {
         match self {
             Self::Local => Ok(path![std::env::current_dir()?, TOOL_DIR, name]),
             Self::Server { config, pool } => {
-                let conn = pool.get()?;
-                let pip = pipeline::select_by_name(&conn, name)?;
+                let mut conn = pool.get()?;
+                let pip = pipeline::select_by_name(&mut conn, name)?;
                 Ok(path![
                     &config.local.server.pipelines,
                     format!("{}.yaml", pip.id)
@@ -89,8 +89,8 @@ impl PipelineFileSystemProxy {
             Self::Server { config: _, pool } => {
                 let path = self.path(name)?;
                 if path.is_yaml() {
-                    let conn = pool.get()?;
-                    pipeline::delete_by_name(&conn, name)
+                    let mut conn = pool.get()?;
+                    pipeline::delete_by_name(&mut conn, name)
                         .and_then(|_| remove_file(path).map_err(|e| anyhow!(e)))
                         .map_err(|_| anyhow!("unable to remove pipeline"))
                 } else {

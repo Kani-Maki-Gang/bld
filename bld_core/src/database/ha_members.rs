@@ -34,7 +34,7 @@ impl InsertHighAvailMembers {
     }
 }
 
-pub fn select(conn: &SqliteConnection, sn: &HighAvailSnapshot) -> Result<Vec<HighAvailMembers>> {
+pub fn select(conn: &mut SqliteConnection, sn: &HighAvailSnapshot) -> Result<Vec<HighAvailMembers>> {
     debug!(
         "loading high availability members of snapshot with id: {}",
         sn.id
@@ -54,7 +54,7 @@ pub fn select(conn: &SqliteConnection, sn: &HighAvailSnapshot) -> Result<Vec<Hig
         })
 }
 
-pub fn select_last_rows(conn: &SqliteConnection, rows: i64) -> Result<Vec<HighAvailMembers>> {
+pub fn select_last_rows(conn: &mut SqliteConnection, rows: i64) -> Result<Vec<HighAvailMembers>> {
     debug!("loading last {} rows of high availability members", rows);
     ha_members
         .order(id.desc())
@@ -71,7 +71,7 @@ pub fn select_last_rows(conn: &SqliteConnection, rows: i64) -> Result<Vec<HighAv
 }
 
 pub fn insert_many(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     models: Vec<InsertHighAvailMembers>,
 ) -> Result<Vec<HighAvailMembers>> {
     debug!("inserting multiple high availability members");

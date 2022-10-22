@@ -34,7 +34,7 @@ pub struct InsertPipelineRunContainer<'a> {
     pub state: &'a str,
 }
 
-pub fn select(conn: &SqliteConnection, run: &PipelineRuns) -> Result<Vec<PipelineRunContainers>> {
+pub fn select(conn: &mut SqliteConnection, run: &PipelineRuns) -> Result<Vec<PipelineRunContainers>> {
     debug!(
         "loading pipeline run containers for run with id: {}",
         run.id
@@ -51,7 +51,7 @@ pub fn select(conn: &SqliteConnection, run: &PipelineRuns) -> Result<Vec<Pipelin
         })
 }
 
-pub fn select_by_id(conn: &SqliteConnection, prc_id: &str) -> Result<PipelineRunContainers> {
+pub fn select_by_id(conn: &mut SqliteConnection, prc_id: &str) -> Result<PipelineRunContainers> {
     debug!("loading pipeline run container with id: {prc_id}");
     pipeline_run_containers
         .filter(id.eq(prc_id))
@@ -66,7 +66,7 @@ pub fn select_by_id(conn: &SqliteConnection, prc_id: &str) -> Result<PipelineRun
         })
 }
 
-pub fn select_in_invalid_state(conn: &SqliteConnection) -> Result<Vec<PipelineRunContainers>> {
+pub fn select_in_invalid_state(conn: &mut SqliteConnection) -> Result<Vec<PipelineRunContainers>> {
     debug!("loading all pipeline run containers that are in an invalid state");
     let active_containers: Vec<(PipelineRuns, PipelineRunContainers)> = pr_dsl::pipeline_runs
         .inner_join(pipeline_run_containers)
@@ -102,7 +102,7 @@ pub fn select_in_invalid_state(conn: &SqliteConnection) -> Result<Vec<PipelineRu
 }
 
 pub fn insert(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     model: InsertPipelineRunContainer,
 ) -> Result<PipelineRunContainers> {
     debug!("inserting pipeline run container");
@@ -122,7 +122,7 @@ pub fn insert(
 }
 
 pub fn update_state(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     prc_id: &str,
     prc_state: &str,
 ) -> Result<PipelineRunContainers> {
@@ -143,7 +143,7 @@ pub fn update_state(
 }
 
 pub fn update_running_containers_to_faulted(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     prc_run_id: &str,
 ) -> Result<()> {
     debug!(

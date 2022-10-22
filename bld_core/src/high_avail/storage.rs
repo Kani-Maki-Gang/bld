@@ -58,9 +58,9 @@ impl HighAvailStore {
         pool: Pool<ConnectionManager<SqliteConnection>>,
         id: NodeId,
     ) -> anyhow::Result<Self> {
-        let conn = pool.get()?;
-        let sm = ha_state_machine::select_first(&conn)
-            .or_else(|_| ha_state_machine::insert(&conn, 0))?;
+        let mut conn = pool.get()?;
+        let sm = ha_state_machine::select_first(&mut conn)
+            .or_else(|_| ha_state_machine::insert(&mut conn, 0))?;
         Ok(Self {
             pool,
             id,
@@ -78,8 +78,8 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
 
     async fn get_membership_config(&self) -> anyhow::Result<MembershipConfig> {
         debug!("getting membership config");
-        let conn = self.pool.get()?;
-        ha_log::select_by_payload_type(&conn)
+        let mut conn = self.pool.get()?;
+        ha_log::select_by_payload_type(&mut conn)
             .and_then(|log| {
                 serde_json::from_str::<EntryPayload<AgentRequest>>(&log.payload)
                     .map(|p| match p {
@@ -94,13 +94,13 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
 
     async fn get_initial_state(&self) -> anyhow::Result<InitialState> {
         debug!("getting initial state");
-        let conn = self.pool.get()?;
+        let mut conn = self.pool.get()?;
         let membership = self.get_membership_config().await?;
         let sm = self.sm.read().await;
-        match ha_hard_state::select_first(&conn) {
+        match ha_hard_state::select_first(&mut conn) {
             Ok(hs) => {
-                let lg = ha_log::select_first_by_date_created_desc(&conn).or_else(|_| {
-                    ha_log::insert(&conn, InsertHighAvailLog::new(0, 0, BLANK, None))
+                let lg = ha_log::select_first_by_date_created_desc(&mut conn).or_else(|_| {
+                    ha_log::insert(&mut conn, InsertHighAvailLog::new(0, 0, BLANK, None))
                 })?;
                 Ok(InitialState {
                     last_log_index: lg.id as u64,
@@ -112,7 +112,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
             }
             Err(_) => {
                 let new = InitialState::new_initial(self.id);
-                ha_hard_state::insert(&conn, (&new.hard_state).into())?;
+                ha_hard_state::insert(&mut conn, (&new.hard_state).into())?;
                 Ok(new)
             }
         }
@@ -120,16 +120,16 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
 
     async fn save_hard_state(&self, hs: &HardState) -> anyhow::Result<()> {
         debug!("saving hard state");
-        let conn = self.pool.get()?;
+        let mut conn = self.pool.get()?;
         let model = match &*self.hs.read().await {
             Some(x) => ha_hard_state::update(
-                &conn,
+                &mut conn,
                 x.id,
                 hs.current_term as i32,
                 hs.voted_for.map(|i| i as i32),
             )
             .ok(),
-            None => ha_hard_state::insert(&conn, hs.into()).ok(),
+            None => ha_hard_state::insert(&mut conn, hs.into()).ok(),
         };
         *self.hs.write().await = model;
         Ok(())
@@ -144,10 +144,10 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
         if start > stop {
             return Ok(vec![]);
         }
-        let conn = self.pool.get()?;
+        let mut conn = self.pool.get()?;
 
         // TODO: make a query for this filtering.
-        let logs = ha_log::select_between_ids(&conn, start as i32, stop as i32)?;
+        let logs = ha_log::select_between_ids(&mut conn, start as i32, stop as i32)?;
         let entries: Vec<Entry<AgentRequest>> = logs
             .iter()
             .flat_map(|l| serde_json::from_str::<Entry<AgentRequest>>(&l.payload))
@@ -164,26 +164,26 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
         if stop.as_ref().map(|stop| &start > stop).unwrap_or(false) {
             return Ok(());
         }
-        let conn = self.pool.get()?;
+        let mut conn = self.pool.get()?;
         match stop.as_ref() {
             Some(stop) => ha_log::delete_by_ids(
-                &conn,
+                &mut conn,
                 (start..*stop).map(|i| i as i32).collect::<Vec<i32>>(),
             ),
-            None => ha_log::delete_from_id(&conn, start as i32),
+            None => ha_log::delete_from_id(&mut conn, start as i32),
         }
     }
 
     async fn append_entry_to_log(&self, entry: &Entry<AgentRequest>) -> anyhow::Result<()> {
         debug!("appending entries to log");
-        let conn = self.pool.get()?;
-        ha_log::insert(&conn, entry.into()).map(|_| ())
+        let mut conn = self.pool.get()?;
+        ha_log::insert(&mut conn, entry.into()).map(|_| ())
     }
 
     async fn replicate_to_log(&self, entries: &[Entry<AgentRequest>]) -> anyhow::Result<()> {
         debug!("replicating to log");
-        let conn = self.pool.get()?;
-        ha_log::insert_many(&conn, entries.iter().map(|e| e.into()).collect()).map(|_| ())
+        let mut conn = self.pool.get()?;
+        ha_log::insert_many(&mut conn, entries.iter().map(|e| e.into()).collect()).map(|_| ())
     }
 
     async fn apply_entry_to_state_machine(
@@ -194,25 +194,25 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
         debug!("applying entry to state machine");
         let id = data.id().parse::<i32>()?;
         let status = data.status().to_string();
-        let conn = self.pool.get()?;
+        let mut conn = self.pool.get()?;
 
         let sm = self.sm.read().await;
-        ha_state_machine::update(&conn, sm.id, *index as i32)?;
+        ha_state_machine::update(&mut conn, sm.id, *index as i32)?;
 
-        if let Ok(csr) = ha_client_serial_responses::select_by_id(&conn, id) {
+        if let Ok(csr) = ha_client_serial_responses::select_by_id(&mut conn, id) {
             if csr.serial as u64 == data.serial() {
                 return Ok(AgentResponse::new(csr.response));
             }
         }
 
-        let previous = match ha_client_status::select_by_id(&conn, id) {
+        let previous = match ha_client_status::select_by_id(&mut conn, id) {
             Ok(old_cs) => {
-                ha_client_status::update(&conn, id, &status)?;
+                ha_client_status::update(&mut conn, id, &status)?;
                 Some(old_cs.status)
             }
             Err(_) => {
                 let cs = InsertHighAvailClientStatus::new(id, sm.id, &status);
-                ha_client_status::insert(&conn, cs)?;
+                ha_client_status::insert(&mut conn, cs)?;
                 None
             }
         };
@@ -223,7 +223,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
             data.serial() as i32,
             previous.as_deref(),
         );
-        ha_client_serial_responses::insert(&conn, csr)?;
+        ha_client_serial_responses::insert(&mut conn, csr)?;
 
         Ok(AgentResponse::new(Some(status)))
     }
@@ -233,26 +233,26 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
         entries: &[(&u64, &AgentRequest)],
     ) -> anyhow::Result<()> {
         debug!("replicating to state machine");
-        let conn = self.pool.get()?;
+        let mut conn = self.pool.get()?;
         let mut sm = self.sm.write().await;
         for (index, data) in entries {
             let id = data.id().parse::<i32>()?;
             let status = data.status();
             (*sm).last_applied_log = **index as i32;
-            if let Ok(csr) = ha_client_serial_responses::select_by_id(&conn, id) {
+            if let Ok(csr) = ha_client_serial_responses::select_by_id(&mut conn, id) {
                 if csr.serial as u64 == data.serial() {
                     continue;
                 }
             }
 
-            let previous = match ha_client_status::select_by_id(&conn, id) {
+            let previous = match ha_client_status::select_by_id(&mut conn, id) {
                 Ok(old_cs) => {
-                    ha_client_status::update(&conn, id, status)?;
+                    ha_client_status::update(&mut conn, id, status)?;
                     Some(old_cs.status)
                 }
                 Err(_) => {
                     let cs = InsertHighAvailClientStatus::new(id, sm.id, status);
-                    ha_client_status::insert(&conn, cs)?;
+                    ha_client_status::insert(&mut conn, cs)?;
                     None
                 }
             };
@@ -263,19 +263,19 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
                 data.serial() as i32,
                 previous.as_deref(),
             );
-            ha_client_serial_responses::insert(&conn, csr)?;
+            ha_client_serial_responses::insert(&mut conn, csr)?;
         }
-        ha_state_machine::update(&conn, sm.id, sm.last_applied_log)?;
+        ha_state_machine::update(&mut conn, sm.id, sm.last_applied_log)?;
         Ok(())
     }
 
     async fn do_log_compaction(&self) -> anyhow::Result<CurrentSnapshotData<Self::Snapshot>> {
         debug!("doing log compaction");
-        let conn = self.pool.get()?;
+        let mut conn = self.pool.get()?;
         let sm = self.sm.read().await;
         let data = serde_json::to_vec(&*sm)?;
 
-        let membership_config = ha_log::select_config_greater_than_id(&conn, sm.last_applied_log)
+        let membership_config = ha_log::select_config_greater_than_id(&mut conn, sm.last_applied_log)
             .map(
                 |l| match serde_json::from_str::<EntryPayload<AgentRequest>>(&l.payload) {
                     Ok(EntryPayload::ConfigChange(cfg)) => Some(cfg.membership),
@@ -285,7 +285,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
             .unwrap_or_else(|_| Some(MembershipConfig::new_initial(self.id)))
             .unwrap();
 
-        let term = ha_log::select_by_id(&conn, sm.last_applied_log)
+        let term = ha_log::select_by_id(&mut conn, sm.last_applied_log)
             .map(|l| l.term)
             .map_err(|_| anyhow!(ERR_INCONSISTENT_LOG))?;
         let entry = Entry::<AgentRequest>::new_snapshot_pointer(
@@ -294,10 +294,10 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
             "".into(),
             membership_config.clone(),
         );
-        ha_log::insert(&conn, entry.into())?;
+        ha_log::insert(&mut conn, entry.into())?;
 
         let snapshot = ha_snapshot::insert(
-            &conn,
+            &mut conn,
             InsertHighAvailSnapshot::new(sm.last_applied_log, term, data),
         )?;
 
@@ -306,7 +306,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
             .iter()
             .map(|m| InsertHighAvailMembers::new(*m as i32, snapshot.id))
             .collect();
-        ha_members::insert_many(&conn, members)?;
+        ha_members::insert_many(&mut conn, members)?;
 
         let members_after_consensus =
             membership_config
@@ -321,7 +321,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
                         .collect()
                 });
         if let Some(mc) = members_after_consensus {
-            ha_members_after_consensus::insert_many(&conn, mc)?;
+            ha_members_after_consensus::insert_many(&mut conn, mc)?;
         }
 
         let snapshot_bytes = serde_json::to_vec(&snapshot)?;
@@ -348,13 +348,13 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
         snapshot: Box<Self::Snapshot>,
     ) -> anyhow::Result<()> {
         debug!("finalizing snapshot installation");
-        let conn = self.pool.get()?;
+        let mut conn = self.pool.get()?;
         let new_snapshot =
             serde_json::from_slice::<HighAvailSnapshot>(snapshot.get_ref().as_slice())?;
         {
             let sm = self.sm.read().await;
             let membership_config =
-                ha_log::select_config_greater_than_id(&conn, sm.last_applied_log)
+                ha_log::select_config_greater_than_id(&mut conn, sm.last_applied_log)
                     .map(
                         |l| match serde_json::from_str::<EntryPayload<AgentRequest>>(&l.payload) {
                             Ok(EntryPayload::ConfigChange(cfg)) => Some(cfg.membership),
@@ -366,10 +366,10 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
             let entry =
                 Entry::<AgentRequest>::new_snapshot_pointer(index, term, id, membership_config);
             match &delete_through {
-                Some(through) => ha_log::delete_until_id(&conn, *through as i32)?,
-                None => ha_log::delete(&conn)?,
+                Some(through) => ha_log::delete_until_id(&mut conn, *through as i32)?,
+                None => ha_log::delete(&mut conn)?,
             }
-            ha_log::insert(&conn, entry.into())?;
+            ha_log::insert(&mut conn, entry.into())?;
         }
 
         {
@@ -389,14 +389,14 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
         debug!("getting current snapshot");
         match &*self.current_snapshot.read().await {
             Some(snapshot) => {
-                let conn = self.pool.get()?;
+                let mut conn = self.pool.get()?;
                 let reader = serde_json::to_vec(&snapshot)?;
-                let members = ha_members::select(&conn, snapshot)?
+                let members = ha_members::select(&mut conn, snapshot)?
                     .iter()
                     .map(|m| m.id as NodeId)
                     .collect();
                 let members_after_consensus = Some(
-                    ha_members_after_consensus::select(&conn, snapshot)?
+                    ha_members_after_consensus::select(&mut conn, snapshot)?
                         .iter()
                         .map(|m| m.id as NodeId)
                         .collect(),
