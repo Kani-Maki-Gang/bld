@@ -78,7 +78,7 @@ pub fn insert(
         "inserting high availability state machine with last applied log: {:?}",
         sm_last_applied_log
     );
-    conn.transaction(|mut conn| {
+    conn.transaction(|conn| {
         diesel::insert_into(ha_state_machine)
             .values(last_applied_log.eq(sm_last_applied_log))
             .execute(conn)
@@ -91,7 +91,7 @@ pub fn insert(
             })
             .and_then(|_| {
                 debug!("inserted high availability state machine successfully");
-                select_last(&mut conn)
+                select_last(conn)
             })
     })
 }
