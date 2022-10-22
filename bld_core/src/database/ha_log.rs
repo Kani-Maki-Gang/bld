@@ -25,7 +25,7 @@ pub struct HighAvailLog {
 }
 
 #[derive(Debug, Insertable)]
-#[table_name = "ha_log"]
+#[diesel(table_name = ha_log)]
 pub struct InsertHighAvailLog {
     pub id: i32,
     pub term: i32,

@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 #[derive(Debug, Serialize, Deserialize, Identifiable, Queryable, Associations)]
-#[belongs_to(HighAvailStateMachine, foreign_key = "state_machine_id")]
-#[table_name = "ha_client_status"]
+#[diesel(belongs_to(HighAvailStateMachine, foreign_key = state_machine_id))]
+#[diesel(table_name = ha_client_status)]
 pub struct HighAvailClientStatus {
     pub id: i32,
     pub state_machine_id: i32,
@@ -21,7 +21,7 @@ pub struct HighAvailClientStatus {
 }
 
 #[derive(Debug, Insertable)]
-#[table_name = "ha_client_status"]
+#[diesel(table_name = ha_client_status)]
 pub struct InsertHighAvailClientStatus<'a> {
     pub id: i32,
     pub state_machine_id: i32,

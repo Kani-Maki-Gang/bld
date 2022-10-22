@@ -16,7 +16,7 @@ pub struct Pipeline {
 }
 
 #[derive(Insertable)]
-#[table_name = "pipeline"]
+#[diesel(table_name = pipeline)]
 struct InsertPipeline<'a> {
     pub id: &'a str,
     pub name: &'a str,

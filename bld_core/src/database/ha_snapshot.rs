@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 #[derive(Debug, Serialize, Deserialize, Identifiable, Queryable)]
-#[table_name = "ha_snapshot"]
+#[diesel(table_name = ha_snapshot)]
 pub struct HighAvailSnapshot {
     pub id: i32,
     pub term: i32,
@@ -19,7 +19,7 @@ pub struct HighAvailSnapshot {
 }
 
 #[derive(Debug, Insertable)]
-#[table_name = "ha_snapshot"]
+#[diesel(table_name = ha_snapshot)]
 pub struct InsertHighAvailSnapshot {
     pub id: i32,
     pub term: i32,

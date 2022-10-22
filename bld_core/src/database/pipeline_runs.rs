@@ -14,7 +14,7 @@ pub const PR_STATE_FINISHED: &str = "finished";
 pub const PR_STATE_FAULTED: &str = "faulted";
 
 #[derive(Debug, Identifiable, Queryable)]
-#[table_name = "pipeline_runs"]
+#[diesel(table_name = pipeline_runs)]
 pub struct PipelineRuns {
     pub id: String,
     pub name: String,
@@ -26,7 +26,7 @@ pub struct PipelineRuns {
 }
 
 #[derive(Insertable)]
-#[table_name = "pipeline_runs"]
+#[diesel(table_name = pipeline_runs)]
 struct InsertPipelineRun<'a> {
     pub id: &'a str,
     pub name: &'a str,

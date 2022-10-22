@@ -28,7 +28,7 @@ impl From<HighAvailHardState> for HardState {
 }
 
 #[derive(Debug, Insertable)]
-#[table_name = "ha_hard_state"]
+#[diesel(table_name = ha_hard_state)]
 pub struct InsertHighAvailHardState {
     pub current_term: i32,
     pub voted_for: Option<i32>,

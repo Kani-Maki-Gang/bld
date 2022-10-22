@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 #[derive(Debug, Serialize, Deserialize, Identifiable, Insertable, Queryable)]
-#[table_name = "ha_state_machine"]
+#[diesel(table_name = ha_state_machine)]
 pub struct HighAvailStateMachine {
     pub id: i32,
     pub last_applied_log: i32,
@@ -88,7 +88,7 @@ pub fn insert(conn: &mut SqliteConnection, sm_last_applied_log: i32) -> Result<H
             })
             .and_then(|_| {
                 debug!("inserted high availability state machine successfully");
-                select_last(conn)
+                select_last(&mut conn)
             })
     })
 }

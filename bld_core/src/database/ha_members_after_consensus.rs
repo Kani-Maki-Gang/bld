@@ -9,8 +9,8 @@ use diesel::{Associations, Identifiable, Insertable, Queryable};
 use tracing::{debug, error};
 
 #[derive(Debug, Associations, Identifiable, Queryable)]
-#[belongs_to(HighAvailSnapshot, foreign_key = "snapshot_id")]
-#[table_name = "ha_members_after_consensus"]
+#[diesel(belongs_to(HighAvailSnapshot, foreign_key = snapshot_id))]
+#[diesel(table_name = ha_members_after_consensus)]
 pub struct HighAvailMembersAfterConsensus {
     pub id: i32,
     pub snapshot_id: i32,
@@ -19,7 +19,7 @@ pub struct HighAvailMembersAfterConsensus {
 }
 
 #[derive(Debug, Insertable)]
-#[table_name = "ha_members_after_consensus"]
+#[diesel(table_name = ha_members_after_consensus)]
 pub struct InsertHighAvailMembersAfterConsensus {
     pub id: i32,
     pub snapshot_id: i32,

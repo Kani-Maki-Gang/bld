@@ -15,8 +15,8 @@ pub const PRC_STATE_FAULTED: &str = "faulted";
 pub const PRC_STATE_KEEP_ALIVE: &str = "keep-alive"; // Set when the pipeline is configured to not dispose.
 
 #[derive(Debug, Associations, Identifiable, Queryable)]
-#[belongs_to(PipelineRuns, foreign_key = "run_id")]
-#[table_name = "pipeline_run_containers"]
+#[diesel(belongs_to(PipelineRuns, foreign_key = run_id))]
+#[diesel(table_name = pipeline_run_containers)]
 pub struct PipelineRunContainers {
     pub id: String,
     pub run_id: String,
@@ -26,7 +26,7 @@ pub struct PipelineRunContainers {
 }
 
 #[derive(Debug, Insertable)]
-#[table_name = "pipeline_run_containers"]
+#[diesel(table_name = pipeline_run_containers)]
 pub struct InsertPipelineRunContainer<'a> {
     pub id: &'a str,
     pub run_id: &'a str,
