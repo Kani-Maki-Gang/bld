@@ -34,7 +34,10 @@ pub struct InsertPipelineRunContainer<'a> {
     pub state: &'a str,
 }
 
-pub fn select(conn: &mut SqliteConnection, run: &PipelineRuns) -> Result<Vec<PipelineRunContainers>> {
+pub fn select(
+    conn: &mut SqliteConnection,
+    run: &PipelineRuns,
+) -> Result<Vec<PipelineRunContainers>> {
     debug!(
         "loading pipeline run containers for run with id: {}",
         run.id

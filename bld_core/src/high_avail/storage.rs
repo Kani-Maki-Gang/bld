@@ -275,15 +275,16 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
         let sm = self.sm.read().await;
         let data = serde_json::to_vec(&*sm)?;
 
-        let membership_config = ha_log::select_config_greater_than_id(&mut conn, sm.last_applied_log)
-            .map(
-                |l| match serde_json::from_str::<EntryPayload<AgentRequest>>(&l.payload) {
-                    Ok(EntryPayload::ConfigChange(cfg)) => Some(cfg.membership),
-                    _ => None,
-                },
-            )
-            .unwrap_or_else(|_| Some(MembershipConfig::new_initial(self.id)))
-            .unwrap();
+        let membership_config =
+            ha_log::select_config_greater_than_id(&mut conn, sm.last_applied_log)
+                .map(
+                    |l| match serde_json::from_str::<EntryPayload<AgentRequest>>(&l.payload) {
+                        Ok(EntryPayload::ConfigChange(cfg)) => Some(cfg.membership),
+                        _ => None,
+                    },
+                )
+                .unwrap_or_else(|_| Some(MembershipConfig::new_initial(self.id)))
+                .unwrap();
 
         let term = ha_log::select_by_id(&mut conn, sm.last_applied_log)
             .map(|l| l.term)

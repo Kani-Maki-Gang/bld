@@ -34,7 +34,10 @@ impl InsertHighAvailMembers {
     }
 }
 
-pub fn select(conn: &mut SqliteConnection, sn: &HighAvailSnapshot) -> Result<Vec<HighAvailMembers>> {
+pub fn select(
+    conn: &mut SqliteConnection,
+    sn: &HighAvailSnapshot,
+) -> Result<Vec<HighAvailMembers>> {
     debug!(
         "loading high availability members of snapshot with id: {}",
         sn.id
