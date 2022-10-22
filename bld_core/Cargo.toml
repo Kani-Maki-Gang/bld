@@ -11,8 +11,8 @@ async-raft = "0.6.1"
 async-trait = "0.1.50"
 bld_config = { path = "../bld_config" }
 bld_utils = { path = "../bld_utils" }
-diesel = { version = "1.4.6", features = ["sqlite", "r2d2"] }
-diesel_migrations = { version = "1.4.0", features = ["sqlite"] }
+diesel = { version = "2.0.2", features = ["sqlite", "r2d2"] }
+diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
 serde = "1.0.126"
 serde_derive = "1.0.126"
 serde_json = "1.0.64"

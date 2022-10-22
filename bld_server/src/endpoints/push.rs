@@ -32,10 +32,10 @@ fn do_push(
     pool: &Pool<ConnectionManager<SqliteConnection>>,
     info: &PushInfo,
 ) -> Result<()> {
-    let conn = pool.get()?;
-    if pipeline::select_by_name(&conn, &info.name).is_err() {
+    let mut conn = pool.get()?;
+    if pipeline::select_by_name(&mut conn, &info.name).is_err() {
         let id = Uuid::new_v4().to_string();
-        pipeline::insert(&conn, &id, &info.name)?;
+        pipeline::insert(&mut conn, &id, &info.name)?;
     }
     prx.create(&info.name, &info.content)
 }

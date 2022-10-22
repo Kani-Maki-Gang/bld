@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 #[derive(Debug, Serialize, Deserialize, Identifiable, Queryable, Associations)]
-#[belongs_to(HighAvailStateMachine, foreign_key = "state_machine_id")]
-#[table_name = "ha_client_status"]
+#[diesel(belongs_to(HighAvailStateMachine, foreign_key = state_machine_id))]
+#[diesel(table_name = ha_client_status)]
 pub struct HighAvailClientStatus {
     pub id: i32,
     pub state_machine_id: i32,
@@ -21,7 +21,7 @@ pub struct HighAvailClientStatus {
 }
 
 #[derive(Debug, Insertable)]
-#[table_name = "ha_client_status"]
+#[diesel(table_name = ha_client_status)]
 pub struct InsertHighAvailClientStatus<'a> {
     pub id: i32,
     pub state_machine_id: i32,
@@ -38,7 +38,7 @@ impl<'a> InsertHighAvailClientStatus<'a> {
     }
 }
 
-pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailClientStatus> {
+pub fn select_last(conn: &mut SqliteConnection) -> Result<HighAvailClientStatus> {
     debug!("loading last entry of high availability client status");
     ha_client_status
         .order(id.desc())
@@ -56,7 +56,7 @@ pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailClientStatus> {
         })
 }
 
-pub fn select_by_id(conn: &SqliteConnection, cs_id: i32) -> Result<HighAvailClientStatus> {
+pub fn select_by_id(conn: &mut SqliteConnection, cs_id: i32) -> Result<HighAvailClientStatus> {
     debug!(
         "loading high availability client status model with id: {}",
         cs_id
@@ -78,14 +78,14 @@ pub fn select_by_id(conn: &SqliteConnection, cs_id: i32) -> Result<HighAvailClie
 }
 
 pub fn insert(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     model: InsertHighAvailClientStatus,
 ) -> Result<HighAvailClientStatus> {
     debug!(
         "inserting high availability client status with status: {} for state machine: {}",
         model.status, model.state_machine_id
     );
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(ha_client_status)
             .values(model)
             .execute(conn)
@@ -104,7 +104,7 @@ pub fn insert(
 }
 
 pub fn update(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     cs_id: i32,
     cs_status: &str,
 ) -> Result<HighAvailClientStatus> {
@@ -112,7 +112,7 @@ pub fn update(
         "updating high availability client status: {} with status: {}",
         cs_id, cs_status
     );
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::update(ha_client_status.filter(id.eq(cs_id)))
             .set(status.eq(cs_status))
             .execute(conn)

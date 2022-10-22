@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 #[derive(Debug, Serialize, Deserialize, Identifiable, Queryable, Associations)]
-#[belongs_to(HighAvailStateMachine, foreign_key = "state_machine_id")]
-#[table_name = "ha_client_serial_responses"]
+#[diesel(belongs_to(HighAvailStateMachine, foreign_key = state_machine_id))]
+#[diesel(table_name = ha_client_serial_responses)]
 pub struct HighAvailClientSerialResponses {
     pub id: i32,
     pub state_machine_id: i32,
@@ -22,7 +22,7 @@ pub struct HighAvailClientSerialResponses {
 }
 
 #[derive(Debug, Insertable)]
-#[table_name = "ha_client_serial_responses"]
+#[diesel(table_name = ha_client_serial_responses)]
 pub struct InsertHighAvailClientSerialResponses<'a> {
     pub id: i32,
     pub state_machine_id: i32,
@@ -46,7 +46,7 @@ impl<'a> InsertHighAvailClientSerialResponses<'a> {
     }
 }
 
-pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailClientSerialResponses> {
+pub fn select_last(conn: &mut SqliteConnection) -> Result<HighAvailClientSerialResponses> {
     debug!("loading the last high availability client serial response");
     ha_client_serial_responses
         .order(id.desc())
@@ -65,7 +65,7 @@ pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailClientSerialRespo
 }
 
 pub fn select_by_id(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     csr_id: i32,
 ) -> Result<HighAvailClientSerialResponses> {
     debug!(
@@ -89,14 +89,14 @@ pub fn select_by_id(
 }
 
 pub fn insert(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     model: InsertHighAvailClientSerialResponses,
 ) -> Result<HighAvailClientSerialResponses> {
     debug!(
         "inserting high availability client serial responses model: {:?}",
         model
     );
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(ha_client_serial_responses)
             .values(model)
             .execute(conn)

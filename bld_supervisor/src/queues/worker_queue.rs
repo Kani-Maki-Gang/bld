@@ -58,8 +58,8 @@ impl WorkerQueue {
     }
 
     fn add_backlog(&mut self, worker: PipelineWorker) -> Result<()> {
-        let conn = self.pool.get()?;
-        pipeline_runs::update_state(&conn, worker.get_run_id(), PR_STATE_QUEUED)?;
+        let mut conn = self.pool.get()?;
+        pipeline_runs::update_state(&mut conn, worker.get_run_id(), PR_STATE_QUEUED)?;
         self.backlog.push_back(worker);
         Ok(())
     }
@@ -132,14 +132,14 @@ fn try_cleanup_process(
     }
 
     let run_id = worker.get_run_id();
-    let conn = pool.get()?;
-    let run = pipeline_runs::select_running_by_id(&conn, run_id)?;
+    let mut conn = pool.get()?;
+    let run = pipeline_runs::select_running_by_id(&mut conn, run_id)?;
 
     if run.state != PR_STATE_FINISHED || run.state != PR_STATE_FAULTED {
-        let _ = pipeline_runs::update_state(&conn, run_id, PR_STATE_FAULTED);
+        let _ = pipeline_runs::update_state(&mut conn, run_id, PR_STATE_FAULTED);
     }
 
-    let _ = pipeline_run_containers::update_running_containers_to_faulted(&conn, run_id);
+    let _ = pipeline_run_containers::update_running_containers_to_faulted(&mut conn, run_id);
 
     Ok(())
 }
@@ -151,8 +151,8 @@ pub async fn try_cleanup_containers(
     config: Data<BldConfig>,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
 ) -> Result<()> {
-    let conn = pool.get()?;
-    let run_containers = pipeline_run_containers::select_in_invalid_state(&conn)?;
+    let mut conn = pool.get()?;
+    let run_containers = pipeline_run_containers::select_in_invalid_state(&mut conn)?;
 
     info!("found {} containers in invalid state", run_containers.len());
 
@@ -185,7 +185,7 @@ pub async fn try_cleanup_containers(
             }
         }
 
-        let _ = pipeline_run_containers::update_state(&conn, &info.id, PRC_STATE_REMOVED);
+        let _ = pipeline_run_containers::update_state(&mut conn, &info.id, PRC_STATE_REMOVED);
     }
 
     Ok(())

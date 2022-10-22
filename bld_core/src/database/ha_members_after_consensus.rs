@@ -9,8 +9,8 @@ use diesel::{Associations, Identifiable, Insertable, Queryable};
 use tracing::{debug, error};
 
 #[derive(Debug, Associations, Identifiable, Queryable)]
-#[belongs_to(HighAvailSnapshot, foreign_key = "snapshot_id")]
-#[table_name = "ha_members_after_consensus"]
+#[diesel(belongs_to(HighAvailSnapshot, foreign_key = snapshot_id))]
+#[diesel(table_name = ha_members_after_consensus)]
 pub struct HighAvailMembersAfterConsensus {
     pub id: i32,
     pub snapshot_id: i32,
@@ -19,7 +19,7 @@ pub struct HighAvailMembersAfterConsensus {
 }
 
 #[derive(Debug, Insertable)]
-#[table_name = "ha_members_after_consensus"]
+#[diesel(table_name = ha_members_after_consensus)]
 pub struct InsertHighAvailMembersAfterConsensus {
     pub id: i32,
     pub snapshot_id: i32,
@@ -35,7 +35,7 @@ impl InsertHighAvailMembersAfterConsensus {
 }
 
 pub fn select(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     sn: &HighAvailSnapshot,
 ) -> Result<Vec<HighAvailMembersAfterConsensus>> {
     debug!(
@@ -61,7 +61,7 @@ pub fn select(
 }
 
 pub fn select_last_rows(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     rows: i64,
 ) -> Result<Vec<HighAvailMembersAfterConsensus>> {
     debug!(
@@ -86,11 +86,11 @@ pub fn select_last_rows(
 }
 
 pub fn insert_many(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     models: Vec<InsertHighAvailMembersAfterConsensus>,
 ) -> Result<Vec<HighAvailMembersAfterConsensus>> {
     debug!("inserting multiple high availability members after consensus");
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(ha_members_after_consensus)
             .values(&models)
             .execute(conn)

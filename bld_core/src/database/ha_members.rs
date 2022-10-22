@@ -9,8 +9,8 @@ use diesel::{Associations, Identifiable, Insertable, Queryable};
 use tracing::{debug, error};
 
 #[derive(Debug, Associations, Identifiable, Queryable)]
-#[belongs_to(HighAvailSnapshot, foreign_key = "snapshot_id")]
-#[table_name = "ha_members"]
+#[diesel(belongs_to(HighAvailSnapshot, foreign_key = snapshot_id))]
+#[diesel(table_name = ha_members)]
 pub struct HighAvailMembers {
     pub id: i32,
     pub snapshot_id: i32,
@@ -19,7 +19,7 @@ pub struct HighAvailMembers {
 }
 
 #[derive(Debug, Insertable)]
-#[table_name = "ha_members"]
+#[diesel(table_name = ha_members)]
 pub struct InsertHighAvailMembers {
     pub id: i32,
     pub snapshot_id: i32,
@@ -34,7 +34,10 @@ impl InsertHighAvailMembers {
     }
 }
 
-pub fn select(conn: &SqliteConnection, sn: &HighAvailSnapshot) -> Result<Vec<HighAvailMembers>> {
+pub fn select(
+    conn: &mut SqliteConnection,
+    sn: &HighAvailSnapshot,
+) -> Result<Vec<HighAvailMembers>> {
     debug!(
         "loading high availability members of snapshot with id: {}",
         sn.id
@@ -54,7 +57,7 @@ pub fn select(conn: &SqliteConnection, sn: &HighAvailSnapshot) -> Result<Vec<Hig
         })
 }
 
-pub fn select_last_rows(conn: &SqliteConnection, rows: i64) -> Result<Vec<HighAvailMembers>> {
+pub fn select_last_rows(conn: &mut SqliteConnection, rows: i64) -> Result<Vec<HighAvailMembers>> {
     debug!("loading last {} rows of high availability members", rows);
     ha_members
         .order(id.desc())
@@ -71,11 +74,11 @@ pub fn select_last_rows(conn: &SqliteConnection, rows: i64) -> Result<Vec<HighAv
 }
 
 pub fn insert_many(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     models: Vec<InsertHighAvailMembers>,
 ) -> Result<Vec<HighAvailMembers>> {
     debug!("inserting multiple high availability members");
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(ha_members)
             .values(&models)
             .execute(conn)

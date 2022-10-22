@@ -37,9 +37,9 @@ impl Context {
                 run_id,
                 instances,
             } => {
-                let conn = pool.get()?;
+                let mut conn = pool.get()?;
                 let instance = pipeline_run_containers::insert(
-                    &conn,
+                    &mut conn,
                     InsertPipelineRunContainer {
                         id: &Uuid::new_v4().to_string(),
                         run_id,
@@ -65,9 +65,9 @@ impl Context {
                     .iter()
                     .position(|i| i.container_id == container_id)
                 {
-                    let conn = pool.get()?;
+                    let mut conn = pool.get()?;
                     instances[idx] = pipeline_run_containers::update_state(
-                        &conn,
+                        &mut conn,
                         &instances[idx].id,
                         PRC_STATE_REMOVED,
                     )?;
@@ -89,9 +89,9 @@ impl Context {
                     .iter()
                     .position(|i| i.container_id == container_id)
                 {
-                    let conn = pool.get()?;
+                    let mut conn = pool.get()?;
                     instances[idx] = pipeline_run_containers::update_state(
-                        &conn,
+                        &mut conn,
                         &instances[idx].id,
                         PRC_STATE_FAULTED,
                     )?;
@@ -113,9 +113,9 @@ impl Context {
                     .iter()
                     .position(|i| i.container_id == container_id)
                 {
-                    let conn = pool.get()?;
+                    let mut conn = pool.get()?;
                     instances[idx] = pipeline_run_containers::update_state(
-                        &conn,
+                        &mut conn,
                         &instances[idx].id,
                         PRC_STATE_KEEP_ALIVE,
                     )?;

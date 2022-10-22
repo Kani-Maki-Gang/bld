@@ -28,7 +28,7 @@ impl From<HighAvailHardState> for HardState {
 }
 
 #[derive(Debug, Insertable)]
-#[table_name = "ha_hard_state"]
+#[diesel(table_name = ha_hard_state)]
 pub struct InsertHighAvailHardState {
     pub current_term: i32,
     pub voted_for: Option<i32>,
@@ -71,7 +71,7 @@ impl From<InsertHighAvailHardState> for HardState {
     }
 }
 
-pub fn select_first(conn: &SqliteConnection) -> Result<HighAvailHardState> {
+pub fn select_first(conn: &mut SqliteConnection) -> Result<HighAvailHardState> {
     debug!("loading the first high availability hard state");
     ha_hard_state
         .first(conn)
@@ -88,7 +88,7 @@ pub fn select_first(conn: &SqliteConnection) -> Result<HighAvailHardState> {
         })
 }
 
-pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailHardState> {
+pub fn select_last(conn: &mut SqliteConnection) -> Result<HighAvailHardState> {
     debug!("loading the last entry of high availability hard state");
     ha_hard_state
         .order(id.desc())
@@ -103,7 +103,7 @@ pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailHardState> {
         })
 }
 
-pub fn select_by_id(conn: &SqliteConnection, hs_id: i32) -> Result<HighAvailHardState> {
+pub fn select_by_id(conn: &mut SqliteConnection, hs_id: i32) -> Result<HighAvailHardState> {
     debug!("loading high availability hard state with id: {}", hs_id);
     ha_hard_state
         .filter(id.eq(hs_id))
@@ -119,11 +119,11 @@ pub fn select_by_id(conn: &SqliteConnection, hs_id: i32) -> Result<HighAvailHard
 }
 
 pub fn insert(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     model: InsertHighAvailHardState,
 ) -> Result<HighAvailHardState> {
     debug!("inserting new high availability hard state: {:?}", model);
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(ha_hard_state::table)
             .values(model)
             .execute(conn)
@@ -142,7 +142,7 @@ pub fn insert(
 }
 
 pub fn update(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     hs_id: i32,
     hs_current_term: i32,
     hs_voted_for: Option<i32>,
@@ -151,7 +151,7 @@ pub fn update(
         "updateing the high availability hard state with id: {}",
         hs_id
     );
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::update(ha_hard_state.filter(id.eq(hs_id)))
             .set((current_term.eq(hs_current_term), voted_for.eq(hs_voted_for)))
             .execute(conn)

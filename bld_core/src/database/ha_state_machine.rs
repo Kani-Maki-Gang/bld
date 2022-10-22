@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 #[derive(Debug, Serialize, Deserialize, Identifiable, Insertable, Queryable)]
-#[table_name = "ha_state_machine"]
+#[diesel(table_name = ha_state_machine)]
 pub struct HighAvailStateMachine {
     pub id: i32,
     pub last_applied_log: i32,
@@ -17,7 +17,7 @@ pub struct HighAvailStateMachine {
     pub date_updated: String,
 }
 
-pub fn select_first(conn: &SqliteConnection) -> Result<HighAvailStateMachine> {
+pub fn select_first(conn: &mut SqliteConnection) -> Result<HighAvailStateMachine> {
     debug!("loading the first entry of high availability state machine");
     ha_state_machine
         .first(conn)
@@ -34,7 +34,7 @@ pub fn select_first(conn: &SqliteConnection) -> Result<HighAvailStateMachine> {
         })
 }
 
-pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailStateMachine> {
+pub fn select_last(conn: &mut SqliteConnection) -> Result<HighAvailStateMachine> {
     debug!("loading the last entry of high availability state machine");
     ha_state_machine
         .order(id.desc())
@@ -52,7 +52,7 @@ pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailStateMachine> {
         })
 }
 
-pub fn select_by_id(conn: &SqliteConnection, sm_id: i32) -> Result<HighAvailStateMachine> {
+pub fn select_by_id(conn: &mut SqliteConnection, sm_id: i32) -> Result<HighAvailStateMachine> {
     debug!("loading high availability state machine with id: {}", sm_id);
     ha_state_machine
         .filter(id.eq(sm_id))
@@ -70,12 +70,15 @@ pub fn select_by_id(conn: &SqliteConnection, sm_id: i32) -> Result<HighAvailStat
         })
 }
 
-pub fn insert(conn: &SqliteConnection, sm_last_applied_log: i32) -> Result<HighAvailStateMachine> {
+pub fn insert(
+    conn: &mut SqliteConnection,
+    sm_last_applied_log: i32,
+) -> Result<HighAvailStateMachine> {
     debug!(
         "inserting high availability state machine with last applied log: {:?}",
         sm_last_applied_log
     );
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(ha_state_machine)
             .values(last_applied_log.eq(sm_last_applied_log))
             .execute(conn)
@@ -94,7 +97,7 @@ pub fn insert(conn: &SqliteConnection, sm_last_applied_log: i32) -> Result<HighA
 }
 
 pub fn update(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     sm_id: i32,
     sm_last_applied_log: i32,
 ) -> Result<HighAvailStateMachine> {
@@ -102,7 +105,7 @@ pub fn update(
         "updating high availability state machine with id: {}",
         sm_id
     );
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::update(ha_state_machine.filter(id.eq(sm_id)))
             .set(last_applied_log.eq(sm_last_applied_log))
             .execute(conn)

@@ -42,8 +42,8 @@ impl MonitorPipelineSocket {
     }
 
     fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
-        if let Ok(connection) = act.pool.get() {
-            match pipeline_runs::select_by_id(&connection, &act.id) {
+        if let Ok(mut conn) = act.pool.get() {
+            match pipeline_runs::select_by_id(&mut conn, &act.id) {
                 Ok(run) if run.state == PR_STATE_FINISHED || run.state == PR_STATE_FAULTED => {
                     ctx.stop()
                 }
@@ -58,14 +58,14 @@ impl MonitorPipelineSocket {
 
     fn dependencies(&mut self, data: &str) -> Result<()> {
         let data = serde_json::from_str::<MonitInfo>(data)?;
-        let conn = self.pool.get()?;
+        let mut conn = self.pool.get()?;
 
         let run = if data.last {
-            pipeline_runs::select_last(&conn)
+            pipeline_runs::select_last(&mut conn)
         } else if let Some(id) = data.id {
-            pipeline_runs::select_by_id(&conn, &id)
+            pipeline_runs::select_by_id(&mut conn, &id)
         } else if let Some(name) = data.name {
-            pipeline_runs::select_by_name(&conn, &name)
+            pipeline_runs::select_by_name(&mut conn, &name)
         } else {
             return Err(anyhow!("pipeline not found"));
         }

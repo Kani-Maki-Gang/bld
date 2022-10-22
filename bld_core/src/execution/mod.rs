@@ -31,8 +31,8 @@ impl Execution {
         match self {
             Self::Empty => Ok(()),
             Self::Pipeline { pool, run_id } => {
-                let conn = pool.get()?;
-                pipeline_runs::update_state(&conn, run_id, state).map(|_| ())
+                let mut conn = pool.get()?;
+                pipeline_runs::update_state(&mut conn, run_id, state).map(|_| ())
             }
         }
     }
@@ -53,8 +53,8 @@ impl Execution {
         match self {
             Self::Empty => Ok(()),
             Self::Pipeline { pool, run_id } => {
-                let conn = pool.get()?;
-                pipeline_runs::select_by_id(&conn, run_id).and_then(|r| match r.stopped {
+                let mut conn = pool.get()?;
+                pipeline_runs::select_by_id(&mut conn, run_id).and_then(|r| match r.stopped {
                     Some(true) => bail!(""),
                     _ => Ok(()),
                 })

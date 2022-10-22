@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
 #[derive(Debug, Serialize, Deserialize, Identifiable, Queryable)]
-#[table_name = "ha_snapshot"]
+#[diesel(table_name = ha_snapshot)]
 pub struct HighAvailSnapshot {
     pub id: i32,
     pub term: i32,
@@ -19,7 +19,7 @@ pub struct HighAvailSnapshot {
 }
 
 #[derive(Debug, Insertable)]
-#[table_name = "ha_snapshot"]
+#[diesel(table_name = ha_snapshot)]
 pub struct InsertHighAvailSnapshot {
     pub id: i32,
     pub term: i32,
@@ -36,7 +36,7 @@ impl InsertHighAvailSnapshot {
     }
 }
 
-pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailSnapshot> {
+pub fn select_last(conn: &mut SqliteConnection) -> Result<HighAvailSnapshot> {
     debug!("loading the last entry high availability snapshot");
     ha_snapshot
         .order(id.desc())
@@ -52,11 +52,11 @@ pub fn select_last(conn: &SqliteConnection) -> Result<HighAvailSnapshot> {
 }
 
 pub fn insert(
-    conn: &SqliteConnection,
+    conn: &mut SqliteConnection,
     model: InsertHighAvailSnapshot,
 ) -> Result<HighAvailSnapshot> {
     debug!("inserting high availability snapshot: {:?}", model);
-    conn.transaction(|| {
+    conn.transaction(|conn| {
         diesel::insert_into(ha_snapshot)
             .values(&model)
             .execute(conn)
