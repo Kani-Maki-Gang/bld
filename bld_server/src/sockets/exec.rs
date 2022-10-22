@@ -60,9 +60,9 @@ impl ExecutePipelineSocket {
     }
 
     fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
-        if let Ok(connection) = act.pool.get() {
+        if let Ok(mut conn) = act.pool.get() {
             if let Some(run_id) = act.run_id.as_ref() {
-                match pipeline_runs::select_by_id(&connection, run_id) {
+                match pipeline_runs::select_by_id(&mut conn, run_id) {
                     Ok(run) if run.state == PR_STATE_FINISHED || run.state == PR_STATE_FAULTED => {
                         ctx.stop()
                     }

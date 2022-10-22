@@ -23,8 +23,8 @@ pub async fn hist(
 }
 
 fn history_info(db_pool: &Pool<ConnectionManager<SqliteConnection>>) -> Result<Vec<HistoryEntry>> {
-    let connection = db_pool.get()?;
-    let history: Vec<HistoryEntry> = pipeline_runs::select_all(&connection)
+    let mut conn = db_pool.get()?;
+    let history: Vec<HistoryEntry> = pipeline_runs::select_all(&mut conn)
         .map(|entries| {
             entries
                 .into_iter()

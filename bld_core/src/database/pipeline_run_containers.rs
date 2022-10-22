@@ -127,7 +127,7 @@ pub fn update_state(
     prc_state: &str,
 ) -> Result<PipelineRunContainers> {
     debug!("updating pipeline run container with id: {prc_id} with new state: {prc_state}");
-    conn.transaction(|conn| {
+    conn.transaction(|mut conn| {
         diesel::update(pipeline_run_containers.filter(id.eq(prc_id)))
             .set(state.eq(prc_state))
             .execute(conn)

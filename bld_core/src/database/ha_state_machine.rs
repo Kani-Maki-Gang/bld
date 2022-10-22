@@ -75,7 +75,7 @@ pub fn insert(conn: &mut SqliteConnection, sm_last_applied_log: i32) -> Result<H
         "inserting high availability state machine with last applied log: {:?}",
         sm_last_applied_log
     );
-    conn.transaction(|conn| {
+    conn.transaction(|mut conn| {
         diesel::insert_into(ha_state_machine)
             .values(last_applied_log.eq(sm_last_applied_log))
             .execute(conn)
