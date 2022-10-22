@@ -1,11 +1,12 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use diesel::SqliteConnection;
 use tracing::debug;
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 
-embed_migrations!();
+const EMBEDDED_MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 pub fn run_migrations(conn: &SqliteConnection) -> Result<()> {
-    embedded_migrations::run(conn)?;
+    conn.run_pending_migrations(EMBEDDED_MIGRATIONS).map_err(|e| anyhow!(e))?;
     debug!("executed migrations");
     Ok(())
 }
