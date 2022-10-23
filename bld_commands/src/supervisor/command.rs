@@ -4,7 +4,7 @@ use anyhow::Result;
 use bld_config::definitions::VERSION;
 use bld_config::BldConfig;
 use bld_supervisor::supervisor;
-use clap::{App, ArgMatches, SubCommand};
+use clap::{ArgMatches, Command};
 use tracing::debug;
 
 static SUPERVISOR: &str = "supervisor";
@@ -22,8 +22,8 @@ impl BldCommand for SupervisorCommand {
         SUPERVISOR
     }
 
-    fn interface(&self) -> App<'static> {
-        SubCommand::with_name(SUPERVISOR)
+    fn interface(&self) -> Command {
+        Command::new(SUPERVISOR)
             .about("Starts a bld supervisor that manages the pipeline worker queue. should be only invoked by the server")
             .version(VERSION)
     }

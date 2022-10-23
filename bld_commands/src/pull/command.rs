@@ -6,7 +6,7 @@ use bld_core::proxies::PipelineFileSystemProxy;
 use bld_server::responses::PullResponse;
 use bld_utils::fs::IsYaml;
 use bld_utils::request;
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgAction, ArgMatches, Command};
 use std::collections::HashMap;
 use std::fs::{create_dir_all, remove_file, File};
 use std::io::Write;
@@ -30,22 +30,26 @@ impl BldCommand for PullCommand {
         PULL
     }
 
-    fn interface(&self) -> App<'static> {
-        let server = Arg::with_name(SERVER)
+    fn interface(&self) -> Command {
+        let server = Arg::new(SERVER)
             .short('s')
             .long(SERVER)
             .help("The name of the bld server")
-            .takes_value(true);
-        let pipeline = Arg::with_name(PIPELINE)
+            .action(ArgAction::Set);
+
+        let pipeline = Arg::new(PIPELINE)
             .short('p')
             .long(PIPELINE)
             .help("The name of the pipeline")
-            .takes_value(true);
-        let ignore_deps = Arg::with_name(IGNORE_DEPS)
+            .required(true)
+            .action(ArgAction::Set);
+
+        let ignore_deps = Arg::new(IGNORE_DEPS)
             .long(IGNORE_DEPS)
             .help("Do not include other pipeline dependencies")
-            .takes_value(false);
-        SubCommand::with_name(PULL)
+            .action(ArgAction::SetTrue);
+
+        Command::new(PULL)
             .about("Pull a pipeline from a bld server and stores it localy")
             .version(VERSION)
             .args(&[server, pipeline, ignore_deps])
@@ -53,18 +57,21 @@ impl BldCommand for PullCommand {
 
     fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
-        let server = config.remote.server_or_first(matches.value_of(SERVER))?;
-        let pip = matches
-            .value_of(PIPELINE)
-            .ok_or_else(|| anyhow!("no pipeline provided"))?
-            .to_string();
-        let ignore = matches.is_present(IGNORE_DEPS);
+        let server = config
+            .remote
+            .server_or_first(matches.get_one::<String>(SERVER))?;
+        // using an unwrap here because the pipeline option is required.
+        let pip = matches.get_one::<String>(PIPELINE).cloned().unwrap();
+        let ignore = matches.get_flag(IGNORE_DEPS);
+
         debug!(
             "running {PULL} subcommand with --server: {}, --pipeline: {pip} and --ignore-deps: {ignore}",
             server.name
         );
+
         let server_auth = config.remote.same_auth_as(server)?;
         let headers = request::headers(&server_auth.name, &server_auth.auth)?;
+
         System::new().block_on(async move {
             do_pull(
                 server.host.clone(),

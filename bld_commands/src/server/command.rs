@@ -3,7 +3,7 @@ use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::definitions::VERSION;
 use bld_config::BldConfig;
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgAction, ArgMatches, Command};
 use tracing::debug;
 
 static SERVER: &str = "server";
@@ -23,18 +23,20 @@ impl BldCommand for ServerCommand {
         SERVER
     }
 
-    fn interface(&self) -> App<'static> {
-        let host = Arg::with_name(HOST)
+    fn interface(&self) -> Command {
+        let host = Arg::new(HOST)
             .long("host")
             .short('H')
             .help("The server's host address")
-            .takes_value(true);
-        let port = Arg::with_name(PORT)
+            .action(ArgAction::Set);
+
+        let port = Arg::new(PORT)
             .long("port")
             .short('P')
             .help("The server's port")
-            .takes_value(true);
-        SubCommand::with_name(SERVER)
+            .action(ArgAction::Set);
+
+        Command::new(SERVER)
             .about("Start bld in server mode, listening to incoming build requests")
             .version(VERSION)
             .args(&[host, port])
@@ -42,15 +44,19 @@ impl BldCommand for ServerCommand {
 
     fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
+
         let host = matches
-            .value_of("host")
+            .get_one::<String>("host")
             .unwrap_or(&config.local.server.host)
             .to_string();
+
         let port = matches
-            .value_of("port")
+            .get_one::<String>("port")
             .map(|port| port.parse::<i64>().unwrap_or(config.local.server.port))
             .unwrap_or(config.local.server.port);
+
         debug!("running {SERVER} subcommand with --host: {host} --port: {port}",);
+
         System::new().block_on(async move { bld_server::start(config, host, port).await })
     }
 }

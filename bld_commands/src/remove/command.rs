@@ -1,9 +1,9 @@
 use crate::BldCommand;
 use actix_web::rt::System;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use bld_config::{definitions::VERSION, BldConfig};
 use bld_utils::request;
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgAction, ArgMatches, Command};
 use tracing::debug;
 
 const REMOVE: &str = "rm";
@@ -23,18 +23,21 @@ impl BldCommand for RemoveCommand {
         REMOVE
     }
 
-    fn interface(&self) -> App<'static> {
-        let server = Arg::with_name(SERVER)
+    fn interface(&self) -> Command {
+        let server = Arg::new(SERVER)
             .short('s')
             .long(SERVER)
-            .takes_value(true)
-            .help("The name of the bld server");
-        let pipeline = Arg::with_name(PIPELINE)
+            .help("The name of the bld server")
+            .action(ArgAction::Set);
+
+        let pipeline = Arg::new(PIPELINE)
             .short('p')
             .long(PIPELINE)
-            .takes_value(true)
-            .help("The name of the pipeline");
-        SubCommand::with_name(REMOVE)
+            .help("The name of the pipeline")
+            .action(ArgAction::Set)
+            .required(true);
+
+        Command::new(REMOVE)
             .about("Removes a pipeline from a bld server")
             .version(VERSION)
             .args(&vec![server, pipeline])
@@ -47,19 +50,22 @@ impl BldCommand for RemoveCommand {
 
 async fn do_remove(matches: &ArgMatches) -> Result<()> {
     let config = BldConfig::load()?;
-    let server = config.remote.server_or_first(matches.value_of(SERVER))?;
-    let pipeline = matches
-        .value_of(PIPELINE)
-        .ok_or_else(|| anyhow!("invalid pipeline"))?
-        .to_string();
+    let server = config
+        .remote
+        .server_or_first(matches.get_one::<String>(SERVER))?;
+    // using an unwrap here because the pipeline option is requried.
+    let pipeline = matches.get_one::<String>(PIPELINE).cloned().unwrap();
+
     debug!(
         "running {} subcommand with --server: {} and --pipeline: {pipeline}",
         REMOVE, server.name
     );
+
     let server_auth = config.remote.same_auth_as(server)?;
     let protocol = server.http_protocol();
     let url = format!("{protocol}://{}:{}/remove", server.host, server.port);
     let headers = request::headers(&server_auth.name, &server_auth.auth)?;
+
     debug!("sending {protocol} request to {url}");
     request::post(url, headers, pipeline).await.map(|r| {
         println!("{r}");

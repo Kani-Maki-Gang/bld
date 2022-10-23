@@ -3,11 +3,9 @@ use anyhow::Result;
 use bld_config::definitions::VERSION;
 use bld_config::{Auth, AuthValidation, BldConfig, BldLocalConfig, BldRemoteConfig};
 use bld_utils::term;
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{ArgMatches, Command};
 
 static CONFIG: &str = "config";
-static LOCAL: &str = "local";
-static REMOTE: &str = "remote";
 
 pub struct ConfigCommand;
 
@@ -107,29 +105,14 @@ impl BldCommand for ConfigCommand {
         CONFIG
     }
 
-    fn interface(&self) -> App<'static> {
-        let local = Arg::with_name(LOCAL)
-            .short('l')
-            .long("local")
-            .help("List configuration for local options");
-        let remote = Arg::with_name(REMOTE)
-            .short('r')
-            .long("remote")
-            .help("List configuration for remote options");
-        SubCommand::with_name(CONFIG)
+    fn interface(&self) -> Command {
+        Command::new(CONFIG)
             .about("Lists bld's configuration")
             .version(VERSION)
-            .args(&[local, remote])
     }
 
-    fn exec(&self, matches: &ArgMatches) -> Result<()> {
+    fn exec(&self, _matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
-        if matches.is_present(LOCAL) {
-            return Self::list_locals(&config.local);
-        }
-        if matches.is_present(REMOTE) {
-            return Self::list_remote(&config.remote);
-        }
         Self::list_all(&config)
     }
 }

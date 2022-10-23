@@ -2,13 +2,13 @@ use anyhow::anyhow;
 use bld_commands::*;
 use bld_config::definitions::VERSION;
 use bld_utils::term::print_error;
-use clap::{App, Arg, ArgMatches};
+use clap::{Arg, ArgAction, ArgMatches, Command};
 use tracing_subscriber::filter::LevelFilter;
 
 const VERBOSITY: &str = "verbosity";
 
 fn tracing_level(matches: &ArgMatches) -> LevelFilter {
-    if matches.is_present(VERBOSITY) {
+    if matches.get_flag(VERBOSITY) {
         LevelFilter::DEBUG
     } else {
         LevelFilter::INFO
@@ -40,21 +40,21 @@ fn main() {
         worker::WorkerCommand::boxed(),
     ];
 
-    let cli = App::new("Bld")
+    let cli = Command::new("Bld")
         .version(VERSION)
         .about("A simple CI/CD")
         .subcommands(
             commands
                 .iter()
                 .map(|c| c.interface())
-                .collect::<Vec<App<'static>>>(),
+                .collect::<Vec<Command>>(),
         )
         .arg(
-            Arg::with_name(VERBOSITY)
+            Arg::new(VERBOSITY)
                 .short('v')
+                .help("Sets the level of verbosity")
                 .required(false)
-                .takes_value(false)
-                .help("Sets the level of verbosity"),
+                .action(ArgAction::SetTrue),
         )
         .get_matches();
 

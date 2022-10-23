@@ -1,12 +1,13 @@
 use crate::BldCommand;
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
-use bld_config::{definitions::TOOL_DEFAULT_PIPELINE, definitions::VERSION, BldConfig};
+use bld_config::definitions::VERSION;
+use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::Pipeline;
 use bld_server::requests::PushInfo;
 use bld_utils::request;
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgAction, ArgMatches, Command};
 use std::collections::HashMap;
 use tracing::debug;
 
@@ -28,22 +29,26 @@ impl BldCommand for PushCommand {
         PUSH
     }
 
-    fn interface(&self) -> App<'static> {
-        let pipeline = Arg::with_name(PIPELINE)
+    fn interface(&self) -> Command {
+        let pipeline = Arg::new(PIPELINE)
             .short('p')
             .long("pipeline")
             .help("The name of the pipeline to push")
-            .takes_value(true);
-        let server = Arg::with_name(SERVER)
+            .action(ArgAction::Set)
+            .required(true);
+
+        let server = Arg::new(SERVER)
             .short('s')
             .long("server")
             .help("The name of the server to push changes to")
-            .takes_value(true);
-        let ignore = Arg::with_name(IGNORE_DEPS)
+            .action(ArgAction::Set);
+
+        let ignore = Arg::new(IGNORE_DEPS)
             .long(IGNORE_DEPS)
             .help("Don't include other pipeline dependencies")
-            .takes_value(false);
-        SubCommand::with_name(PUSH)
+            .action(ArgAction::Set);
+
+        Command::new(PUSH)
             .about("Pushes the contents of a pipeline to a bld server")
             .version(VERSION)
             .args(&[pipeline, server, ignore])
@@ -51,18 +56,21 @@ impl BldCommand for PushCommand {
 
     fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
-        let pip = matches
-            .value_of(PIPELINE)
-            .unwrap_or(TOOL_DEFAULT_PIPELINE)
-            .to_string();
-        let server = config.remote.server_or_first(matches.value_of(SERVER))?;
-        let ignore = matches.is_present(IGNORE_DEPS);
+        // using unwrap here because the pipeline option is required.
+        let pip = matches.get_one::<String>(PIPELINE).cloned().unwrap();
+        let server = config
+            .remote
+            .server_or_first(matches.get_one::<String>(SERVER))?;
+        let ignore = matches.get_flag(IGNORE_DEPS);
+
         debug!(
             "running {PUSH} subcommand with --server: {} and --pipeline: {pip}",
             server.name
         );
+
         let server_auth = config.remote.same_auth_as(server)?;
         let headers = request::headers(&server_auth.name, &server_auth.auth)?;
+
         System::new().block_on(async move {
             do_push(
                 server.host.clone(),
