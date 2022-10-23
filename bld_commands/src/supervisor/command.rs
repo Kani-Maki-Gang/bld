@@ -11,13 +11,11 @@ static SUPERVISOR: &str = "supervisor";
 
 pub struct SupervisorCommand;
 
-impl SupervisorCommand {
-    pub fn boxed() -> Box<dyn BldCommand> {
+impl BldCommand for SupervisorCommand {
+    fn boxed() -> Box<Self> {
         Box::new(Self)
     }
-}
 
-impl BldCommand for SupervisorCommand {
     fn id(&self) -> &'static str {
         SUPERVISOR
     }

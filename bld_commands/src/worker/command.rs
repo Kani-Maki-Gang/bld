@@ -30,13 +30,11 @@ const ENVIRONMENT: &str = "environment";
 
 pub struct WorkerCommand;
 
-impl WorkerCommand {
-    pub fn boxed() -> Box<dyn BldCommand> {
+impl BldCommand for WorkerCommand {
+    fn boxed() -> Box<Self> {
         Box::new(Self)
     }
-}
 
-impl BldCommand for WorkerCommand {
     fn id(&self) -> &'static str {
         WORKER
     }

@@ -18,13 +18,11 @@ static IGNORE_DEPS: &str = "ignore-deps";
 
 pub struct PushCommand;
 
-impl PushCommand {
-    pub fn boxed() -> Box<dyn BldCommand> {
+impl BldCommand for PushCommand {
+    fn boxed() -> Box<Self> {
         Box::new(Self)
     }
-}
 
-impl BldCommand for PushCommand {
     fn id(&self) -> &'static str {
         PUSH
     }

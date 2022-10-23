@@ -13,13 +13,11 @@ static SERVER: &str = "server";
 
 pub struct InspectCommand;
 
-impl InspectCommand {
-    pub fn boxed() -> Box<dyn BldCommand> {
+impl BldCommand for InspectCommand {
+    fn boxed() -> Box<Self> {
         Box::new(Self)
     }
-}
 
-impl BldCommand for InspectCommand {
     fn id(&self) -> &'static str {
         INSPECT
     }

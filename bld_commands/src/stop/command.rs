@@ -12,13 +12,11 @@ static SERVER: &str = "server";
 
 pub struct StopCommand;
 
-impl StopCommand {
-    pub fn boxed() -> Box<dyn BldCommand> {
+impl BldCommand for StopCommand {
+    fn boxed() -> Box<Self> {
         Box::new(Self)
     }
-}
 
-impl BldCommand for StopCommand {
     fn id(&self) -> &'static str {
         STOP
     }

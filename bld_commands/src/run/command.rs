@@ -17,13 +17,11 @@ const ENVIRONMENT: &str = "environment";
 
 pub struct RunCommand;
 
-impl RunCommand {
-    pub fn boxed() -> Box<dyn BldCommand> {
+impl BldCommand for RunCommand {
+    fn boxed() -> Box<Self> {
         Box::new(Self)
     }
-}
 
-impl BldCommand for RunCommand {
     fn id(&self) -> &'static str {
         RUN
     }

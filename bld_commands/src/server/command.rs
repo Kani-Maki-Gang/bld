@@ -12,13 +12,11 @@ static PORT: &str = "port";
 
 pub struct ServerCommand;
 
-impl ServerCommand {
-    pub fn boxed() -> Box<dyn BldCommand> {
+impl BldCommand for ServerCommand {
+    fn boxed() -> Box<Self> {
         Box::new(Self)
     }
-}
 
-impl BldCommand for ServerCommand {
     fn id(&self) -> &'static str {
         SERVER
     }

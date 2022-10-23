@@ -6,4 +6,6 @@ pub trait BldCommand {
     fn interface(&self) -> Command;
 
     fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()>;
+
+    fn boxed() -> Box<Self> where Self: Sized;
 }

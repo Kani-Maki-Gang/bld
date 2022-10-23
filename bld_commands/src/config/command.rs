@@ -10,10 +10,6 @@ static CONFIG: &str = "config";
 pub struct ConfigCommand;
 
 impl ConfigCommand {
-    pub fn boxed() -> Box<dyn BldCommand> {
-        Box::new(ConfigCommand)
-    }
-
     fn list_locals(local: &BldLocalConfig) -> Result<()> {
         term::print_info("Local configuration:")?;
         match &local.auth {
@@ -101,6 +97,10 @@ impl ConfigCommand {
 }
 
 impl BldCommand for ConfigCommand {
+    fn boxed() -> Box<Self> {
+        Box::new(ConfigCommand)
+    }
+
     fn id(&self) -> &'static str {
         CONFIG
     }

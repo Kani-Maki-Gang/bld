@@ -31,13 +31,11 @@ struct MonitConnectionInfo {
 
 pub struct MonitCommand;
 
-impl MonitCommand {
-    pub fn boxed() -> Box<dyn BldCommand> {
+impl BldCommand for MonitCommand {
+    fn boxed() -> Box<Self> {
         Box::new(Self)
     }
-}
 
-impl BldCommand for MonitCommand {
     fn id(&self) -> &'static str {
         MONIT
     }

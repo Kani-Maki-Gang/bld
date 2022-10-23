@@ -19,13 +19,11 @@ const IGNORE_DEPS: &str = "ignore-deps";
 
 pub struct PullCommand;
 
-impl PullCommand {
-    pub fn boxed() -> Box<Self> {
+impl BldCommand for PullCommand {
+    fn boxed() -> Box<Self> {
         Box::new(Self)
     }
-}
 
-impl BldCommand for PullCommand {
     fn id(&self) -> &'static str {
         PULL
     }

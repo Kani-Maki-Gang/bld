@@ -13,13 +13,11 @@ static SERVER: &str = "server";
 
 pub struct HistCommand;
 
-impl HistCommand {
-    pub fn boxed() -> Box<dyn BldCommand> {
+impl BldCommand for HistCommand {
+    fn boxed() -> Box<Self> {
         Box::new(HistCommand)
     }
-}
 
-impl BldCommand for HistCommand {
     fn id(&self) -> &'static str {
         HIST
     }

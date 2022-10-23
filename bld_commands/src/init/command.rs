@@ -14,13 +14,11 @@ static SERVER: &str = "server";
 
 pub struct InitCommand;
 
-impl InitCommand {
-    pub fn boxed() -> Box<dyn BldCommand> {
+impl BldCommand for InitCommand {
+    fn boxed() -> Box<Self> {
         Box::new(InitCommand)
     }
-}
 
-impl BldCommand for InitCommand {
     fn id(&self) -> &'static str {
         INIT
     }

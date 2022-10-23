@@ -12,13 +12,11 @@ const PIPELINE: &str = "pipeline";
 
 pub struct RemoveCommand;
 
-impl RemoveCommand {
-    pub fn boxed() -> Box<dyn BldCommand> {
+impl BldCommand for RemoveCommand {
+    fn boxed() -> Box<Self> {
         Box::new(Self)
     }
-}
 
-impl BldCommand for RemoveCommand {
     fn id(&self) -> &'static str {
         REMOVE
     }

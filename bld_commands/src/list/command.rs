@@ -12,13 +12,11 @@ static SERVER: &str = "server";
 
 pub struct ListCommand;
 
-impl ListCommand {
-    pub fn boxed() -> Box<dyn BldCommand> {
+impl BldCommand for ListCommand {
+    fn boxed() -> Box<Self> {
         Box::new(Self)
     }
-}
 
-impl BldCommand for ListCommand {
     fn id(&self) -> &'static str {
         LIST
     }
