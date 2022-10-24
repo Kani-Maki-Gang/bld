@@ -134,3 +134,15 @@ fn create_config_yaml(is_server: bool) -> Result<()> {
     print_info("config file created")?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cli_init_server_arg_is_a_flag() {
+        let command = InitCommand::boxed().interface();
+        let matches = command.get_matches_from(&["init", "-s"]);
+        assert_eq!(matches.get_flag(SERVER), true);
+    }
+}

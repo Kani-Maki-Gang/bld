@@ -58,3 +58,20 @@ impl BldCommand for AuthCommand {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cli_auth_server_arg_accepts_value() {
+        let server_name = "mock_server_name";
+        let command = AuthCommand::boxed().interface();
+        let matches = command.get_matches_from(&["login", "-s", server_name]);
+
+        assert_eq!(
+            matches.get_one::<String>(SERVER),
+            Some(&server_name.to_string())
+        );
+    }
+}

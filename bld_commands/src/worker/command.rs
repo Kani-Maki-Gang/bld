@@ -182,3 +182,79 @@ async fn connect_to_supervisor(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cli_worker_pipeline_arg_accepts_value() {
+        let pipeline_name = "mock_pipeline_name";
+        let command = WorkerCommand::boxed().interface();
+        let matches =
+            command.get_matches_from(&["worker", "-r", "mock_run_id", "-p", pipeline_name]);
+
+        assert_eq!(
+            matches.get_one::<String>(PIPELINE),
+            Some(&pipeline_name.to_string())
+        )
+    }
+
+    #[test]
+    fn cli_worker_run_id_arg_accepts_value() {
+        let run_id = "mock_run_id";
+        let command = WorkerCommand::boxed().interface();
+        let matches =
+            command.get_matches_from(&["worker", "-p", "mock_pipeline_name", "-r", run_id]);
+
+        assert_eq!(matches.get_one::<String>(RUN_ID), Some(&run_id.to_string()))
+    }
+
+    #[test]
+    fn cli_worker_variables_arg_accepts_multiple_values() {
+        let variable_name = "mock_variable";
+        let command = WorkerCommand::boxed().interface();
+        let matches = command.get_matches_from(&[
+            "worker",
+            "-p",
+            "mock_pipeline_name",
+            "-r",
+            "mock_run_id",
+            "-v",
+            variable_name,
+            "-v",
+            variable_name,
+            "-v",
+            variable_name,
+        ]);
+
+        assert_eq!(
+            matches.get_many::<String>(VARIABLES).map(|v| v.len()),
+            Some(3)
+        )
+    }
+
+    #[test]
+    fn cli_worker_environment_variables_arg_accepts_multiple_values() {
+        let environment_variable_name = "mock_environment_variable";
+        let command = WorkerCommand::boxed().interface();
+        let matches = command.get_matches_from(&[
+            "worker",
+            "-p",
+            "mock_pipeline_name",
+            "-r",
+            "mock_run_id",
+            "-e",
+            environment_variable_name,
+            "-e",
+            environment_variable_name,
+            "-e",
+            environment_variable_name,
+        ]);
+
+        assert_eq!(
+            matches.get_many::<String>(ENVIRONMENT).map(|v| v.len()),
+            Some(3)
+        )
+    }
+}

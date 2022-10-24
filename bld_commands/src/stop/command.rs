@@ -61,3 +61,33 @@ impl BldCommand for StopCommand {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cli_stop_id_arg_accepts_value() {
+        let pipeline_id = "mock_pipeline_id";
+        let command = StopCommand::boxed().interface();
+        let matches = command.get_matches_from(&["stop", "-i", pipeline_id]);
+
+        assert_eq!(
+            matches.get_one::<String>(ID),
+            Some(&pipeline_id.to_string())
+        )
+    }
+
+    #[test]
+    fn cli_stop_server_arg_accepts_value() {
+        let server_name = "mock_server_name";
+        let command = StopCommand::boxed().interface();
+        let matches =
+            command.get_matches_from(&["stop", "-i", "mock_pipeline_id", "-s", server_name]);
+
+        assert_eq!(
+            matches.get_one::<String>(SERVER),
+            Some(&server_name.to_string())
+        )
+    }
+}

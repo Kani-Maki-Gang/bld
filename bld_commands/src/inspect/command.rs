@@ -68,3 +68,33 @@ impl BldCommand for InspectCommand {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cli_inspect_pipeline_arg_accepts_value() {
+        let pipeline_name = "mock_pipeline_name";
+        let command = InspectCommand::boxed().interface();
+        let matches = command.get_matches_from(&["inspect", "-p", pipeline_name]);
+
+        assert_eq!(
+            matches.get_one::<String>(PIPELINE),
+            Some(&pipeline_name.to_string())
+        );
+    }
+
+    #[test]
+    fn cli_inspect_server_arg_accepts_value() {
+        let server_name = "mock_server_name";
+        let command = InspectCommand::boxed().interface();
+        let matches =
+            command.get_matches_from(&["inspect", "-p", "mockPipeline", "-s", server_name]);
+
+        assert_eq!(
+            matches.get_one::<String>(SERVER),
+            Some(&server_name.to_string())
+        );
+    }
+}

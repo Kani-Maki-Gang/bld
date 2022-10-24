@@ -53,3 +53,21 @@ impl BldCommand for ListCommand {
             .block_on(async move { request::get(url, headers).await.map(|r| println!("{r}")) })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::cli::BldCommand;
+    use crate::list::ListCommand;
+
+    #[test]
+    fn cli_list_server_arg_accepts_value() {
+        let server_name = "mockServer";
+        let command = ListCommand::boxed().interface();
+        let matches = command.get_matches_from(&["hist", "-s", server_name]);
+
+        assert_eq!(
+            matches.get_one::<String>("server"),
+            Some(&server_name.to_string())
+        )
+    }
+}

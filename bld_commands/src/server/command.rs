@@ -58,3 +58,26 @@ impl BldCommand for ServerCommand {
         System::new().block_on(async move { bld_server::start(config, host, port).await })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cli_server_host_arg_accepts_value() {
+        let host = "mock_host";
+        let command = ServerCommand::boxed().interface();
+        let matches = command.get_matches_from(&["server", "-H", host]);
+
+        assert_eq!(matches.get_one::<String>(HOST), Some(&host.to_string()))
+    }
+
+    #[test]
+    fn cli_server_port_arg_accepts_value() {
+        let port = "mock_port";
+        let command = ServerCommand::boxed().interface();
+        let matches = command.get_matches_from(&["server", "-P", port]);
+
+        assert_eq!(matches.get_one::<String>(PORT), Some(&port.to_string()))
+    }
+}

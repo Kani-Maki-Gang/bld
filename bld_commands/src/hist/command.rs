@@ -59,3 +59,20 @@ impl BldCommand for HistCommand {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cli_hist_server_arg_accepts_value() {
+        let server_name = "mockServer";
+        let command = HistCommand::boxed().interface();
+        let matches = command.get_matches_from(&["hist", "-s", server_name]);
+
+        assert_eq!(
+            matches.get_one::<String>(SERVER),
+            Some(&server_name.to_string())
+        )
+    }
+}

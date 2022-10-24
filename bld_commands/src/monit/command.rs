@@ -62,7 +62,7 @@ impl BldCommand for MonitCommand {
         let last = Arg::new(LAST)
             .long("last")
             .help("Monitor the execution of the last invoked pipeline. Takes precedence over pipeline-id and pipeline")
-            .action(ArgAction::Set);
+            .action(ArgAction::SetTrue);
 
         Command::new(MONIT)
             .about("Connects to a bld server to monitor the execution of a pipeline")
@@ -138,4 +138,53 @@ fn spawn(info: MonitConnectionInfo) -> Result<()> {
     let res = sys.block_on(request(info));
     sys.run()?;
     res
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cli_monit_id_arg_accepts_value() {
+        let pipeline_id = "mock_pipeline_id";
+        let command = MonitCommand::boxed().interface();
+        let matches = command.get_matches_from(&["monit", "-i", pipeline_id]);
+
+        assert_eq!(
+            matches.get_one::<String>(PIPELINE_ID),
+            Some(&pipeline_id.to_string())
+        )
+    }
+
+    #[test]
+    fn cli_monit_pipeline_arg_accepts_value() {
+        let pipeline_name = "mock_pipeline_name";
+        let command = MonitCommand::boxed().interface();
+        let matches = command.get_matches_from(&["monit", "-p", pipeline_name]);
+
+        assert_eq!(
+            matches.get_one::<String>(PIPELINE),
+            Some(&pipeline_name.to_string())
+        )
+    }
+
+    #[test]
+    fn cli_monit_server_arg_accepts_value() {
+        let server_name = "mock_server_name";
+        let command = MonitCommand::boxed().interface();
+        let matches = command.get_matches_from(&["monit", "-s", server_name]);
+
+        assert_eq!(
+            matches.get_one::<String>(SERVER),
+            Some(&server_name.to_string())
+        )
+    }
+
+    #[test]
+    fn cli_monit_last_arg_is_a_flag() {
+        let command = MonitCommand::boxed().interface();
+        let matches = command.get_matches_from(&["monit", "--last"]);
+
+        assert!(matches.get_flag(LAST))
+    }
 }

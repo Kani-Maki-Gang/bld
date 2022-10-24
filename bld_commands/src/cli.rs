@@ -7,5 +7,7 @@ pub trait BldCommand {
 
     fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()>;
 
-    fn boxed() -> Box<Self> where Self: Sized;
+    fn boxed() -> Box<Self>
+    where
+        Self: Sized;
 }
