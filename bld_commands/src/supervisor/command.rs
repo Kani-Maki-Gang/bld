@@ -4,26 +4,24 @@ use anyhow::Result;
 use bld_config::definitions::VERSION;
 use bld_config::BldConfig;
 use bld_supervisor::supervisor;
-use clap::{App, ArgMatches, SubCommand};
+use clap::{ArgMatches, Command};
 use tracing::debug;
 
 static SUPERVISOR: &str = "supervisor";
 
 pub struct SupervisorCommand;
 
-impl SupervisorCommand {
-    pub fn boxed() -> Box<dyn BldCommand> {
+impl BldCommand for SupervisorCommand {
+    fn boxed() -> Box<Self> {
         Box::new(Self)
     }
-}
 
-impl BldCommand for SupervisorCommand {
     fn id(&self) -> &'static str {
         SUPERVISOR
     }
 
-    fn interface(&self) -> App<'static> {
-        SubCommand::with_name(SUPERVISOR)
+    fn interface(&self) -> Command {
+        Command::new(SUPERVISOR)
             .about("Starts a bld supervisor that manages the pipeline worker queue. should be only invoked by the server")
             .version(VERSION)
     }

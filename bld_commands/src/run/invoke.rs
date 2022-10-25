@@ -35,7 +35,7 @@ impl InvokeRun {
     pub fn new(
         config: BldConfig,
         pipeline: String,
-        server: Option<&str>,
+        server: Option<&String>,
         vars: HashMap<String, String>,
         env: HashMap<String, String>,
         detach: bool,

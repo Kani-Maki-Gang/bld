@@ -3,7 +3,7 @@ use crate::BldCommand;
 use anyhow::Result;
 use bld_config::definitions::{TOOL_DEFAULT_PIPELINE, VERSION};
 use bld_config::BldConfig;
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgAction, ArgMatches, Command};
 use std::collections::HashMap;
 use std::fmt::Write;
 use tracing::debug;
@@ -17,45 +17,48 @@ const ENVIRONMENT: &str = "environment";
 
 pub struct RunCommand;
 
-impl RunCommand {
-    pub fn boxed() -> Box<dyn BldCommand> {
+impl BldCommand for RunCommand {
+    fn boxed() -> Box<Self> {
         Box::new(Self)
     }
-}
 
-impl BldCommand for RunCommand {
     fn id(&self) -> &'static str {
         RUN
     }
 
-    fn interface(&self) -> App<'static> {
-        let pipeline = Arg::with_name(PIPELINE)
+    fn interface(&self) -> Command {
+        let pipeline = Arg::new(PIPELINE)
             .short('p')
             .long(PIPELINE)
             .help("Path to pipeline script")
-            .takes_value(true);
-        let server = Arg::with_name(SERVER)
+            .default_value(TOOL_DEFAULT_PIPELINE)
+            .action(ArgAction::Set);
+
+        let server = Arg::new(SERVER)
             .short('s')
             .long(SERVER)
             .help("The name of the server to run the pipeline")
-            .takes_value(true);
-        let detach = Arg::with_name(DETACH)
+            .action(ArgAction::Set);
+
+        let detach = Arg::new(DETACH)
             .short('d')
             .long(DETACH)
-            .help("Detaches from the run execution (for server mode runs)");
-        let variables = Arg::with_name(VARIABLES)
+            .help("Detaches from the run execution (for server mode runs)")
+            .action(ArgAction::SetTrue);
+
+        let variables = Arg::new(VARIABLES)
             .short('v')
             .long(VARIABLES)
             .help("Define values for variables of a pipeline")
-            .multiple(true)
-            .takes_value(true);
-        let environment = Arg::with_name(ENVIRONMENT)
+            .action(ArgAction::Append);
+
+        let environment = Arg::new(ENVIRONMENT)
             .short('e')
             .long(ENVIRONMENT)
             .help("Define values for environment variables of a pipeline")
-            .multiple(true)
-            .takes_value(true);
-        SubCommand::with_name(RUN)
+            .action(ArgAction::Append);
+
+        Command::new(RUN)
             .about("Executes a build pipeline")
             .version(VERSION)
             .args(&[pipeline, server, detach, variables, environment])
@@ -63,14 +66,12 @@ impl BldCommand for RunCommand {
 
     fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let config = BldConfig::load()?;
-        let pipeline = matches
-            .value_of(PIPELINE)
-            .unwrap_or(TOOL_DEFAULT_PIPELINE)
-            .to_string();
-        let detach = matches.is_present(DETACH);
+        // using an unwrap here because pipeline option has a default value.
+        let pipeline = matches.get_one::<String>(PIPELINE).cloned().unwrap();
+        let detach = matches.get_flag(DETACH);
         let env = parse_variables(matches, ENVIRONMENT);
         let vars = parse_variables(matches, VARIABLES);
-        let server = matches.value_of(SERVER);
+        let server = matches.get_one::<String>(SERVER);
 
         let mut message = format!(
             "running {} subcommand with --pipeline: {}, --variables: {:?}",
@@ -89,7 +90,7 @@ impl BldCommand for RunCommand {
 
 pub fn parse_variables(matches: &ArgMatches, arg: &str) -> HashMap<String, String> {
     matches
-        .values_of(arg)
+        .get_many::<String>(arg)
         .map(|variable| {
             variable
                 .map(|v| {

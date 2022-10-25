@@ -3,7 +3,7 @@ use anyhow::{anyhow, Result};
 use bld_config::definitions;
 use bld_config::path;
 use bld_utils::term::print_info;
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgAction, ArgMatches, Command};
 use std::fs;
 use std::path::Component::Normal;
 use std::path::{Path, PathBuf};
@@ -14,23 +14,23 @@ static SERVER: &str = "server";
 
 pub struct InitCommand;
 
-impl InitCommand {
-    pub fn boxed() -> Box<dyn BldCommand> {
+impl BldCommand for InitCommand {
+    fn boxed() -> Box<Self> {
         Box::new(InitCommand)
     }
-}
 
-impl BldCommand for InitCommand {
     fn id(&self) -> &'static str {
         INIT
     }
 
-    fn interface(&self) -> App<'static> {
-        let server = Arg::with_name(SERVER)
+    fn interface(&self) -> Command {
+        let server = Arg::new(SERVER)
             .short('s')
             .long("server")
-            .help("Initialize configuration for a bld server");
-        SubCommand::with_name(INIT)
+            .help("Initialize configuration for a bld server")
+            .action(ArgAction::SetTrue);
+
+        Command::new(INIT)
             .about("Initializes the build configuration")
             .version(definitions::VERSION)
             .arg(server)
@@ -39,7 +39,7 @@ impl BldCommand for InitCommand {
     fn exec(&self, matches: &ArgMatches) -> Result<()> {
         let build_dir_exists = build_dir_exists()?;
         if !build_dir_exists {
-            let is_server = matches.is_present(SERVER);
+            let is_server = matches.get_flag(SERVER);
             debug!("running {} subcommand with --server: {}", INIT, is_server);
             return create_build_dir()
                 .and_then(|_| create_logs_dir(is_server))
@@ -133,4 +133,16 @@ fn create_config_yaml(is_server: bool) -> Result<()> {
     fs::write(path, &content)?;
     print_info("config file created")?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cli_init_server_arg_is_a_flag() {
+        let command = InitCommand::boxed().interface();
+        let matches = command.get_matches_from(&["init", "-s"]);
+        assert_eq!(matches.get_flag(SERVER), true);
+    }
 }
