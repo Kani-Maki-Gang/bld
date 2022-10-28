@@ -109,6 +109,27 @@ pub fn select_last(conn: &mut SqliteConnection) -> Result<PipelineRuns> {
         })
 }
 
+pub fn select_with_filters(
+    conn: &mut SqliteConnection,
+    flt_state: &str,
+    limit_by: i64,
+) -> anyhow::Result<Vec<PipelineRuns>> {
+    debug!("loading pipeline runs from the database with filters:");
+    pipeline_runs
+        .filter(state.eq(flt_state))
+        .limit(limit_by)
+        .order(start_date_time)
+        .load(conn)
+        .map(|p| {
+            debug!("loaded all pipeline runs successfully");
+            p
+        })
+        .map_err(|e| {
+            error!("could not load pipeline runs due to: {e}");
+            anyhow!(e)
+        })
+}
+
 pub fn insert(
     conn: &mut SqliteConnection,
     pip_id: &str,
