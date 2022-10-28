@@ -1,6 +1,7 @@
 use crate::extractors::User;
+use crate::requests::HistQueryParams;
 use crate::responses::HistoryEntry;
-use actix_web::{get, web::Data, HttpResponse, Responder};
+use actix_web::{get, web::Query, web::Data, HttpResponse, Responder};
 use anyhow::Result;
 use bld_core::database::pipeline_runs;
 use diesel::r2d2::{ConnectionManager, Pool};
@@ -9,6 +10,7 @@ use tracing::info;
 
 #[get("/hist")]
 pub async fn hist(
+    query: Query<HistQueryParams>,
     user: Option<User>,
     db_pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
 ) -> impl Responder {
@@ -16,15 +18,18 @@ pub async fn hist(
     if user.is_none() {
         return HttpResponse::Unauthorized().body("");
     }
-    match history_info(db_pool.get_ref()) {
-        Ok(hist) => HttpResponse::Ok().json(hist),
+    let params = query.into_inner();
+    match history_info(db_pool.get_ref(), &params.state) {
+        Ok(ls) => HttpResponse::Ok().json(ls),
         Err(_) => HttpResponse::BadRequest().body(""),
     }
 }
 
-fn history_info(db_pool: &Pool<ConnectionManager<SqliteConnection>>) -> Result<Vec<HistoryEntry>> {
+fn history_info(db_pool: &Pool<ConnectionManager<SqliteConnection>>, state: &str) -> Result<Vec<HistoryEntry>> {
     let mut conn = db_pool.get()?;
-    let history: Vec<HistoryEntry> = pipeline_runs::select_all(&mut conn)
+    let history =
+        pipeline_runs::select_with_filters(&mut conn, state);
+    let entries = history
         .map(|entries| {
             entries
                 .into_iter()
@@ -36,8 +41,8 @@ fn history_info(db_pool: &Pool<ConnectionManager<SqliteConnection>>) -> Result<V
                     start_date_time: p.start_date_time,
                     end_date_time: p.end_date_time.unwrap_or_default(),
                 })
-                .collect()
+            .collect()
         })
-        .unwrap_or_else(|_| vec![]);
-    Ok(history)
+    .unwrap_or_else(|_| vec![]);
+    Ok(entries)
 }

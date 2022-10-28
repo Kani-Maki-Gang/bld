@@ -10,6 +10,7 @@ use tracing::debug;
 
 static HIST: &str = "hist";
 static SERVER: &str = "server";
+static STATE: &str = "state";
 
 pub struct HistCommand;
 
@@ -29,10 +30,17 @@ impl BldCommand for HistCommand {
             .action(ArgAction::Set)
             .help("The name of the server from which to fetch execution history");
 
+        let state = Arg::new(STATE)
+            .short('x')
+            .long("state")
+            .action(ArgAction::Set)
+            .default_value("running")
+            .help("Filter the pipelines excecution history with the provided state");
+
         Command::new(HIST)
             .about("Fetches execution history of pipelines on a server")
             .version(VERSION)
-            .args(&[server])
+            .args(&[server, state])
     }
 
     fn exec(&self, matches: &ArgMatches) -> Result<()> {
@@ -41,11 +49,12 @@ impl BldCommand for HistCommand {
             .remote
             .server_or_first(matches.get_one::<String>(SERVER))?;
 
+        let state = matches.get_one::<String>(STATE).unwrap();
         debug!("running {} subcommand with --server: {}", HIST, server.name);
 
         let server_auth = config.remote.same_auth_as(server)?;
         let protocol = server.http_protocol();
-        let url = format!("{protocol}://{}:{}/hist", server.host, server.port);
+        let url = format!("{protocol}://{}:{}/hist?state={state}", server.host, server.port);
         let headers = request::headers(&server_auth.name, &server_auth.auth)?;
 
         debug!("sending http request to {}", url);
