@@ -11,6 +11,7 @@ use tracing::debug;
 static HIST: &str = "hist";
 static SERVER: &str = "server";
 static STATE: &str = "state";
+static LIMIT: &str = "limit";
 
 pub struct HistCommand;
 
@@ -37,10 +38,17 @@ impl BldCommand for HistCommand {
             .default_value("running")
             .help("Filter the pipelines excecution history with the provided state");
 
+        let limit = Arg::new(LIMIT)
+            .short('l')
+            .long("limit")
+            .action(ArgAction::Set)
+            .default_value("100")
+            .help("Limit the results");
+
         Command::new(HIST)
             .about("Fetches execution history of pipelines on a server")
             .version(VERSION)
-            .args(&[server, state])
+            .args(&[server, state, limit])
     }
 
     fn exec(&self, matches: &ArgMatches) -> Result<()> {
@@ -50,11 +58,18 @@ impl BldCommand for HistCommand {
             .server_or_first(matches.get_one::<String>(SERVER))?;
 
         let state = matches.get_one::<String>(STATE).unwrap();
-        debug!("running {} subcommand with --server: {}", HIST, server.name);
+        let limit = matches.get_one::<String>(LIMIT).unwrap().parse::<i64>()?;
+        debug!(
+            "running {} subcommand with --server: {} --limit {limit}",
+            HIST, server.name
+        );
 
         let server_auth = config.remote.same_auth_as(server)?;
         let protocol = server.http_protocol();
-        let url = format!("{protocol}://{}:{}/hist?state={state}", server.host, server.port);
+        let url = format!(
+            "{protocol}://{}:{}/hist?state={state}&limit={limit}",
+            server.host, server.port
+        );
         let headers = request::headers(&server_auth.name, &server_auth.auth)?;
 
         debug!("sending http request to {}", url);
