@@ -1,4 +1,4 @@
-use crate::requests::RunInfo;
+use crate::messages::RunInfo;
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, Context, Handler, StreamHandler};
 use actix_codec::Framed;

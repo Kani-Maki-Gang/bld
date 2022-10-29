@@ -1,14 +1,11 @@
-use crate::{
-    base::{Queue, ServerMessages},
-    queues::WorkerQueue,
-};
+use crate::base::Queue;
+use crate::queues::WorkerQueue;
 use actix::prelude::*;
-use actix_web::{
-    web::{Bytes, Data, Payload},
-    Error, HttpRequest, HttpResponse,
-};
+use actix_web::web::{Bytes, Data, Payload};
+use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use bld_core::workers::PipelineWorker;
+use bld_sock::messages::ServerMessages;
 use std::env::current_exe;
 use std::process::Command;
 use std::sync::Mutex;

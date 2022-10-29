@@ -1,4 +1,4 @@
-use crate::{extractors::User, requests::MonitInfo};
+use crate::extractors::User;
 use actix::prelude::*;
 use actix_web::error::ErrorUnauthorized;
 use actix_web::web::{Data, Payload};
@@ -8,6 +8,7 @@ use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::database::pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED};
 use bld_core::scanner::{FileScanner, Scanner};
+use bld_sock::messages::MonitInfo;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::{sync::Arc, time::Duration};

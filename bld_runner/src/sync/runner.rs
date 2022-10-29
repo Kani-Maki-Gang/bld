@@ -8,7 +8,7 @@ use bld_core::context::Context;
 use bld_core::execution::Execution;
 use bld_core::logger::Logger;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_supervisor::base::WorkerMessages;
+use bld_sock::messages::WorkerMessages;
 use chrono::offset::Local;
 use std::collections::HashMap;
 use std::future::Future;
@@ -344,6 +344,13 @@ impl Runner {
         }
         self.call(step).await?;
         self.sh(step).await?;
+        Ok(())
+    }
+
+    async fn invoke(&mut self, step: &BuildStep) -> Result<()> {
+        for invoke in &step.invoke {
+
+        }
         Ok(())
     }
 

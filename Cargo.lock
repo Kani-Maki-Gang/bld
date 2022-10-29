@@ -447,6 +447,7 @@ dependencies = [
  "bld_core",
  "bld_runner",
  "bld_server",
+ "bld_sock",
  "bld_supervisor",
  "bld_utils",
  "chrono",
@@ -505,7 +506,7 @@ dependencies = [
  "awc",
  "bld_config",
  "bld_core",
- "bld_supervisor",
+ "bld_sock",
  "bld_utils",
  "chrono",
  "futures",
@@ -536,6 +537,7 @@ dependencies = [
  "bld_config",
  "bld_core",
  "bld_runner",
+ "bld_sock",
  "bld_supervisor",
  "bld_utils",
  "diesel",
@@ -552,6 +554,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "bld_sock"
+version = "0.1.0"
+dependencies = [
+ "actix",
+ "actix-codec",
+ "actix-http",
+ "actix-web",
+ "actix-web-actors",
+ "anyhow",
+ "awc",
+ "bld_config",
+ "futures",
+ "openssl",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "bld_supervisor"
 version = "0.1.0"
 dependencies = [
@@ -565,6 +588,7 @@ dependencies = [
  "awc",
  "bld_config",
  "bld_core",
+ "bld_sock",
  "diesel",
  "futures",
  "openssl",

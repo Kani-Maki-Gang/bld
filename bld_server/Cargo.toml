@@ -18,6 +18,7 @@ bld_config = { path = "../bld_config" }
 bld_utils = { path = "../bld_utils" }
 bld_core = { path = "../bld_core" }
 bld_runner = { path = "../bld_runner" }
+bld_sock = { path = "../bld_sock" }
 bld_supervisor = { path = "../bld_supervisor" }
 diesel = { version = "2.0.2", features = ["sqlite", "r2d2"] }
 futures-util = "0.3.15"

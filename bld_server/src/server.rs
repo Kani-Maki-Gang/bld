@@ -2,7 +2,7 @@ use crate::endpoints::{
     auth_redirect, deps, ha_append_entries, ha_install_snapshot, ha_vote, hist, home, inspect,
     list, pull, push, remove, run, stop,
 };
-use crate::sockets::{ws_exec, ws_high_avail, ws_monit, EnqueueClient};
+use crate::sockets::{ws_exec, ws_high_avail, ws_monit};
 use actix::io::SinkWrite;
 use actix::{Actor, Addr, StreamHandler};
 use actix_web::rt::spawn;
@@ -15,7 +15,8 @@ use bld_config::BldConfig;
 use bld_core::database::new_connection_pool;
 use bld_core::high_avail::HighAvail;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_supervisor::base::ServerMessages;
+use bld_sock::clients::EnqueueClient;
+use bld_sock::messages::ServerMessages;
 use futures::{join, stream::StreamExt};
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use std::env::{current_exe, set_var};

@@ -1,6 +1,5 @@
 use crate::extractors::User;
 use crate::helpers::enqueue_worker;
-use crate::requests::RunInfo;
 use actix::prelude::*;
 use actix_web::error::ErrorUnauthorized;
 use actix_web::web::{Data, Payload};
@@ -13,7 +12,7 @@ use bld_core::database::pipeline_runs::{
 };
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::scanner::{FileScanner, Scanner};
-use bld_supervisor::base::ServerMessages;
+use bld_sock::messages::{RunInfo, ServerMessages};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::sync::Arc;

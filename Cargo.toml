@@ -3,6 +3,7 @@ members = [
   "bld_core",
   "bld_utils",
   "bld_config",
+  "bld_sock",
   "bld_supervisor",
   "bld_runner",
   "bld_server",

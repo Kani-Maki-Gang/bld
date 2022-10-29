@@ -1,11 +1,10 @@
 use crate::extractors::User;
-use crate::requests::RunInfo;
 use actix_web::rt::spawn;
 use actix_web::web::Data;
 use anyhow::{bail, Result};
 use bld_core::database::pipeline_runs;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_supervisor::base::ServerMessages;
+use bld_sock::messages::{RunInfo, ServerMessages};
 use bld_utils::fs::IsYaml;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::SqliteConnection;

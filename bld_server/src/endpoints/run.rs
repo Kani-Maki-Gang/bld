@@ -1,10 +1,9 @@
 use crate::extractors::User;
 use crate::helpers::enqueue_worker;
-use crate::requests::RunInfo;
 use actix_web::web::{Data, Json};
 use actix_web::{post, HttpResponse, Responder};
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_supervisor::base::ServerMessages;
+use bld_sock::messages::{RunInfo, ServerMessages};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::SqliteConnection;
 use tokio::sync::mpsc::Sender;
