@@ -6,13 +6,12 @@ use awc::Client;
 use bld_config::BldConfig;
 use bld_core::logger::Logger;
 use bld_runner::RunnerBuilder;
-use bld_sock::messages::RunInfo;
 use bld_sock::clients::ExecClient;
+use bld_sock::messages::RunInfo;
 use bld_utils::request::{self, headers};
 use futures::stream::StreamExt;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::runtime::Runtime;
 use tracing::debug;
 
 struct ServerProperties {
@@ -73,8 +72,8 @@ impl InvokeRun {
     }
 
     fn invoke_local(&self) -> Result<()> {
-        let rt = Runtime::new()?;
-        rt.block_on(async {
+        let sys = System::new();
+        let res = sys.block_on(async move {
             let runner = RunnerBuilder::default()
                 .config(self.config.clone())
                 .pipeline(&self.pipeline)
@@ -84,7 +83,9 @@ impl InvokeRun {
                 .build()
                 .await?;
             runner.run().await.await
-        })
+        });
+        sys.run()?;
+        res
     }
 
     fn invoke_server(&self) -> Result<()> {
@@ -149,7 +150,7 @@ impl InvokeRun {
         let (sink, stream) = framed.split();
         let addr = ExecClient::create(|ctx| {
             ExecClient::add_stream(stream, ctx);
-            ExecClient::new(SinkWrite::new(sink, ctx))
+            ExecClient::new(Logger::shell_atom(), SinkWrite::new(sink, ctx))
         });
 
         debug!(

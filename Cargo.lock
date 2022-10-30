@@ -565,6 +565,7 @@ dependencies = [
  "anyhow",
  "awc",
  "bld_config",
+ "bld_core",
  "futures",
  "openssl",
  "serde",

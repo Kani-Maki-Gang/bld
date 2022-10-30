@@ -1,5 +1,8 @@
 use crate::{BuildStep, Container, Machine, Pipeline, RunsOn, TargetPlatform};
+use actix::{io::SinkWrite, Actor, StreamHandler};
 use anyhow::{anyhow, bail, Result};
+use awc::http::Version;
+use awc::Client;
 use bld_config::definitions::{
     ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN,
 };
@@ -8,13 +11,18 @@ use bld_core::context::Context;
 use bld_core::execution::Execution;
 use bld_core::logger::Logger;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_sock::messages::WorkerMessages;
+use bld_sock::clients::ExecClient;
+use bld_sock::messages::{RunInfo, WorkerMessages};
+use bld_utils::request::headers;
 use chrono::offset::Local;
+use futures::stream::StreamExt;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tokio::sync::mpsc::Sender;
+use tokio::time::sleep;
 use uuid::Uuid;
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
@@ -342,14 +350,65 @@ impl Runner {
             let mut logger = self.lg.lock().unwrap();
             logger.infoln(&format!("[bld] Step: {name}"));
         }
+        self.invoke(step).await?;
         self.call(step).await?;
         self.sh(step).await?;
         Ok(())
     }
 
-    async fn invoke(&mut self, step: &BuildStep) -> Result<()> {
+    async fn invoke(&self, step: &BuildStep) -> Result<()> {
         for invoke in &step.invoke {
+            if let Some(invoke) = self.pip.invoke.iter().find(|i| &i.name == invoke) {
+                let server = self.cfg.remote.server(&invoke.server)?;
+                let server_auth = self.cfg.remote.same_auth_as(&server)?;
+                let headers = headers(&server_auth.name, &server_auth.auth)?;
 
+                let variables = invoke
+                    .variables
+                    .iter()
+                    .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
+                    .collect();
+
+                let environment = invoke
+                    .environment
+                    .iter()
+                    .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
+                    .collect();
+
+                let url = format!(
+                    "{}://{}:{}/ws-exec/",
+                    server.ws_protocol(),
+                    server.host,
+                    server.port
+                );
+
+                let client = Client::builder()
+                    .max_http_version(Version::HTTP_11)
+                    .finish();
+                let mut client = client.ws(url);
+                for (key, value) in headers.iter() {
+                    client = client.header(&key[..], &value[..]);
+                }
+
+                let (_, framed) = client.connect().await.map_err(|e| anyhow!(e.to_string()))?;
+                let (sink, stream) = framed.split();
+                let addr = ExecClient::create(|ctx| {
+                    ExecClient::add_stream(stream, ctx);
+                    ExecClient::new(self.lg.clone(), SinkWrite::new(sink, ctx))
+                });
+
+                addr.send(RunInfo::new(
+                    &invoke.pipeline,
+                    Some(environment),
+                    Some(variables),
+                ))
+                .await
+                .map_err(|e| anyhow!(e))?;
+
+                while addr.connected() {
+                    sleep(Duration::from_millis(300)).await;
+                }
+            }
         }
         Ok(())
     }

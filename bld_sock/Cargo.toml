@@ -14,6 +14,7 @@ actix-web-actors = "4.1.0"
 awc = { version = "3.0.0", features = ["openssl"] }
 anyhow = "1.0.40"
 bld_config = { path = "../bld_config" }
+bld_core = { path = "../bld_core" }
 futures = "0.3.15"
 serde = "1.0.126"
 serde_derive = "1.0.126"

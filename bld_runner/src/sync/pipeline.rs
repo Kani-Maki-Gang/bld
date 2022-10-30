@@ -40,6 +40,33 @@ impl Variable {
 }
 
 #[derive(Debug)]
+pub struct Invoke {
+    pub name: String,
+    pub server: String,
+    pub pipeline: String,
+    pub variables: Vec<Variable>,
+    pub environment: Vec<Variable>,
+}
+
+impl Invoke {
+    pub fn new(
+        name: String,
+        server: String,
+        pipeline: String,
+        variables: Vec<Variable>,
+        environment: Vec<Variable>,
+    ) -> Self {
+        Self {
+            name,
+            server,
+            pipeline,
+            variables,
+            environment,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct BuildStep {
     pub name: Option<String>,
     pub working_dir: Option<String>,
@@ -101,6 +128,7 @@ pub struct Pipeline {
     pub environment: Vec<Variable>,
     pub variables: Vec<Variable>,
     pub artifacts: Vec<Artifacts>,
+    pub invoke: Vec<Invoke>,
     pub steps: Vec<BuildStep>,
 }
 
@@ -126,6 +154,7 @@ impl Pipeline {
             environment: Self::variables(yaml, "environment")?,
             variables: Self::variables(yaml, "variables")?,
             artifacts: Self::artifacts(yaml),
+            invoke: Self::invoke(yaml)?,
             steps: Self::steps(yaml),
         })
     }
@@ -168,8 +197,22 @@ impl Pipeline {
         artifacts
     }
 
+    fn invoke(yaml: &Yaml) -> Result<Vec<Invoke>> {
+        let mut invoke = vec![];
+        if let Some(entries) = yaml["invoke"].as_vec() {
+            for entry in entries {
+                let name = entry["name"].as_str().unwrap_or("").to_string();
+                let server = entry["server"].as_str().unwrap_or("").to_string();
+                let pipeline = entry["pipeline"].as_str().unwrap_or("").to_string();
+                let variables = Self::variables(entry, "variables")?;
+                let environment = Self::variables(entry, "environment")?;
+                invoke.push(Invoke::new(name, server, pipeline, variables, environment));
+            }
+        }
+        Ok(invoke)
+    }
+
     fn steps(yaml: &Yaml) -> Vec<BuildStep> {
-        let mut steps = Vec::<BuildStep>::new();
         let working_dir = yaml["working-dir"].as_str().map(|w| w.to_string());
         yaml["steps"]
             .as_vec()
