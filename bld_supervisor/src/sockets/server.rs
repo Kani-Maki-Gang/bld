@@ -1,14 +1,11 @@
-use crate::{
-    base::{Queue, ServerMessages},
-    queues::WorkerQueue,
-};
+use crate::base::Queue;
+use crate::queues::WorkerQueue;
 use actix::prelude::*;
-use actix_web::{
-    web::{Bytes, Data, Payload},
-    Error, HttpRequest, HttpResponse,
-};
+use actix_web::web::{Bytes, Data, Payload};
+use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use bld_core::workers::PipelineWorker;
+use bld_sock::messages::ServerMessages;
 use std::env::current_exe;
 use std::process::Command;
 use std::sync::Mutex;
@@ -45,12 +42,16 @@ impl ServerSocket {
                 command.arg("--run-id");
                 command.arg(&run_id);
                 if let Some(variables) = variables {
-                    command.arg("--variables");
-                    command.arg(&variables);
+                    for entry in variables {
+                        command.arg("--variable");
+                        command.arg(entry);
+                    }
                 }
                 if let Some(environment) = environment {
-                    command.arg("--environment");
-                    command.arg(&environment);
+                    for entry in environment {
+                        command.arg("--environment");
+                        command.arg(entry);
+                    }
                 }
                 let mut queue = self.worker_queue.lock().unwrap();
                 queue.enqueue(PipelineWorker::new(run_id, command))?;

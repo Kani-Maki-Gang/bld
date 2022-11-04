@@ -1,13 +1,10 @@
-use crate::{
-    base::{Queue, WorkerMessages},
-    queues::WorkerQueue,
-};
+use crate::base::Queue;
+use crate::queues::WorkerQueue;
 use actix::prelude::*;
-use actix_web::{
-    web::{Bytes, Data, Payload},
-    Error, HttpRequest, HttpResponse,
-};
+use actix_web::web::{Bytes, Data, Payload};
+use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
+use bld_sock::messages::WorkerMessages;
 use std::sync::Mutex;
 use tracing::{debug, error, info};
 

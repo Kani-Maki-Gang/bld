@@ -13,8 +13,8 @@ use bld_core::execution::Execution;
 use bld_core::logger::Logger;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::RunnerBuilder;
-use bld_supervisor::base::WorkerMessages;
-use bld_supervisor::sockets::WorkerClient;
+use bld_sock::clients::WorkerClient;
+use bld_sock::messages::WorkerMessages;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use futures::join;
 use futures::stream::StreamExt;
@@ -25,7 +25,7 @@ use tracing::{debug, error};
 const WORKER: &str = "worker";
 const PIPELINE: &str = "pipeline";
 const RUN_ID: &str = "run-id";
-const VARIABLES: &str = "variables";
+const VARIABLE: &str = "variable";
 const ENVIRONMENT: &str = "environment";
 
 pub struct WorkerCommand;
@@ -54,10 +54,10 @@ impl BldCommand for WorkerCommand {
             .action(ArgAction::Set)
             .required(true);
 
-        let variables = Arg::new(VARIABLES)
+        let variable = Arg::new(VARIABLE)
             .short('v')
-            .long(VARIABLES)
-            .help("Define values for variables in the server pipeline")
+            .long(VARIABLE)
+            .help("Define value for a variable in the server pipeline")
             .action(ArgAction::Append);
 
         let environment = Arg::new(ENVIRONMENT)
@@ -68,7 +68,7 @@ impl BldCommand for WorkerCommand {
 
         Command::new(WORKER)
             .about("A sub command that creates a worker process for a bld server in order to run a pipeline.")
-            .args(&[pipeline, run_id, variables, environment])
+            .args(&[pipeline, run_id, variable, environment])
     }
 
     fn exec(&self, matches: &ArgMatches) -> Result<()> {
@@ -77,7 +77,7 @@ impl BldCommand for WorkerCommand {
 
         let pipeline = Arc::new(matches.get_one::<String>(PIPELINE).cloned().unwrap());
         let run_id = Arc::new(matches.get_one::<String>(RUN_ID).cloned().unwrap());
-        let variables = Arc::new(parse_variables(matches, VARIABLES));
+        let variables = Arc::new(parse_variables(matches, VARIABLE));
         let environment = Arc::new(parse_variables(matches, ENVIRONMENT));
 
         let pool = Arc::new(new_connection_pool(&cfg.local.db)?);

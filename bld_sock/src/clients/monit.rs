@@ -1,4 +1,4 @@
-use crate::base::WorkerMessages;
+use crate::messages::MonitInfo;
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, Context, Handler, StreamHandler, System};
 use actix_codec::Framed;
@@ -8,42 +8,42 @@ use awc::BoxedSocket;
 use futures::stream::SplitSink;
 use tracing::debug;
 
-pub struct WorkerClient {
+pub struct MonitClient {
     writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>,
 }
 
-impl WorkerClient {
+impl MonitClient {
     pub fn new(writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>) -> Self {
         Self { writer }
     }
 }
 
-impl Actor for WorkerClient {
+impl Actor for MonitClient {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Context<Self>) {
-        debug!("supervisor socket started");
+        debug!("monit socket started");
     }
 
     fn stopped(&mut self, _ctx: &mut Context<Self>) {
-        debug!("supervisor socket stopped");
+        debug!("monit socket stoppped");
         if let Some(sys) = System::try_current() {
             sys.stop();
         }
     }
 }
 
-impl Handler<WorkerMessages> for WorkerClient {
+impl Handler<MonitInfo> for MonitClient {
     type Result = ();
 
-    fn handle(&mut self, msg: WorkerMessages, _ctx: &mut Self::Context) {
-        if let Ok(bytes) = serde_json::to_vec(&msg) {
-            let _ = self.writer.write(Message::Binary(bytes.into()));
+    fn handle(&mut self, msg: MonitInfo, _ctx: &mut Self::Context) {
+        if let Ok(text) = serde_json::to_string(&msg) {
+            let _ = self.writer.write(Message::Text(text.into()));
         }
     }
 }
 
-impl StreamHandler<Result<Frame, WsProtocolError>> for WorkerClient {
+impl StreamHandler<Result<Frame, WsProtocolError>> for MonitClient {
     fn handle(&mut self, msg: Result<Frame, WsProtocolError>, ctx: &mut Context<Self>) {
         match msg {
             Ok(Frame::Text(bt)) => println!("{}", String::from_utf8_lossy(&bt)),
@@ -57,4 +57,4 @@ impl StreamHandler<Result<Frame, WsProtocolError>> for WorkerClient {
     }
 }
 
-impl WriteHandler<WsProtocolError> for WorkerClient {}
+impl WriteHandler<WsProtocolError> for MonitClient {}

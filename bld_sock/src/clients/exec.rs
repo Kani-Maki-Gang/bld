@@ -1,4 +1,4 @@
-use crate::requests::RunInfo;
+use crate::messages::RunInfo;
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, Context, Handler, StreamHandler};
 use actix_codec::Framed;
@@ -6,16 +6,22 @@ use actix_web::rt::System;
 use awc::error::WsProtocolError;
 use awc::ws::{Codec, Frame, Message};
 use awc::BoxedSocket;
+use bld_core::logger::Logger;
 use futures::stream::SplitSink;
+use std::sync::{Arc, Mutex};
 use tracing::debug;
 
 pub struct ExecClient {
+    logger: Arc<Mutex<Logger>>,
     writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>,
 }
 
 impl ExecClient {
-    pub fn new(writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>) -> Self {
-        Self { writer }
+    pub fn new(
+        logger: Arc<Mutex<Logger>>,
+        writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>,
+    ) -> Self {
+        Self { logger, writer }
     }
 }
 
@@ -47,7 +53,11 @@ impl Handler<RunInfo> for ExecClient {
 impl StreamHandler<Result<Frame, WsProtocolError>> for ExecClient {
     fn handle(&mut self, msg: Result<Frame, WsProtocolError>, ctx: &mut Context<Self>) {
         match msg {
-            Ok(Frame::Text(bt)) => println!("{}", String::from_utf8_lossy(&bt[..])),
+            Ok(Frame::Text(bt)) => {
+                let message = format!("{}", String::from_utf8_lossy(&bt[..]));
+                let mut logger = self.logger.lock().unwrap();
+                logger.dumpln(&message);
+            }
             Ok(Frame::Close(_)) => ctx.stop(),
             _ => {}
         }

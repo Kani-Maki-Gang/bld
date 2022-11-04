@@ -40,9 +40,37 @@ impl Variable {
 }
 
 #[derive(Debug)]
+pub struct Invoke {
+    pub name: String,
+    pub server: String,
+    pub pipeline: String,
+    pub variables: Vec<Variable>,
+    pub environment: Vec<Variable>,
+}
+
+impl Invoke {
+    pub fn new(
+        name: String,
+        server: String,
+        pipeline: String,
+        variables: Vec<Variable>,
+        environment: Vec<Variable>,
+    ) -> Self {
+        Self {
+            name,
+            server,
+            pipeline,
+            variables,
+            environment,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct BuildStep {
     pub name: Option<String>,
     pub working_dir: Option<String>,
+    pub invoke: Vec<String>,
     pub call: Vec<String>,
     pub commands: Vec<String>,
 }
@@ -51,12 +79,14 @@ impl BuildStep {
     pub fn new(
         name: Option<String>,
         working_dir: Option<String>,
+        invoke: Vec<String>,
         call: Vec<String>,
         commands: Vec<String>,
     ) -> Self {
         Self {
             name,
             working_dir,
+            invoke,
             call,
             commands,
         }
@@ -98,6 +128,7 @@ pub struct Pipeline {
     pub environment: Vec<Variable>,
     pub variables: Vec<Variable>,
     pub artifacts: Vec<Artifacts>,
+    pub invoke: Vec<Invoke>,
     pub steps: Vec<BuildStep>,
 }
 
@@ -123,6 +154,7 @@ impl Pipeline {
             environment: Self::variables(yaml, "environment")?,
             variables: Self::variables(yaml, "variables")?,
             artifacts: Self::artifacts(yaml),
+            invoke: Self::invoke(yaml)?,
             steps: Self::steps(yaml),
         })
     }
@@ -165,33 +197,63 @@ impl Pipeline {
         artifacts
     }
 
-    fn steps(yaml: &Yaml) -> Vec<BuildStep> {
-        let mut steps = Vec::<BuildStep>::new();
-        let working_dir = yaml["working-dir"].as_str().map(|w| w.to_string());
-        if let Some(entries) = &yaml["steps"].as_vec() {
-            for step in entries.iter() {
-                let name = step["name"].as_str().map(|n| n.to_string());
-                let working_dir = step["working-dir"]
-                    .as_str()
-                    .map(|w| w.to_string())
-                    .or_else(|| working_dir.clone());
-                let call = step["call"]
-                    .as_vec()
-                    .unwrap_or(&Vec::<Yaml>::new())
-                    .iter()
-                    .map(|c| c.as_str().unwrap_or("").to_string())
-                    .filter(|c| !c.is_empty())
-                    .collect();
-                let commands: Vec<String> = step["exec"]
-                    .as_vec()
-                    .unwrap_or(&Vec::<Yaml>::new())
-                    .iter()
-                    .map(|c| c.as_str().unwrap_or("").to_string())
-                    .filter(|c| !c.is_empty())
-                    .collect();
-                steps.push(BuildStep::new(name, working_dir, call, commands));
+    fn invoke(yaml: &Yaml) -> Result<Vec<Invoke>> {
+        let mut invoke = vec![];
+        if let Some(entries) = yaml["invoke"].as_vec() {
+            for entry in entries {
+                let name = entry["name"].as_str().unwrap_or("").to_string();
+                let server = entry["server"].as_str().unwrap_or("").to_string();
+                let pipeline = entry["pipeline"].as_str().unwrap_or("").to_string();
+                let variables = Self::variables(entry, "variables")?;
+                let environment = Self::variables(entry, "environment")?;
+                invoke.push(Invoke::new(name, server, pipeline, variables, environment));
             }
         }
-        steps
+        Ok(invoke)
+    }
+
+    fn steps(yaml: &Yaml) -> Vec<BuildStep> {
+        let working_dir = yaml["working-dir"].as_str().map(|w| w.to_string());
+        yaml["steps"]
+            .as_vec()
+            .map(|steps| {
+                steps
+                    .iter()
+                    .map(|step| {
+                        let name = step["name"].as_str().map(|n| n.to_string());
+                        let working_dir = step["working-dir"]
+                            .as_str()
+                            .map(|w| w.to_string())
+                            .or_else(|| working_dir.clone());
+
+                        let invoke = step["invoke"]
+                            .as_vec()
+                            .unwrap_or(&Vec::<Yaml>::new())
+                            .iter()
+                            .map(|c| c.as_str().unwrap_or("").to_string())
+                            .filter(|c| !c.is_empty())
+                            .collect();
+
+                        let call = step["call"]
+                            .as_vec()
+                            .unwrap_or(&Vec::<Yaml>::new())
+                            .iter()
+                            .map(|c| c.as_str().unwrap_or("").to_string())
+                            .filter(|c| !c.is_empty())
+                            .collect();
+
+                        let commands: Vec<String> = step["exec"]
+                            .as_vec()
+                            .unwrap_or(&Vec::<Yaml>::new())
+                            .iter()
+                            .map(|c| c.as_str().unwrap_or("").to_string())
+                            .filter(|c| !c.is_empty())
+                            .collect();
+
+                        BuildStep::new(name, working_dir, invoke, call, commands)
+                    })
+                    .collect()
+            })
+            .unwrap_or_else(Vec::new)
     }
 }

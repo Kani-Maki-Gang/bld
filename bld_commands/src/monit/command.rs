@@ -1,4 +1,3 @@
-use crate::monit::MonitClient;
 use crate::BldCommand;
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use actix_web::rt::System;
@@ -6,7 +5,8 @@ use anyhow::{anyhow, Result};
 use awc::http::Version;
 use awc::Client;
 use bld_config::{definitions::VERSION, BldConfig};
-use bld_server::requests::MonitInfo;
+use bld_sock::clients::MonitClient;
+use bld_sock::messages::MonitInfo;
 use bld_utils::request::headers;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use futures::stream::StreamExt;
