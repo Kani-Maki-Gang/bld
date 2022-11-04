@@ -1,4 +1,4 @@
-use crate::run::invoke::InvokeRun;
+use crate::run::adapter::create_adapter;
 use crate::BldCommand;
 use anyhow::Result;
 use bld_config::definitions::{TOOL_DEFAULT_PIPELINE, VERSION};
@@ -84,7 +84,7 @@ impl BldCommand for RunCommand {
 
         debug!(message);
 
-        InvokeRun::new(config, pipeline, server, vars, env, detach)?.start()
+        create_adapter(config, pipeline, server, vars, env, detach)?.start()
     }
 }
 
