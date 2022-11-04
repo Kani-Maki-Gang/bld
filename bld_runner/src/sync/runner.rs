@@ -374,7 +374,10 @@ impl Runner {
     }
 
     async fn invoke(&self, step: &BuildStep) -> Result<()> {
-        debug!("starting execution of invoke section for step {:?}", step.name);
+        debug!(
+            "starting execution of invoke section for step {:?}",
+            step.name
+        );
         for invoke in &step.invoke {
             if let Some(invoke) = self.pip.invoke.iter().find(|i| &i.name == invoke) {
                 let server = self.cfg.remote.server(&invoke.server)?;
@@ -400,7 +403,10 @@ impl Runner {
                     server.port
                 );
 
-                debug!("establishing web socket connection with server {}", server.name);
+                debug!(
+                    "establishing web socket connection with server {}",
+                    server.name
+                );
 
                 let client = Client::builder()
                     .max_http_version(Version::HTTP_11)
