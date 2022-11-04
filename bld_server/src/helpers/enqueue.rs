@@ -48,9 +48,8 @@ pub fn enqueue_worker(
     Ok(run.id)
 }
 
-fn hash_map_to_var_string(hmap: HashMap<String, String>) -> String {
+fn hash_map_to_var_string(hmap: HashMap<String, String>) -> Vec<String> {
     hmap.iter()
         .map(|(k, v)| format!("{k}={v}"))
-        .collect::<Vec<String>>()
-        .join(" ")
+        .collect()
 }

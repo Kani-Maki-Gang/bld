@@ -11,8 +11,8 @@ pub enum ServerMessages {
     Enqueue {
         pipeline: String,
         run_id: String,
-        variables: Option<String>,
-        environment: Option<String>,
+        variables: Option<Vec<String>>,
+        environment: Option<Vec<String>>,
     },
 }
 

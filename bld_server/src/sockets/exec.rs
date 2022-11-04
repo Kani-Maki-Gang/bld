@@ -18,7 +18,7 @@ use diesel::sqlite::SqliteConnection;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
-use tracing::error;
+use tracing::{debug, error};
 
 pub struct ExecutePipelineSocket {
     config: Data<BldConfig>,
@@ -81,6 +81,7 @@ impl ExecutePipelineSocket {
 
     fn enqueue(&mut self, text: &str) -> Result<()> {
         let data = serde_json::from_str::<RunInfo>(text)?;
+        debug!("enqueueing run");
         enqueue_worker(
             &self.user,
             self.proxy.clone(),

@@ -23,6 +23,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tokio::time::sleep;
+use tracing::debug;
 use uuid::Uuid;
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
@@ -225,12 +226,14 @@ impl Runner {
     async fn exec_persist_start(&self) {
         let mut exec = self.ex.lock().unwrap();
         if !self.is_child {
+            debug!("setting the pipeline as running in the execution context");
             let _ = exec.set_as_running();
         }
     }
 
     async fn exec_persist_end(&self) -> Result<()> {
         if !self.is_child {
+            debug!("setting state of root pipeline");
             let mut exec = self.ex.lock().unwrap();
             let _ = if self.has_faulted {
                 exec.set_as_faulted()
@@ -239,14 +242,17 @@ impl Runner {
             };
         }
         if self.pip.dispose {
+            debug!("executing dispose operations for platform");
             self.platform.dispose(self.is_child).await?;
         } else {
+            debug!("keeping platform alive");
             self.platform.keep_alive()?;
         }
         Ok(())
     }
 
     fn exec_check_stop_signal(&self) -> Result<()> {
+        debug!("checking for stop signal");
         let exec = self.ex.lock().unwrap();
         exec.check_stop_signal()
     }
@@ -254,6 +260,7 @@ impl Runner {
     async fn ipc_send_completed(&self) -> Result<()> {
         if !self.is_child {
             if let Some(ipc) = Option::as_ref(&self.ipc) {
+                debug!("sending message to supervisor for a completed run");
                 ipc.send(WorkerMessages::Completed).await?;
             }
         }
@@ -261,6 +268,7 @@ impl Runner {
     }
 
     fn info(&self) {
+        debug!("printing pipeline informantion");
         let mut logger = self.lg.lock().unwrap();
         if let Some(name) = &self.pip.name {
             logger.dumpln(&format!("[bld] Pipeline: {name}"));
@@ -308,12 +316,14 @@ impl Runner {
     }
 
     async fn artifacts(&self, name: &Option<String>) -> Result<()> {
+        debug!("executing artifact operation related to step {:?}", name);
         for artifact in self.pip.artifacts.iter().filter(|a| &a.after == name) {
             let can_continue = (artifact.method == Some(PUSH.to_string())
                 || artifact.method == Some(GET.to_string()))
                 && artifact.from.is_some()
                 && artifact.to.is_some();
             if can_continue {
+                debug!("applying context for artifact");
                 let method = self.apply_context(artifact.method.as_ref().unwrap());
                 let from = self.apply_context(artifact.from.as_ref().unwrap());
                 let to = self.apply_context(artifact.to.as_ref().unwrap());
@@ -324,8 +334,14 @@ impl Runner {
                     ));
                 }
                 let result = match &method[..] {
-                    PUSH => self.platform.push(&from, &to).await,
-                    GET => self.platform.get(&from, &to).await,
+                    PUSH => {
+                        debug!("executing {PUSH} artifact operation");
+                        self.platform.push(&from, &to).await
+                    }
+                    GET => {
+                        debug!("executing {GET} artifact operation");
+                        self.platform.get(&from, &to).await
+                    }
                     _ => unreachable!(),
                 };
                 if !artifact.ignore_errors {
@@ -337,6 +353,7 @@ impl Runner {
     }
 
     async fn steps(&mut self) -> Result<()> {
+        debug!("starting execution of pipeline steps");
         for step in &self.pip.steps {
             self.step(step).await?;
             self.artifacts(&step.name).await?;
@@ -357,6 +374,7 @@ impl Runner {
     }
 
     async fn invoke(&self, step: &BuildStep) -> Result<()> {
+        debug!("starting execution of invoke section for step {:?}", step.name);
         for invoke in &step.invoke {
             if let Some(invoke) = self.pip.invoke.iter().find(|i| &i.name == invoke) {
                 let server = self.cfg.remote.server(&invoke.server)?;
@@ -382,6 +400,8 @@ impl Runner {
                     server.port
                 );
 
+                debug!("establishing web socket connection with server {}", server.name);
+
                 let client = Client::builder()
                     .max_http_version(Version::HTTP_11)
                     .finish();
@@ -396,6 +416,8 @@ impl Runner {
                     ExecClient::add_stream(stream, ctx);
                     ExecClient::new(self.lg.clone(), SinkWrite::new(sink, ctx))
                 });
+
+                debug!("sending message for pipeline execution over the web socket");
 
                 addr.send(RunInfo::new(
                     &invoke.pipeline,
@@ -414,8 +436,12 @@ impl Runner {
     }
 
     async fn call(&self, step: &BuildStep) -> Result<()> {
+        debug!("starting execution of call section for step");
         for call in &step.call {
             let call = self.apply_context(call);
+
+            debug!("building runner for child pipeline");
+
             let runner = RunnerBuilder::default()
                 .run_id(&self.run_id)
                 .run_start_time(&self.run_start_time)
@@ -431,6 +457,9 @@ impl Runner {
                 .is_child(true)
                 .build()
                 .await?;
+
+            debug!("starting child pipeline runner");
+
             runner.run().await.await?;
             self.exec_check_stop_signal()?;
         }
@@ -438,12 +467,16 @@ impl Runner {
     }
 
     async fn sh(&self, step: &BuildStep) -> Result<()> {
+        debug!("start execution of exec section for step");
         for command in step.commands.iter() {
             let working_dir = step.working_dir.as_ref().map(|wd| self.apply_context(wd));
             let command = self.apply_context(command);
+
+            debug!("executing shell command {}", command);
             self.platform
                 .shell(&working_dir, &command, self.ex.clone())
                 .await?;
+
             self.exec_check_stop_signal()?;
         }
         Ok(())
@@ -474,6 +507,7 @@ impl Runner {
     }
 
     async fn cleanup(&self) -> Result<()> {
+        debug!("starting cleanup operations for runner");
         self.exec_persist_end().await?;
         self.ipc_send_completed().await?;
         Ok(())
@@ -484,6 +518,7 @@ impl Runner {
             self.start().await;
             let execution_result = self.execute().await;
             let cleanup_result = self.cleanup().await;
+            debug!("runner completed");
             execution_result.and(cleanup_result)
         })
     }

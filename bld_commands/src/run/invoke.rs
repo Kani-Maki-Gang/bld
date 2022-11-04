@@ -82,9 +82,13 @@ impl InvokeRun {
                 .variables(Arc::new(self.variables.clone()))
                 .build()
                 .await?;
-            runner.run().await.await
+            let res = runner.run().await.await;
+            let sys = System::current();
+            sys.stop();
+            res
         });
         sys.run()?;
+        debug!("local run finished");
         res
     }
 
@@ -96,6 +100,7 @@ impl InvokeRun {
             let sys = System::new();
             let res = sys.block_on(async move { self.connect_to_exec_socket().await });
             sys.run()?;
+            debug!("server run finished");
             res
         }
     }

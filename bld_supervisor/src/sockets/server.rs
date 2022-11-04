@@ -42,12 +42,16 @@ impl ServerSocket {
                 command.arg("--run-id");
                 command.arg(&run_id);
                 if let Some(variables) = variables {
-                    command.arg("--variables");
-                    command.arg(&variables);
+                    for entry in variables {
+                        command.arg("--variable");
+                        command.arg(entry);
+                    }
                 }
                 if let Some(environment) = environment {
-                    command.arg("--environment");
-                    command.arg(&environment);
+                    for entry in environment {
+                        command.arg("--environment");
+                        command.arg(entry);
+                    }
                 }
                 let mut queue = self.worker_queue.lock().unwrap();
                 queue.enqueue(PipelineWorker::new(run_id, command))?;
