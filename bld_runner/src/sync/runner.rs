@@ -381,7 +381,7 @@ impl Runner {
         for invoke in &step.invoke {
             if let Some(invoke) = self.pip.invoke.iter().find(|i| &i.name == invoke) {
                 let server = self.cfg.remote.server(&invoke.server)?;
-                let server_auth = self.cfg.remote.same_auth_as(&server)?;
+                let server_auth = self.cfg.remote.same_auth_as(server)?;
                 let headers = headers(&server_auth.name, &server_auth.auth)?;
 
                 let variables = invoke

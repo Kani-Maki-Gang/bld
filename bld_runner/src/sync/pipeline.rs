@@ -254,6 +254,6 @@ impl Pipeline {
                     })
                     .collect()
             })
-            .unwrap_or_else(|| vec![])
+            .unwrap_or_else(Vec::new)
     }
 }
