@@ -8,7 +8,6 @@ use actix::{Actor, Addr, StreamHandler};
 use actix_web::rt::spawn;
 use actix_web::web::{get, resource, Data};
 use actix_web::{middleware, App, HttpServer};
-use awc::ClientBuilder;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::database::new_connection_pool;

@@ -1,8 +1,6 @@
 use crate::{BuildStep, Container, Machine, Pipeline, RunsOn, TargetPlatform};
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use anyhow::{anyhow, bail, Result};
-use awc::http::Version;
-use awc::Client;
 use bld_config::definitions::{
     ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN,
 };
@@ -14,6 +12,7 @@ use bld_core::proxies::PipelineFileSystemProxy;
 use bld_sock::clients::ExecClient;
 use bld_sock::messages::{RunInfo, WorkerMessages};
 use bld_utils::request::headers;
+use bld_utils::tls::awc_client;
 use chrono::offset::Local;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
@@ -408,10 +407,7 @@ impl Runner {
                     server.name
                 );
 
-                let client = Client::builder()
-                    .max_http_version(Version::HTTP_11)
-                    .finish();
-                let mut client = client.ws(url);
+                let mut client = awc_client()?.ws(url);
                 for (key, value) in headers.iter() {
                     client = client.header(&key[..], &value[..]);
                 }

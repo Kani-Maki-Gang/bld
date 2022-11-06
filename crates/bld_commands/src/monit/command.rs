@@ -2,12 +2,11 @@ use crate::BldCommand;
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
-use awc::http::Version;
-use awc::Client;
 use bld_config::{definitions::VERSION, BldConfig};
 use bld_sock::clients::MonitClient;
 use bld_sock::messages::MonitInfo;
 use bld_utils::request::headers;
+use bld_utils::tls::awc_client;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use futures::stream::StreamExt;
 use std::collections::HashMap;
@@ -107,10 +106,7 @@ async fn request(info: MonitConnectionInfo) -> Result<()> {
 
     debug!("establishing web socket connection on {}", url);
 
-    let client = Client::builder()
-        .max_http_version(Version::HTTP_11)
-        .finish();
-    let mut client = client.ws(url);
+    let mut client = awc_client()?.ws(url);
     for (key, value) in info.headers.iter() {
         client = client.header(&key[..], &value[..]);
     }

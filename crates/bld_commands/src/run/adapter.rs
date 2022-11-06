@@ -1,14 +1,13 @@
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
-use awc::http::Version;
-use awc::Client;
 use bld_config::BldConfig;
 use bld_core::logger::Logger;
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::ExecClient;
 use bld_sock::messages::RunInfo;
 use bld_utils::request::{self, headers};
+use bld_utils::tls::awc_client;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -111,10 +110,7 @@ impl RunWithWebSocketAdapter {
 
         debug!("establishing web socker connection on {}", url);
 
-        let client = Client::builder()
-            .max_http_version(Version::HTTP_11)
-            .finish();
-        let mut client = client.ws(url);
+        let mut client = awc_client()?.ws(url);
         for (key, value) in server_props.headers.iter() {
             client = client.header(&key[..], &value[..]);
         }

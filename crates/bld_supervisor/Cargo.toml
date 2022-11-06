@@ -11,7 +11,6 @@ actix-codec = "0.5.0"
 actix-http = "3.0.4"
 actix-web = { version = "4.0.1", features = ["rustls"] }
 actix-web-actors = "4.1.0"
-awc = { version = "3.0.0", features = ["rustls"] }
 anyhow = "1.0.40"
 async-trait = "0.1.50"
 bld_config = { path = "../bld_config" }

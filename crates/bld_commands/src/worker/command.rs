@@ -4,8 +4,6 @@ use actix::io::SinkWrite;
 use actix::{Actor, StreamHandler};
 use actix_web::rt::{spawn, System};
 use anyhow::{anyhow, Result};
-use awc::http::Version;
-use awc::Client;
 use bld_config::BldConfig;
 use bld_core::context::Context;
 use bld_core::database::{new_connection_pool, pipeline_runs};
@@ -15,6 +13,7 @@ use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::WorkerClient;
 use bld_sock::messages::WorkerMessages;
+use bld_utils::tls::awc_client;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use futures::join;
 use futures::stream::StreamExt;
@@ -154,10 +153,7 @@ async fn connect_to_supervisor(
 
     debug!("establishing web socket connection on {}", url);
 
-    let client = Client::builder()
-        .max_http_version(Version::HTTP_11)
-        .finish();
-    let client = client.ws(url).connect();
+    let client = awc_client()?.ws(url).connect();
     let (_, framed) = client.await.map_err(|e| {
         error!("{e}");
         anyhow!(e.to_string())
