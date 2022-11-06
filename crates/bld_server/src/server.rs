@@ -8,17 +8,17 @@ use actix::{Actor, Addr, StreamHandler};
 use actix_web::rt::spawn;
 use actix_web::web::{get, resource, Data};
 use actix_web::{middleware, App, HttpServer};
+use awc::ClientBuilder;
 use anyhow::{anyhow, Result};
-use awc::http::Version;
-use awc::Client;
 use bld_config::BldConfig;
 use bld_core::database::new_connection_pool;
 use bld_core::high_avail::HighAvail;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_sock::clients::EnqueueClient;
 use bld_sock::messages::ServerMessages;
+use bld_utils::tls::{load_server_certificate, load_server_private_key, awc_client};
 use futures::{join, stream::StreamExt};
-use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+use rustls::ServerConfig;
 use std::env::{current_exe, set_var};
 use std::sync::Arc;
 use tokio::process::{Child, Command};
@@ -74,10 +74,13 @@ async fn spawn_server(
     let address = format!("{host}:{port}");
     server = match &config.local.server.tls {
         Some(tls) => {
-            let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
-            builder.set_private_key_file(&tls.private_key, SslFiletype::PEM)?;
-            builder.set_certificate_chain_file(&tls.cert_chain)?;
-            server.bind_openssl(address, builder)?
+            let cert_chain = load_server_certificate(&tls.cert_chain)?;
+            let private_key = load_server_private_key(&tls.private_key)?;
+            let builder = ServerConfig::builder()
+                .with_safe_defaults()
+                .with_no_client_auth()
+                .with_single_cert(cert_chain, private_key)?;
+            server.bind_rustls(address, builder)?
         }
         None => server.bind(address)?,
     };
@@ -100,9 +103,7 @@ async fn supervisor_socket(
 
     debug!("establishing web socket connection on {}", url);
 
-    let client = Client::builder()
-        .max_http_version(Version::HTTP_11)
-        .finish();
+    let client = awc_client()?;
     let (_, framed) = client.ws(url).connect().await.map_err(|e| {
         error!("{e}");
         anyhow!(e.to_string())

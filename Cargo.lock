@@ -157,10 +157,10 @@ dependencies = [
  "futures-core",
  "http",
  "log",
- "openssl",
  "pin-project-lite",
- "tokio-openssl",
+ "tokio-rustls",
  "tokio-util",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -399,10 +399,10 @@ dependencies = [
  "itoa",
  "log",
  "mime",
- "openssl",
  "percent-encoding",
  "pin-project-lite",
  "rand 0.8.5",
+ "rustls",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -543,7 +543,7 @@ dependencies = [
  "diesel",
  "futures",
  "futures-util",
- "openssl",
+ "rustls",
  "serde",
  "serde_derive",
  "serde_json",
@@ -567,7 +567,7 @@ dependencies = [
  "bld_config",
  "bld_core",
  "futures",
- "openssl",
+ "rustls",
  "serde",
  "serde_derive",
  "serde_json",
@@ -590,9 +590,10 @@ dependencies = [
  "bld_config",
  "bld_core",
  "bld_sock",
+ "bld_utils",
  "diesel",
  "futures",
- "openssl",
+ "rustls",
  "serde",
  "serde_derive",
  "serde_json",
@@ -607,8 +608,12 @@ name = "bld_utils"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "awc",
  "bld_config",
  "reqwest",
+ "rustls",
+ "rustls-native-certs",
+ "rustls-pemfile",
  "serde",
  "serde_derive",
  "serde_json",
@@ -1925,14 +1930,26 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.20.6"
+version = "0.20.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5aab8ee6c7097ed6057f43c187a62418d0c05a4bd5f18b3571db50ee0f9ce033"
+checksum = "539a2bfe908f471bfa933876bd1eb6a19cf2176d375f82ef7f99530a40e48c2c"
 dependencies = [
  "log",
  "ring",
  "sct",
  "webpki",
+]
+
+[[package]]
+name = "rustls-native-certs"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0167bac7a9f490495f3c33013e7722b53cb087ecbe082fb0c6387c96f634ea50"
+dependencies = [
+ "openssl-probe",
+ "rustls-pemfile",
+ "schannel",
+ "security-framework",
 ]
 
 [[package]]

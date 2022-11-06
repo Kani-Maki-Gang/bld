@@ -2,6 +2,7 @@ pub mod errors;
 pub mod fs;
 pub mod request;
 pub mod term;
+pub mod tls;
 
 #[cfg(test)]
 mod tests {

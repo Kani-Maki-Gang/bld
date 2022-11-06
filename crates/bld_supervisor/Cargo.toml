@@ -9,14 +9,15 @@ edition = "2021"
 actix = "0.13.0"
 actix-codec = "0.5.0"
 actix-http = "3.0.4"
-actix-web = { version = "4.0.1", features = ["openssl"] }
+actix-web = { version = "4.0.1", features = ["rustls"] }
 actix-web-actors = "4.1.0"
-awc = { version = "3.0.0", features = ["openssl"] }
+awc = { version = "3.0.0", features = ["rustls"] }
 anyhow = "1.0.40"
 async-trait = "0.1.50"
 bld_config = { path = "../bld_config" }
 bld_core = { path = "../bld_core" }
 bld_sock = { path = "../bld_sock" }
+bld_utils = { path = "../bld_utils" }
 diesel = { version = "2.0.2", features = ["sqlite", "r2d2"] }
 futures = "0.3.15"
 serde = "1.0.126"
@@ -26,4 +27,4 @@ shiplift = "0.7.0"
 tokio = { version = "1.15", features = ["full"] }
 tracing = "0.1.36"
 uuid = { version = "0.8.2", features = ["v4"] }
-openssl = "0.10.42"
+rustls = "0.20.7"

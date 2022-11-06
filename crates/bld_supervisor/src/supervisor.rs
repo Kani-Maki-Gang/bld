@@ -5,7 +5,8 @@ use actix_web::{App, HttpServer};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::database::new_connection_pool;
-use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+use bld_utils::tls::{load_server_certificate, load_server_private_key};
+use rustls::ServerConfig;
 use std::sync::Mutex;
 
 pub async fn start(config: BldConfig) -> Result<()> {
@@ -33,10 +34,13 @@ pub async fn start(config: BldConfig) -> Result<()> {
 
     server = match &config.local.supervisor.tls {
         Some(tls) => {
-            let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
-            builder.set_private_key_file(&tls.private_key, SslFiletype::PEM)?;
-            builder.set_certificate_chain_file(&tls.cert_chain)?;
-            server.bind_openssl(address, builder)?
+            let cert_chain = load_server_certificate(&tls.cert_chain)?;
+            let private_key = load_server_private_key(&tls.private_key)?;
+            let builder = ServerConfig::builder()
+                .with_safe_defaults()
+                .with_no_client_auth()
+                .with_single_cert(cert_chain, private_key)?;
+            server.bind_rustls(address, builder)?
         }
         None => server.bind(address)?,
     };

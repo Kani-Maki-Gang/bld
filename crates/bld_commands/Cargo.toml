@@ -8,9 +8,9 @@ edition = "2021"
 [dependencies]
 actix = "0.13.0"
 actix-codec = "0.5.0"
-actix-web = { version = "4.0.1", features = ["openssl"] }
+actix-web = { version = "4.0.1", features = ["rustls"] }
 anyhow = "1.0.40"
-awc = { version = "3.0.0", features = ["openssl"] }
+awc = { version = "3.0.0", features = ["rustls"] }
 bld_config = { path = "../bld_config" }
 bld_utils = { path = "../bld_utils" }
 bld_core = { path = "../bld_core" }

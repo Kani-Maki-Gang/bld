@@ -9,9 +9,9 @@ edition = "2021"
 actix = "0.13.0"
 actix-codec = "0.5.0"
 actix-http = "3.0.4"
-actix-web = { version = "4.0.1", features = ["openssl"] }
+actix-web = { version = "4.0.1", features = ["rustls"] }
 actix-web-actors = "4.1.0"
-awc = { version = "3.0.0", features = ["openssl"] }
+awc = { version = "3.0.0", features = ["rustls"] }
 anyhow = "1.0.40"
 bld_config = { path = "../bld_config" }
 bld_core = { path = "../bld_core" }
@@ -21,4 +21,4 @@ serde_derive = "1.0.126"
 serde_json = "1.0.64"
 tokio = { version = "1.15", features = ["full"] }
 tracing = "0.1.36"
-openssl = "0.10.42"
+rustls = "0.20.7"
