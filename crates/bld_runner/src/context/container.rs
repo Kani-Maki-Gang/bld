@@ -121,7 +121,7 @@ impl Container {
         &self,
         working_dir: &Option<String>,
         input: &str,
-        ex: Arc<Mutex<Execution>>,
+        execution: Arc<Execution>,
     ) -> Result<()> {
         let client = self.get_client()?;
         let id = self.get_id()?;
@@ -141,10 +141,7 @@ impl Container {
         let mut exec_stream = exec.start();
 
         while let Some(result) = exec_stream.next().await {
-            {
-                let exec = ex.lock().unwrap();
-                exec.check_stop_signal()?
-            }
+            execution.check_stop_signal()?;
 
             let chunk = match result {
                 Ok(TtyChunk::StdOut(bytes)) => String::from_utf8(bytes)?,

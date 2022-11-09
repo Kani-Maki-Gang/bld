@@ -26,7 +26,6 @@ use tracing::debug;
 use uuid::Uuid;
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
-type AtomicExec = Arc<Mutex<Execution>>;
 type AtomicVars = Arc<HashMap<String, String>>;
 type AtomicProxy = Arc<PipelineFileSystemProxy>;
 type AtomicContext = Arc<Mutex<Context>>;
@@ -35,7 +34,7 @@ pub struct RunnerBuilder {
     run_id: String,
     run_start_time: String,
     cfg: Option<Arc<BldConfig>>,
-    ex: AtomicExec,
+    execution: Arc<Execution>,
     logger: Arc<LoggerSender>,
     prx: AtomicProxy,
     pip: Option<String>,
@@ -52,7 +51,7 @@ impl Default for RunnerBuilder {
             run_id: Uuid::new_v4().to_string(),
             run_start_time: Local::now().format("%F %X").to_string(),
             cfg: None,
-            ex: Execution::empty_atom(),
+            execution: Execution::empty_atom(),
             logger: LoggerSender::empty_atom(),
             prx: Arc::new(PipelineFileSystemProxy::Local),
             pip: None,
@@ -81,8 +80,8 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn execution(mut self, ex: AtomicExec) -> Self {
-        self.ex = ex;
+    pub fn execution(mut self, ex: Arc<Execution>) -> Self {
+        self.execution = ex;
         self
     }
 
@@ -183,7 +182,7 @@ impl RunnerBuilder {
             run_id: self.run_id,
             run_start_time: self.run_start_time,
             cfg,
-            ex: self.ex,
+            execution: self.execution,
             logger: self.logger,
             prx: self.prx,
             pip: pipeline,
@@ -202,7 +201,7 @@ pub struct Runner {
     run_id: String,
     run_start_time: String,
     cfg: Arc<BldConfig>,
-    ex: AtomicExec,
+    execution: Arc<Execution>,
     logger: Arc<LoggerSender>,
     prx: AtomicProxy,
     pip: Pipeline,
@@ -216,23 +215,22 @@ pub struct Runner {
 }
 
 impl Runner {
-    async fn exec_persist_start(&self) {
-        let mut exec = self.ex.lock().unwrap();
+    async fn register_start(&self) -> Result<()> {
         if !self.is_child {
             debug!("setting the pipeline as running in the execution context");
-            let _ = exec.set_as_running();
+            self.execution.set_as_running()?;
         }
+        Ok(())
     }
 
-    async fn exec_persist_end(&self) -> Result<()> {
+    async fn register_completion(&self) -> Result<()> {
         if !self.is_child {
             debug!("setting state of root pipeline");
-            let mut exec = self.ex.lock().unwrap();
-            let _ = if self.has_faulted {
-                exec.set_as_faulted()
+            if self.has_faulted {
+                self.execution.set_as_faulted()?;
             } else {
-                exec.set_as_finished()
-            };
+                self.execution.set_as_finished()?;
+            }
         }
         if self.pip.dispose {
             debug!("executing dispose operations for platform");
@@ -244,10 +242,9 @@ impl Runner {
         Ok(())
     }
 
-    fn exec_check_stop_signal(&self) -> Result<()> {
+    fn check_stop_signal(&self) -> Result<()> {
         debug!("checking for stop signal");
-        let exec = self.ex.lock().unwrap();
-        exec.check_stop_signal()
+        self.execution.check_stop_signal()
     }
 
     async fn ipc_send_completed(&self) -> Result<()> {
@@ -360,7 +357,7 @@ impl Runner {
         for step in &self.pip.steps {
             self.step(step).await?;
             self.artifacts(&step.name).await?;
-            self.exec_check_stop_signal()?;
+            self.check_stop_signal()?;
         }
         Ok(())
     }
@@ -453,7 +450,7 @@ impl Runner {
                 .config(self.cfg.clone())
                 .proxy(self.prx.clone())
                 .pipeline(&call)
-                .execution(self.ex.clone())
+                .execution(self.execution.clone())
                 .logger(self.logger.clone())
                 .environment(self.env.clone())
                 .variables(self.vars.clone())
@@ -466,7 +463,7 @@ impl Runner {
             debug!("starting child pipeline runner");
 
             runner.run().await.await?;
-            self.exec_check_stop_signal()?;
+            self.check_stop_signal()?;
         }
         Ok(())
     }
@@ -479,16 +476,16 @@ impl Runner {
 
             debug!("executing shell command {}", command);
             self.platform
-                .shell(&working_dir, &command, self.ex.clone())
+                .shell(&working_dir, &command, self.execution.clone())
                 .await?;
 
-            self.exec_check_stop_signal()?;
+            self.check_stop_signal()?;
         }
         Ok(())
     }
 
     async fn start(&self) -> Result<()> {
-        self.exec_persist_start().await;
+        self.register_start().await?;
         self.info().await?;
         Ok(())
     }
@@ -514,7 +511,7 @@ impl Runner {
 
     async fn cleanup(&self) -> Result<()> {
         debug!("starting cleanup operations for runner");
-        self.exec_persist_end().await?;
+        self.register_completion().await?;
         self.ipc_send_completed().await?;
         Ok(())
     }
