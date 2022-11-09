@@ -7,7 +7,7 @@ use bld_config::definitions::{
 use bld_config::BldConfig;
 use bld_core::context::Context;
 use bld_core::execution::Execution;
-use bld_core::logger::Logger;
+use bld_core::logger::LoggerSender;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_sock::clients::ExecClient;
 use bld_sock::messages::{RunInfo, WorkerMessages};
@@ -27,7 +27,6 @@ use uuid::Uuid;
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 type AtomicExec = Arc<Mutex<Execution>>;
-type AtomicLog = Arc<Mutex<Logger>>;
 type AtomicVars = Arc<HashMap<String, String>>;
 type AtomicProxy = Arc<PipelineFileSystemProxy>;
 type AtomicContext = Arc<Mutex<Context>>;
@@ -37,7 +36,7 @@ pub struct RunnerBuilder {
     run_start_time: String,
     cfg: Option<Arc<BldConfig>>,
     ex: AtomicExec,
-    lg: AtomicLog,
+    logger: Arc<LoggerSender>,
     prx: AtomicProxy,
     pip: Option<String>,
     ipc: Arc<Option<Sender<WorkerMessages>>>,
@@ -54,7 +53,7 @@ impl Default for RunnerBuilder {
             run_start_time: Local::now().format("%F %X").to_string(),
             cfg: None,
             ex: Execution::empty_atom(),
-            lg: Logger::empty_atom(),
+            logger: LoggerSender::empty_atom(),
             prx: Arc::new(PipelineFileSystemProxy::Local),
             pip: None,
             ipc: Arc::new(None),
@@ -87,8 +86,8 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn logger(mut self, lg: AtomicLog) -> Self {
-        self.lg = lg;
+    pub fn logger(mut self, logger: Arc<LoggerSender>) -> Self {
+        self.logger = logger;
         self
     }
 
@@ -165,7 +164,7 @@ impl RunnerBuilder {
         );
         let platform = match &pipeline.runs_on {
             RunsOn::Machine => {
-                let machine = Machine::new(&self.run_id, env.clone(), self.lg.clone())?;
+                let machine = Machine::new(&self.run_id, env.clone(), self.logger.clone())?;
                 TargetPlatform::Machine(Box::new(machine))
             }
             RunsOn::Docker(img) => {
@@ -173,7 +172,7 @@ impl RunnerBuilder {
                     img,
                     cfg.clone(),
                     env.clone(),
-                    self.lg.clone(),
+                    self.logger.clone(),
                     self.context.clone(),
                 )
                 .await?;
@@ -185,7 +184,7 @@ impl RunnerBuilder {
             run_start_time: self.run_start_time,
             cfg,
             ex: self.ex,
-            lg: self.lg,
+            logger: self.logger,
             prx: self.prx,
             pip: pipeline,
             ipc: self.ipc,
@@ -204,7 +203,7 @@ pub struct Runner {
     run_start_time: String,
     cfg: Arc<BldConfig>,
     ex: AtomicExec,
-    lg: AtomicLog,
+    logger: Arc<LoggerSender>,
     prx: AtomicProxy,
     pip: Pipeline,
     ipc: Arc<Option<Sender<WorkerMessages>>>,
@@ -217,11 +216,6 @@ pub struct Runner {
 }
 
 impl Runner {
-    fn log_dump(&self, message: &str) {
-        let mut lg = self.lg.lock().unwrap();
-        lg.dump(message);
-    }
-
     async fn exec_persist_start(&self) {
         let mut exec = self.ex.lock().unwrap();
         if !self.is_child {
@@ -266,13 +260,18 @@ impl Runner {
         Ok(())
     }
 
-    fn info(&self) {
+    async fn info(&self) -> Result<()> {
         debug!("printing pipeline informantion");
-        let mut logger = self.lg.lock().unwrap();
+
         if let Some(name) = &self.pip.name {
-            logger.dumpln(&format!("[bld] Pipeline: {name}"));
+            self.logger.write_line(format!("Pipeline: {name}")).await?;
         }
-        logger.dumpln(&format!("[bld] Runs on: {}", self.pip.runs_on));
+
+        self.logger
+            .write_line(format!("Runs on: {}", self.pip.runs_on))
+            .await?;
+
+        Ok(())
     }
 
     fn apply_run_properties(&self, txt: &str) -> String {
@@ -316,22 +315,25 @@ impl Runner {
 
     async fn artifacts(&self, name: &Option<String>) -> Result<()> {
         debug!("executing artifact operation related to step {:?}", name);
+
         for artifact in self.pip.artifacts.iter().filter(|a| &a.after == name) {
             let can_continue = (artifact.method == Some(PUSH.to_string())
                 || artifact.method == Some(GET.to_string()))
                 && artifact.from.is_some()
                 && artifact.to.is_some();
+
             if can_continue {
                 debug!("applying context for artifact");
+
                 let method = self.apply_context(artifact.method.as_ref().unwrap());
                 let from = self.apply_context(artifact.from.as_ref().unwrap());
                 let to = self.apply_context(artifact.to.as_ref().unwrap());
-                {
-                    let mut logger = self.lg.lock().unwrap();
-                    logger.dumpln(&format!(
-                        "[bld] Copying artifacts from: {from} into container to: {to}",
-                    ));
-                }
+                self.logger
+                    .write_line(format!(
+                        "Copying artifacts from: {from} into container to: {to}",
+                    ))
+                    .await?;
+
                 let result = match &method[..] {
                     PUSH => {
                         debug!("executing {PUSH} artifact operation");
@@ -343,11 +345,13 @@ impl Runner {
                     }
                     _ => unreachable!(),
                 };
+
                 if !artifact.ignore_errors {
                     result?;
                 }
             }
         }
+
         Ok(())
     }
 
@@ -363,8 +367,7 @@ impl Runner {
 
     async fn step(&self, step: &BuildStep) -> Result<()> {
         if let Some(name) = &step.name {
-            let mut logger = self.lg.lock().unwrap();
-            logger.infoln(&format!("[bld] Step: {name}"));
+            self.logger.write_line(format!("Step: {name}")).await?;
         }
         self.invoke(step).await?;
         self.call(step).await?;
@@ -416,7 +419,7 @@ impl Runner {
                 let (sink, stream) = framed.split();
                 let addr = ExecClient::create(|ctx| {
                     ExecClient::add_stream(stream, ctx);
-                    ExecClient::new(self.lg.clone(), SinkWrite::new(sink, ctx))
+                    ExecClient::new(self.logger.clone(), SinkWrite::new(sink, ctx))
                 });
 
                 debug!("sending message for pipeline execution over the web socket");
@@ -451,7 +454,7 @@ impl Runner {
                 .proxy(self.prx.clone())
                 .pipeline(&call)
                 .execution(self.ex.clone())
-                .logger(self.lg.clone())
+                .logger(self.logger.clone())
                 .environment(self.env.clone())
                 .variables(self.vars.clone())
                 .ipc(self.ipc.clone())
@@ -484,9 +487,10 @@ impl Runner {
         Ok(())
     }
 
-    async fn start(&self) {
+    async fn start(&self) -> Result<()> {
         self.exec_persist_start().await;
-        self.info();
+        self.info().await?;
+        Ok(())
     }
 
     async fn execute(&mut self) -> Result<()> {
@@ -494,13 +498,13 @@ impl Runner {
         // by the final print_error of main.
 
         if let Err(e) = self.artifacts(&None).await {
-            self.log_dump(&e.to_string());
+            self.logger.write(e.to_string()).await?;
             self.has_faulted = true;
             bail!("");
         }
 
         if let Err(e) = self.steps().await {
-            self.log_dump(&e.to_string());
+            self.logger.write(e.to_string()).await?;
             self.has_faulted = true;
             bail!("");
         }
@@ -517,7 +521,7 @@ impl Runner {
 
     pub async fn run(mut self) -> RecursiveFuture {
         Box::pin(async move {
-            self.start().await;
+            self.start().await?;
             let execution_result = self.execute().await;
             let cleanup_result = self.cleanup().await;
             debug!("runner completed");

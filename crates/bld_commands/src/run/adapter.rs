@@ -2,7 +2,7 @@ use actix::{io::SinkWrite, Actor, StreamHandler};
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::logger::Logger;
+use bld_core::logger::LoggerSender;
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::ExecClient;
 use bld_sock::messages::RunInfo;
@@ -32,7 +32,7 @@ impl RunAdapter for RunInProcessAdapter {
             let runner = RunnerBuilder::default()
                 .config(self.config.clone())
                 .pipeline(&self.pipeline)
-                .logger(Logger::shell_atom())
+                .logger(LoggerSender::shell_atom())
                 .environment(Arc::new(self.environment.clone()))
                 .variables(Arc::new(self.variables.clone()))
                 .build()
@@ -119,7 +119,7 @@ impl RunWithWebSocketAdapter {
         let (sink, stream) = framed.split();
         let addr = ExecClient::create(|ctx| {
             ExecClient::add_stream(stream, ctx);
-            ExecClient::new(Logger::shell_atom(), SinkWrite::new(sink, ctx))
+            ExecClient::new(LoggerSender::shell_atom(), SinkWrite::new(sink, ctx))
         });
 
         debug!(

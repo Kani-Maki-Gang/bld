@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 use bld_config::BldConfig;
 use bld_core::context::Context;
 use bld_core::execution::Execution;
-use bld_core::logger::Logger;
+use bld_core::logger::LoggerSender;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
 use shiplift::tty::TtyChunk;
@@ -15,14 +15,12 @@ use std::sync::{Arc, Mutex};
 use tar::Archive;
 use tracing::error;
 
-type AtomicLogger = Arc<Mutex<Logger>>;
-
 pub struct Container {
     pub id: Option<String>,
     pub config: Option<Arc<BldConfig>>,
     pub image: String,
     pub client: Option<Docker>,
-    pub logger: AtomicLogger,
+    pub logger: Arc<LoggerSender>,
     pub containers: Arc<Mutex<Context>>,
 }
 
@@ -47,21 +45,21 @@ impl Container {
         Ok(host)
     }
 
-    async fn pull(client: &Docker, image: &str, logger: &mut AtomicLogger) -> Result<()> {
+    async fn pull(client: &Docker, image: &str, logger: &mut Arc<LoggerSender>) -> Result<()> {
         let options = ImageListOptions::builder().filter_name(image).build();
         let images = client.images().list(&options).await?;
+
         if images.is_empty() {
-            {
-                let mut logger = logger.lock().unwrap();
-                logger.info(&format!("Download image: {image}"));
-            }
+            logger.info(format!("Download image: {image}")).await?;
+
             let options = PullOptions::builder().image(image).build();
             let mut pull_iter = client.images().pull(&options);
+
             while let Some(Ok(progress)) = pull_iter.next().await {
-                let mut logger = logger.lock().unwrap();
-                logger.dumpln(&progress.to_string());
+                logger.write_line(progress.to_string()).await?;
             }
         }
+
         Ok(())
     }
 
@@ -69,7 +67,7 @@ impl Container {
         client: &Docker,
         image: &str,
         env: &[String],
-        logger: &mut AtomicLogger,
+        logger: &mut Arc<LoggerSender>,
     ) -> Result<String> {
         Container::pull(client, image, logger).await?;
         let options = ContainerOptions::builder(image).env(env).tty(true).build();
@@ -82,7 +80,7 @@ impl Container {
         image: &str,
         config: Arc<BldConfig>,
         env: Arc<HashMap<String, String>>,
-        logger: AtomicLogger,
+        logger: Arc<LoggerSender>,
         containers: Arc<Mutex<Context>>,
     ) -> Result<Self> {
         let client = Container::docker(&config)?;
@@ -155,8 +153,7 @@ impl Container {
                 Err(e) => bail!(e),
             };
 
-            let mut logger = self.logger.lock().unwrap();
-            logger.dump(&chunk);
+            self.logger.write(chunk).await?;
         }
 
         let inspect = exec.inspect().await?;

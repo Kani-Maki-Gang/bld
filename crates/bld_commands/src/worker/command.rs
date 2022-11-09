@@ -8,7 +8,7 @@ use bld_config::BldConfig;
 use bld_core::context::Context;
 use bld_core::database::{new_connection_pool, pipeline_runs};
 use bld_core::execution::Execution;
-use bld_core::logger::Logger;
+use bld_core::logger::LoggerSender;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::WorkerClient;
@@ -88,7 +88,6 @@ impl BldCommand for WorkerCommand {
             pool: pool.clone(),
         });
 
-        let logger = Logger::file_atom(cfg.clone(), &run_id)?;
         let exec = Execution::pipeline_atom(pool.clone(), &run_id);
         let context = Context::containers_atom(pool, &run_id);
 
@@ -96,6 +95,8 @@ impl BldCommand for WorkerCommand {
         let worker_tx = Arc::new(Some(worker_tx));
 
         System::new().block_on(async move {
+            let logger = LoggerSender::file_atom(cfg.clone(), &run_id)?;
+
             let socket_handle = spawn(async move {
                 if let Err(e) = connect_to_supervisor(socket_cfg, worker_rx).await {
                     error!("{e}");
