@@ -6,9 +6,9 @@ use actix_web::rt::spawn;
 use anyhow::Result;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use tokio::sync::mpsc::{Sender, Receiver, channel};
-use tracing::error;
 use std::sync::Arc;
+use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tracing::error;
 use uuid::Uuid;
 
 struct ContextReceiver {
@@ -119,14 +119,12 @@ pub struct ContextSender {
 
 impl ContextSender {
     pub fn empty_atom() -> Arc<Self> {
-        Arc::new(Self {
-            tx: None
-        })
+        Arc::new(Self { tx: None })
     }
 
     pub fn containers_atom(
         pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
-        run_id: &str
+        run_id: &str,
     ) -> Arc<Self> {
         let (tx, rx) = channel(4096);
         let context = ContextReceiver::containers_atom(pool, run_id);
@@ -146,7 +144,6 @@ impl ContextSender {
         }
         Ok(())
     }
-
 
     pub async fn set_as_removed(&self, container_id: String) -> Result<()> {
         if let Some(tx) = &self.tx {
