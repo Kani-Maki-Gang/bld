@@ -1,13 +1,13 @@
 [workspace]
 members = [
-  "bld_core",
-  "bld_utils",
-  "bld_config",
-  "bld_sock",
-  "bld_supervisor",
-  "bld_runner",
-  "bld_server",
-  "bld_commands"
+  "crates/bld_core",
+  "crates/bld_utils",
+  "crates/bld_config",
+  "crates/bld_sock",
+  "crates/bld_supervisor",
+  "crates/bld_runner",
+  "crates/bld_server",
+  "crates/bld_commands"
 ]
 
 [package]
@@ -28,9 +28,9 @@ debug = false
 
 [dependencies]
 anyhow = "1.0.40"
-bld_config = { path = "bld_config" }
-bld_utils = { path = "bld_utils" }
-bld_commands = { path = "bld_commands" }
+bld_config = { path = "crates/bld_config" }
+bld_utils = { path = "crates/bld_utils" }
+bld_commands = { path = "crates/bld_commands" }
 clap = "4.0.18"
 tracing = "0.1.36"
 tracing-subscriber = "0.3.15"
