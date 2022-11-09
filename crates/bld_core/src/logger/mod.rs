@@ -28,7 +28,7 @@ impl LoggerReceiver {
         })
     }
 
-    async fn receiver(mut self, mut rx: Receiver<LoggerMessage>) {
+    async fn receive(mut self, mut rx: Receiver<LoggerMessage>) {
         while let Some(msg) = rx.recv().await {
             match msg {
                 LoggerMessage::Write(txt) => self.write(&txt),
@@ -155,7 +155,7 @@ impl LoggerSender {
         let (tx, rx) = channel(4096);
         let logger = LoggerReceiver::shell();
 
-        spawn(async move { logger.receiver(rx).await });
+        spawn(async move { logger.receive(rx).await });
 
         Arc::new(Self { tx: Some(tx) })
     }
@@ -164,7 +164,7 @@ impl LoggerSender {
         let (tx, rx) = channel(4096);
         let logger = LoggerReceiver::file(config, run_id)?;
 
-        spawn(async move { logger.receiver(rx).await });
+        spawn(async move { logger.receive(rx).await });
 
         Ok(Arc::new(Self { tx: Some(tx) }))
     }

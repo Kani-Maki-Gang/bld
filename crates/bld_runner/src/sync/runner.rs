@@ -5,7 +5,7 @@ use bld_config::definitions::{
     ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN,
 };
 use bld_config::BldConfig;
-use bld_core::context::Context;
+use bld_core::context::ContextSender;
 use bld_core::execution::Execution;
 use bld_core::logger::LoggerSender;
 use bld_core::proxies::PipelineFileSystemProxy;
@@ -18,7 +18,7 @@ use futures::stream::StreamExt;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tokio::time::sleep;
@@ -28,7 +28,6 @@ use uuid::Uuid;
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 type AtomicVars = Arc<HashMap<String, String>>;
 type AtomicProxy = Arc<PipelineFileSystemProxy>;
-type AtomicContext = Arc<Mutex<Context>>;
 
 pub struct RunnerBuilder {
     run_id: String,
@@ -41,7 +40,7 @@ pub struct RunnerBuilder {
     ipc: Arc<Option<Sender<WorkerMessages>>>,
     env: Option<AtomicVars>,
     vars: Option<AtomicVars>,
-    context: AtomicContext,
+    context: Arc<ContextSender>,
     is_child: bool,
 }
 
@@ -58,7 +57,7 @@ impl Default for RunnerBuilder {
             ipc: Arc::new(None),
             env: None,
             vars: None,
-            context: Arc::new(Mutex::new(Context::Empty)),
+            context: ContextSender::empty_atom(),
             is_child: false,
         }
     }
@@ -115,7 +114,7 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn context(mut self, context: AtomicContext) -> Self {
+    pub fn context(mut self, context: Arc<ContextSender>) -> Self {
         self.context = context;
         self
     }
@@ -208,7 +207,7 @@ pub struct Runner {
     ipc: Arc<Option<Sender<WorkerMessages>>>,
     env: AtomicVars,
     vars: AtomicVars,
-    context: AtomicContext,
+    context: Arc<ContextSender>,
     platform: TargetPlatform,
     is_child: bool,
     has_faulted: bool,
@@ -237,7 +236,7 @@ impl Runner {
             self.platform.dispose(self.is_child).await?;
         } else {
             debug!("keeping platform alive");
-            self.platform.keep_alive()?;
+            self.platform.keep_alive().await?;
         }
         Ok(())
     }

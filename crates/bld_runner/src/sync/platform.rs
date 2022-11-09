@@ -35,9 +35,9 @@ impl TargetPlatform {
         }
     }
 
-    pub fn keep_alive(&self) -> Result<()> {
+    pub async fn keep_alive(&self) -> Result<()> {
         match self {
-            Self::Container(container) => container.keep_alive(),
+            Self::Container(container) => container.keep_alive().await,
             _ => Ok(()),
         }
     }

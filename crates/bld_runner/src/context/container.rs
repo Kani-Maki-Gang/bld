@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
 use bld_config::BldConfig;
-use bld_core::context::Context;
+use bld_core::context::ContextSender;
 use bld_core::execution::Execution;
 use bld_core::logger::LoggerSender;
 use futures::TryStreamExt;
@@ -11,7 +11,7 @@ use shiplift::{
 };
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tar::Archive;
 use tracing::error;
 
@@ -21,7 +21,7 @@ pub struct Container {
     pub image: String,
     pub client: Option<Docker>,
     pub logger: Arc<LoggerSender>,
-    pub containers: Arc<Mutex<Context>>,
+    pub containers: Arc<ContextSender>,
 }
 
 impl Container {
@@ -81,15 +81,12 @@ impl Container {
         config: Arc<BldConfig>,
         env: Arc<HashMap<String, String>>,
         logger: Arc<LoggerSender>,
-        containers: Arc<Mutex<Context>>,
+        containers: Arc<ContextSender>,
     ) -> Result<Self> {
         let client = Container::docker(&config)?;
         let env: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
         let id = Container::create(&client, image, &env, &mut logger.clone()).await?;
-        {
-            let mut containers = containers.lock().unwrap();
-            containers.add(&id)?;
-        }
+        containers.add(id.clone()).await?;
         Ok(Self {
             config: Some(config),
             image: image.to_string(),
@@ -162,10 +159,9 @@ impl Container {
         Ok(())
     }
 
-    pub fn keep_alive(&self) -> Result<()> {
+    pub async fn keep_alive(&self) -> Result<()> {
         let id = self.get_id()?;
-        let mut containers = self.containers.lock().unwrap();
-        containers.keep_alive(id)
+        self.containers.keep_alive(id.to_string()).await
     }
 
     pub async fn dispose(&self) -> Result<()> {
@@ -174,21 +170,17 @@ impl Container {
 
         if let Err(e) = client.containers().get(id).stop(None).await {
             error!("could not stop container, {e}");
-            let mut containers = self.containers.lock().unwrap();
-            containers.set_as_faulted(id)?;
+            self.containers.set_as_faulted(id.to_string()).await?;
             bail!(e);
         }
 
         if let Err(e) = client.containers().get(id).delete().await {
             error!("could not stop container, {e}");
-            let mut containers = self.containers.lock().unwrap();
-            containers.set_as_faulted(id)?;
+            self.containers.set_as_faulted(id.to_string()).await?;
             bail!(e);
         }
 
-        let mut containers = self.containers.lock().unwrap();
-        containers.set_as_removed(id)?;
-
+        self.containers.set_as_removed(id.to_string()).await?;
         Ok(())
     }
 }

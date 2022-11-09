@@ -5,7 +5,7 @@ use actix::{Actor, StreamHandler};
 use actix_web::rt::{spawn, System};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::context::Context;
+use bld_core::context::ContextSender;
 use bld_core::database::{new_connection_pool, pipeline_runs};
 use bld_core::execution::Execution;
 use bld_core::logger::LoggerSender;
@@ -89,13 +89,13 @@ impl BldCommand for WorkerCommand {
         });
 
         let exec = Execution::pipeline_atom(pool.clone(), &run_id);
-        let context = Context::containers_atom(pool, &run_id);
 
         let (worker_tx, worker_rx) = channel(4096);
         let worker_tx = Arc::new(Some(worker_tx));
 
         System::new().block_on(async move {
             let logger = LoggerSender::file_atom(cfg.clone(), &run_id)?;
+            let context = ContextSender::containers_atom(pool, &run_id);
 
             let socket_handle = spawn(async move {
                 if let Err(e) = connect_to_supervisor(socket_cfg, worker_rx).await {
