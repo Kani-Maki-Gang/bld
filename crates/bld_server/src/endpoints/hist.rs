@@ -10,16 +10,15 @@ use tracing::info;
 
 #[get("/hist")]
 pub async fn hist(
-    query: Query<HistQueryParams>,
     user: Option<User>,
     db_pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    params: Query<HistQueryParams>,
 ) -> impl Responder {
     info!("Reached handler for /hist route");
     if user.is_none() {
         return HttpResponse::Unauthorized().body("");
     }
-    let params = query.into_inner();
-    match history_info(db_pool.get_ref(), &params.state, params.limit) {
+    match history_info(db_pool.get_ref(), params.into_inner()) {
         Ok(ls) => HttpResponse::Ok().json(ls),
         Err(_) => HttpResponse::BadRequest().body(""),
     }
@@ -27,11 +26,11 @@ pub async fn hist(
 
 fn history_info(
     db_pool: &Pool<ConnectionManager<SqliteConnection>>,
-    state: &str,
-    limit: i64,
+    params: HistQueryParams,
 ) -> Result<Vec<HistoryEntry>> {
     let mut conn = db_pool.get()?;
-    let history = pipeline_runs::select_with_filters(&mut conn, state, limit);
+    let history =
+        pipeline_runs::select_with_filters(&mut conn, &params.state, &params.name, params.limit);
     let entries = history
         .map(|entries| {
             entries
