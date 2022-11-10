@@ -24,7 +24,7 @@ pub fn load_server_certificate<P: AsRef<Path>>(path: &P) -> Result<Vec<Certifica
 
     let keys = certs(&mut reader)?
         .into_iter()
-        .map(|v| Certificate(v))
+        .map(Certificate)
         .collect();
 
     Ok(keys)
