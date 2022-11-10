@@ -76,10 +76,7 @@ impl BldCommand for HistCommand {
 
         let server_auth = config.remote.same_auth_as(server)?;
         let protocol = server.http_protocol();
-        let mut url = format!(
-            "{protocol}://{}:{}/hist?",
-            server.host, server.port
-        );
+        let mut url = format!("{protocol}://{}:{}/hist?", server.host, server.port);
 
         if state != STATE_VALUE_ALL {
             write!(url, "state={state}")?;
