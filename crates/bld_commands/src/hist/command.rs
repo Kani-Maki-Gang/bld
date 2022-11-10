@@ -117,4 +117,43 @@ mod tests {
             Some(&server_name.to_string())
         )
     }
+
+    #[test]
+    fn cli_hist_state_arg_accepts_value() {
+        let server_name = "mockServer";
+        let state = "mockState";
+        let command = HistCommand::boxed().interface();
+        let matches = command.get_matches_from(&["hist", "-s", server_name, "-x", state]);
+
+        assert_eq!(
+            matches.get_one::<String>(STATE),
+            Some(&state.to_string())
+        )
+    }
+
+    #[test]
+    fn cli_hist_pipeline_arg_accepts_value() {
+        let server_name = "mockServer";
+        let pipeline = "mockPipeline";
+        let command = HistCommand::boxed().interface();
+        let matches = command.get_matches_from(&["hist", "-s", server_name, "-p", pipeline]);
+
+        assert_eq!(
+            matches.get_one::<String>(PIPELINE),
+            Some(&pipeline.to_string())
+        )
+    }
+
+    #[test]
+    fn cli_hist_limit_arg_accepts_value() {
+        let server_name = "mockServer";
+        let limit = "100";
+        let command = HistCommand::boxed().interface();
+        let matches = command.get_matches_from(&["hist", "-s", server_name, "-l", limit]);
+
+        assert_eq!(
+            matches.get_one::<String>(LIMIT),
+            Some(&limit.to_string())
+        )
+    }
 }
