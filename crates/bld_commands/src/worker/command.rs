@@ -226,7 +226,7 @@ mod tests {
         ]);
 
         assert_eq!(
-            matches.get_many::<String>(VARIABLES).map(|v| v.len()),
+            matches.get_many::<String>(VARIABLE).map(|v| v.len()),
             Some(3)
         )
     }
