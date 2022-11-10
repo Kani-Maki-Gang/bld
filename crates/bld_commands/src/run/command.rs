@@ -12,7 +12,7 @@ const RUN: &str = "run";
 const PIPELINE: &str = "pipeline";
 const SERVER: &str = "server";
 const DETACH: &str = "detach";
-const VARIABLES: &str = "variables";
+const VARIABLE: &str = "variable";
 const ENVIRONMENT: &str = "environment";
 
 pub struct RunCommand;
@@ -46,16 +46,16 @@ impl BldCommand for RunCommand {
             .help("Detaches from the run execution (for server mode runs)")
             .action(ArgAction::SetTrue);
 
-        let variables = Arg::new(VARIABLES)
+        let variables = Arg::new(VARIABLE)
             .short('v')
-            .long(VARIABLES)
-            .help("Define values for variables of a pipeline")
+            .long(VARIABLE)
+            .help("Define value for a variable")
             .action(ArgAction::Append);
 
         let environment = Arg::new(ENVIRONMENT)
             .short('e')
             .long(ENVIRONMENT)
-            .help("Define values for environment variables of a pipeline")
+            .help("Define value for an environment variable")
             .action(ArgAction::Append);
 
         Command::new(RUN)
@@ -70,7 +70,7 @@ impl BldCommand for RunCommand {
         let pipeline = matches.get_one::<String>(PIPELINE).cloned().unwrap();
         let detach = matches.get_flag(DETACH);
         let env = parse_variables(matches, ENVIRONMENT);
-        let vars = parse_variables(matches, VARIABLES);
+        let vars = parse_variables(matches, VARIABLE);
         let server = matches.get_one::<String>(SERVER);
 
         let mut message = format!(

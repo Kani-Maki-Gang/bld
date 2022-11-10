@@ -15,7 +15,7 @@ use bld_core::high_avail::HighAvail;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_sock::clients::EnqueueClient;
 use bld_sock::messages::ServerMessages;
-use bld_utils::tls::{load_server_certificate, load_server_private_key, awc_client};
+use bld_utils::tls::{awc_client, load_server_certificate, load_server_private_key};
 use futures::{join, stream::StreamExt};
 use rustls::ServerConfig;
 use std::env::{current_exe, set_var};

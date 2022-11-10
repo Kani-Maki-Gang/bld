@@ -111,17 +111,29 @@ pub fn select_last(conn: &mut SqliteConnection) -> Result<PipelineRuns> {
 
 pub fn select_with_filters(
     conn: &mut SqliteConnection,
-    flt_state: &str,
+    flt_state: &Option<String>,
+    flt_name: &Option<String>,
     limit_by: i64,
 ) -> anyhow::Result<Vec<PipelineRuns>> {
     debug!("loading pipeline runs from the database with filters:");
-    pipeline_runs
-        .filter(state.eq(flt_state))
+
+    let mut select_statement = pipeline_runs.into_boxed();
+
+    if let Some(flt_state) = flt_state {
+        select_statement = select_statement.filter(state.eq(flt_state));
+    }
+
+    if let Some(flt_name) = flt_name {
+        select_statement = select_statement.filter(name.eq(flt_name));
+    }
+
+    select_statement
         .limit(limit_by)
-        .order(start_date_time)
+        .order(start_date_time.desc())
         .load(conn)
-        .map(|p| {
+        .map(|mut p| {
             debug!("loaded all pipeline runs successfully");
+            p.reverse();
             p
         })
         .map_err(|e| {
