@@ -1,26 +1,26 @@
-use crate::base::Queue;
-use crate::queues::WorkerQueue;
+use crate::queues::WorkerQueueSender;
 use actix::prelude::*;
+use actix_web::rt::spawn;
 use actix_web::web::{Bytes, Data, Payload};
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
+use anyhow::Result;
 use bld_core::workers::PipelineWorker;
 use bld_sock::messages::ServerMessages;
 use std::env::current_exe;
 use std::process::Command;
-use std::sync::Mutex;
 use tracing::{debug, error, info};
 
 pub struct ServerSocket {
-    worker_queue: Data<Mutex<WorkerQueue>>,
+    worker_queue_tx: Data<WorkerQueueSender>,
 }
 
 impl ServerSocket {
-    pub fn new(worker_queue: Data<Mutex<WorkerQueue>>) -> Self {
-        Self { worker_queue }
+    pub fn new(worker_queue_tx: Data<WorkerQueueSender>) -> Self {
+        Self { worker_queue_tx }
     }
 
-    fn handle_message(&self, bytes: &Bytes) -> anyhow::Result<()> {
+    fn handle_message(&self, bytes: &Bytes) -> Result<()> {
         let msg: ServerMessages = serde_json::from_slice(&bytes[..])?;
         match msg {
             ServerMessages::Ack => info!("a new server connection was acknowledged"),
@@ -53,9 +53,15 @@ impl ServerSocket {
                         command.arg(entry);
                     }
                 }
-                let mut queue = self.worker_queue.lock().unwrap();
-                queue.enqueue(PipelineWorker::new(run_id, command))?;
-                info!("worker for pipeline: {pipeline} has been queued");
+
+                let tx = self.worker_queue_tx.clone();
+                spawn(async move {
+                    let _ = tx
+                        .enqueue(PipelineWorker::new(run_id, command))
+                        .await
+                        .map(|_| info!("worker for pipeline: {pipeline} has been queued"))
+                        .map_err(|e| error!("{e}"));
+                });
             }
         }
         Ok(())
@@ -99,8 +105,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ServerSocket {
 pub async fn ws_server_socket(
     req: HttpRequest,
     stream: Payload,
-    worker_queue: Data<Mutex<WorkerQueue>>,
+    worker_queue_tx: Data<WorkerQueueSender>,
 ) -> Result<HttpResponse, Error> {
-    let socket = ServerSocket::new(worker_queue);
+    let socket = ServerSocket::new(worker_queue_tx);
     ws::start(socket, &req, stream)
 }

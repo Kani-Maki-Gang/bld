@@ -1,7 +1,6 @@
-use crate::base::Queue;
 use actix_web::rt::spawn;
 use actix_web::web::Data;
-use anyhow::Result;
+use anyhow::{anyhow, Result, Error};
 use bld_config::BldConfig;
 use bld_core::database::pipeline_run_containers::{self, PRC_STATE_REMOVED};
 use bld_core::database::pipeline_runs::{
@@ -13,39 +12,77 @@ use diesel::sqlite::SqliteConnection;
 use shiplift::errors::Error as ShipliftError;
 use shiplift::{Docker, RmContainerOptions};
 use std::collections::VecDeque;
+use tokio::sync::mpsc;
+use tokio::sync::oneshot;
 use tracing::{debug, error, info};
 
-/// The QueueManager is initialized with a capacity of active workers.
+fn oneshot_send_err<T>(_: T) -> Error {
+    anyhow!("oneshot receiver dropped")
+}
+
+#[derive(Debug)]
+pub enum WorkerQueueMessage {
+    Enqueue { worker: PipelineWorker, resp_tx: oneshot::Sender<Result<()>> },
+    Dequeue { pid: u32, resp_tx: oneshot::Sender<Result<()>> },
+    Contains { pid: u32, resp_tx: oneshot::Sender<bool> }
+}
+
+/// The WorkerQueueReceiver is initialized with a capacity of active workers.
 /// If there are more workers than the specified capacity, the queue manager
 /// will add them to a backlog based on when they were enqueued.
-pub struct WorkerQueue {
+struct WorkerQueueReceiver {
     capacity: usize,
     active: Vec<PipelineWorker>,
     backlog: VecDeque<PipelineWorker>,
     config: Data<BldConfig>,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    rx: mpsc::Receiver<WorkerQueueMessage>,
 }
 
-impl WorkerQueue {
+impl WorkerQueueReceiver {
     pub fn new(
         capacity: usize,
         config: Data<BldConfig>,
         pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+        rx: mpsc::Receiver<WorkerQueueMessage>
     ) -> Self {
         let config_clone = config.clone();
         let pool_clone = pool.clone();
+
         spawn(async move {
             if let Err(e) = try_cleanup_containers(config_clone, pool_clone).await {
                 error!("error while cleaning up containers, {e}");
             }
         });
+
         Self {
             capacity,
             active: Vec::with_capacity(capacity),
             backlog: VecDeque::new(),
             config,
             pool,
+            rx
         }
+    }
+
+    pub async fn receive(mut self) -> Result<()> {
+        while let Some(msg) = self.rx.recv().await {
+            match msg {
+                WorkerQueueMessage::Enqueue { worker, resp_tx } => {
+                    let result = self.enqueue(worker);
+                    resp_tx.send(result).map_err(oneshot_send_err)?;
+                }
+                WorkerQueueMessage::Dequeue { pid, resp_tx } => {
+                    let result = self.dequeue(pid);
+                    resp_tx.send(result).map_err(oneshot_send_err)?;
+                }
+                WorkerQueueMessage::Contains { pid, resp_tx } => {
+                    let result = self.contains(pid);
+                    resp_tx.send(result).map_err(oneshot_send_err)?;
+                }
+            }
+        }
+        Ok(())
     }
 
     fn activate(&mut self, mut worker: PipelineWorker) -> Result<()> {
@@ -63,9 +100,7 @@ impl WorkerQueue {
         self.backlog.push_back(worker);
         Ok(())
     }
-}
 
-impl Queue<PipelineWorker> for WorkerQueue {
     /// Used to spawn the child process of the worker and add it to the active workers vector.
     fn enqueue(&mut self, item: PipelineWorker) -> Result<()> {
         if self.active.len() < self.capacity {
@@ -115,6 +150,66 @@ impl Queue<PipelineWorker> for WorkerQueue {
             .or_else(|| self.backlog.iter().find(|w| w.has_pid(pid)))
             .is_some()
     }
+
+}
+
+pub struct WorkerQueueSender {
+    tx: mpsc::Sender<WorkerQueueMessage>
+}
+
+impl WorkerQueueSender {
+    pub fn new(tx: mpsc::Sender<WorkerQueueMessage>) -> Self {
+        Self { tx }
+    }
+
+    pub async fn enqueue(&self, worker: PipelineWorker) -> Result<()> {
+        let (resp_tx, resp_rx) = oneshot::channel();
+        let message = WorkerQueueMessage::Enqueue {
+            worker,
+            resp_tx
+        };
+
+        self.tx.send(message).await.map_err(|e| anyhow!(e))?;
+
+        resp_rx.await?
+    }
+
+    pub async fn dequeue(&self, pid: u32) -> Result<()> {
+        let (resp_tx, resp_rx) = oneshot::channel();
+        let message = WorkerQueueMessage::Dequeue {
+            pid,
+            resp_tx
+        };
+
+        self.tx.send(message).await.map_err(|e| anyhow!(e))?;
+
+        resp_rx.await?
+    }
+
+    pub async fn contains(&self, pid: u32) -> Result<bool> {
+        let (resp_tx, resp_rx) = oneshot::channel();
+        let message = WorkerQueueMessage::Contains {
+            pid,
+            resp_tx
+        };
+
+        self.tx.send(message).await.map_err(|e| anyhow!(e))?;
+
+        resp_rx.await.map_err(|e| anyhow!(e))
+    }
+}
+
+pub fn worker_queue_channel(capacity: usize, config: Data<BldConfig>, pool: Data<Pool<ConnectionManager<SqliteConnection>>>) -> WorkerQueueSender {
+    let (tx, rx) = mpsc::channel(4096);
+    let receiver = WorkerQueueReceiver::new(capacity, config, pool, rx);
+
+    spawn(async move {
+        if let Err(e) = receiver.receive().await {
+            error!("{e}");
+        }
+    });
+
+    WorkerQueueSender::new(tx)
 }
 
 /// This function will call the clean up method for the worker and check
