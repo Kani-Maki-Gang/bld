@@ -21,11 +21,7 @@ impl WorkerSocket {
         }
     }
 
-    fn handle_message(
-        &mut self,
-        bytes: &Bytes,
-        ctx: &mut <Self as Actor>::Context,
-    ) -> Result<()> {
+    fn handle_message(&mut self, bytes: &Bytes, ctx: &mut <Self as Actor>::Context) -> Result<()> {
         let msg: WorkerMessages = serde_json::from_slice(&bytes[..])?;
         match msg {
             WorkerMessages::Ack => info!("a new worker connection was acknowledged"),
@@ -46,13 +42,10 @@ impl WorkerSocket {
             debug!("dequeue of worker with pid: {}", pid);
             let tx = self.worker_queue_tx.clone();
             spawn(async move {
-                let _ = tx
-                    .dequeue(pid)
-                    .await
-                    .map_err(|e| {
-                        error!("{e}");
-                        e
-                    });
+                let _ = tx.dequeue(pid).await.map_err(|e| {
+                    error!("{e}");
+                    e
+                });
             });
         }
         ctx.stop();

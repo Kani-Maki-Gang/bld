@@ -1,6 +1,6 @@
 use actix_web::rt::spawn;
 use actix_web::web::Data;
-use anyhow::{anyhow, Result, Error};
+use anyhow::{anyhow, Error, Result};
 use bld_config::BldConfig;
 use bld_core::database::pipeline_run_containers::{self, PRC_STATE_REMOVED};
 use bld_core::database::pipeline_runs::{
@@ -22,9 +22,18 @@ fn oneshot_send_err<T>(_: T) -> Error {
 
 #[derive(Debug)]
 pub enum WorkerQueueMessage {
-    Enqueue { worker: PipelineWorker, resp_tx: oneshot::Sender<Result<()>> },
-    Dequeue { pid: u32, resp_tx: oneshot::Sender<Result<()>> },
-    Contains { pid: u32, resp_tx: oneshot::Sender<bool> }
+    Enqueue {
+        worker: PipelineWorker,
+        resp_tx: oneshot::Sender<Result<()>>,
+    },
+    Dequeue {
+        pid: u32,
+        resp_tx: oneshot::Sender<Result<()>>,
+    },
+    Contains {
+        pid: u32,
+        resp_tx: oneshot::Sender<bool>,
+    },
 }
 
 /// The WorkerQueueReceiver is initialized with a capacity of active workers.
@@ -44,7 +53,7 @@ impl WorkerQueueReceiver {
         capacity: usize,
         config: Data<BldConfig>,
         pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
-        rx: mpsc::Receiver<WorkerQueueMessage>
+        rx: mpsc::Receiver<WorkerQueueMessage>,
     ) -> Self {
         let config_clone = config.clone();
         let pool_clone = pool.clone();
@@ -61,7 +70,7 @@ impl WorkerQueueReceiver {
             backlog: VecDeque::new(),
             config,
             pool,
-            rx
+            rx,
         }
     }
 
@@ -150,11 +159,10 @@ impl WorkerQueueReceiver {
             .or_else(|| self.backlog.iter().find(|w| w.has_pid(pid)))
             .is_some()
     }
-
 }
 
 pub struct WorkerQueueSender {
-    tx: mpsc::Sender<WorkerQueueMessage>
+    tx: mpsc::Sender<WorkerQueueMessage>,
 }
 
 impl WorkerQueueSender {
@@ -164,10 +172,7 @@ impl WorkerQueueSender {
 
     pub async fn enqueue(&self, worker: PipelineWorker) -> Result<()> {
         let (resp_tx, resp_rx) = oneshot::channel();
-        let message = WorkerQueueMessage::Enqueue {
-            worker,
-            resp_tx
-        };
+        let message = WorkerQueueMessage::Enqueue { worker, resp_tx };
 
         self.tx.send(message).await.map_err(|e| anyhow!(e))?;
 
@@ -176,10 +181,7 @@ impl WorkerQueueSender {
 
     pub async fn dequeue(&self, pid: u32) -> Result<()> {
         let (resp_tx, resp_rx) = oneshot::channel();
-        let message = WorkerQueueMessage::Dequeue {
-            pid,
-            resp_tx
-        };
+        let message = WorkerQueueMessage::Dequeue { pid, resp_tx };
 
         self.tx.send(message).await.map_err(|e| anyhow!(e))?;
 
@@ -188,10 +190,7 @@ impl WorkerQueueSender {
 
     pub async fn contains(&self, pid: u32) -> Result<bool> {
         let (resp_tx, resp_rx) = oneshot::channel();
-        let message = WorkerQueueMessage::Contains {
-            pid,
-            resp_tx
-        };
+        let message = WorkerQueueMessage::Contains { pid, resp_tx };
 
         self.tx.send(message).await.map_err(|e| anyhow!(e))?;
 
@@ -199,7 +198,11 @@ impl WorkerQueueSender {
     }
 }
 
-pub fn worker_queue_channel(capacity: usize, config: Data<BldConfig>, pool: Data<Pool<ConnectionManager<SqliteConnection>>>) -> WorkerQueueSender {
+pub fn worker_queue_channel(
+    capacity: usize,
+    config: Data<BldConfig>,
+    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+) -> WorkerQueueSender {
     let (tx, rx) = mpsc::channel(4096);
     let receiver = WorkerQueueReceiver::new(capacity, config, pool, rx);
 

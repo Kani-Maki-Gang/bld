@@ -19,7 +19,7 @@ pub async fn start(config: BldConfig) -> Result<()> {
     let worker_queue_sender = worker_queue_channel(
         config.local.supervisor.workers.try_into()?,
         config.clone(),
-        pool.clone()
+        pool.clone(),
     );
     let worker_queue_sender = Data::new(worker_queue_sender);
 
