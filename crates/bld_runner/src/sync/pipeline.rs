@@ -1,7 +1,10 @@
-use anyhow::{anyhow, Result};
-use bld_utils::errors::err_variable_in_yaml;
+use anyhow::{anyhow, Result, Error};
 use std::fmt::{self, Display, Formatter};
 use yaml_rust::{Yaml, YamlLoader};
+
+pub fn err_variable_in_yaml() -> Error {
+    anyhow!("error in variable section")
+}
 
 #[derive(Debug)]
 pub enum RunsOn {
