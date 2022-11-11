@@ -21,9 +21,10 @@ impl LoggerReceiver {
     pub fn file(config: Arc<BldConfig>, run_id: &str) -> Result<Self> {
         let path = path![&config.local.logs, run_id];
         Ok(Self::File {
-            handle: match path.is_file() {
-                true => File::open(&path)?,
-                false => File::create(&path)?,
+            handle: if path.is_file() {
+                File::open(&path)?
+            } else {
+                File::create(&path)?
             },
         })
     }
