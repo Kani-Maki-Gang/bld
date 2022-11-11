@@ -13,6 +13,7 @@ use bld_sock::clients::ExecClient;
 use bld_sock::messages::{RunInfo, WorkerMessages};
 use bld_utils::request::headers;
 use bld_utils::tls::awc_client;
+use bld_utils::sync::AsArc;
 use chrono::offset::Local;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
@@ -26,8 +27,6 @@ use tracing::debug;
 use uuid::Uuid;
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
-type AtomicVars = Arc<HashMap<String, String>>;
-type AtomicProxy = Arc<PipelineFileSystemProxy>;
 
 pub struct RunnerBuilder {
     run_id: String,
@@ -35,11 +34,11 @@ pub struct RunnerBuilder {
     cfg: Option<Arc<BldConfig>>,
     execution: Arc<Execution>,
     logger: Arc<LoggerSender>,
-    prx: AtomicProxy,
+    prx: Arc<PipelineFileSystemProxy>,
     pip: Option<String>,
     ipc: Arc<Option<Sender<WorkerMessages>>>,
-    env: Option<AtomicVars>,
-    vars: Option<AtomicVars>,
+    env: Option<Arc<HashMap<String, String>>>,
+    vars: Option<Arc<HashMap<String, String>>>,
     context: Arc<ContextSender>,
     is_child: bool,
 }
@@ -50,14 +49,14 @@ impl Default for RunnerBuilder {
             run_id: Uuid::new_v4().to_string(),
             run_start_time: Local::now().format("%F %X").to_string(),
             cfg: None,
-            execution: Execution::empty_atom(),
-            logger: LoggerSender::empty_atom(),
-            prx: Arc::new(PipelineFileSystemProxy::Local),
+            execution: Arc::<Execution>::default(),
+            logger: Arc::<LoggerSender>::default(),
+            prx: Arc::<PipelineFileSystemProxy>::default(),
             pip: None,
-            ipc: Arc::new(None),
+            ipc: Arc::<Option<Sender<WorkerMessages>>>::default(),
             env: None,
             vars: None,
-            context: ContextSender::empty_atom(),
+            context: Arc::<ContextSender>::default(),
             is_child: false,
         }
     }
@@ -94,7 +93,7 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn proxy(mut self, prx: AtomicProxy) -> Self {
+    pub fn proxy(mut self, prx: Arc<PipelineFileSystemProxy>) -> Self {
         self.prx = prx;
         self
     }
@@ -104,12 +103,12 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn environment(mut self, env: AtomicVars) -> Self {
+    pub fn environment(mut self, env: Arc<HashMap<String, String>>) -> Self {
         self.env = Some(env);
         self
     }
 
-    pub fn variables(mut self, vars: AtomicVars) -> Self {
+    pub fn variables(mut self, vars: Arc<HashMap<String, String>>) -> Self {
         self.vars = Some(vars);
         self
     }
@@ -133,33 +132,31 @@ impl RunnerBuilder {
         let env = self
             .env
             .ok_or_else(|| anyhow!("no environment instance provided"))?;
-        let env: Arc<HashMap<String, String>> = Arc::new(
-            pipeline
-                .environment
-                .iter()
-                .map(|e| {
-                    (
-                        e.name.to_string(),
-                        env.get(&e.name).unwrap_or(&e.default_value).to_string(),
-                    )
-                })
-                .collect(),
-        );
+        let env = pipeline
+            .environment
+            .iter()
+            .map(|e| {
+                (
+                    e.name.to_string(),
+                    env.get(&e.name).unwrap_or(&e.default_value).to_string(),
+                )
+            })
+            .collect::<HashMap<String, String>>()
+            .as_arc();
         let vars = self
             .vars
             .ok_or_else(|| anyhow!("no variables instance provided"))?;
-        let vars: Arc<HashMap<String, String>> = Arc::new(
-            pipeline
-                .variables
-                .iter()
-                .map(|v| {
-                    (
-                        v.name.to_string(),
-                        vars.get(&v.name).unwrap_or(&v.default_value).to_string(),
-                    )
-                })
-                .collect(),
-        );
+        let vars = pipeline
+            .variables
+            .iter()
+            .map(|v| {
+                (
+                    v.name.to_string(),
+                    vars.get(&v.name).unwrap_or(&v.default_value).to_string(),
+                )
+            })
+            .collect::<HashMap<String, String>>()
+            .as_arc();
         let platform = match &pipeline.runs_on {
             RunsOn::Machine => {
                 let machine = Machine::new(&self.run_id, env.clone(), self.logger.clone())?;
@@ -202,11 +199,11 @@ pub struct Runner {
     cfg: Arc<BldConfig>,
     execution: Arc<Execution>,
     logger: Arc<LoggerSender>,
-    prx: AtomicProxy,
+    prx: Arc<PipelineFileSystemProxy>,
     pip: Pipeline,
     ipc: Arc<Option<Sender<WorkerMessages>>>,
-    env: AtomicVars,
-    vars: AtomicVars,
+    env: Arc<HashMap<String, String>>,
+    vars: Arc<HashMap<String, String>>,
     context: Arc<ContextSender>,
     platform: TargetPlatform,
     is_child: bool,
@@ -260,11 +257,13 @@ impl Runner {
         debug!("printing pipeline informantion");
 
         if let Some(name) = &self.pip.name {
-            self.logger.write_line(format!("Pipeline: {name}")).await?;
+            let message = format!("Pipeline: {name}");
+            self.logger.write_line(message).await?;
         }
 
+        let message = format!("Runs on: {}", self.pip.runs_on);
         self.logger
-            .write_line(format!("Runs on: {}", self.pip.runs_on))
+            .write_line(message)
             .await?;
 
         Ok(())

@@ -16,6 +16,7 @@ use bld_core::proxies::PipelineFileSystemProxy;
 use bld_sock::clients::EnqueueClient;
 use bld_sock::messages::ServerMessages;
 use bld_utils::tls::{awc_client, load_server_certificate, load_server_private_key};
+use bld_utils::sync::AsData;
 use futures::{join, stream::StreamExt};
 use rustls::ServerConfig;
 use std::env::{current_exe, set_var};
@@ -34,13 +35,13 @@ async fn spawn_server(
 
     let config_clone = config.clone();
     let pool = new_connection_pool(&config.local.db)?;
-    let enqueue_tx = Data::new(enqueue_tx);
-    let ha = Data::new(HighAvail::new(&config, pool.clone()).await?);
-    let pool = Data::new(pool);
-    let prx = Data::new(PipelineFileSystemProxy::Server {
+    let enqueue_tx = enqueue_tx.as_data();
+    let ha = HighAvail::new(&config, pool.clone()).await?.as_data();
+    let pool = pool.as_data();
+    let prx = PipelineFileSystemProxy::Server {
         config: Arc::clone(&config),
         pool: Arc::clone(&pool),
-    });
+    }.as_data();
 
     set_var("RUST_LOG", "actix_server=info,actix_web=debug");
     let mut server = HttpServer::new(move || {
@@ -128,7 +129,7 @@ fn create_supervisor() -> Result<Child> {
 }
 
 pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
-    let config = Data::new(config);
+    let config = config.as_data();
     let config_clone = Arc::clone(&config);
     let mut supervisor = create_supervisor()?; // set to kill the supervisor process on drop.
     let (enqueue_tx, enqueue_rx) = channel(4096);

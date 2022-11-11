@@ -1,11 +1,12 @@
 use crate::queues::worker_queue_channel;
 use crate::sockets::{ws_server_socket, ws_worker_socket};
-use actix_web::web::{get, resource, Data};
+use actix_web::web::{get, resource};
 use actix_web::{App, HttpServer};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::database::new_connection_pool;
 use bld_utils::tls::{load_server_certificate, load_server_private_key};
+use bld_utils::sync::AsData;
 use rustls::ServerConfig;
 
 pub async fn start(config: BldConfig) -> Result<()> {
@@ -13,15 +14,15 @@ pub async fn start(config: BldConfig) -> Result<()> {
         "{}:{}",
         config.local.supervisor.host, config.local.supervisor.port
     );
-    let config = Data::new(config);
+    let config = config.as_data();
     let config_clone = config.clone();
-    let pool = Data::new(new_connection_pool(&config.local.db)?);
+    let pool = new_connection_pool(&config.local.db)?.as_data();
     let worker_queue_sender = worker_queue_channel(
         config.local.supervisor.workers.try_into()?,
         config.clone(),
         pool.clone(),
     );
-    let worker_queue_sender = Data::new(worker_queue_sender);
+    let worker_queue_sender = worker_queue_sender.as_data();
 
     let mut server = HttpServer::new(move || {
         App::new()

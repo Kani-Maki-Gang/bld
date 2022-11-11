@@ -19,6 +19,12 @@ pub enum PipelineFileSystemProxy {
     },
 }
 
+impl Default for PipelineFileSystemProxy {
+    fn default() -> Self {
+        Self::Local
+    }
+}
+
 impl PipelineFileSystemProxy {
     pub fn path(&self, name: &str) -> anyhow::Result<PathBuf> {
         match self {

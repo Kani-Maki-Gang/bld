@@ -113,19 +113,16 @@ enum ContextMessage {
     KeepAlive(String),
 }
 
+#[derive(Default)]
 pub struct ContextSender {
     tx: Option<Sender<ContextMessage>>,
 }
 
 impl ContextSender {
-    pub fn empty_atom() -> Arc<Self> {
-        Arc::new(Self { tx: None })
-    }
-
-    pub fn containers_atom(
+    pub fn new(
         pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
         run_id: &str,
-    ) -> Arc<Self> {
+    ) -> Self {
         let (tx, rx) = channel(4096);
         let context = ContextReceiver::containers_atom(pool, run_id);
 
@@ -135,7 +132,7 @@ impl ContextSender {
             }
         });
 
-        Arc::new(Self { tx: Some(tx) })
+        Self { tx: Some(tx) }
     }
 
     pub async fn add(&self, container_id: String) -> Result<()> {

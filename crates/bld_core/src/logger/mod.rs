@@ -142,31 +142,28 @@ enum LoggerMessage {
     ErrorLine(String),
 }
 
+#[derive(Default)]
 pub struct LoggerSender {
     tx: Option<Sender<LoggerMessage>>,
 }
 
 impl LoggerSender {
-    pub fn empty_atom() -> Arc<Self> {
-        Arc::new(Self { tx: None })
-    }
-
-    pub fn shell_atom() -> Arc<Self> {
+    pub fn shell() -> Self {
         let (tx, rx) = channel(4096);
         let logger = LoggerReceiver::shell();
 
         spawn(async move { logger.receive(rx).await });
 
-        Arc::new(Self { tx: Some(tx) })
+        Self { tx: Some(tx) }
     }
 
-    pub fn file_atom(config: Arc<BldConfig>, run_id: &str) -> Result<Arc<Self>> {
+    pub fn file(config: Arc<BldConfig>, run_id: &str) -> Result<Self> {
         let (tx, rx) = channel(4096);
         let logger = LoggerReceiver::file(config, run_id)?;
 
         spawn(async move { logger.receive(rx).await });
 
-        Ok(Arc::new(Self { tx: Some(tx) }))
+        Ok(Self { tx: Some(tx) })
     }
 
     pub async fn write(&self, txt: String) -> Result<()> {

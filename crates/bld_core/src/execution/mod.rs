@@ -12,19 +12,21 @@ pub enum Execution {
     },
 }
 
-impl Execution {
-    pub fn empty_atom() -> Arc<Self> {
-        Arc::new(Self::Empty)
+impl Default for Execution {
+    fn default() -> Self {
+        Self::Empty
     }
+}
 
-    pub fn pipeline_atom(
+impl Execution {
+    pub fn new(
         pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
         run_id: &str,
-    ) -> Arc<Self> {
-        Arc::new(Self::Pipeline {
+    ) -> Self {
+        Self::Pipeline {
             pool,
             run_id: run_id.to_string(),
-        })
+        }
     }
 
     fn update_state(&self, state: &str) -> Result<()> {

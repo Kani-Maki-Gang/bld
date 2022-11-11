@@ -1,3 +1,4 @@
+use crate::sync::AsArc;
 use anyhow::{anyhow, Result};
 use awc::{Client, Connector};
 use rustls::{Certificate, ClientConfig, PrivateKey, RootCertStore};
@@ -6,7 +7,6 @@ use rustls_pemfile::{certs, pkcs8_private_keys};
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
-use std::sync::Arc;
 
 pub fn load_root_certificates() -> Result<RootCertStore> {
     let mut store = RootCertStore::empty();
@@ -51,7 +51,7 @@ pub fn awc_client() -> Result<Client> {
         .with_root_certificates(root_certificates)
         .with_no_client_auth();
 
-    let connector = Connector::new().rustls(Arc::new(rustls_config));
+    let connector = Connector::new().rustls(rustls_config.as_arc());
 
     Ok(Client::builder().connector(connector).finish())
 }
