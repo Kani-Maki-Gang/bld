@@ -1,4 +1,4 @@
-use crate::sync::AsArc;
+use crate::sync::IntoArc;
 use anyhow::{anyhow, Result};
 use awc::{Client, Connector};
 use rustls::{Certificate, ClientConfig, PrivateKey, RootCertStore};
@@ -48,7 +48,7 @@ pub fn awc_client() -> Result<Client> {
         .with_root_certificates(root_certificates)
         .with_no_client_auth();
 
-    let connector = Connector::new().rustls(rustls_config.as_arc());
+    let connector = Connector::new().rustls(rustls_config.into_arc());
 
     Ok(Client::builder().connector(connector).finish())
 }

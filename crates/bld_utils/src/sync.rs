@@ -1,8 +1,8 @@
 use actix_web::web::Data;
 use std::sync::Arc;
 
-pub trait AsArc {
-    fn as_arc(self) -> Arc<Self>
+pub trait IntoArc {
+    fn into_arc(self) -> Arc<Self>
     where
         Self: Sized,
     {
@@ -10,10 +10,10 @@ pub trait AsArc {
     }
 }
 
-impl<T> AsArc for T {}
+impl<T> IntoArc for T {}
 
-pub trait AsData {
-    fn as_data(self) -> Data<Self>
+pub trait IntoData {
+    fn into_data(self) -> Data<Self>
     where
         Self: Sized,
     {
@@ -21,4 +21,4 @@ pub trait AsData {
     }
 }
 
-impl<T> AsData for T {}
+impl<T> IntoData for T {}

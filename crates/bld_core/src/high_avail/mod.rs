@@ -16,7 +16,7 @@ use async_raft::raft::{
 };
 use async_raft::NodeId;
 use bld_config::BldConfig;
-use bld_utils::sync::AsArc;
+use bld_utils::sync::IntoArc;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::collections::HashSet;
@@ -47,12 +47,12 @@ impl HighAvailThread {
     ) -> Result<Self> {
         let (agent, agents) = agent_info(config)?;
         let node_id = agent.id();
-        let raft_config = Config::build("raft-group".into()).validate()?.as_arc();
+        let raft_config = Config::build("raft-group".into()).validate()?.into_arc();
         let ids = agents.iter().map(|a| a.id()).collect::<HashSet<NodeId>>();
         let network = HighAvailRouter::new(raft_config.clone(), agents)
             .await?
-            .as_arc();
-        let store = HighAvailStore::new(pool, agent.id())?.as_arc();
+            .into_arc();
+        let store = HighAvailStore::new(pool, agent.id())?.into_arc();
         let raft = HighAvailRaft::new(agent.id(), raft_config, network, store);
         raft.initialize(ids).await.map_err(|e| anyhow!(e))?;
         Ok(Self { node_id, raft })

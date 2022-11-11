@@ -12,7 +12,7 @@ use bld_core::proxies::PipelineFileSystemProxy;
 use bld_sock::clients::ExecClient;
 use bld_sock::messages::{RunInfo, WorkerMessages};
 use bld_utils::request::headers;
-use bld_utils::sync::AsArc;
+use bld_utils::sync::IntoArc;
 use bld_utils::tls::awc_client;
 use chrono::offset::Local;
 use futures::stream::StreamExt;
@@ -142,7 +142,7 @@ impl RunnerBuilder {
                 )
             })
             .collect::<HashMap<String, String>>()
-            .as_arc();
+            .into_arc();
         let vars = self
             .vars
             .ok_or_else(|| anyhow!("no variables instance provided"))?;
@@ -156,7 +156,7 @@ impl RunnerBuilder {
                 )
             })
             .collect::<HashMap<String, String>>()
-            .as_arc();
+            .into_arc();
         let platform = match &pipeline.runs_on {
             RunsOn::Machine => {
                 let machine = Machine::new(&self.run_id, env.clone(), self.logger.clone())?;
