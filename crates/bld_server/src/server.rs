@@ -15,8 +15,8 @@ use bld_core::high_avail::HighAvail;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_sock::clients::EnqueueClient;
 use bld_sock::messages::ServerMessages;
-use bld_utils::tls::{awc_client, load_server_certificate, load_server_private_key};
 use bld_utils::sync::AsData;
+use bld_utils::tls::{awc_client, load_server_certificate, load_server_private_key};
 use futures::{join, stream::StreamExt};
 use rustls::ServerConfig;
 use std::env::{current_exe, set_var};
@@ -41,7 +41,8 @@ async fn spawn_server(
     let prx = PipelineFileSystemProxy::Server {
         config: Arc::clone(&config),
         pool: Arc::clone(&pool),
-    }.as_data();
+    }
+    .as_data();
 
     set_var("RUST_LOG", "actix_server=info,actix_web=debug");
     let mut server = HttpServer::new(move || {

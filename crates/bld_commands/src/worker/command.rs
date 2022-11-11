@@ -13,8 +13,8 @@ use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::WorkerClient;
 use bld_sock::messages::WorkerMessages;
-use bld_utils::tls::awc_client;
 use bld_utils::sync::AsArc;
+use bld_utils::tls::awc_client;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use futures::join;
 use futures::stream::StreamExt;
@@ -75,7 +75,11 @@ impl BldCommand for WorkerCommand {
         let cfg = BldConfig::load()?.as_arc();
         let socket_cfg = cfg.clone();
 
-        let pipeline = matches.get_one::<String>(PIPELINE).cloned().unwrap().as_arc();
+        let pipeline = matches
+            .get_one::<String>(PIPELINE)
+            .cloned()
+            .unwrap()
+            .as_arc();
         let run_id = matches.get_one::<String>(RUN_ID).cloned().unwrap().as_arc();
         let variables = parse_variables(matches, VARIABLE).as_arc();
         let environment = parse_variables(matches, ENVIRONMENT).as_arc();
@@ -87,7 +91,8 @@ impl BldCommand for WorkerCommand {
         let proxy = PipelineFileSystemProxy::Server {
             config: cfg.clone(),
             pool: pool.clone(),
-        }.as_arc();
+        }
+        .as_arc();
 
         let exec = Execution::new(pool.clone(), &run_id).as_arc();
 

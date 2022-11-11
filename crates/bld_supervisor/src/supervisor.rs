@@ -5,8 +5,8 @@ use actix_web::{App, HttpServer};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::database::new_connection_pool;
-use bld_utils::tls::{load_server_certificate, load_server_private_key};
 use bld_utils::sync::AsData;
+use bld_utils::tls::{load_server_certificate, load_server_private_key};
 use rustls::ServerConfig;
 
 pub async fn start(config: BldConfig) -> Result<()> {

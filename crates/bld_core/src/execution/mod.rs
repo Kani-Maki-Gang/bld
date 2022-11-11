@@ -19,10 +19,7 @@ impl Default for Execution {
 }
 
 impl Execution {
-    pub fn new(
-        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
-        run_id: &str,
-    ) -> Self {
+    pub fn new(pool: Arc<Pool<ConnectionManager<SqliteConnection>>>, run_id: &str) -> Self {
         Self::Pipeline {
             pool,
             run_id: run_id.to_string(),

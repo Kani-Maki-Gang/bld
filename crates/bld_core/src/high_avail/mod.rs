@@ -49,7 +49,9 @@ impl HighAvailThread {
         let node_id = agent.id();
         let raft_config = Config::build("raft-group".into()).validate()?.as_arc();
         let ids = agents.iter().map(|a| a.id()).collect::<HashSet<NodeId>>();
-        let network = HighAvailRouter::new(raft_config.clone(), agents).await?.as_arc();
+        let network = HighAvailRouter::new(raft_config.clone(), agents)
+            .await?
+            .as_arc();
         let store = HighAvailStore::new(pool, agent.id())?.as_arc();
         let raft = HighAvailRaft::new(agent.id(), raft_config, network, store);
         raft.initialize(ids).await.map_err(|e| anyhow!(e))?;

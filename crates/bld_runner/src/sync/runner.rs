@@ -12,8 +12,8 @@ use bld_core::proxies::PipelineFileSystemProxy;
 use bld_sock::clients::ExecClient;
 use bld_sock::messages::{RunInfo, WorkerMessages};
 use bld_utils::request::headers;
-use bld_utils::tls::awc_client;
 use bld_utils::sync::AsArc;
+use bld_utils::tls::awc_client;
 use chrono::offset::Local;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
@@ -262,9 +262,7 @@ impl Runner {
         }
 
         let message = format!("Runs on: {}", self.pip.runs_on);
-        self.logger
-            .write_line(message)
-            .await?;
+        self.logger.write_line(message).await?;
 
         Ok(())
     }

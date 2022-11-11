@@ -119,10 +119,7 @@ pub struct ContextSender {
 }
 
 impl ContextSender {
-    pub fn new(
-        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
-        run_id: &str,
-    ) -> Self {
+    pub fn new(pool: Arc<Pool<ConnectionManager<SqliteConnection>>>, run_id: &str) -> Self {
         let (tx, rx) = channel(4096);
         let context = ContextReceiver::containers_atom(pool, run_id);
 

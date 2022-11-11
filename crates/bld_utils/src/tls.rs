@@ -22,10 +22,7 @@ pub fn load_server_certificate<P: AsRef<Path>>(path: &P) -> Result<Vec<Certifica
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);
 
-    let keys = certs(&mut reader)?
-        .into_iter()
-        .map(Certificate)
-        .collect();
+    let keys = certs(&mut reader)?.into_iter().map(Certificate).collect();
 
     Ok(keys)
 }
