@@ -1,14 +1,14 @@
 use anyhow::{anyhow, bail, Result};
 use bld_config::definitions::LOCAL_MACHINE_TMP_DIR;
 use bld_config::{os_name, path, OSname};
-use bld_core::logger::Logger;
+use bld_core::logger::LoggerSender;
 use std::collections::HashMap;
 use std::env::current_dir;
 use std::fmt::Write;
 use std::fs::{copy, create_dir_all};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 fn could_not_spawn_shell() -> Result<()> {
     Err(anyhow!("could not spawn shell"))
@@ -17,21 +17,25 @@ fn could_not_spawn_shell() -> Result<()> {
 pub struct Machine {
     tmp_dir: String,
     env: Arc<HashMap<String, String>>,
-    lg: Arc<Mutex<Logger>>,
+    logger: Arc<LoggerSender>,
 }
 
 impl Machine {
     pub fn new(
         id: &str,
         env: Arc<HashMap<String, String>>,
-        lg: Arc<Mutex<Logger>>,
+        logger: Arc<LoggerSender>,
     ) -> Result<Self> {
         let tmp_path = path![current_dir()?, LOCAL_MACHINE_TMP_DIR, id];
         let tmp_dir = tmp_path.display().to_string();
         if !tmp_path.is_dir() {
             create_dir_all(tmp_path)?;
         }
-        Ok(Self { tmp_dir, env, lg })
+        Ok(Self {
+            tmp_dir,
+            env,
+            logger,
+        })
     }
 
     fn copy(&self, from: &str, to: &str) -> Result<()> {
@@ -80,10 +84,7 @@ impl Machine {
             writeln!(output, "{}", String::from_utf8_lossy(&process.stdout))?;
         }
 
-        {
-            let mut logger = self.lg.lock().unwrap();
-            logger.dump(&output);
-        }
+        self.logger.write(output).await?;
 
         if !ExitStatus::success(&process.status) {
             bail!("command finished with {}", process.status);

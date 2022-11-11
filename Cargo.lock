@@ -477,6 +477,7 @@ dependencies = [
 name = "bld_core"
 version = "0.1.0"
 dependencies = [
+ "actix-web",
  "anyhow",
  "async-raft",
  "async-trait",
@@ -603,6 +604,7 @@ dependencies = [
 name = "bld_utils"
 version = "0.1.0"
 dependencies = [
+ "actix-web",
  "anyhow",
  "awc",
  "bld_config",

@@ -5,14 +5,15 @@ use actix::{Actor, StreamHandler};
 use actix_web::rt::{spawn, System};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::context::Context;
+use bld_core::context::ContextSender;
 use bld_core::database::{new_connection_pool, pipeline_runs};
 use bld_core::execution::Execution;
-use bld_core::logger::Logger;
+use bld_core::logger::LoggerSender;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::WorkerClient;
 use bld_sock::messages::WorkerMessages;
+use bld_utils::sync::IntoArc;
 use bld_utils::tls::awc_client;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use futures::join;
@@ -71,31 +72,37 @@ impl BldCommand for WorkerCommand {
     }
 
     fn exec(&self, matches: &ArgMatches) -> Result<()> {
-        let cfg = Arc::new(BldConfig::load()?);
-        let socket_cfg = Arc::clone(&cfg);
+        let cfg = BldConfig::load()?.into_arc();
+        let socket_cfg = cfg.clone();
 
-        let pipeline = Arc::new(matches.get_one::<String>(PIPELINE).cloned().unwrap());
-        let run_id = Arc::new(matches.get_one::<String>(RUN_ID).cloned().unwrap());
-        let variables = Arc::new(parse_variables(matches, VARIABLE));
-        let environment = Arc::new(parse_variables(matches, ENVIRONMENT));
+        let pipeline = matches
+            .get_one::<String>(PIPELINE)
+            .cloned()
+            .unwrap()
+            .into_arc();
+        let run_id = matches.get_one::<String>(RUN_ID).cloned().unwrap().into_arc();
+        let variables = parse_variables(matches, VARIABLE).into_arc();
+        let environment = parse_variables(matches, ENVIRONMENT).into_arc();
 
-        let pool = Arc::new(new_connection_pool(&cfg.local.db)?);
+        let pool = new_connection_pool(&cfg.local.db)?.into_arc();
         let mut conn = pool.get()?;
         let pipeline_run = pipeline_runs::select_by_id(&mut conn, &run_id)?;
         let start_date_time = pipeline_run.start_date_time;
-        let proxy = Arc::new(PipelineFileSystemProxy::Server {
+        let proxy = PipelineFileSystemProxy::Server {
             config: cfg.clone(),
             pool: pool.clone(),
-        });
+        }
+        .into_arc();
 
-        let logger = Logger::file_atom(cfg.clone(), &run_id)?;
-        let exec = Execution::pipeline_atom(pool.clone(), &run_id);
-        let context = Context::containers_atom(pool, &run_id);
+        let exec = Execution::new(pool.clone(), &run_id).into_arc();
 
         let (worker_tx, worker_rx) = channel(4096);
-        let worker_tx = Arc::new(Some(worker_tx));
+        let worker_tx = Some(worker_tx).into_arc();
 
         System::new().block_on(async move {
+            let logger = LoggerSender::file(cfg.clone(), &run_id)?.into_arc();
+            let context = ContextSender::new(pool, &run_id).into_arc();
+
             let socket_handle = spawn(async move {
                 if let Err(e) = connect_to_supervisor(socket_cfg, worker_rx).await {
                     error!("{e}");

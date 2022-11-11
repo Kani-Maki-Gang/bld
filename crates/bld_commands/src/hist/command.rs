@@ -125,10 +125,7 @@ mod tests {
         let command = HistCommand::boxed().interface();
         let matches = command.get_matches_from(&["hist", "-s", server_name, "-x", state]);
 
-        assert_eq!(
-            matches.get_one::<String>(STATE),
-            Some(&state.to_string())
-        )
+        assert_eq!(matches.get_one::<String>(STATE), Some(&state.to_string()))
     }
 
     #[test]
@@ -151,9 +148,6 @@ mod tests {
         let command = HistCommand::boxed().interface();
         let matches = command.get_matches_from(&["hist", "-s", server_name, "-l", limit]);
 
-        assert_eq!(
-            matches.get_one::<String>(LIMIT),
-            Some(&limit.to_string())
-        )
+        assert_eq!(matches.get_one::<String>(LIMIT), Some(&limit.to_string()))
     }
 }

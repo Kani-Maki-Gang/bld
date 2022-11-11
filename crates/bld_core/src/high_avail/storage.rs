@@ -25,7 +25,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::fmt::{self, Display};
 use std::io::Cursor;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use tracing::{debug, error};
 
@@ -238,7 +238,7 @@ impl RaftStorage<AgentRequest, AgentResponse> for HighAvailStore {
         for (index, data) in entries {
             let id = data.id().parse::<i32>()?;
             let status = data.status();
-            (*sm).last_applied_log = **index as i32;
+            sm.last_applied_log = **index as i32;
             if let Ok(csr) = ha_client_serial_responses::select_by_id(&mut conn, id) {
                 if csr.serial as u64 == data.serial() {
                     continue;

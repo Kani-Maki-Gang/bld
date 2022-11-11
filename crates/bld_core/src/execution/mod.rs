@@ -2,7 +2,7 @@ use crate::database::pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, 
 use anyhow::{bail, Result};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 pub enum Execution {
     Empty,
@@ -12,22 +12,21 @@ pub enum Execution {
     },
 }
 
-impl Execution {
-    pub fn empty_atom() -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self::Empty))
+impl Default for Execution {
+    fn default() -> Self {
+        Self::Empty
     }
+}
 
-    pub fn pipeline_atom(
-        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
-        run_id: &str,
-    ) -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self::Pipeline {
+impl Execution {
+    pub fn new(pool: Arc<Pool<ConnectionManager<SqliteConnection>>>, run_id: &str) -> Self {
+        Self::Pipeline {
             pool,
             run_id: run_id.to_string(),
-        }))
+        }
     }
 
-    fn update_state(&mut self, state: &str) -> Result<()> {
+    fn update_state(&self, state: &str) -> Result<()> {
         match self {
             Self::Empty => Ok(()),
             Self::Pipeline { pool, run_id } => {
@@ -37,15 +36,15 @@ impl Execution {
         }
     }
 
-    pub fn set_as_running(&mut self) -> Result<()> {
+    pub fn set_as_running(&self) -> Result<()> {
         self.update_state(PR_STATE_RUNNING)
     }
 
-    pub fn set_as_finished(&mut self) -> Result<()> {
+    pub fn set_as_finished(&self) -> Result<()> {
         self.update_state(PR_STATE_FINISHED)
     }
 
-    pub fn set_as_faulted(&mut self) -> Result<()> {
+    pub fn set_as_faulted(&self) -> Result<()> {
         self.update_state(PR_STATE_FAULTED)
     }
 

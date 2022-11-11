@@ -2,11 +2,12 @@ use actix::{io::SinkWrite, Actor, StreamHandler};
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::logger::Logger;
+use bld_core::logger::LoggerSender;
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::ExecClient;
 use bld_sock::messages::RunInfo;
 use bld_utils::request::{self, headers};
+use bld_utils::sync::IntoArc;
 use bld_utils::tls::awc_client;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
@@ -32,9 +33,9 @@ impl RunAdapter for RunInProcessAdapter {
             let runner = RunnerBuilder::default()
                 .config(self.config.clone())
                 .pipeline(&self.pipeline)
-                .logger(Logger::shell_atom())
-                .environment(Arc::new(self.environment.clone()))
-                .variables(Arc::new(self.variables.clone()))
+                .logger(LoggerSender::shell().into_arc())
+                .environment(self.environment.clone().into_arc())
+                .variables(self.variables.clone().into_arc())
                 .build()
                 .await?;
             let res = runner.run().await.await;
@@ -119,7 +120,7 @@ impl RunWithWebSocketAdapter {
         let (sink, stream) = framed.split();
         let addr = ExecClient::create(|ctx| {
             ExecClient::add_stream(stream, ctx);
-            ExecClient::new(Logger::shell_atom(), SinkWrite::new(sink, ctx))
+            ExecClient::new(LoggerSender::shell().into_arc(), SinkWrite::new(sink, ctx))
         });
 
         debug!(
@@ -193,7 +194,7 @@ pub fn create_adapter(
         }
     } else {
         Ok(Box::new(RunInProcessAdapter {
-            config: Arc::new(config),
+            config: config.into_arc(),
             pipeline,
             environment: env,
             variables: vars,

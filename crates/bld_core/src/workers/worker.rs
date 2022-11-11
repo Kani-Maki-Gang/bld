@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use std::process::{Child, Command, ExitStatus};
 
+#[derive(Debug)]
 pub struct PipelineWorker {
     run_id: String,
     cmd: Command,

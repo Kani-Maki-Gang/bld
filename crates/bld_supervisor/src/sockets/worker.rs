@@ -1,31 +1,27 @@
-use crate::base::Queue;
-use crate::queues::WorkerQueue;
+use crate::queues::WorkerQueueSender;
 use actix::prelude::*;
+use actix_web::rt::spawn;
 use actix_web::web::{Bytes, Data, Payload};
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
+use anyhow::Result;
 use bld_sock::messages::WorkerMessages;
-use std::sync::Mutex;
 use tracing::{debug, error, info};
 
 pub struct WorkerSocket {
     worker_pid: Option<u32>,
-    worker_queue: Data<Mutex<WorkerQueue>>,
+    worker_queue_tx: Data<WorkerQueueSender>,
 }
 
 impl WorkerSocket {
-    pub fn new(worker_queue: Data<Mutex<WorkerQueue>>) -> Self {
+    pub fn new(worker_queue_tx: Data<WorkerQueueSender>) -> Self {
         Self {
             worker_pid: None,
-            worker_queue,
+            worker_queue_tx,
         }
     }
 
-    fn handle_message(
-        &mut self,
-        bytes: &Bytes,
-        ctx: &mut <Self as Actor>::Context,
-    ) -> anyhow::Result<()> {
+    fn handle_message(&mut self, bytes: &Bytes, ctx: &mut <Self as Actor>::Context) -> Result<()> {
         let msg: WorkerMessages = serde_json::from_slice(&bytes[..])?;
         match msg {
             WorkerMessages::Ack => info!("a new worker connection was acknowledged"),
@@ -44,10 +40,13 @@ impl WorkerSocket {
     fn cleanup(&self, ctx: &mut <Self as Actor>::Context) {
         if let Some(pid) = self.worker_pid {
             debug!("dequeue of worker with pid: {}", pid);
-            let mut queue = self.worker_queue.lock().unwrap();
-            if let Err(e) = queue.dequeue(pid) {
-                error!("{e}");
-            }
+            let tx = self.worker_queue_tx.clone();
+            spawn(async move {
+                let _ = tx.dequeue(pid).await.map_err(|e| {
+                    error!("{e}");
+                    e
+                });
+            });
         }
         ctx.stop();
     }
@@ -84,8 +83,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WorkerSocket {
 pub async fn ws_worker_socket(
     req: HttpRequest,
     stream: Payload,
-    worker_queue: Data<Mutex<WorkerQueue>>,
+    worker_queue_tx: Data<WorkerQueueSender>,
 ) -> Result<HttpResponse, Error> {
-    let socket = WorkerSocket::new(worker_queue);
+    let socket = WorkerSocket::new(worker_queue_tx);
     ws::start(socket, &req, stream)
 }

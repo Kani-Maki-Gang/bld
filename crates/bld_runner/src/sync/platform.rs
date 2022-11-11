@@ -1,7 +1,7 @@
 use crate::context::{Container, Machine};
 use anyhow::Result;
 use bld_core::execution::Execution;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 pub enum TargetPlatform {
     Machine(Box<Machine>),
@@ -27,7 +27,7 @@ impl TargetPlatform {
         &self,
         working_dir: &Option<String>,
         command: &str,
-        exec: Arc<Mutex<Execution>>,
+        exec: Arc<Execution>,
     ) -> Result<()> {
         match self {
             Self::Machine(machine) => machine.sh(working_dir, command).await,
@@ -35,9 +35,9 @@ impl TargetPlatform {
         }
     }
 
-    pub fn keep_alive(&self) -> Result<()> {
+    pub async fn keep_alive(&self) -> Result<()> {
         match self {
-            Self::Container(container) => container.keep_alive(),
+            Self::Container(container) => container.keep_alive().await,
             _ => Ok(()),
         }
     }

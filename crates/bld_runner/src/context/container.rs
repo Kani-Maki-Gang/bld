@@ -1,8 +1,8 @@
 use anyhow::{bail, Result};
 use bld_config::BldConfig;
-use bld_core::context::Context;
+use bld_core::context::ContextSender;
 use bld_core::execution::Execution;
-use bld_core::logger::Logger;
+use bld_core::logger::LoggerSender;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
 use shiplift::tty::TtyChunk;
@@ -11,19 +11,17 @@ use shiplift::{
 };
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tar::Archive;
 use tracing::error;
-
-type AtomicLogger = Arc<Mutex<Logger>>;
 
 pub struct Container {
     pub id: Option<String>,
     pub config: Option<Arc<BldConfig>>,
     pub image: String,
     pub client: Option<Docker>,
-    pub logger: AtomicLogger,
-    pub containers: Arc<Mutex<Context>>,
+    pub logger: Arc<LoggerSender>,
+    pub containers: Arc<ContextSender>,
 }
 
 impl Container {
@@ -47,21 +45,21 @@ impl Container {
         Ok(host)
     }
 
-    async fn pull(client: &Docker, image: &str, logger: &mut AtomicLogger) -> Result<()> {
+    async fn pull(client: &Docker, image: &str, logger: &mut Arc<LoggerSender>) -> Result<()> {
         let options = ImageListOptions::builder().filter_name(image).build();
         let images = client.images().list(&options).await?;
+
         if images.is_empty() {
-            {
-                let mut logger = logger.lock().unwrap();
-                logger.info(&format!("Download image: {image}"));
-            }
+            logger.info(format!("Download image: {image}")).await?;
+
             let options = PullOptions::builder().image(image).build();
             let mut pull_iter = client.images().pull(&options);
+
             while let Some(Ok(progress)) = pull_iter.next().await {
-                let mut logger = logger.lock().unwrap();
-                logger.dumpln(&progress.to_string());
+                logger.write_line(progress.to_string()).await?;
             }
         }
+
         Ok(())
     }
 
@@ -69,7 +67,7 @@ impl Container {
         client: &Docker,
         image: &str,
         env: &[String],
-        logger: &mut AtomicLogger,
+        logger: &mut Arc<LoggerSender>,
     ) -> Result<String> {
         Container::pull(client, image, logger).await?;
         let options = ContainerOptions::builder(image).env(env).tty(true).build();
@@ -82,16 +80,13 @@ impl Container {
         image: &str,
         config: Arc<BldConfig>,
         env: Arc<HashMap<String, String>>,
-        logger: AtomicLogger,
-        containers: Arc<Mutex<Context>>,
+        logger: Arc<LoggerSender>,
+        containers: Arc<ContextSender>,
     ) -> Result<Self> {
         let client = Container::docker(&config)?;
         let env: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
         let id = Container::create(&client, image, &env, &mut logger.clone()).await?;
-        {
-            let mut containers = containers.lock().unwrap();
-            containers.add(&id)?;
-        }
+        containers.add(id.clone()).await?;
         Ok(Self {
             config: Some(config),
             image: image.to_string(),
@@ -123,7 +118,7 @@ impl Container {
         &self,
         working_dir: &Option<String>,
         input: &str,
-        ex: Arc<Mutex<Execution>>,
+        execution: Arc<Execution>,
     ) -> Result<()> {
         let client = self.get_client()?;
         let id = self.get_id()?;
@@ -143,10 +138,7 @@ impl Container {
         let mut exec_stream = exec.start();
 
         while let Some(result) = exec_stream.next().await {
-            {
-                let exec = ex.lock().unwrap();
-                exec.check_stop_signal()?
-            }
+            execution.check_stop_signal()?;
 
             let chunk = match result {
                 Ok(TtyChunk::StdOut(bytes)) => String::from_utf8(bytes)?,
@@ -155,8 +147,7 @@ impl Container {
                 Err(e) => bail!(e),
             };
 
-            let mut logger = self.logger.lock().unwrap();
-            logger.dump(&chunk);
+            self.logger.write(chunk).await?;
         }
 
         let inspect = exec.inspect().await?;
@@ -168,10 +159,9 @@ impl Container {
         Ok(())
     }
 
-    pub fn keep_alive(&self) -> Result<()> {
+    pub async fn keep_alive(&self) -> Result<()> {
         let id = self.get_id()?;
-        let mut containers = self.containers.lock().unwrap();
-        containers.keep_alive(id)
+        self.containers.keep_alive(id.to_string()).await
     }
 
     pub async fn dispose(&self) -> Result<()> {
@@ -180,21 +170,17 @@ impl Container {
 
         if let Err(e) = client.containers().get(id).stop(None).await {
             error!("could not stop container, {e}");
-            let mut containers = self.containers.lock().unwrap();
-            containers.set_as_faulted(id)?;
+            self.containers.set_as_faulted(id.to_string()).await?;
             bail!(e);
         }
 
         if let Err(e) = client.containers().get(id).delete().await {
             error!("could not stop container, {e}");
-            let mut containers = self.containers.lock().unwrap();
-            containers.set_as_faulted(id)?;
+            self.containers.set_as_faulted(id.to_string()).await?;
             bail!(e);
         }
 
-        let mut containers = self.containers.lock().unwrap();
-        containers.set_as_removed(id)?;
-
+        self.containers.set_as_removed(id.to_string()).await?;
         Ok(())
     }
 }
