@@ -1,6 +1,5 @@
 mod auth;
 pub mod definitions;
-mod errors;
 mod local;
 mod path;
 mod remote;
@@ -9,7 +8,6 @@ mod supervisor;
 mod tls;
 
 pub use auth::*;
-pub use errors::*;
 pub use local::*;
 pub use path::*;
 pub use remote::*;

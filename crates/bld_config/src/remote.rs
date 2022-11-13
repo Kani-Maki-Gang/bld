@@ -1,6 +1,14 @@
-use crate::{err_no_server_in_config, err_server_not_in_config, BldRemoteServerConfig};
-use anyhow::{bail, Result};
+use crate::BldRemoteServerConfig;
+use anyhow::{anyhow, bail, Error, Result};
 use yaml_rust::Yaml;
+
+pub fn err_server_not_in_config() -> Error {
+    anyhow!("server not found in config")
+}
+
+pub fn err_no_server_in_config() -> Error {
+    anyhow!("no server found in config")
+}
 
 #[derive(Debug, Default)]
 pub struct BldRemoteConfig {
