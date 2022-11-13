@@ -19,7 +19,7 @@ pub async fn stop(
     }
     let id = req.into_inner();
     match do_stop(pool.get_ref(), &id) {
-        Ok(_) => HttpResponse::Ok().body(""),
+        Ok(_) => HttpResponse::Ok().json(""),
         Err(_) => HttpResponse::BadRequest().body("pipeline not found"),
     }
 }

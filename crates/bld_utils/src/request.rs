@@ -1,3 +1,5 @@
+use crate::sync::IntoArc;
+use crate::tls::load_root_certificates;
 use anyhow::{anyhow, Result};
 use awc::http::StatusCode;
 use awc::ws::WebsocketsRequest;
@@ -9,9 +11,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::fs;
 use std::path::PathBuf;
-
-use crate::sync::IntoArc;
-use crate::tls::load_root_certificates;
+use tracing::debug;
 
 pub struct Request {
     request: ClientRequest,
@@ -68,12 +68,21 @@ impl Request {
         let text = format!("{}", String::from_utf8_lossy(&body));
 
         match status {
-            StatusCode::OK => serde_json::from_str::<T>(&text).map_err(|e| anyhow!(e)),
-            StatusCode::BAD_REQUEST => Err(anyhow!(text)),
-            st => Err(anyhow!(
-                "request returned failed with status code: {}",
-                st.to_string()
-            )),
+            StatusCode::OK => {
+                debug!("response from server status: {status}, body: {text}");
+                serde_json::from_str::<T>(&text).map_err(|e| anyhow!(e))
+            }
+            StatusCode::BAD_REQUEST => {
+                debug!("response from server status: {status}, body: {text}");
+                Err(anyhow!(text))
+            }
+            st => {
+                debug!("response from server status: {status}");
+                Err(anyhow!(
+                    "request returned failed with status code: {}",
+                    st.to_string()
+                ))
+            }
         }
     }
 }

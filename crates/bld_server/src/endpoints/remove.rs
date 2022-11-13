@@ -15,7 +15,7 @@ pub async fn remove(
         return HttpResponse::Unauthorized().body("");
     }
     match prx.remove(&body.into_inner()) {
-        Ok(_) => HttpResponse::Ok().body(""),
+        Ok(_) => HttpResponse::Ok().json(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }

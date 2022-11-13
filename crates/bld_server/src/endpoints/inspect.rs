@@ -15,7 +15,7 @@ pub async fn inspect(
         return HttpResponse::Unauthorized().body("");
     }
     match prx.read(&body.into_inner()) {
-        Ok(content) => HttpResponse::Ok().body(content),
+        Ok(content) => HttpResponse::Ok().json(content),
         Err(_) => HttpResponse::BadRequest().body(""),
     }
 }

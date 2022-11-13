@@ -23,7 +23,7 @@ pub async fn run(
     }
     let user = user.unwrap();
     match enqueue_worker(&user, proxy, pool, enqueue_tx, data.into_inner()) {
-        Ok(_) => HttpResponse::Ok().body(""),
+        Ok(_) => HttpResponse::Ok().json(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }

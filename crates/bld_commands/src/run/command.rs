@@ -85,18 +85,12 @@ impl BldCommand for RunCommand {
 
         debug!(message);
 
-        // create_adapter(config, pipeline, server, vars, env, detach)?.start()
-        let mut builder = RunBuilder::new(config.into_arc(), pipeline, vars, env);
+        let adapter = RunBuilder::new(config.into_arc(), pipeline, vars, env)
+            .server(server)
+            .detach(detach)
+            .build();
 
-        if let Some(server) = server {
-            builder = builder.server(&server);
-            if detach {
-                builder.detach();
-            }
-        }
-
-        builder.build();
-        Ok(())
+        adapter.run()
     }
 }
 

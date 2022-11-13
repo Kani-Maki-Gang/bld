@@ -22,7 +22,7 @@ pub async fn push(
         return HttpResponse::Unauthorized().body("");
     }
     match do_push(prx.get_ref(), pool.get_ref(), &info.into_inner()) {
-        Ok(()) => HttpResponse::Ok().body(""),
+        Ok(()) => HttpResponse::Ok().json(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }

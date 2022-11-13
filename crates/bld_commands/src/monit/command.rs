@@ -2,7 +2,8 @@ use crate::BldCommand;
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
-use bld_config::{definitions::VERSION, BldConfig, BldRemoteServerConfig};
+use bld_config::definitions::VERSION;
+use bld_config::BldConfig;
 use bld_sock::clients::MonitClient;
 use bld_sock::messages::MonitInfo;
 use bld_utils::request::WebSocket;
@@ -65,7 +66,6 @@ impl BldCommand for MonitCommand {
     }
 
     fn exec(&self, matches: &ArgMatches) -> Result<()> {
-        let config = BldConfig::load()?;
         let pip_id = matches.get_one::<String>(PIPELINE_ID).cloned();
         let pip_name = matches.get_one::<String>(PIPELINE).cloned();
         let pip_last = matches.get_flag(LAST);

@@ -8,7 +8,6 @@ use bld_server::responses::PullResponse;
 use bld_utils::fs::IsYaml;
 use bld_utils::request::Request;
 use clap::{Arg, ArgAction, ArgMatches, Command};
-use std::collections::HashMap;
 use std::fs::{create_dir_all, remove_file, File};
 use std::io::Write;
 use tracing::debug;

@@ -12,5 +12,5 @@ pub struct AuthRedirectInfo {
 pub async fn auth_redirect(info: web::Query<AuthRedirectInfo>) -> impl Responder {
     info!("Reached handler for /authRedirect route");
     let message = format!("code: {}, state: {}", info.code, info.state);
-    HttpResponse::Ok().body(message)
+    HttpResponse::Ok().json(message)
 }

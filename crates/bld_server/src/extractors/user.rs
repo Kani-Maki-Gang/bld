@@ -8,7 +8,6 @@ use bld_config::{AuthValidation, BldConfig};
 use bld_utils::request::Request;
 use futures::Future;
 use futures_util::future::FutureExt;
-use std::collections::HashMap;
 use std::pin::Pin;
 use tracing::error;
 

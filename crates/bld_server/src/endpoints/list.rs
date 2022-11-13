@@ -19,7 +19,7 @@ pub async fn list(
         return HttpResponse::Unauthorized().body("");
     }
     match find_pipelines(prx.get_ref(), pool.get_ref()) {
-        Ok(pips) => HttpResponse::Ok().body(pips),
+        Ok(pips) => HttpResponse::Ok().json(pips),
         Err(_) => HttpResponse::BadRequest().body("no pipelines found"),
     }
 }
