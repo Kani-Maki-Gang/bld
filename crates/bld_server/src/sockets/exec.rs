@@ -11,7 +11,7 @@ use bld_core::database::pipeline_runs::{
     self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED,
 };
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_core::scanner::{FileScanner, Scanner};
+use bld_core::scanner::FileScanner;
 use bld_sock::messages::{RunInfo, ServerMessages};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
@@ -51,7 +51,7 @@ impl ExecutePipelineSocket {
 
     fn scan(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
         if let Some(scanner) = act.scanner.as_mut() {
-            let content = scanner.fetch();
+            let content = scanner.scan();
             for line in content.iter() {
                 ctx.text(line.to_string());
             }
