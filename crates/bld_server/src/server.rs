@@ -14,7 +14,8 @@ use bld_core::proxies::PipelineFileSystemProxy;
 use bld_sock::clients::EnqueueClient;
 use bld_sock::messages::ServerMessages;
 use bld_utils::sync::IntoData;
-use bld_utils::tls::{awc_client, load_server_certificate, load_server_private_key};
+use bld_utils::tls::{load_server_certificate, load_server_private_key};
+use bld_utils::request::WebSocket;
 use futures::{join, stream::StreamExt};
 use rustls::ServerConfig;
 use std::env::{current_exe, set_var};
@@ -97,11 +98,14 @@ async fn supervisor_socket(
 
     debug!("establishing web socket connection on {}", url);
 
-    let client = awc_client()?;
-    let (_, framed) = client.ws(url).connect().await.map_err(|e| {
-        error!("{e}");
-        anyhow!(e.to_string())
-    })?;
+    let (_, framed) = WebSocket::new(&url)?
+        .request()
+        .connect()
+        .await
+        .map_err(|e| {
+            error!("{e}");
+            anyhow!(e.to_string())
+        })?;
 
     let (sink, stream) = framed.split();
     let addr = EnqueueClient::create(|ctx| {
