@@ -5,7 +5,7 @@ use actix_web::web::Data;
 use actix_web::{Error, FromRequest, HttpRequest};
 use anyhow::{anyhow, Result};
 use bld_config::{AuthValidation, BldConfig};
-use bld_utils::request;
+use bld_utils::request::Request;
 use futures::Future;
 use futures_util::future::FutureExt;
 use std::collections::HashMap;
@@ -56,12 +56,14 @@ fn get_bearer(request: &HttpRequest) -> String {
 }
 
 async fn oauth2_validate(url: String, bearer: String) -> Result<User> {
-    let mut headers = HashMap::new();
-    headers.insert("Authorization".to_string(), bearer);
-    let res = request::get(url.to_string(), headers).await.map_err(|e| {
-        error!("authorization check failed to remote server with: {}", e);
-        anyhow!("could not authenticate user")
-    })?;
+    let res: String = Request::get(&url)
+        .header("Authorization", &bearer)
+        .send()
+        .await
+        .map_err(|e| {
+            error!("authorization check failed to remote server with: {}", e);
+            anyhow!("could not authenticate user")
+        })?;
     let value: serde_json::Value = serde_json::from_str(&res)?;
     Ok(User::new(&value["login"].to_string()))
 }

@@ -13,8 +13,8 @@ use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::WorkerClient;
 use bld_sock::messages::WorkerMessages;
+use bld_utils::request::WebSocket;
 use bld_utils::sync::IntoArc;
-use bld_utils::tls::awc_client;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use futures::join;
 use futures::stream::StreamExt;
@@ -80,7 +80,11 @@ impl BldCommand for WorkerCommand {
             .cloned()
             .unwrap()
             .into_arc();
-        let run_id = matches.get_one::<String>(RUN_ID).cloned().unwrap().into_arc();
+        let run_id = matches
+            .get_one::<String>(RUN_ID)
+            .cloned()
+            .unwrap()
+            .into_arc();
         let variables = parse_variables(matches, VARIABLE).into_arc();
         let environment = parse_variables(matches, ENVIRONMENT).into_arc();
 
@@ -160,11 +164,14 @@ async fn connect_to_supervisor(
 
     debug!("establishing web socket connection on {}", url);
 
-    let client = awc_client()?.ws(url).connect();
-    let (_, framed) = client.await.map_err(|e| {
-        error!("{e}");
-        anyhow!(e.to_string())
-    })?;
+    let (_, framed) = WebSocket::new(&url)?
+        .request()
+        .connect()
+        .await
+        .map_err(|e| {
+            error!("{e}");
+            anyhow!(e.to_string())
+        })?;
 
     let (sink, stream) = framed.split();
     let addr = WorkerClient::create(|ctx| {

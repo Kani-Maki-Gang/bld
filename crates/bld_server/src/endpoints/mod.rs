@@ -1,6 +1,5 @@
 mod auth_redirect;
 mod deps;
-mod ha;
 mod hist;
 mod home;
 mod inspect;
@@ -13,7 +12,6 @@ mod stop;
 
 pub use auth_redirect::*;
 pub use deps::*;
-pub use ha::*;
 pub use hist::*;
 pub use home::*;
 pub use inspect::*;

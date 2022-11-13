@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, Scope, TokenUrl};
 use yaml_rust::Yaml;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OAuth2Info {
     pub auth_url: AuthUrl,
     pub token_url: TokenUrl,
@@ -58,7 +58,7 @@ impl OAuth2Info {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Auth {
     Ldap,
     OAuth2(Box<OAuth2Info>),

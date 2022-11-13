@@ -1,11 +1,12 @@
 use crate::BldCommand;
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
+use bld_config::BldRemoteServerConfig;
 use bld_config::{definitions::VERSION, BldConfig};
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_server::responses::PullResponse;
 use bld_utils::fs::IsYaml;
-use bld_utils::request;
+use bld_utils::request::Request;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use std::collections::HashMap;
 use std::fs::{create_dir_all, remove_file, File};
@@ -68,14 +69,13 @@ impl BldCommand for PullCommand {
         );
 
         let server_auth = config.remote.same_auth_as(server)?;
-        let headers = request::headers(&server_auth.name, &server_auth.auth)?;
 
         System::new().block_on(async move {
             do_pull(
                 server.host.clone(),
                 server.port,
                 server.http_protocol(),
-                headers,
+                server_auth.clone(),
                 pip,
                 ignore,
             )
@@ -88,19 +88,23 @@ async fn do_pull(
     host: String,
     port: i64,
     protocol: String,
-    headers: HashMap<String, String>,
+    server_auth: BldRemoteServerConfig,
     name: String,
     ignore_deps: bool,
 ) -> Result<()> {
     let mut pipelines = vec![name.to_string()];
+
     if !ignore_deps {
         let metadata_url = format!("{protocol}://{host}:{port}/deps");
+
         debug!("sending http request to {metadata_url}");
         print!("Fetching metadata for dependecies...");
-        let mut deps = request::post(metadata_url, headers.clone(), name)
+
+        let mut deps = Request::post(&metadata_url)
+            .auth(&server_auth)
+            .send_json(name)
             .await
-            .and_then(|r| serde_json::from_str::<Vec<String>>(&r).map_err(|e| anyhow!(e)))
-            .map(|d| {
+            .map(|d: Vec<String>| {
                 println!("Done.");
                 d
             })
@@ -108,15 +112,20 @@ async fn do_pull(
                 println!("Error. {e}");
                 anyhow!(String::new())
             })?;
+
         pipelines.append(&mut deps);
     }
+
     for pipeline in pipelines.iter() {
         let url = format!("{protocol}://{host}:{port}/pull");
+
         debug!("sending http request to {url}");
         print!("Pulling pipeline {pipeline}...");
-        let _ = request::post(url, headers.clone(), pipeline.to_string())
+
+        let _ = Request::post(&url)
+            .auth(&server_auth)
+            .send_json(pipeline.to_string())
             .await
-            .and_then(|r| serde_json::from_str(&r).map_err(|e| anyhow!(e)))
             .and_then(save_pipeline)
             .map(|_| {
                 println!("Done.");
@@ -126,18 +135,22 @@ async fn do_pull(
                 e
             });
     }
+
     Ok(())
 }
 
 fn save_pipeline(data: PullResponse) -> Result<()> {
     let path = PipelineFileSystemProxy::Local.path(&data.name)?;
+
     if path.is_yaml() {
         remove_file(&path)?;
     } else if let Some(parent) = path.parent() {
         create_dir_all(parent)?;
     }
+
     let mut handle = File::create(&path)?;
     handle.write_all(data.content.as_bytes())?;
+
     Ok(())
 }
 

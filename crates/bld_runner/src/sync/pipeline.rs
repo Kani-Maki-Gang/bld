@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result, Error};
+use anyhow::{anyhow, Error, Result};
 use std::fmt::{self, Display, Formatter};
 use yaml_rust::{Yaml, YamlLoader};
 

@@ -1,8 +1,9 @@
-use crate::run::adapter::create_adapter;
+use crate::run::adapter::RunBuilder;
 use crate::BldCommand;
 use anyhow::Result;
 use bld_config::definitions::{TOOL_DEFAULT_PIPELINE, VERSION};
 use bld_config::BldConfig;
+use bld_utils::sync::IntoArc;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -84,7 +85,18 @@ impl BldCommand for RunCommand {
 
         debug!(message);
 
-        create_adapter(config, pipeline, server, vars, env, detach)?.start()
+        // create_adapter(config, pipeline, server, vars, env, detach)?.start()
+        let mut builder = RunBuilder::new(config.into_arc(), pipeline, vars, env);
+
+        if let Some(server) = server {
+            builder = builder.server(&server);
+            if detach {
+                builder.detach();
+            }
+        }
+
+        builder.build();
+        Ok(())
     }
 }
 

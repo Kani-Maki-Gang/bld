@@ -2,7 +2,7 @@ use crate::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::{definitions::VERSION, BldConfig};
-use bld_utils::request;
+use bld_utils::request::Request;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use tracing::debug;
 
@@ -62,10 +62,10 @@ async fn do_remove(matches: &ArgMatches) -> Result<()> {
     let server_auth = config.remote.same_auth_as(server)?;
     let protocol = server.http_protocol();
     let url = format!("{protocol}://{}:{}/remove", server.host, server.port);
-    let headers = request::headers(&server_auth.name, &server_auth.auth)?;
+    let request = Request::post(&url).auth(&server_auth);
 
     debug!("sending {protocol} request to {url}");
-    request::post(url, headers, pipeline).await.map(|r| {
+    request.send_json(pipeline).await.map(|r: String| {
         println!("{r}");
     })
 }

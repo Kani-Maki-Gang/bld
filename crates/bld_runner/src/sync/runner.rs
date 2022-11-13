@@ -11,9 +11,8 @@ use bld_core::logger::LoggerSender;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_sock::clients::ExecClient;
 use bld_sock::messages::{RunInfo, WorkerMessages};
-use bld_utils::request::headers;
+use bld_utils::request::WebSocket;
 use bld_utils::sync::IntoArc;
-use bld_utils::tls::awc_client;
 use chrono::offset::Local;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
@@ -377,8 +376,6 @@ impl Runner {
             if let Some(invoke) = self.pip.invoke.iter().find(|i| &i.name == invoke) {
                 let server = self.cfg.remote.server(&invoke.server)?;
                 let server_auth = self.cfg.remote.same_auth_as(server)?;
-                let headers = headers(&server_auth.name, &server_auth.auth)?;
-
                 let variables = invoke
                     .variables
                     .iter()
@@ -403,12 +400,12 @@ impl Runner {
                     server.name
                 );
 
-                let mut client = awc_client()?.ws(url);
-                for (key, value) in headers.iter() {
-                    client = client.header(&key[..], &value[..]);
-                }
-
-                let (_, framed) = client.connect().await.map_err(|e| anyhow!(e.to_string()))?;
+                let (_, framed) = WebSocket::new(&url)?
+                    .auth(&server_auth)
+                    .request()
+                    .connect()
+                    .await
+                    .map_err(|e| anyhow!(e.to_string()))?;
                 let (sink, stream) = framed.split();
                 let addr = ExecClient::create(|ctx| {
                     ExecClient::add_stream(stream, ctx);

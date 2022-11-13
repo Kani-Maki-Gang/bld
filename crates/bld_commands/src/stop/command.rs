@@ -3,7 +3,7 @@ use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::definitions::VERSION;
 use bld_config::BldConfig;
-use bld_utils::request;
+use bld_utils::request::Request;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 
 static STOP: &str = "stop";
@@ -52,10 +52,10 @@ impl BldCommand for StopCommand {
         let server_auth = config.remote.same_auth_as(server)?;
         let protocol = server.http_protocol();
         let url = format!("{protocol}://{}:{}/stop", server.host, server.port);
-        let headers = request::headers(&server_auth.name, &server_auth.auth)?;
+        let request = Request::post(&url).auth(&server_auth);
 
         System::new().block_on(async move {
-            request::post(url, headers, id).await.map(|r| {
+            request.send_json(id).await.map(|r: String| {
                 println!("{r}");
             })
         })

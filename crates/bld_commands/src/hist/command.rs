@@ -3,7 +3,7 @@ use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::{definitions::VERSION, BldConfig};
 use bld_server::responses::HistoryEntry;
-use bld_utils::request;
+use bld_utils::request::Request;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use std::fmt::Write;
 use tabled::{Style, Table};
@@ -88,13 +88,12 @@ impl BldCommand for HistCommand {
 
         write!(url, "&limit={limit}")?;
 
-        let headers = request::headers(&server_auth.name, &server_auth.auth)?;
+        let request = Request::get(&url).auth(&server_auth);
 
         debug!("sending http request to {}", url);
 
         System::new().block_on(async move {
-            let res = request::get(url, headers).await?;
-            let history: Vec<HistoryEntry> = serde_json::from_str(&res)?;
+            let history: Vec<HistoryEntry> = request.send().await?;
             let table = Table::new(history).with(Style::modern()).to_string();
             println!("{table}");
             Ok(())

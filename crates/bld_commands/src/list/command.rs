@@ -3,7 +3,7 @@ use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::definitions::VERSION;
 use bld_config::BldConfig;
-use bld_utils::request;
+use bld_utils::request::Request;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use tracing::debug;
 
@@ -45,12 +45,11 @@ impl BldCommand for ListCommand {
         let server_auth = config.remote.same_auth_as(server)?;
         let protocol = server.http_protocol();
         let url = format!("{protocol}://{}:{}/list", server.host, server.port);
-        let headers = request::headers(&server_auth.name, &server_auth.auth)?;
+        let request = Request::get(&url).auth(&server_auth);
 
         debug!("sending {protocol} request to {}", url);
 
-        System::new()
-            .block_on(async move { request::get(url, headers).await.map(|r| println!("{r}")) })
+        System::new().block_on(async move { request.send().await.map(|r: String| println!("{r}")) })
     }
 }
 

@@ -62,7 +62,7 @@ impl Default for BldLocalServerConfig {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BldRemoteServerConfig {
     pub name: String,
     pub host: String,

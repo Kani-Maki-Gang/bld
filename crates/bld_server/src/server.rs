@@ -1,6 +1,5 @@
 use crate::endpoints::{
-    auth_redirect, deps, ha_append_entries, ha_install_snapshot, ha_vote, hist, home, inspect,
-    list, pull, push, remove, run, stop,
+    auth_redirect, deps, hist, home, inspect, list, pull, push, remove, run, stop,
 };
 use crate::sockets::{ws_exec, ws_high_avail, ws_monit};
 use actix::io::SinkWrite;
@@ -11,7 +10,6 @@ use actix_web::{middleware, App, HttpServer};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::database::new_connection_pool;
-use bld_core::high_avail::HighAvail;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_sock::clients::EnqueueClient;
 use bld_sock::messages::ServerMessages;
@@ -36,7 +34,6 @@ async fn spawn_server(
     let config_clone = config.clone();
     let pool = new_connection_pool(&config.local.db)?;
     let enqueue_tx = enqueue_tx.into_data();
-    let ha = HighAvail::new(&config, pool.clone()).await?.into_data();
     let pool = pool.into_data();
     let prx = PipelineFileSystemProxy::Server {
         config: Arc::clone(&config),
@@ -49,13 +46,9 @@ async fn spawn_server(
         App::new()
             .app_data(config_clone.clone())
             .app_data(enqueue_tx.clone())
-            .app_data(ha.clone())
             .app_data(pool.clone())
             .app_data(prx.clone())
             .wrap(middleware::Logger::default())
-            .service(ha_append_entries)
-            .service(ha_install_snapshot)
-            .service(ha_vote)
             .service(home)
             .service(auth_redirect)
             .service(hist)
