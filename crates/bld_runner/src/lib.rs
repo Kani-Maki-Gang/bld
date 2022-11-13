@@ -1,8 +1,9 @@
-mod context;
+mod platform;
 mod sync;
 
-pub use context::*;
-pub use sync::*;
+pub use sync::runner::Runner;
+pub use sync::pipeline::Pipeline;
+pub use sync::builder::RunnerBuilder;
 
 #[cfg(test)]
 mod tests {

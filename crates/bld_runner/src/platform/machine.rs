@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use bld_config::definitions::LOCAL_MACHINE_TMP_DIR;
 use bld_config::{os_name, path, OSname};
 use bld_core::logger::LoggerSender;
@@ -9,10 +9,6 @@ use std::fs::{copy, create_dir_all};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 use std::sync::Arc;
-
-fn could_not_spawn_shell() -> Result<()> {
-    Err(anyhow!("could not spawn shell"))
-}
 
 pub struct Machine {
     tmp_dir: String,
@@ -64,7 +60,7 @@ impl Machine {
             OSname::Windows => ("powershell.exe", Vec::<&str>::new()),
             OSname::Linux => ("bash", vec!["-c"]),
             OSname::Mac => ("sh", vec!["-c"]),
-            OSname::Unknown => return could_not_spawn_shell(),
+            OSname::Unknown => bail!("could not spawn shell"),
         };
         args.push(input);
 
