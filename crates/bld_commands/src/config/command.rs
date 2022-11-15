@@ -24,26 +24,34 @@ impl ConfigCommand {
             }
             _ => {}
         }
-        println!("- ha-mode: {}", local.ha_mode);
-        println!("- node-id: {:?}", local.node_id);
         println!("- server:");
         println!("  - host: {}", local.server.host);
         println!("  - port: {}", local.server.port);
         println!("  - pipelines: {}", local.server.pipelines);
-        if let Some(tls) = &local.server.tls {
-            println!("  - tls:");
-            println!("    - cert-chain:  {}", tls.cert_chain);
-            println!("    - private-key: {}", tls.private_key);
+
+        match &local.server.tls {
+            Some(tls) => {
+                println!("  - tls:");
+                println!("    - cert-chain:  {}", tls.cert_chain);
+                println!("    - private-key: {}", tls.private_key);
+            }
+            None => println!("  - tls: None")
         }
+
         println!("- supervisor:");
         println!("  - host: {}", local.supervisor.host);
         println!("  - port: {}", local.supervisor.port);
         println!("  - workers: {}", local.supervisor.workers);
-        if let Some(tls) = &local.supervisor.tls {
-            println!("  - tls:");
-            println!("    - cert-chain:  {}", tls.cert_chain);
-            println!("    - private-key: {}", tls.private_key);
+
+        match &local.supervisor.tls {
+            Some(tls) => {
+                println!("  - tls:");
+                println!("    - cert-chain:  {}", tls.cert_chain);
+                println!("    - private-key: {}", tls.private_key);
+            }
+            None => println!("  - tls: None")
         }
+
         println!("- logs: {}", local.logs);
         println!("- db: {}", local.db);
         println!("- docker-url: {}", local.docker_url);

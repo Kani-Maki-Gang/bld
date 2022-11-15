@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.40"
-async-raft = "0.6.1"
 oauth2 = "4.0.0"
 tracing = "0.1.36"
 yaml-rust = "0.4.5"

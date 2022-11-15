@@ -12,7 +12,6 @@ actix-http = "3.0.4"
 actix-web = { version = "4.0.1", features = ["rustls"] }
 actix-web-actors = "4.1.0"
 anyhow = "1.0.40"
-async-raft = "0.6.1"
 bld_config = { path = "../bld_config" }
 bld_utils = { path = "../bld_utils" }
 bld_core = { path = "../bld_core" }

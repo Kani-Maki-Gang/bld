@@ -1,7 +1,6 @@
 use crate::definitions;
 use crate::{Auth, BldTlsConfig, OAuth2Info};
 use anyhow::{anyhow, Result};
-use async_raft::NodeId;
 use yaml_rust::Yaml;
 
 #[derive(Debug)]
@@ -68,7 +67,6 @@ pub struct BldRemoteServerConfig {
     pub host: String,
     pub port: i64,
     pub tls: bool,
-    pub node_id: Option<NodeId>,
     pub auth: Auth,
     pub same_auth_as: Option<String>,
 }
@@ -88,7 +86,6 @@ impl BldRemoteServerConfig {
             .ok_or_else(|| anyhow!("Server entry must define a port"))?;
         let tls = yaml["tls"].as_bool().unwrap_or(false);
         let protocol = Self::http_protocol_internal(tls);
-        let node_id = yaml["node-id"].as_i64().map(|n| n as NodeId);
         let auth = match yaml["auth"]["method"].as_str() {
             Some("ldap") => Auth::Ldap,
             Some("oauth2") => {
@@ -102,7 +99,6 @@ impl BldRemoteServerConfig {
             host,
             port,
             tls,
-            node_id,
             auth,
             same_auth_as,
         })

@@ -1,13 +1,10 @@
 use crate::{definitions, AuthValidation, BldLocalServerConfig, BldLocalSupervisorConfig};
 use anyhow::{anyhow, Result};
-use async_raft::NodeId;
 use tracing::debug;
 use yaml_rust::Yaml;
 
 #[derive(Debug)]
 pub struct BldLocalConfig {
-    pub ha_mode: bool,
-    pub node_id: Option<NodeId>,
     pub server: BldLocalServerConfig,
     pub supervisor: BldLocalSupervisorConfig,
     pub logs: String,
@@ -19,10 +16,6 @@ pub struct BldLocalConfig {
 impl BldLocalConfig {
     pub fn load(yaml: &Yaml) -> Result<Self> {
         let local_yaml = &yaml["local"];
-        let ha_mode = local_yaml["ha-mode"]
-            .as_bool()
-            .unwrap_or(definitions::LOCAL_HA_MODE);
-        let node_id = local_yaml["node-id"].as_i64().map(|n| n as NodeId);
         let server = BldLocalServerConfig::load(&local_yaml["server"])?;
         let supervisor = BldLocalSupervisorConfig::load(&local_yaml["supervisor"])?;
         let logs = local_yaml["logs"]
@@ -39,8 +32,6 @@ impl BldLocalConfig {
             .to_string();
         let auth = BldLocalConfig::auth_load(local_yaml)?;
         let instance = Self {
-            ha_mode,
-            node_id,
             server,
             supervisor,
             logs,
@@ -68,8 +59,6 @@ impl BldLocalConfig {
 
     fn debug_info(&self) {
         debug!("loaded local configuration");
-        debug!("ha-mode: {}", self.ha_mode);
-        debug!("node-id: {:?}", self.node_id);
         debug!("server > host: {}", self.server.host);
         debug!("server > port: {}", self.server.port);
         debug!("server > pipelines: {}", self.server.pipelines);
@@ -97,8 +86,6 @@ impl BldLocalConfig {
 impl Default for BldLocalConfig {
     fn default() -> Self {
         Self {
-            ha_mode: definitions::LOCAL_HA_MODE,
-            node_id: None,
             server: BldLocalServerConfig::default(),
             supervisor: BldLocalSupervisorConfig::default(),
             logs: definitions::LOCAL_LOGS.to_string(),
