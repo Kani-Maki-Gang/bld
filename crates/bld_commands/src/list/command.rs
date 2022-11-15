@@ -49,7 +49,12 @@ impl BldCommand for ListCommand {
 
         debug!("sending {protocol} request to {}", url);
 
-        System::new().block_on(async move { request.send().await.map(|r: String| println!("{}", r.to_string())) })
+        System::new().block_on(async move {
+            request
+                .send()
+                .await
+                .map(|r: String| println!("{}", r.to_string()))
+        })
     }
 }
 

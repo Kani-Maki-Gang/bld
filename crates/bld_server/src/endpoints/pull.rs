@@ -7,14 +7,11 @@ use tracing::info;
 
 #[post("/pull")]
 pub async fn pull(
-    user: Option<User>,
+    _: User,
     prx: Data<PipelineFileSystemProxy>,
     body: Json<String>,
 ) -> impl Responder {
     info!("Reached handler for /pull route");
-    if user.is_none() {
-        return HttpResponse::Unauthorized().body("");
-    }
     let name = body.into_inner();
     match prx.read(&name) {
         Ok(r) => HttpResponse::Ok().json(PullResponse::new(&name, &r)),

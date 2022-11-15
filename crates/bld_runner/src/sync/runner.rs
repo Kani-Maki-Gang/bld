@@ -1,6 +1,6 @@
-use crate::sync::pipeline::{BuildStep, Pipeline};
-use crate::sync::builder::RunnerBuilder;
 use crate::platform::TargetPlatform;
+use crate::sync::builder::RunnerBuilder;
+use crate::sync::pipeline::{BuildStep, Pipeline};
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use anyhow::{anyhow, bail, Result};
 use bld_config::definitions::{

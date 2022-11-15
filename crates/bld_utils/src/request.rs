@@ -20,13 +20,13 @@ pub struct Request {
 impl Request {
     pub fn get(url: &str) -> Self {
         Self {
-            request: Client::new().get(url),
+            request: Client::new().get(url).insert_header(("User-Agent", "bld")),
         }
     }
 
     pub fn post(url: &str) -> Self {
         Self {
-            request: Client::new().post(url),
+            request: Client::new().post(url).insert_header(("User-Agent", "bld")),
         }
     }
 
@@ -69,11 +69,11 @@ impl Request {
 
         match status {
             StatusCode::OK => {
-                debug!("response from server status: {status}, body: {text}");
+                debug!("response from server status: {status}");
                 serde_json::from_str::<T>(&text).map_err(|e| anyhow!(e))
             }
             StatusCode::BAD_REQUEST => {
-                debug!("response from server status: {status}, body: {text}");
+                debug!("response from server status: {status}");
                 Err(anyhow!(text))
             }
             st => {

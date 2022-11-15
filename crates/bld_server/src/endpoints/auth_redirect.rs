@@ -1,12 +1,6 @@
+use crate::requests::AuthRedirectInfo;
 use actix_web::{get, web, HttpResponse, Responder};
-use serde_derive::Deserialize;
 use tracing::info;
-
-#[derive(Deserialize)]
-pub struct AuthRedirectInfo {
-    pub code: String,
-    pub state: String,
-}
 
 #[get("/authRedirect")]
 pub async fn auth_redirect(info: web::Query<AuthRedirectInfo>) -> impl Responder {

@@ -9,14 +9,11 @@ use tracing::{debug, info};
 
 #[post("/deps")]
 pub async fn deps(
-    user: Option<User>,
+    _user: User,
     prx: Data<PipelineFileSystemProxy>,
     body: Json<String>,
 ) -> impl Responder {
     info!("Reached handler for /deps route");
-    if user.is_none() {
-        return HttpResponse::Unauthorized().body("");
-    }
     let name = body.into_inner();
     match do_deps(prx.get_ref(), &name) {
         Ok(r) => HttpResponse::Ok().json(r),
@@ -33,12 +30,15 @@ fn do_deps(prx: &PipelineFileSystemProxy, name: &str) -> Result<Vec<String>> {
 
 fn deps_recursive(prx: &PipelineFileSystemProxy, name: &str) -> Result<HashMap<String, String>> {
     debug!("Parsing pipeline {name}");
+
     let src = prx
         .read(name)
         .map_err(|_| anyhow!("Pipeline with name: {name} not found"))?;
     let pipeline = Pipeline::parse(&src)?;
+
     let mut set = HashMap::new();
     set.insert(name.to_string(), src);
+
     for step in pipeline.steps.iter() {
         for call in &step.call {
             let subset = deps_recursive(prx, call)?;
@@ -47,5 +47,6 @@ fn deps_recursive(prx: &PipelineFileSystemProxy, name: &str) -> Result<HashMap<S
             }
         }
     }
+
     Ok(set)
 }

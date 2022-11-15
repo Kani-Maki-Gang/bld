@@ -1,7 +1,7 @@
 use crate::endpoints::{
     auth_redirect, deps, hist, home, inspect, list, pull, push, remove, run, stop,
 };
-use crate::sockets::{ws_exec, ws_high_avail, ws_monit};
+use crate::sockets::{ws_exec, ws_monit};
 use actix::io::SinkWrite;
 use actix::{Actor, Addr, StreamHandler};
 use actix_web::rt::spawn;
@@ -13,9 +13,9 @@ use bld_core::database::new_connection_pool;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_sock::clients::EnqueueClient;
 use bld_sock::messages::ServerMessages;
+use bld_utils::request::WebSocket;
 use bld_utils::sync::IntoData;
 use bld_utils::tls::{load_server_certificate, load_server_private_key};
-use bld_utils::request::WebSocket;
 use futures::{join, stream::StreamExt};
 use rustls::ServerConfig;
 use std::env::{current_exe, set_var};
@@ -63,7 +63,6 @@ async fn spawn_server(
             .service(inspect)
             .service(resource("/ws-exec/").route(get().to(ws_exec)))
             .service(resource("/ws-monit/").route(get().to(ws_monit)))
-            .service(resource("/ws-ha/").route(get().to(ws_high_avail)))
     });
 
     let address = format!("{host}:{port}");

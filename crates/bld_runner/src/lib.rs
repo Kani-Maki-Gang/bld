@@ -1,9 +1,9 @@
 mod platform;
 mod sync;
 
-pub use sync::runner::Runner;
-pub use sync::pipeline::Pipeline;
 pub use sync::builder::RunnerBuilder;
+pub use sync::pipeline::Pipeline;
+pub use sync::runner::Runner;
 
 #[cfg(test)]
 mod tests {

@@ -1,19 +1,19 @@
+use crate::platform::{Container, Machine, TargetPlatform};
 use crate::sync::pipeline::{Pipeline, RunsOn};
 use crate::sync::runner::Runner;
-use crate::platform::{TargetPlatform, Container, Machine};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
+use bld_core::context::ContextSender;
 use bld_core::execution::Execution;
 use bld_core::logger::LoggerSender;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_core::context::ContextSender;
 use bld_sock::messages::WorkerMessages;
 use bld_utils::sync::IntoArc;
+use chrono::offset::Local;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
-use chrono::offset::Local;
 
 pub struct RunnerBuilder {
     run_id: String,

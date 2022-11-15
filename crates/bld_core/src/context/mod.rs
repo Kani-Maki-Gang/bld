@@ -18,10 +18,7 @@ struct ContextReceiver {
 }
 
 impl ContextReceiver {
-    pub fn containers(
-        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
-        run_id: &str,
-    ) -> Self {
+    pub fn containers(pool: Arc<Pool<ConnectionManager<SqliteConnection>>>, run_id: &str) -> Self {
         Self {
             pool,
             run_id: run_id.to_string(),

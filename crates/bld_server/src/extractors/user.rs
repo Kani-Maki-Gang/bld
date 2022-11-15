@@ -55,7 +55,7 @@ fn get_bearer(request: &HttpRequest) -> String {
 }
 
 async fn oauth2_validate(url: String, bearer: String) -> Result<User> {
-    let res: String = Request::get(&url)
+    let response: serde_json::Value = Request::get(&url)
         .header("Authorization", &bearer)
         .send()
         .await
@@ -63,6 +63,5 @@ async fn oauth2_validate(url: String, bearer: String) -> Result<User> {
             error!("authorization check failed to remote server with: {}", e);
             anyhow!("could not authenticate user")
         })?;
-    let value: serde_json::Value = serde_json::from_str(&res)?;
-    Ok(User::new(&value["login"].to_string()))
+    Ok(User::new(&response["login"].to_string()))
 }
