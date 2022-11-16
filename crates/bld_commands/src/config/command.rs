@@ -35,7 +35,7 @@ impl ConfigCommand {
                 println!("    - cert-chain:  {}", tls.cert_chain);
                 println!("    - private-key: {}", tls.private_key);
             }
-            None => println!("  - tls: None")
+            None => println!("  - tls: None"),
         }
 
         println!("- supervisor:");
@@ -49,7 +49,7 @@ impl ConfigCommand {
                 println!("    - cert-chain:  {}", tls.cert_chain);
                 println!("    - private-key: {}", tls.private_key);
             }
-            None => println!("  - tls: None")
+            None => println!("  - tls: None"),
         }
 
         println!("- logs: {}", local.logs);

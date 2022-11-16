@@ -1,5 +1,6 @@
 use crate::extractors::User;
 use crate::helpers::enqueue_worker;
+use crate::SupervisorMessageSender;
 use actix::prelude::*;
 use actix_web::error::ErrorUnauthorized;
 use actix_web::web::{Data, Payload};
@@ -12,17 +13,16 @@ use bld_core::database::pipeline_runs::{
 };
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::scanner::FileScanner;
-use bld_sock::messages::{RunInfo, ServerMessages};
+use bld_sock::messages::RunInfo;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc::Sender;
 use tracing::{debug, error};
 
 pub struct ExecutePipelineSocket {
     config: Data<BldConfig>,
-    enqueue_tx: Data<Sender<ServerMessages>>,
+    supervisor_sender: Data<SupervisorMessageSender>,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
     proxy: Data<PipelineFileSystemProxy>,
     user: User,
@@ -34,13 +34,13 @@ impl ExecutePipelineSocket {
     pub fn new(
         user: User,
         config: Data<BldConfig>,
-        enqueue_tx: Data<Sender<ServerMessages>>,
+        supervisor_sender: Data<SupervisorMessageSender>,
         pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
         proxy: Data<PipelineFileSystemProxy>,
     ) -> Self {
         Self {
             config,
-            enqueue_tx,
+            supervisor_sender,
             pool,
             proxy,
             user,
@@ -86,7 +86,7 @@ impl ExecutePipelineSocket {
             &self.user,
             self.proxy.clone(),
             self.pool.clone(),
-            self.enqueue_tx.clone(),
+            self.supervisor_sender.clone(),
             data,
         )
         .map(|run_id| {
@@ -137,13 +137,13 @@ pub async fn ws_exec(
     req: HttpRequest,
     stream: Payload,
     cfg: Data<BldConfig>,
-    enqueue_tx: Data<Sender<ServerMessages>>,
+    supervisor_sender: Data<SupervisorMessageSender>,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
     proxy: Data<PipelineFileSystemProxy>,
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{req:?}");
-    let socket = ExecutePipelineSocket::new(user, cfg, enqueue_tx, pool, proxy);
+    let socket = ExecutePipelineSocket::new(user, cfg, supervisor_sender, pool, proxy);
     let res = ws::start(socket, &req, stream);
     println!("{res:?}");
     res

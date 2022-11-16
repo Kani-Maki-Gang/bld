@@ -2,39 +2,27 @@ use crate::endpoints::{
     auth_redirect, deps, hist, home, inspect, list, pull, push, remove, run, stop,
 };
 use crate::sockets::{ws_exec, ws_monit};
-use actix::io::SinkWrite;
-use actix::{Actor, Addr, StreamHandler};
-use actix_web::rt::spawn;
-use actix_web::web::{get, resource, Data};
+use crate::supervisor::channel::SupervisorMessageSender;
+use actix_web::web::{get, resource};
 use actix_web::{middleware, App, HttpServer};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::database::new_connection_pool;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_sock::clients::EnqueueClient;
-use bld_sock::messages::ServerMessages;
-use bld_utils::request::WebSocket;
 use bld_utils::sync::IntoData;
 use bld_utils::tls::{load_server_certificate, load_server_private_key};
-use futures::{join, stream::StreamExt};
 use rustls::ServerConfig;
-use std::env::{current_exe, set_var};
+use std::env::set_var;
 use std::sync::Arc;
-use tokio::process::{Child, Command};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tracing::{debug, error, info};
+use tracing::info;
 
-async fn spawn_server(
-    config: Data<BldConfig>,
-    host: String,
-    port: i64,
-    enqueue_tx: Sender<ServerMessages>,
-) -> Result<()> {
+pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
     info!("starting bld server at {}:{}", host, port);
 
+    let config = config.into_data();
     let config_clone = config.clone();
     let pool = new_connection_pool(&config.local.db)?;
-    let enqueue_tx = enqueue_tx.into_data();
+    let supervisor_sender = SupervisorMessageSender::new(Arc::clone(&config)).into_data();
     let pool = pool.into_data();
     let prx = PipelineFileSystemProxy::Server {
         config: Arc::clone(&config),
@@ -46,7 +34,7 @@ async fn spawn_server(
     let mut server = HttpServer::new(move || {
         App::new()
             .app_data(config_clone.clone())
-            .app_data(enqueue_tx.clone())
+            .app_data(supervisor_sender.clone())
             .app_data(pool.clone())
             .app_data(prx.clone())
             .wrap(middleware::Logger::default())
@@ -80,79 +68,5 @@ async fn spawn_server(
     };
 
     server.run().await?;
-    Ok(())
-}
-
-async fn supervisor_socket(
-    config: Arc<BldConfig>,
-    mut enqueue_rx: Receiver<ServerMessages>,
-) -> Result<Addr<EnqueueClient>> {
-    let supervisor = &config.local.supervisor;
-    let url = format!(
-        "{}://{}:{}/ws-server/",
-        supervisor.ws_protocol(),
-        supervisor.host,
-        supervisor.port
-    );
-
-    debug!("establishing web socket connection on {}", url);
-
-    let (_, framed) = WebSocket::new(&url)?
-        .request()
-        .connect()
-        .await
-        .map_err(|e| {
-            error!("{e}");
-            anyhow!(e.to_string())
-        })?;
-
-    let (sink, stream) = framed.split();
-    let addr = EnqueueClient::create(|ctx| {
-        EnqueueClient::add_stream(stream, ctx);
-        EnqueueClient::new(SinkWrite::new(sink, ctx))
-    });
-
-    addr.send(ServerMessages::Ack).await?;
-
-    while let Some(msg) = enqueue_rx.recv().await {
-        addr.send(msg).await?;
-    }
-
-    Ok(addr)
-}
-
-fn create_supervisor() -> Result<Child> {
-    Ok(Command::new(current_exe()?).arg("supervisor").spawn()?)
-}
-
-pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
-    let config = config.into_data();
-    let config_clone = Arc::clone(&config);
-    let mut supervisor = create_supervisor()?; // set to kill the supervisor process on drop.
-    let (enqueue_tx, enqueue_rx) = channel(4096);
-
-    let web_server_handle = spawn(async move {
-        if let Err(e) = spawn_server(config, host, port, enqueue_tx).await {
-            error!("web server error, {e}");
-        }
-    });
-
-    let socket_handle = spawn(async move {
-        if let Err(e) = supervisor_socket(config_clone, enqueue_rx).await {
-            error!("supervisor socket error, {e}");
-        }
-    });
-
-    let result = join!(web_server_handle, socket_handle);
-
-    if let Err(e) = result.0 {
-        error!("{e}");
-    }
-
-    if let Err(e) = result.1 {
-        error!("{e}");
-    }
-
-    supervisor.kill().await?;
     Ok(())
 }
