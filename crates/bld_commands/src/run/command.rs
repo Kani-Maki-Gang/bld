@@ -26,13 +26,13 @@ pub struct RunCommand {
     )]
     detach: bool,
 
-    #[arg(short = 'v', long = "variables", help = "Define value for a variable")]
+    #[arg(short = 'v', long = "variable", help = "Define value for a variable. Can be used multiple times")]
     variables: Vec<String>,
 
     #[arg(
         short = 'e',
         long = "environment",
-        help = "Define value for an environment variable"
+        help = "Define value for an environment variable. Can be used multiple times"
     )]
     environment: Vec<String>,
 }

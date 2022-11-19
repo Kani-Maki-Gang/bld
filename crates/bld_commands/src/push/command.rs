@@ -47,7 +47,7 @@ impl PushCommand {
 
         let server_auth = config.remote.same_auth_as(server)?;
         let url = format!(
-            "{}://{}:{}",
+            "{}://{}:{}/push",
             server.http_protocol(),
             server.host,
             server.port
@@ -75,7 +75,7 @@ impl PushCommand {
         }
 
         for info in pipelines.into_iter() {
-            print!("Pushing {}...", self.pipeline);
+            print!("Pushing {}...", info.name);
 
             debug!("sending request to {url}");
 

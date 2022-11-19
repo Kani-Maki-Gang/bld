@@ -34,7 +34,7 @@ pub struct HistCommand {
     )]
     pipeline: Option<String>,
 
-    #[arg(short = 'l', long = "limit", help = "Limit the results")]
+    #[arg(short = 'l', long = "limit", default_value = "100", help = "Limit the results")]
     limit: i64,
 }
 
