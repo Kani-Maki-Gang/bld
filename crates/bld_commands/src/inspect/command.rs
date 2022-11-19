@@ -32,7 +32,7 @@ impl BldCommand for InspectCommand {
         let server_auth = config.remote.same_auth_as(server)?;
         let protocol = server.http_protocol();
         let url = format!("{protocol}://{}:{}/inspect", server.host, server.port);
-        let request = Request::post(&url).auth(&server_auth);
+        let request = Request::post(&url).auth(server_auth);
 
         debug!("sending http request to {}", url);
 

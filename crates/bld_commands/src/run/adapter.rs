@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
 
-pub struct Local {
+pub struct LocalRun {
     config: Arc<BldConfig>,
     pipeline: String,
     variables: HashMap<String, String>,
@@ -37,9 +37,9 @@ pub struct WebSocketRequest {
 }
 
 pub enum RunConfiguration {
-    LocalConfig(Local),
-    HttpConfig(HttpRequest),
-    WebSocketConfig(WebSocketRequest),
+    Local(LocalRun),
+    Http(HttpRequest),
+    WebSocket(WebSocketRequest),
 }
 
 pub struct RunBuilder {
@@ -54,7 +54,7 @@ impl RunBuilder {
         environment: HashMap<String, String>,
     ) -> Self {
         Self {
-            config: RunConfiguration::LocalConfig(Local {
+            config: RunConfiguration::Local(LocalRun {
                 config,
                 pipeline,
                 variables,
@@ -65,8 +65,8 @@ impl RunBuilder {
 
     pub fn server(self, server: Option<&String>) -> RunBuilder {
         match (server, self.config) {
-            (None, RunConfiguration::LocalConfig(local)) => RunBuilder {
-                config: RunConfiguration::LocalConfig(Local {
+            (None, RunConfiguration::Local(local)) => RunBuilder {
+                config: RunConfiguration::Local(LocalRun {
                     config: local.config,
                     pipeline: local.pipeline,
                     variables: local.variables,
@@ -74,8 +74,8 @@ impl RunBuilder {
                 }),
             },
 
-            (Some(server), RunConfiguration::LocalConfig(local)) => RunBuilder {
-                config: RunConfiguration::WebSocketConfig(WebSocketRequest {
+            (Some(server), RunConfiguration::Local(local)) => RunBuilder {
+                config: RunConfiguration::WebSocket(WebSocketRequest {
                     config: local.config,
                     pipeline: local.pipeline,
                     variables: local.variables,
@@ -84,8 +84,8 @@ impl RunBuilder {
                 }),
             },
 
-            (None, RunConfiguration::WebSocketConfig(socket)) => RunBuilder {
-                config: RunConfiguration::WebSocketConfig(WebSocketRequest {
+            (None, RunConfiguration::WebSocket(socket)) => RunBuilder {
+                config: RunConfiguration::WebSocket(WebSocketRequest {
                     config: socket.config,
                     pipeline: socket.pipeline,
                     variables: socket.variables,
@@ -94,8 +94,8 @@ impl RunBuilder {
                 }),
             },
 
-            (Some(server), RunConfiguration::WebSocketConfig(socket)) => RunBuilder {
-                config: RunConfiguration::WebSocketConfig(WebSocketRequest {
+            (Some(server), RunConfiguration::WebSocket(socket)) => RunBuilder {
+                config: RunConfiguration::WebSocket(WebSocketRequest {
                     config: socket.config,
                     pipeline: socket.pipeline,
                     variables: socket.variables,
@@ -104,8 +104,8 @@ impl RunBuilder {
                 }),
             },
 
-            (None, RunConfiguration::HttpConfig(http)) => RunBuilder {
-                config: RunConfiguration::HttpConfig(HttpRequest {
+            (None, RunConfiguration::Http(http)) => RunBuilder {
+                config: RunConfiguration::Http(HttpRequest {
                     config: http.config,
                     pipeline: http.pipeline,
                     variables: http.variables,
@@ -114,8 +114,8 @@ impl RunBuilder {
                 }),
             },
 
-            (Some(server), RunConfiguration::HttpConfig(http)) => RunBuilder {
-                config: RunConfiguration::HttpConfig(HttpRequest {
+            (Some(server), RunConfiguration::Http(http)) => RunBuilder {
+                config: RunConfiguration::Http(HttpRequest {
                     config: http.config,
                     pipeline: http.pipeline,
                     variables: http.variables,
@@ -128,8 +128,8 @@ impl RunBuilder {
 
     pub fn detach(self, detach: bool) -> Self {
         match (detach, self.config) {
-            (_, RunConfiguration::LocalConfig(local)) => RunBuilder {
-                config: RunConfiguration::LocalConfig(Local {
+            (_, RunConfiguration::Local(local)) => RunBuilder {
+                config: RunConfiguration::Local(LocalRun {
                     config: local.config,
                     pipeline: local.pipeline,
                     variables: local.variables,
@@ -137,8 +137,8 @@ impl RunBuilder {
                 }),
             },
 
-            (false, RunConfiguration::WebSocketConfig(socket)) => RunBuilder {
-                config: RunConfiguration::WebSocketConfig(WebSocketRequest {
+            (false, RunConfiguration::WebSocket(socket)) => RunBuilder {
+                config: RunConfiguration::WebSocket(WebSocketRequest {
                     config: socket.config,
                     pipeline: socket.pipeline,
                     variables: socket.variables,
@@ -147,8 +147,8 @@ impl RunBuilder {
                 }),
             },
 
-            (true, RunConfiguration::WebSocketConfig(socket)) => RunBuilder {
-                config: RunConfiguration::HttpConfig(HttpRequest {
+            (true, RunConfiguration::WebSocket(socket)) => RunBuilder {
+                config: RunConfiguration::Http(HttpRequest {
                     config: socket.config,
                     pipeline: socket.pipeline,
                     variables: socket.variables,
@@ -157,8 +157,8 @@ impl RunBuilder {
                 }),
             },
 
-            (true, RunConfiguration::HttpConfig(http)) => RunBuilder {
-                config: RunConfiguration::HttpConfig(HttpRequest {
+            (true, RunConfiguration::Http(http)) => RunBuilder {
+                config: RunConfiguration::Http(HttpRequest {
                     config: http.config,
                     pipeline: http.pipeline,
                     variables: http.variables,
@@ -167,8 +167,8 @@ impl RunBuilder {
                 }),
             },
 
-            (false, RunConfiguration::HttpConfig(http)) => RunBuilder {
-                config: RunConfiguration::WebSocketConfig(WebSocketRequest {
+            (false, RunConfiguration::Http(http)) => RunBuilder {
+                config: RunConfiguration::WebSocket(WebSocketRequest {
                     config: http.config,
                     pipeline: http.pipeline,
                     variables: http.variables,
@@ -191,7 +191,7 @@ pub struct RunAdapter {
 }
 
 impl RunAdapter {
-    async fn run_local(mode: Local) -> Result<()> {
+    async fn run_local(mode: LocalRun) -> Result<()> {
         let runner = RunnerBuilder::default()
             .config(mode.config)
             .pipeline(&mode.pipeline)
@@ -210,7 +210,7 @@ impl RunAdapter {
 
     async fn run_web_socket(mode: WebSocketRequest) -> Result<()> {
         let server = mode.config.remote.server(&mode.server)?;
-        let server_auth = mode.config.remote.same_auth_as(&server)?;
+        let server_auth = mode.config.remote.same_auth_as(server)?;
 
         let url = format!(
             "{}://{}:{}/ws-exec/",
@@ -221,7 +221,7 @@ impl RunAdapter {
 
         let data = RunInfo::new(&mode.pipeline, Some(mode.environment), Some(mode.variables));
 
-        let web_socket = WebSocket::new(&url)?.auth(&server_auth);
+        let web_socket = WebSocket::new(&url)?.auth(server_auth);
 
         let (_, framed) = web_socket
             .request()
@@ -245,7 +245,7 @@ impl RunAdapter {
 
     async fn run_http(mode: HttpRequest) -> Result<()> {
         let server = mode.config.remote.server(&mode.server)?;
-        let server_auth = mode.config.remote.same_auth_as(&server)?;
+        let server_auth = mode.config.remote.same_auth_as(server)?;
 
         let url = format!(
             "{}://{}:{}/run",
@@ -260,7 +260,7 @@ impl RunAdapter {
             Some(mode.variables.clone()),
         );
 
-        let request = Request::post(&url).auth(&server_auth);
+        let request = Request::post(&url).auth(server_auth);
 
         let result = request.send_json(data).await.map(|_: String| {
             println!("pipeline has been scheduled to run");
@@ -276,9 +276,9 @@ impl RunAdapter {
 
         let result = system.block_on(async move {
             match self.config {
-                RunConfiguration::LocalConfig(local) => Self::run_local(local).await,
-                RunConfiguration::HttpConfig(http) => Self::run_http(http).await,
-                RunConfiguration::WebSocketConfig(socket) => Self::run_web_socket(socket).await,
+                RunConfiguration::Local(run) => Self::run_local(run).await,
+                RunConfiguration::Http(http) => Self::run_http(http).await,
+                RunConfiguration::WebSocket(socket) => Self::run_web_socket(socket).await,
             }
         });
 

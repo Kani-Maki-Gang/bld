@@ -53,7 +53,7 @@ impl PullCommand {
             print!("Fetching metadata for dependecies...");
 
             Request::post(&metadata_url)
-                .auth(&server_auth)
+                .auth(server_auth)
                 .send_json(self.pipeline)
                 .await
                 .map(|mut deps: Vec<String>| {
@@ -71,7 +71,7 @@ impl PullCommand {
             print!("Pulling pipeline {pipeline}...");
 
             Request::post(&url)
-                .auth(&server_auth)
+                .auth(server_auth)
                 .send_json(pipeline.to_string())
                 .await
                 .and_then(Self::save)

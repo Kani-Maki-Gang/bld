@@ -80,7 +80,7 @@ impl PushCommand {
             debug!("sending request to {url}");
 
             let _ = Request::post(&url)
-                .auth(&server_auth)
+                .auth(server_auth)
                 .send_json(info)
                 .await
                 .map(|_: String| {

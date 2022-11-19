@@ -235,7 +235,7 @@ impl Runner {
                 );
 
                 let (_, framed) = WebSocket::new(&url)?
-                    .auth(&server_auth)
+                    .auth(server_auth)
                     .request()
                     .connect()
                     .await

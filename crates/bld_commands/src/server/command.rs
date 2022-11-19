@@ -17,7 +17,7 @@ pub struct ServerCommand {
 impl BldCommand for ServerCommand {
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?;
-        let host = self.host.unwrap_or(config.local.server.host.to_owned());
+        let host = self.host.unwrap_or_else(|| config.local.server.host.to_owned());
         let port = self.port.unwrap_or(config.local.server.port);
         System::new().block_on(bld_server::start(config, host, port))
     }

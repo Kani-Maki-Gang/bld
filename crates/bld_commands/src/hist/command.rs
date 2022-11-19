@@ -51,7 +51,7 @@ impl BldCommand for HistCommand {
             } else {
                 None
             },
-            name: self.pipeline.map(|p| p.to_string()),
+            name: self.pipeline,
             limit: self.limit,
         };
         debug!(

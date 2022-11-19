@@ -45,7 +45,7 @@ impl MonitCommand {
     async fn request(self) -> Result<()> {
         let config = BldConfig::load()?;
         let server = config.remote.server_or_first(self.server.as_ref())?;
-        let server_auth = config.remote.same_auth_as(&server)?.to_owned();
+        let server_auth = config.remote.same_auth_as(server)?.to_owned();
         let url = format!(
             "{}://{}:{}/ws-monit/",
             server.ws_protocol(),

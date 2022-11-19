@@ -24,7 +24,7 @@ impl BldCommand for ListCommand {
         let server_auth = config.remote.same_auth_as(server)?;
         let protocol = server.http_protocol();
         let url = format!("{protocol}://{}:{}/list", server.host, server.port);
-        let request = Request::get(&url).auth(&server_auth);
+        let request = Request::get(&url).auth(server_auth);
 
         debug!("sending request to {}", url);
 
