@@ -1,6 +1,6 @@
-use crate::SupervisorMessageSender;
 use crate::extractors::User;
-use crate::helpers::enqueue_worker;
+use crate::supervisor::channel::SupervisorMessageSender;
+use crate::supervisor::helpers::enqueue_worker;
 use actix_web::web::{Data, Json};
 use actix_web::{post, HttpResponse, Responder};
 use bld_core::proxies::PipelineFileSystemProxy;

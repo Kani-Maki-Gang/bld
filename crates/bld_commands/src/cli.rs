@@ -1,13 +1,90 @@
-use clap::{ArgMatches, Command};
+use crate::auth::AuthCommand;
+use crate::command::BldCommand;
+use crate::config::ConfigCommand;
+use crate::hist::HistCommand;
+use crate::init::InitCommand;
+use crate::inspect::InspectCommand;
+use crate::list::ListCommand;
+use crate::monit::MonitCommand;
+use crate::pull::PullCommand;
+use crate::push::PushCommand;
+use crate::remove::RemoveCommand;
+use crate::run::RunCommand;
+use crate::server::ServerCommand;
+use crate::stop::StopCommand;
+use crate::supervisor::SupervisorCommand;
+use crate::worker::WorkerCommand;
+use anyhow::Result;
+use bld_config::definitions::VERSION;
+use clap::{Parser, Subcommand};
+use tracing_subscriber::filter::LevelFilter;
 
-pub trait BldCommand {
-    fn id(&self) -> &'static str;
+#[derive(Subcommand)]
+enum Commands {
+    Login(AuthCommand),
+    Config(ConfigCommand),
+    Hist(HistCommand),
+    Init(InitCommand),
+    Inspect(InspectCommand),
+    Ls(ListCommand),
+    Monit(MonitCommand),
+    Pull(PullCommand),
+    Push(PushCommand),
+    Rm(RemoveCommand),
+    Run(RunCommand),
+    Server(ServerCommand),
+    Stop(StopCommand),
+    Supervisor(SupervisorCommand),
+    Worker(WorkerCommand),
+}
 
-    fn interface(&self) -> Command;
+#[derive(Parser)]
+#[command(author = "Kostas Vlachos", version = VERSION, about = "A simple CI/CD")]
+#[command(propagate_version = true)]
+pub struct Cli {
+    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
 
-    fn exec(&self, matches: &ArgMatches) -> anyhow::Result<()>;
+    #[command(subcommand)]
+    command: Commands,
+}
 
-    fn boxed() -> Box<Self>
-    where
-        Self: Sized;
+impl Cli {
+    fn tracing_level(&self) -> LevelFilter {
+        if self.verbose {
+            LevelFilter::DEBUG
+        } else {
+            LevelFilter::INFO
+        }
+    }
+
+    fn tracing(&self) {
+        tracing_subscriber::fmt()
+            .with_max_level(self.tracing_level())
+            .init()
+    }
+}
+
+impl BldCommand for Cli {
+    fn exec(self) -> Result<()> {
+        self.tracing();
+
+        match self.command {
+            Commands::Login(auth) => auth.exec(),
+            Commands::Config(config) => config.exec(),
+            Commands::Hist(hist) => hist.exec(),
+            Commands::Init(init) => init.exec(),
+            Commands::Inspect(inspect) => inspect.exec(),
+            Commands::Ls(list) => list.exec(),
+            Commands::Monit(monit) => monit.exec(),
+            Commands::Pull(pull) => pull.exec(),
+            Commands::Push(push) => push.exec(),
+            Commands::Rm(remove) => remove.exec(),
+            Commands::Run(run) => run.exec(),
+            Commands::Server(server) => server.exec(),
+            Commands::Stop(stop) => stop.exec(),
+            Commands::Supervisor(supervisor) => supervisor.exec(),
+            Commands::Worker(worker) => worker.exec(),
+        }
+    }
 }

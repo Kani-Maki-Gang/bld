@@ -1,12 +1,11 @@
-use crate::BldCommand;
+use crate::command::BldCommand;
 use anyhow::Result;
-use bld_config::definitions::VERSION;
 use bld_config::{Auth, AuthValidation, BldConfig, BldLocalConfig, BldRemoteConfig};
 use bld_utils::term;
-use clap::{ArgMatches, Command};
+use clap::Args;
 
-static CONFIG: &str = "config";
-
+#[derive(Args)]
+#[command(about = "Lists bld's configuration")]
 pub struct ConfigCommand;
 
 impl ConfigCommand {
@@ -105,21 +104,7 @@ impl ConfigCommand {
 }
 
 impl BldCommand for ConfigCommand {
-    fn boxed() -> Box<Self> {
-        Box::new(ConfigCommand)
-    }
-
-    fn id(&self) -> &'static str {
-        CONFIG
-    }
-
-    fn interface(&self) -> Command {
-        Command::new(CONFIG)
-            .about("Lists bld's configuration")
-            .version(VERSION)
-    }
-
-    fn exec(&self, _matches: &ArgMatches) -> Result<()> {
+    fn exec(self) -> Result<()> {
         let config = BldConfig::load()?;
         Self::list_all(&config)
     }

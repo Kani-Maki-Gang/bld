@@ -1,6 +1,6 @@
 use crate::extractors::User;
-use crate::helpers::enqueue_worker;
-use crate::SupervisorMessageSender;
+use crate::supervisor::channel::SupervisorMessageSender;
+use crate::supervisor::helpers::enqueue_worker;
 use actix::prelude::*;
 use actix_web::error::ErrorUnauthorized;
 use actix_web::web::{Data, Payload};

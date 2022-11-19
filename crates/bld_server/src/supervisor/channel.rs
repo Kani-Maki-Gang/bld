@@ -16,7 +16,6 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, error};
 
-
 struct SupervisorMessageReceiver {
     config: Arc<BldConfig>,
     rx: Receiver<ServerMessages>,

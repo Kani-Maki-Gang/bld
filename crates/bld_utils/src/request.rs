@@ -30,6 +30,11 @@ impl Request {
         }
     }
 
+    pub fn query<T: Serialize>(mut self, value: &T) -> Result<Self> {
+        self.request = self.request.query(&value)?;
+        Ok(self)
+    }
+
     pub fn header(mut self, key: &str, value: &str) -> Self {
         self.request = self.request.insert_header((key, value));
         self

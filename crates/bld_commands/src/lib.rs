@@ -1,27 +1,19 @@
-pub mod auth;
-mod cli;
-pub mod config;
-pub mod hist;
-pub mod init;
-pub mod inspect;
-pub mod list;
-pub mod monit;
-pub mod pull;
-pub mod push;
-pub mod remove;
-pub mod run;
-pub mod server;
-pub mod stop;
-pub mod supervisor;
-pub mod worker;
+mod auth;
+pub mod command;
+pub mod cli;
+mod config;
+mod hist;
+mod init;
+mod inspect;
+mod list;
+mod monit;
+mod pull;
+mod push;
+mod remove;
+mod run;
+mod server;
+mod stop;
+mod supervisor;
+mod worker;
 
 pub use cli::*;
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
-}

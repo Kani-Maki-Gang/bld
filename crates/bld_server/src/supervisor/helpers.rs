@@ -1,5 +1,5 @@
 use crate::extractors::User;
-use crate::SupervisorMessageSender;
+use crate::supervisor::channel::SupervisorMessageSender;
 use actix_web::rt::spawn;
 use actix_web::web::Data;
 use anyhow::{bail, Result};
