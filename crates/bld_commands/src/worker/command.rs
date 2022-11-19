@@ -1,5 +1,5 @@
-use crate::run::parse_variables;
 use crate::command::BldCommand;
+use crate::run::parse_variables;
 use actix::io::SinkWrite;
 use actix::{Actor, StreamHandler};
 use actix_web::rt::{spawn, System};
@@ -23,18 +23,38 @@ use tokio::sync::mpsc::{channel, Receiver};
 use tracing::{debug, error};
 
 #[derive(Args)]
-#[command(about = "A sub command that creates a worker process for a bld server in order to run a pipeline.")]
+#[command(
+    about = "A sub command that creates a worker process for a bld server in order to run a pipeline."
+)]
 pub struct WorkerCommand {
-    #[arg(short = 'p', long = "pipeline", required = true, help = "The pipeline id in the current bld server instance")]
+    #[arg(
+        short = 'p',
+        long = "pipeline",
+        required = true,
+        help = "The pipeline id in the current bld server instance"
+    )]
     pipeline: String,
 
-    #[arg(short = 'r', long = "run-id", required = true, help = "The target pipeline run id")]
+    #[arg(
+        short = 'r',
+        long = "run-id",
+        required = true,
+        help = "The target pipeline run id"
+    )]
     run_id: String,
 
-    #[arg(short = 'v', long = "variable", help = "Define value for a variable in the server pipeline")]
+    #[arg(
+        short = 'v',
+        long = "variable",
+        help = "Define value for a variable in the server pipeline"
+    )]
     variables: Vec<String>,
 
-    #[arg(short = 'e', long = "environment", help = "Define values for environment variables in the server pipeline")]
+    #[arg(
+        short = 'e',
+        long = "environment",
+        help = "Define values for environment variables in the server pipeline"
+    )]
     environment: Vec<String>,
 }
 

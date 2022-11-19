@@ -1,5 +1,5 @@
-use crate::run::adapter::RunBuilder;
 use crate::command::BldCommand;
+use crate::run::adapter::RunBuilder;
 use anyhow::Result;
 use bld_config::definitions::TOOL_DEFAULT_PIPELINE;
 use bld_config::BldConfig;
@@ -13,16 +13,27 @@ pub struct RunCommand {
     #[arg(short = 'p', long = "pipeline", default_value = TOOL_DEFAULT_PIPELINE, help = "Path to pipeline script")]
     pipeline: String,
 
-    #[arg(short = 's', long = "server", help = "The name of the server to run the pipeline")]
+    #[arg(
+        short = 's',
+        long = "server",
+        help = "The name of the server to run the pipeline"
+    )]
     server: Option<String>,
 
-    #[arg(long = "detach", help = "Detaches from the run execution (for server mode runs)")]
+    #[arg(
+        long = "detach",
+        help = "Detaches from the run execution (for server mode runs)"
+    )]
     detach: bool,
 
     #[arg(short = 'v', long = "variables", help = "Define value for a variable")]
     variables: Vec<String>,
 
-    #[arg(short = 'e', long = "environment", help = "Define value for an environment variable")]
+    #[arg(
+        short = 'e',
+        long = "environment",
+        help = "Define value for an environment variable"
+    )]
     environment: Vec<String>,
 }
 

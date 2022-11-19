@@ -13,17 +13,32 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Connects to a bld server to monitor the execution of a pipeline")]
 pub struct MonitCommand {
-    #[arg(short = 'i', long = "pipeline-id", help = "The id of the pipeline to monitor. Takes precedence over pipeline")]
+    #[arg(
+        short = 'i',
+        long = "pipeline-id",
+        help = "The id of the pipeline to monitor. Takes precedence over pipeline"
+    )]
     pipeline_id: Option<String>,
 
-    #[arg(short = 'p', long = "pipeline", help = "The name of the pipeline of which to monitor the last run")]
+    #[arg(
+        short = 'p',
+        long = "pipeline",
+        help = "The name of the pipeline of which to monitor the last run"
+    )]
     pipeline: Option<String>,
 
-    #[arg(short = 's', long = "server", help = "The name of the server to monitor")]
+    #[arg(
+        short = 's',
+        long = "server",
+        help = "The name of the server to monitor"
+    )]
     server: Option<String>,
 
-    #[arg(long = "last", help = "Monitor the execution of the last invoked pipeline. Takes precedence over pipeline-id and pipeline")]
-    last: bool
+    #[arg(
+        long = "last",
+        help = "Monitor the execution of the last invoked pipeline. Takes precedence over pipeline-id and pipeline"
+    )]
+    last: bool,
 }
 
 impl MonitCommand {

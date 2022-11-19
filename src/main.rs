@@ -1,5 +1,5 @@
-use bld_commands::command::BldCommand;
 use bld_commands::cli::Cli;
+use bld_commands::command::BldCommand;
 use bld_utils::term::print_error;
 use clap::Parser;
 

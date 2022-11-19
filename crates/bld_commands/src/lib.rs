@@ -1,6 +1,6 @@
 mod auth;
-pub mod command;
 pub mod cli;
+pub mod command;
 mod config;
 mod hist;
 mod init;

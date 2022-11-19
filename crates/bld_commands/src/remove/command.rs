@@ -19,9 +19,7 @@ pub struct RemoveCommand {
 impl BldCommand for RemoveCommand {
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?;
-        let server = config
-            .remote
-            .server_or_first(self.server.as_ref())?;
+        let server = config.remote.server_or_first(self.server.as_ref())?;
 
         debug!(
             "running remove subcommand with --server: {} and --pipeline: {}",

@@ -12,8 +12,12 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Initializes the build configuration")]
 pub struct InitCommand {
-    #[arg(short = 's', long = "server", help = "Initialize configuration for a bld server")]
-    is_server: bool
+    #[arg(
+        short = 's',
+        long = "server",
+        help = "Initialize configuration for a bld server"
+    )]
+    is_server: bool,
 }
 
 impl BldCommand for InitCommand {

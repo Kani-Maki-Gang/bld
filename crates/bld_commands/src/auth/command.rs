@@ -15,15 +15,10 @@ pub struct AuthCommand {
 impl BldCommand for AuthCommand {
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?;
-        let server = config
-            .remote
-            .server_or_first(self.server.as_ref())?;
+        let server = config.remote.server_or_first(self.server.as_ref())?;
         let server_auth = config.remote.same_auth_as(server)?;
 
-        debug!(
-            "running login subcommand with --server: {}",
-            server.name
-        );
+        debug!("running login subcommand with --server: {}", server.name);
 
         match &server_auth.auth {
             Auth::OAuth2(info) => {

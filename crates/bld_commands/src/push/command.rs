@@ -13,22 +13,32 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Pushes the contents of a pipeline to a bld server")]
 pub struct PushCommand {
-    #[arg(short = 'p', long = "pipeline", required = true, help = "The name of the pipeline to push")]
+    #[arg(
+        short = 'p',
+        long = "pipeline",
+        required = true,
+        help = "The name of the pipeline to push"
+    )]
     pipeline: String,
 
-    #[arg(short = 's', long = "server", help = "The name of the server to push changes to")]
+    #[arg(
+        short = 's',
+        long = "server",
+        help = "The name of the server to push changes to"
+    )]
     server: Option<String>,
 
-    #[arg(long = "ignore-deps", help = "Don't include other pipeline dependencies")]
-    ignore_deps: bool
+    #[arg(
+        long = "ignore-deps",
+        help = "Don't include other pipeline dependencies"
+    )]
+    ignore_deps: bool,
 }
 
 impl PushCommand {
     async fn push(self) -> Result<()> {
         let config = BldConfig::load()?;
-        let server = config
-            .remote
-            .server_or_first(self.server.as_ref())?;
+        let server = config.remote.server_or_first(self.server.as_ref())?;
 
         debug!(
             "running push subcommand with --server: {} and --pipeline: {}",
@@ -36,7 +46,12 @@ impl PushCommand {
         );
 
         let server_auth = config.remote.same_auth_as(server)?;
-        let url = format!("{}://{}:{}", server.http_protocol(), server.host, server.port);
+        let url = format!(
+            "{}://{}:{}",
+            server.http_protocol(),
+            server.host,
+            server.port
+        );
 
         let mut pipelines = vec![PushInfo::new(
             &self.pipeline,
@@ -108,7 +123,6 @@ impl PushCommand {
 
         Ok(set)
     }
-
 }
 
 impl BldCommand for PushCommand {

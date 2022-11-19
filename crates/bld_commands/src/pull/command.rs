@@ -14,22 +14,28 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Pull a pipeline from a bld server and stores it localy")]
 pub struct PullCommand {
-    #[arg(short = 'p', long = "pipeline", required = true, help = "The name of the bld server")]
+    #[arg(
+        short = 'p',
+        long = "pipeline",
+        required = true,
+        help = "The name of the bld server"
+    )]
     pipeline: String,
 
     #[arg(short = 's', long = "server", help = "The name of the bld server")]
     server: Option<String>,
 
-    #[arg(long = "ignore-deps", help = "Do not include other pipeline dependencies")]
+    #[arg(
+        long = "ignore-deps",
+        help = "Do not include other pipeline dependencies"
+    )]
     ignore_deps: bool,
 }
 
 impl PullCommand {
     async fn request(self) -> Result<()> {
         let config = BldConfig::load()?;
-        let server = config
-            .remote
-            .server_or_first(self.server.as_ref())?;
+        let server = config.remote.server_or_first(self.server.as_ref())?;
         let server_auth = config.remote.same_auth_as(server)?;
         let protocol = server.http_protocol();
         let metadata_url = format!("{protocol}://{}:{}/deps", server.host, server.port);
@@ -58,7 +64,6 @@ impl PullCommand {
                     println!("Error. {e}");
                     anyhow!(String::new())
                 })?;
-
         }
 
         for pipeline in pipelines.iter() {

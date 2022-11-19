@@ -12,7 +12,6 @@ pub struct ServerCommand {
 
     #[arg(short = 'P', long = "port", help = "The server's port")]
     port: Option<i64>,
-
 }
 
 impl BldCommand for ServerCommand {

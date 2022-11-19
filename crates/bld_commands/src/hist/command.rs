@@ -12,13 +12,26 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Fetches execution history of pipelines on a bld server")]
 pub struct HistCommand {
-    #[arg(short = 's', long = "server", help = "The name of the server from which to fetch execution history")]
+    #[arg(
+        short = 's',
+        long = "server",
+        help = "The name of the server from which to fetch execution history"
+    )]
     server: Option<String>,
 
-    #[arg(short = 'x', long = "state", default_value = "running", help = "Filter the history with state. Possible values are all, initial, queued, running, finished")]
+    #[arg(
+        short = 'x',
+        long = "state",
+        default_value = "running",
+        help = "Filter the history with state. Possible values are all, initial, queued, running, finished"
+    )]
     state: String,
 
-    #[arg(short = 'p', long = "pipeline", help = "Filter the history with state. Possible values are all, initial, queued, running, finished")]
+    #[arg(
+        short = 'p',
+        long = "pipeline",
+        help = "Filter the history with state. Possible values are all, initial, queued, running, finished"
+    )]
     pipeline: Option<String>,
 
     #[arg(short = 'l', long = "limit", help = "Limit the results")]
@@ -28,9 +41,7 @@ pub struct HistCommand {
 impl BldCommand for HistCommand {
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?;
-        let server = config
-            .remote
-            .server_or_first(self.server.as_ref())?;
+        let server = config.remote.server_or_first(self.server.as_ref())?;
         let server_auth = config.remote.same_auth_as(server)?.to_owned();
         let protocol = server.http_protocol();
         let url = format!("{protocol}://{}:{}/hist?", server.host, server.port);
@@ -41,7 +52,7 @@ impl BldCommand for HistCommand {
                 None
             },
             name: self.pipeline.map(|p| p.to_string()),
-            limit: self.limit
+            limit: self.limit,
         };
         debug!(
             "running hist subcommand with --server: {} --limit {}",

@@ -1,6 +1,6 @@
 use crate::command::BldCommand;
 use actix_web::rt::System;
-use anyhow::{ Result};
+use anyhow::Result;
 use bld_config::BldConfig;
 use bld_utils::request::Request;
 use clap::Args;
@@ -9,10 +9,19 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Inspects the contents of a pipeline on a bld server")]
 pub struct InspectCommand {
-    #[arg(short = 'p', long = "pipeline", required = true, help = "The name of the pipeline to inspect")]
+    #[arg(
+        short = 'p',
+        long = "pipeline",
+        required = true,
+        help = "The name of the pipeline to inspect"
+    )]
     pipeline: String,
 
-    #[arg(short = 's', long = "server", help = "The name of the server from which to inspect the pipeline")]
+    #[arg(
+        short = 's',
+        long = "server",
+        help = "The name of the server from which to inspect the pipeline"
+    )]
     server: Option<String>,
 }
 
