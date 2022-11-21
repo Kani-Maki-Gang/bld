@@ -10,7 +10,7 @@ use tracing::info;
 
 #[get("/list")]
 pub async fn list(
-    _: Option<User>,
+    _: User,
     prx: Data<PipelineFileSystemProxy>,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
 ) -> HttpResponse {
