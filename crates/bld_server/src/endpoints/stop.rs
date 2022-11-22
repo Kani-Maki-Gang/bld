@@ -9,17 +9,14 @@ use tracing::info;
 
 #[post("/stop")]
 pub async fn stop(
-    user: Option<User>,
+    _: User,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
     req: Json<String>,
 ) -> impl Responder {
     info!("Reached handler for /stop route");
-    if user.is_none() {
-        return HttpResponse::Unauthorized().body("");
-    }
     let id = req.into_inner();
     match do_stop(pool.get_ref(), &id) {
-        Ok(_) => HttpResponse::Ok().body(""),
+        Ok(_) => HttpResponse::Ok().json(""),
         Err(_) => HttpResponse::BadRequest().body("pipeline not found"),
     }
 }

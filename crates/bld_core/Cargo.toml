@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 actix-web = "4.0.1"
 anyhow = "1.0.40"
-async-raft = "0.6.1"
 async-trait = "0.1.50"
 bld_config = { path = "../bld_config" }
 bld_utils = { path = "../bld_utils" }

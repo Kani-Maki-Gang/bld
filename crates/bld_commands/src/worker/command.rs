@@ -1,5 +1,5 @@
+use crate::command::BldCommand;
 use crate::run::parse_variables;
-use crate::BldCommand;
 use actix::io::SinkWrite;
 use actix::{Actor, StreamHandler};
 use actix_web::rt::{spawn, System};
@@ -13,83 +13,67 @@ use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::WorkerClient;
 use bld_sock::messages::WorkerMessages;
+use bld_utils::request::WebSocket;
 use bld_utils::sync::IntoArc;
-use bld_utils::tls::awc_client;
-use clap::{Arg, ArgAction, ArgMatches, Command};
+use clap::Args;
 use futures::join;
 use futures::stream::StreamExt;
 use std::sync::Arc;
 use tokio::sync::mpsc::{channel, Receiver};
 use tracing::{debug, error};
 
-const WORKER: &str = "worker";
-const PIPELINE: &str = "pipeline";
-const RUN_ID: &str = "run-id";
-const VARIABLE: &str = "variable";
-const ENVIRONMENT: &str = "environment";
+#[derive(Args)]
+#[command(
+    about = "A sub command that creates a worker process for a bld server in order to run a pipeline."
+)]
+pub struct WorkerCommand {
+    #[arg(
+        short = 'p',
+        long = "pipeline",
+        required = true,
+        help = "The pipeline id in the current bld server instance"
+    )]
+    pipeline: String,
 
-pub struct WorkerCommand;
+    #[arg(
+        short = 'r',
+        long = "run-id",
+        required = true,
+        help = "The target pipeline run id"
+    )]
+    run_id: String,
+
+    #[arg(
+        short = 'v',
+        long = "variable",
+        help = "Define value for a variable in the server pipeline"
+    )]
+    variables: Vec<String>,
+
+    #[arg(
+        short = 'e',
+        long = "environment",
+        help = "Define values for environment variables in the server pipeline"
+    )]
+    environment: Vec<String>,
+}
 
 impl BldCommand for WorkerCommand {
-    fn boxed() -> Box<Self> {
-        Box::new(Self)
-    }
+    fn exec(self) -> Result<()> {
+        let config = BldConfig::load()?.into_arc();
+        let socket_cfg = config.clone();
 
-    fn id(&self) -> &'static str {
-        WORKER
-    }
+        let pipeline = self.pipeline.into_arc();
+        let run_id = self.run_id.into_arc();
+        let variables = parse_variables(&self.variables).into_arc();
+        let environment = parse_variables(&self.environment).into_arc();
 
-    fn interface(&self) -> Command {
-        let pipeline = Arg::new(PIPELINE)
-            .short('p')
-            .long(PIPELINE)
-            .help("The pipeline id in the current bld server instance")
-            .required(true)
-            .action(ArgAction::Set);
-
-        let run_id = Arg::new(RUN_ID)
-            .short('r')
-            .long(RUN_ID)
-            .help("The target pipeline run id")
-            .action(ArgAction::Set)
-            .required(true);
-
-        let variable = Arg::new(VARIABLE)
-            .short('v')
-            .long(VARIABLE)
-            .help("Define value for a variable in the server pipeline")
-            .action(ArgAction::Append);
-
-        let environment = Arg::new(ENVIRONMENT)
-            .short('e')
-            .long(ENVIRONMENT)
-            .help("Define values for environment variables in the server pipeline")
-            .action(ArgAction::Append);
-
-        Command::new(WORKER)
-            .about("A sub command that creates a worker process for a bld server in order to run a pipeline.")
-            .args(&[pipeline, run_id, variable, environment])
-    }
-
-    fn exec(&self, matches: &ArgMatches) -> Result<()> {
-        let cfg = BldConfig::load()?.into_arc();
-        let socket_cfg = cfg.clone();
-
-        let pipeline = matches
-            .get_one::<String>(PIPELINE)
-            .cloned()
-            .unwrap()
-            .into_arc();
-        let run_id = matches.get_one::<String>(RUN_ID).cloned().unwrap().into_arc();
-        let variables = parse_variables(matches, VARIABLE).into_arc();
-        let environment = parse_variables(matches, ENVIRONMENT).into_arc();
-
-        let pool = new_connection_pool(&cfg.local.db)?.into_arc();
+        let pool = new_connection_pool(&config.local.db)?.into_arc();
         let mut conn = pool.get()?;
         let pipeline_run = pipeline_runs::select_by_id(&mut conn, &run_id)?;
         let start_date_time = pipeline_run.start_date_time;
         let proxy = PipelineFileSystemProxy::Server {
-            config: cfg.clone(),
+            config: config.clone(),
             pool: pool.clone(),
         }
         .into_arc();
@@ -100,7 +84,7 @@ impl BldCommand for WorkerCommand {
         let worker_tx = Some(worker_tx).into_arc();
 
         System::new().block_on(async move {
-            let logger = LoggerSender::file(cfg.clone(), &run_id)?.into_arc();
+            let logger = LoggerSender::file(config.clone(), &run_id)?.into_arc();
             let context = ContextSender::new(pool, &run_id).into_arc();
 
             let socket_handle = spawn(async move {
@@ -113,7 +97,7 @@ impl BldCommand for WorkerCommand {
                 match RunnerBuilder::default()
                     .run_id(&run_id)
                     .run_start_time(&start_date_time)
-                    .config(cfg)
+                    .config(config)
                     .proxy(proxy)
                     .pipeline(&pipeline)
                     .execution(exec)
@@ -134,14 +118,7 @@ impl BldCommand for WorkerCommand {
                 }
             });
 
-            match join!(socket_handle, runner_handle) {
-                (Err(e), Ok(())) | (Ok(()), Err(e)) => error!("{e}"),
-                (Err(e1), Err(e2)) => {
-                    error!("{e1}");
-                    error!("{e2}");
-                }
-                _ => {}
-            }
+            let _ = join!(socket_handle, runner_handle);
 
             Ok(())
         })
@@ -160,11 +137,14 @@ async fn connect_to_supervisor(
 
     debug!("establishing web socket connection on {}", url);
 
-    let client = awc_client()?.ws(url).connect();
-    let (_, framed) = client.await.map_err(|e| {
-        error!("{e}");
-        anyhow!(e.to_string())
-    })?;
+    let (_, framed) = WebSocket::new(&url)?
+        .request()
+        .connect()
+        .await
+        .map_err(|e| {
+            error!("{e}");
+            anyhow!(e.to_string())
+        })?;
 
     let (sink, stream) = framed.split();
     let addr = WorkerClient::create(|ctx| {
@@ -184,80 +164,4 @@ async fn connect_to_supervisor(
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cli_worker_pipeline_arg_accepts_value() {
-        let pipeline_name = "mock_pipeline_name";
-        let command = WorkerCommand::boxed().interface();
-        let matches =
-            command.get_matches_from(&["worker", "-r", "mock_run_id", "-p", pipeline_name]);
-
-        assert_eq!(
-            matches.get_one::<String>(PIPELINE),
-            Some(&pipeline_name.to_string())
-        )
-    }
-
-    #[test]
-    fn cli_worker_run_id_arg_accepts_value() {
-        let run_id = "mock_run_id";
-        let command = WorkerCommand::boxed().interface();
-        let matches =
-            command.get_matches_from(&["worker", "-p", "mock_pipeline_name", "-r", run_id]);
-
-        assert_eq!(matches.get_one::<String>(RUN_ID), Some(&run_id.to_string()))
-    }
-
-    #[test]
-    fn cli_worker_variables_arg_accepts_multiple_values() {
-        let variable_name = "mock_variable";
-        let command = WorkerCommand::boxed().interface();
-        let matches = command.get_matches_from(&[
-            "worker",
-            "-p",
-            "mock_pipeline_name",
-            "-r",
-            "mock_run_id",
-            "-v",
-            variable_name,
-            "-v",
-            variable_name,
-            "-v",
-            variable_name,
-        ]);
-
-        assert_eq!(
-            matches.get_many::<String>(VARIABLE).map(|v| v.len()),
-            Some(3)
-        )
-    }
-
-    #[test]
-    fn cli_worker_environment_variables_arg_accepts_multiple_values() {
-        let environment_variable_name = "mock_environment_variable";
-        let command = WorkerCommand::boxed().interface();
-        let matches = command.get_matches_from(&[
-            "worker",
-            "-p",
-            "mock_pipeline_name",
-            "-r",
-            "mock_run_id",
-            "-e",
-            environment_variable_name,
-            "-e",
-            environment_variable_name,
-            "-e",
-            environment_variable_name,
-        ]);
-
-        assert_eq!(
-            matches.get_many::<String>(ENVIRONMENT).map(|v| v.len()),
-            Some(3)
-        )
-    }
 }

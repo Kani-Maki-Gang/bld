@@ -1,8 +1,6 @@
 use crate::database::schema::ha_hard_state;
 use crate::database::schema::ha_hard_state::dsl::*;
 use anyhow::{anyhow, Result};
-use async_raft::storage::HardState;
-use async_raft::NodeId;
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
@@ -18,15 +16,6 @@ pub struct HighAvailHardState {
     pub date_updated: String,
 }
 
-impl From<HighAvailHardState> for HardState {
-    fn from(hs: HighAvailHardState) -> Self {
-        Self {
-            current_term: hs.current_term as u64,
-            voted_for: hs.voted_for.map(|v| v as NodeId),
-        }
-    }
-}
-
 #[derive(Debug, Insertable)]
 #[diesel(table_name = ha_hard_state)]
 pub struct InsertHighAvailHardState {
@@ -39,34 +28,6 @@ impl InsertHighAvailHardState {
         Self {
             current_term: hs_current_term,
             voted_for: hs_voted_for,
-        }
-    }
-
-    fn from_hard_state(hs: &HardState) -> Self {
-        Self {
-            current_term: hs.current_term as i32,
-            voted_for: hs.voted_for.map(|v| v as i32),
-        }
-    }
-}
-
-impl From<HardState> for InsertHighAvailHardState {
-    fn from(hs: HardState) -> Self {
-        Self::from_hard_state(&hs)
-    }
-}
-
-impl From<&HardState> for InsertHighAvailHardState {
-    fn from(hs: &HardState) -> Self {
-        Self::from_hard_state(hs)
-    }
-}
-
-impl From<InsertHighAvailHardState> for HardState {
-    fn from(hs: InsertHighAvailHardState) -> Self {
-        Self {
-            current_term: hs.current_term as u64,
-            voted_for: hs.voted_for.map(|v| v as NodeId),
         }
     }
 }

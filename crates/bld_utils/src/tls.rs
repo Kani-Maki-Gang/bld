@@ -1,7 +1,5 @@
-use crate::sync::IntoArc;
 use anyhow::{anyhow, Result};
-use awc::{Client, Connector};
-use rustls::{Certificate, ClientConfig, PrivateKey, RootCertStore};
+use rustls::{Certificate, PrivateKey, RootCertStore};
 use rustls_native_certs::load_native_certs;
 use rustls_pemfile::{certs, pkcs8_private_keys};
 use std::fs::File;
@@ -38,17 +36,4 @@ pub fn load_server_private_key<P: AsRef<Path>>(path: &P) -> Result<PrivateKey> {
         .ok_or_else(|| anyhow!("private key not found"))?;
 
     Ok(PrivateKey(key))
-}
-
-pub fn awc_client() -> Result<Client> {
-    let root_certificates = load_root_certificates()?;
-
-    let rustls_config = ClientConfig::builder()
-        .with_safe_defaults()
-        .with_root_certificates(root_certificates)
-        .with_no_client_auth();
-
-    let connector = Connector::new().rustls(rustls_config.into_arc());
-
-    Ok(Client::builder().connector(connector).finish())
 }

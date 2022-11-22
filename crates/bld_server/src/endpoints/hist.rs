@@ -10,14 +10,11 @@ use tracing::info;
 
 #[get("/hist")]
 pub async fn hist(
-    user: Option<User>,
+    _user: User,
     db_pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
     params: Query<HistQueryParams>,
 ) -> impl Responder {
     info!("Reached handler for /hist route");
-    if user.is_none() {
-        return HttpResponse::Unauthorized().body("");
-    }
     match history_info(db_pool.get_ref(), params.into_inner()) {
         Ok(ls) => HttpResponse::Ok().json(ls),
         Err(_) => HttpResponse::BadRequest().body(""),

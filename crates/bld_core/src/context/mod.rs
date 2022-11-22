@@ -18,10 +18,7 @@ struct ContextReceiver {
 }
 
 impl ContextReceiver {
-    pub fn containers_atom(
-        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
-        run_id: &str,
-    ) -> Self {
+    pub fn containers(pool: Arc<Pool<ConnectionManager<SqliteConnection>>>, run_id: &str) -> Self {
         Self {
             pool,
             run_id: run_id.to_string(),
@@ -121,7 +118,7 @@ pub struct ContextSender {
 impl ContextSender {
     pub fn new(pool: Arc<Pool<ConnectionManager<SqliteConnection>>>, run_id: &str) -> Self {
         let (tx, rx) = channel(4096);
-        let context = ContextReceiver::containers_atom(pool, run_id);
+        let context = ContextReceiver::containers(pool, run_id);
 
         spawn(async move {
             if let Err(e) = context.receive(rx).await {

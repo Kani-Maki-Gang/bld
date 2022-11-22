@@ -32,5 +32,3 @@ bld_config = { path = "crates/bld_config" }
 bld_utils = { path = "crates/bld_utils" }
 bld_commands = { path = "crates/bld_commands" }
 clap = "4.0.18"
-tracing = "0.1.36"
-tracing-subscriber = "0.3.15"

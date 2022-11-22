@@ -1,8 +1,6 @@
 use crate::database::schema::ha_log;
 use crate::database::schema::ha_log::dsl::*;
 use anyhow::{anyhow, Result};
-use async_raft::raft::{Entry, EntryPayload};
-use async_raft::AppData;
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
 use diesel::sqlite::SqliteConnection;
@@ -44,32 +42,6 @@ impl InsertHighAvailLog {
                 None => String::new(),
             },
         }
-    }
-
-    fn from_entry<T: AppData>(entry: &Entry<T>) -> Self {
-        Self {
-            id: entry.index as i32,
-            term: entry.term as i32,
-            payload_type: match entry.payload {
-                EntryPayload::Blank => BLANK.to_string(),
-                EntryPayload::Normal(_) => NORMAL.to_string(),
-                EntryPayload::ConfigChange(_) => CONFIG_CHANGE.to_string(),
-                EntryPayload::SnapshotPointer(_) => SNAPSHOT_POINTER.to_string(),
-            },
-            payload: serde_json::to_string(&entry).unwrap(),
-        }
-    }
-}
-
-impl<T: AppData> From<Entry<T>> for InsertHighAvailLog {
-    fn from(entry: Entry<T>) -> Self {
-        Self::from_entry(&entry)
-    }
-}
-
-impl<T: AppData> From<&Entry<T>> for InsertHighAvailLog {
-    fn from(entry: &Entry<T>) -> Self {
-        Self::from_entry(entry)
     }
 }
 

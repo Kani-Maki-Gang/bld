@@ -1,179 +1,110 @@
-use crate::BldCommand;
+use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
-use bld_config::{definitions::VERSION, BldConfig};
+use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_server::responses::PullResponse;
 use bld_utils::fs::IsYaml;
-use bld_utils::request;
-use clap::{Arg, ArgAction, ArgMatches, Command};
-use std::collections::HashMap;
+use bld_utils::request::Request;
+use clap::Args;
 use std::fs::{create_dir_all, remove_file, File};
 use std::io::Write;
 use tracing::debug;
 
-const PULL: &str = "pull";
-const SERVER: &str = "server";
-const PIPELINE: &str = "pipeline";
-const IGNORE_DEPS: &str = "ignore-deps";
+#[derive(Args)]
+#[command(about = "Pull a pipeline from a bld server and stores it localy")]
+pub struct PullCommand {
+    #[arg(
+        short = 'p',
+        long = "pipeline",
+        required = true,
+        help = "The name of the bld server"
+    )]
+    pipeline: String,
 
-pub struct PullCommand;
+    #[arg(short = 's', long = "server", help = "The name of the bld server")]
+    server: Option<String>,
 
-impl BldCommand for PullCommand {
-    fn boxed() -> Box<Self> {
-        Box::new(Self)
-    }
+    #[arg(
+        long = "ignore-deps",
+        help = "Do not include other pipeline dependencies"
+    )]
+    ignore_deps: bool,
+}
 
-    fn id(&self) -> &'static str {
-        PULL
-    }
-
-    fn interface(&self) -> Command {
-        let server = Arg::new(SERVER)
-            .short('s')
-            .long(SERVER)
-            .help("The name of the bld server")
-            .action(ArgAction::Set);
-
-        let pipeline = Arg::new(PIPELINE)
-            .short('p')
-            .long(PIPELINE)
-            .help("The name of the pipeline")
-            .required(true)
-            .action(ArgAction::Set);
-
-        let ignore_deps = Arg::new(IGNORE_DEPS)
-            .long(IGNORE_DEPS)
-            .help("Do not include other pipeline dependencies")
-            .action(ArgAction::SetTrue);
-
-        Command::new(PULL)
-            .about("Pull a pipeline from a bld server and stores it localy")
-            .version(VERSION)
-            .args(&[server, pipeline, ignore_deps])
-    }
-
-    fn exec(&self, matches: &ArgMatches) -> Result<()> {
+impl PullCommand {
+    async fn request(self) -> Result<()> {
         let config = BldConfig::load()?;
-        let server = config
-            .remote
-            .server_or_first(matches.get_one::<String>(SERVER))?;
-        // using an unwrap here because the pipeline option is required.
-        let pip = matches.get_one::<String>(PIPELINE).cloned().unwrap();
-        let ignore = matches.get_flag(IGNORE_DEPS);
+        let server = config.remote.server_or_first(self.server.as_ref())?;
+        let server_auth = config.remote.same_auth_as(server)?;
+        let protocol = server.http_protocol();
+        let metadata_url = format!("{protocol}://{}:{}/deps", server.host, server.port);
+        let url = format!("{protocol}://{}:{}/pull", server.host, server.port);
 
         debug!(
-            "running {PULL} subcommand with --server: {}, --pipeline: {pip} and --ignore-deps: {ignore}",
-            server.name
+            "running pull subcommand with --server: {}, --pipeline: {} and --ignore-deps: {}",
+            server.name, self.pipeline, self.ignore_deps
         );
 
-        let server_auth = config.remote.same_auth_as(server)?;
-        let headers = request::headers(&server_auth.name, &server_auth.auth)?;
+        let mut pipelines = vec![self.pipeline.to_string()];
 
-        System::new().block_on(async move {
-            do_pull(
-                server.host.clone(),
-                server.port,
-                server.http_protocol(),
-                headers,
-                pip,
-                ignore,
-            )
-            .await
-        })
+        if !self.ignore_deps {
+            debug!("sending http request to {}", metadata_url);
+            print!("Fetching metadata for dependecies...");
+
+            Request::post(&metadata_url)
+                .auth(server_auth)
+                .send_json(self.pipeline)
+                .await
+                .map(|mut deps: Vec<String>| {
+                    println!("Done.");
+                    pipelines.append(&mut deps);
+                })
+                .map_err(|e| {
+                    println!("Error. {e}");
+                    anyhow!(String::new())
+                })?;
+        }
+
+        for pipeline in pipelines.iter() {
+            debug!("sending http request to {}", url);
+            print!("Pulling pipeline {pipeline}...");
+
+            Request::post(&url)
+                .auth(server_auth)
+                .send_json(pipeline.to_string())
+                .await
+                .and_then(Self::save)
+                .map(|_| {
+                    println!("Done.");
+                })
+                .map_err(|e| {
+                    println!("Error. {e}");
+                    e
+                })?;
+        }
+
+        Ok(())
+    }
+
+    fn save(data: PullResponse) -> Result<()> {
+        let path = PipelineFileSystemProxy::Local.path(&data.name)?;
+
+        if path.is_yaml() {
+            remove_file(&path)?;
+        } else if let Some(parent) = path.parent() {
+            create_dir_all(parent)?;
+        }
+
+        let mut handle = File::create(&path)?;
+        handle.write_all(data.content.as_bytes())?;
+
+        Ok(())
     }
 }
 
-async fn do_pull(
-    host: String,
-    port: i64,
-    protocol: String,
-    headers: HashMap<String, String>,
-    name: String,
-    ignore_deps: bool,
-) -> Result<()> {
-    let mut pipelines = vec![name.to_string()];
-    if !ignore_deps {
-        let metadata_url = format!("{protocol}://{host}:{port}/deps");
-        debug!("sending http request to {metadata_url}");
-        print!("Fetching metadata for dependecies...");
-        let mut deps = request::post(metadata_url, headers.clone(), name)
-            .await
-            .and_then(|r| serde_json::from_str::<Vec<String>>(&r).map_err(|e| anyhow!(e)))
-            .map(|d| {
-                println!("Done.");
-                d
-            })
-            .map_err(|e| {
-                println!("Error. {e}");
-                anyhow!(String::new())
-            })?;
-        pipelines.append(&mut deps);
-    }
-    for pipeline in pipelines.iter() {
-        let url = format!("{protocol}://{host}:{port}/pull");
-        debug!("sending http request to {url}");
-        print!("Pulling pipeline {pipeline}...");
-        let _ = request::post(url, headers.clone(), pipeline.to_string())
-            .await
-            .and_then(|r| serde_json::from_str(&r).map_err(|e| anyhow!(e)))
-            .and_then(save_pipeline)
-            .map(|_| {
-                println!("Done.");
-            })
-            .map_err(|e| {
-                println!("Error. {e}");
-                e
-            });
-    }
-    Ok(())
-}
-
-fn save_pipeline(data: PullResponse) -> Result<()> {
-    let path = PipelineFileSystemProxy::Local.path(&data.name)?;
-    if path.is_yaml() {
-        remove_file(&path)?;
-    } else if let Some(parent) = path.parent() {
-        create_dir_all(parent)?;
-    }
-    let mut handle = File::create(&path)?;
-    handle.write_all(data.content.as_bytes())?;
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cli_pull_pipeline_arg_accepts_value() {
-        let pipeline_name = "mock_pipeline_name";
-        let command = PullCommand::boxed().interface();
-        let matches = command.get_matches_from(&["pull", "-p", pipeline_name]);
-
-        assert_eq!(
-            matches.get_one::<String>(PIPELINE),
-            Some(&pipeline_name.to_string())
-        )
-    }
-
-    #[test]
-    fn cli_pull_server_arg_accepts_value() {
-        let server_name = "mock_server_name";
-        let command = PullCommand::boxed().interface();
-        let matches = command.get_matches_from(&["pull", "-p", "mockPipeline", "-s", server_name]);
-
-        assert_eq!(
-            matches.get_one::<String>(SERVER),
-            Some(&server_name.to_string())
-        )
-    }
-
-    #[test]
-    fn cli_pull_ignore_deps_is_a_flag() {
-        let command = PullCommand::boxed().interface();
-        let matches = command.get_matches_from(&["pull", "-p", "mockPipeline", "--ignore-deps"]);
-
-        assert_eq!(matches.get_flag(IGNORE_DEPS), true);
+impl BldCommand for PullCommand {
+    fn exec(self) -> Result<()> {
+        System::new().block_on(self.request())
     }
 }

@@ -12,17 +12,14 @@ use uuid::Uuid;
 
 #[post("/push")]
 pub async fn push(
-    user: Option<User>,
+    _: User,
     prx: Data<PipelineFileSystemProxy>,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
     info: Json<PushInfo>,
 ) -> impl Responder {
     info!("Reached handler for /push route");
-    if user.is_none() {
-        return HttpResponse::Unauthorized().body("");
-    }
     match do_push(prx.get_ref(), pool.get_ref(), &info.into_inner()) {
-        Ok(()) => HttpResponse::Ok().body(""),
+        Ok(()) => HttpResponse::Ok().json(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }

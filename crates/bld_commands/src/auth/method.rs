@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use bld_config::definitions;
 use bld_config::OAuth2Info;
 use oauth2::basic::BasicClient;
@@ -71,9 +71,7 @@ impl Login for OAuth2Info {
         let code = AuthorizationCode::new(stdin_with_label("code")?);
         let state = CsrfToken::new(stdin_with_label("state")?);
         if state.secret() != csrf_token.secret() {
-            return Err(anyhow!(
-                "state token not the one expected. operation is aborted"
-            ));
+            bail!("state token not the one expected. operation is aborted");
         }
 
         let token_res = client

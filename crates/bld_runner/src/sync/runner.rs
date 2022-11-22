@@ -1,4 +1,6 @@
-use crate::{BuildStep, Container, Machine, Pipeline, RunsOn, TargetPlatform};
+use crate::platform::TargetPlatform;
+use crate::sync::builder::RunnerBuilder;
+use crate::sync::pipeline::{BuildStep, External, ExternalDetails, Pipeline};
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use anyhow::{anyhow, bail, Result};
 use bld_config::definitions::{
@@ -11,10 +13,8 @@ use bld_core::logger::LoggerSender;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_sock::clients::ExecClient;
 use bld_sock::messages::{RunInfo, WorkerMessages};
-use bld_utils::request::headers;
+use bld_utils::request::WebSocket;
 use bld_utils::sync::IntoArc;
-use bld_utils::tls::awc_client;
-use chrono::offset::Local;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
 use std::future::Future;
@@ -24,190 +24,24 @@ use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tokio::time::sleep;
 use tracing::debug;
-use uuid::Uuid;
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 
-pub struct RunnerBuilder {
-    run_id: String,
-    run_start_time: String,
-    cfg: Option<Arc<BldConfig>>,
-    execution: Arc<Execution>,
-    logger: Arc<LoggerSender>,
-    prx: Arc<PipelineFileSystemProxy>,
-    pip: Option<String>,
-    ipc: Arc<Option<Sender<WorkerMessages>>>,
-    env: Option<Arc<HashMap<String, String>>>,
-    vars: Option<Arc<HashMap<String, String>>>,
-    context: Arc<ContextSender>,
-    is_child: bool,
-}
-
-impl Default for RunnerBuilder {
-    fn default() -> Self {
-        Self {
-            run_id: Uuid::new_v4().to_string(),
-            run_start_time: Local::now().format("%F %X").to_string(),
-            cfg: None,
-            execution: Execution::default().into_arc(),
-            logger: LoggerSender::default().into_arc(),
-            prx: PipelineFileSystemProxy::default().into_arc(),
-            pip: None,
-            ipc: None.into_arc(),
-            env: None,
-            vars: None,
-            context: ContextSender::default().into_arc(),
-            is_child: false,
-        }
-    }
-}
-
-impl RunnerBuilder {
-    pub fn run_id(mut self, id: &str) -> Self {
-        self.run_id = String::from(id);
-        self
-    }
-
-    pub fn run_start_time(mut self, time: &str) -> Self {
-        self.run_start_time = String::from(time);
-        self
-    }
-
-    pub fn config(mut self, cfg: Arc<BldConfig>) -> Self {
-        self.cfg = Some(cfg);
-        self
-    }
-
-    pub fn execution(mut self, ex: Arc<Execution>) -> Self {
-        self.execution = ex;
-        self
-    }
-
-    pub fn logger(mut self, logger: Arc<LoggerSender>) -> Self {
-        self.logger = logger;
-        self
-    }
-
-    pub fn pipeline(mut self, name: &str) -> Self {
-        self.pip = Some(name.to_string());
-        self
-    }
-
-    pub fn proxy(mut self, prx: Arc<PipelineFileSystemProxy>) -> Self {
-        self.prx = prx;
-        self
-    }
-
-    pub fn ipc(mut self, sender: Arc<Option<Sender<WorkerMessages>>>) -> Self {
-        self.ipc = sender;
-        self
-    }
-
-    pub fn environment(mut self, env: Arc<HashMap<String, String>>) -> Self {
-        self.env = Some(env);
-        self
-    }
-
-    pub fn variables(mut self, vars: Arc<HashMap<String, String>>) -> Self {
-        self.vars = Some(vars);
-        self
-    }
-
-    pub fn context(mut self, context: Arc<ContextSender>) -> Self {
-        self.context = context;
-        self
-    }
-
-    pub fn is_child(mut self, is_child: bool) -> Self {
-        self.is_child = is_child;
-        self
-    }
-
-    pub async fn build(self) -> Result<Runner> {
-        let cfg = self
-            .cfg
-            .ok_or_else(|| anyhow!("no bld config instance provided"))?;
-        let pip_name = self.pip.ok_or_else(|| anyhow!("no pipeline provided"))?;
-        let pipeline = Pipeline::parse(&self.prx.read(&pip_name)?)?;
-        let env = self
-            .env
-            .ok_or_else(|| anyhow!("no environment instance provided"))?;
-        let env = pipeline
-            .environment
-            .iter()
-            .map(|e| {
-                (
-                    e.name.to_string(),
-                    env.get(&e.name).unwrap_or(&e.default_value).to_string(),
-                )
-            })
-            .collect::<HashMap<String, String>>()
-            .into_arc();
-        let vars = self
-            .vars
-            .ok_or_else(|| anyhow!("no variables instance provided"))?;
-        let vars = pipeline
-            .variables
-            .iter()
-            .map(|v| {
-                (
-                    v.name.to_string(),
-                    vars.get(&v.name).unwrap_or(&v.default_value).to_string(),
-                )
-            })
-            .collect::<HashMap<String, String>>()
-            .into_arc();
-        let platform = match &pipeline.runs_on {
-            RunsOn::Machine => {
-                let machine = Machine::new(&self.run_id, env.clone(), self.logger.clone())?;
-                TargetPlatform::Machine(Box::new(machine))
-            }
-            RunsOn::Docker(img) => {
-                let container = Container::new(
-                    img,
-                    cfg.clone(),
-                    env.clone(),
-                    self.logger.clone(),
-                    self.context.clone(),
-                )
-                .await?;
-                TargetPlatform::Container(Box::new(container))
-            }
-        };
-        Ok(Runner {
-            run_id: self.run_id,
-            run_start_time: self.run_start_time,
-            cfg,
-            execution: self.execution,
-            logger: self.logger,
-            prx: self.prx,
-            pip: pipeline,
-            ipc: self.ipc,
-            env,
-            vars,
-            context: self.context,
-            platform,
-            is_child: self.is_child,
-            has_faulted: false,
-        })
-    }
-}
-
 pub struct Runner {
-    run_id: String,
-    run_start_time: String,
-    cfg: Arc<BldConfig>,
-    execution: Arc<Execution>,
-    logger: Arc<LoggerSender>,
-    prx: Arc<PipelineFileSystemProxy>,
-    pip: Pipeline,
-    ipc: Arc<Option<Sender<WorkerMessages>>>,
-    env: Arc<HashMap<String, String>>,
-    vars: Arc<HashMap<String, String>>,
-    context: Arc<ContextSender>,
-    platform: TargetPlatform,
-    is_child: bool,
-    has_faulted: bool,
+    pub run_id: String,
+    pub run_start_time: String,
+    pub cfg: Arc<BldConfig>,
+    pub execution: Arc<Execution>,
+    pub logger: Arc<LoggerSender>,
+    pub prx: Arc<PipelineFileSystemProxy>,
+    pub pip: Pipeline,
+    pub ipc: Arc<Option<Sender<WorkerMessages>>>,
+    pub env: Arc<HashMap<String, String>>,
+    pub vars: Arc<HashMap<String, String>>,
+    pub context: Arc<ContextSender>,
+    pub platform: TargetPlatform,
+    pub is_child: bool,
+    pub has_faulted: bool,
 }
 
 impl Runner {
@@ -362,105 +196,127 @@ impl Runner {
         if let Some(name) = &step.name {
             self.logger.write_line(format!("Step: {name}")).await?;
         }
-        self.invoke(step).await?;
-        self.call(step).await?;
+        self.external(step).await?;
         self.sh(step).await?;
         Ok(())
     }
 
-    async fn invoke(&self, step: &BuildStep) -> Result<()> {
+    async fn external(&self, step: &BuildStep) -> Result<()> {
         debug!(
-            "starting execution of invoke section for step {:?}",
+            "starting execution of external section for step {:?}",
             step.name
         );
-        for invoke in &step.invoke {
-            if let Some(invoke) = self.pip.invoke.iter().find(|i| &i.name == invoke) {
-                let server = self.cfg.remote.server(&invoke.server)?;
-                let server_auth = self.cfg.remote.same_auth_as(server)?;
-                let headers = headers(&server_auth.name, &server_auth.auth)?;
 
-                let variables = invoke
-                    .variables
-                    .iter()
-                    .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
-                    .collect();
+        for step_external in &step.external {
 
-                let environment = invoke
-                    .environment
-                    .iter()
-                    .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
-                    .collect();
+            let external = self.pip.external.iter().find(|i| match i {
+                External::Local(details) => &details.name == step_external,
+                External::Server { details, .. } => &details.name == step_external,
+            });
 
-                let url = format!(
-                    "{}://{}:{}/ws-exec/",
-                    server.ws_protocol(),
-                    server.host,
-                    server.port
-                );
-
-                debug!(
-                    "establishing web socket connection with server {}",
-                    server.name
-                );
-
-                let mut client = awc_client()?.ws(url);
-                for (key, value) in headers.iter() {
-                    client = client.header(&key[..], &value[..]);
-                }
-
-                let (_, framed) = client.connect().await.map_err(|e| anyhow!(e.to_string()))?;
-                let (sink, stream) = framed.split();
-                let addr = ExecClient::create(|ctx| {
-                    ExecClient::add_stream(stream, ctx);
-                    ExecClient::new(self.logger.clone(), SinkWrite::new(sink, ctx))
-                });
-
-                debug!("sending message for pipeline execution over the web socket");
-
-                addr.send(RunInfo::new(
-                    &invoke.pipeline,
-                    Some(environment),
-                    Some(variables),
-                ))
-                .await
-                .map_err(|e| anyhow!(e))?;
-
-                while addr.connected() {
-                    sleep(Duration::from_millis(300)).await;
-                }
+            if let Some(external) = external {
+                match external {
+                    External::Local(details) => self.local_external(details).await?,
+                    External::Server { server, details } => self.server_external(server, details).await?,
+                };
             }
         }
+
         Ok(())
     }
 
-    async fn call(&self, step: &BuildStep) -> Result<()> {
-        debug!("starting execution of call section for step");
-        for call in &step.call {
-            let call = self.apply_context(call);
+    async fn local_external(&self, details: &ExternalDetails) -> Result<()> {
+        debug!("building runner for child pipeline");
 
-            debug!("building runner for child pipeline");
+        let variables: HashMap<String, String> = details
+            .variables
+            .iter()
+            .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
+            .collect();
 
-            let runner = RunnerBuilder::default()
-                .run_id(&self.run_id)
-                .run_start_time(&self.run_start_time)
-                .config(self.cfg.clone())
-                .proxy(self.prx.clone())
-                .pipeline(&call)
-                .execution(self.execution.clone())
-                .logger(self.logger.clone())
-                .environment(self.env.clone())
-                .variables(self.vars.clone())
-                .ipc(self.ipc.clone())
-                .context(self.context.clone())
-                .is_child(true)
-                .build()
-                .await?;
+        let environment: HashMap<String, String> = details
+            .environment
+            .iter()
+            .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
+            .collect();
 
-            debug!("starting child pipeline runner");
+        let runner = RunnerBuilder::default()
+            .run_id(&self.run_id)
+            .run_start_time(&self.run_start_time)
+            .config(self.cfg.clone())
+            .proxy(self.prx.clone())
+            .pipeline(&details.pipeline)
+            .execution(self.execution.clone())
+            .logger(self.logger.clone())
+            .environment(environment.into_arc())
+            .variables(variables.into_arc())
+            .ipc(self.ipc.clone())
+            .context(self.context.clone())
+            .is_child(true)
+            .build()
+            .await?;
 
-            runner.run().await.await?;
-            self.check_stop_signal()?;
+        debug!("starting child pipeline runner");
+
+        runner.run().await.await?;
+        self.check_stop_signal()?;
+
+        Ok(())
+    }
+
+    async fn server_external(&self, server: &str, details: &ExternalDetails) -> Result<()> {
+        let server = self.cfg.remote.server(&server)?;
+        let server_auth = self.cfg.remote.same_auth_as(server)?;
+        let variables = details
+            .variables
+            .iter()
+            .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
+            .collect();
+
+        let environment = details
+            .environment
+            .iter()
+            .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
+            .collect();
+
+        let url = format!(
+            "{}://{}:{}/ws-exec/",
+            server.ws_protocol(),
+            server.host,
+            server.port
+        );
+
+        debug!(
+            "establishing web socket connection with server {}",
+            server.name
+        );
+
+        let (_, framed) = WebSocket::new(&url)?
+            .auth(server_auth)
+            .request()
+            .connect()
+            .await
+            .map_err(|e| anyhow!(e.to_string()))?;
+        let (sink, stream) = framed.split();
+        let addr = ExecClient::create(|ctx| {
+            ExecClient::add_stream(stream, ctx);
+            ExecClient::new(self.logger.clone(), SinkWrite::new(sink, ctx))
+        });
+
+        debug!("sending message for pipeline execution over the web socket");
+
+        addr.send(RunInfo::new(
+            &details.pipeline,
+            Some(environment),
+            Some(variables),
+        ))
+        .await
+        .map_err(|e| anyhow!(e))?;
+
+        while addr.connected() {
+            sleep(Duration::from_millis(300)).await;
         }
+
         Ok(())
     }
 

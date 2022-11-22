@@ -6,198 +6,283 @@ use bld_core::logger::LoggerSender;
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::ExecClient;
 use bld_sock::messages::RunInfo;
-use bld_utils::request::{self, headers};
+use bld_utils::request::{Request, WebSocket};
 use bld_utils::sync::IntoArc;
-use bld_utils::tls::awc_client;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
 
-pub trait RunAdapter {
-    fn start(&self) -> Result<()>;
-}
-
-struct RunInProcessAdapter {
+pub struct LocalRun {
     config: Arc<BldConfig>,
     pipeline: String,
-    environment: HashMap<String, String>,
     variables: HashMap<String, String>,
+    environment: HashMap<String, String>,
 }
 
-impl RunAdapter for RunInProcessAdapter {
-    fn start(&self) -> Result<()> {
-        let sys = System::new();
-
-        let res = sys.block_on(async move {
-            let runner = RunnerBuilder::default()
-                .config(self.config.clone())
-                .pipeline(&self.pipeline)
-                .logger(LoggerSender::shell().into_arc())
-                .environment(self.environment.clone().into_arc())
-                .variables(self.variables.clone().into_arc())
-                .build()
-                .await?;
-            let res = runner.run().await.await;
-
-            System::current().stop();
-            res
-        });
-
-        sys.run()?;
-        debug!("local run finished");
-        res
-    }
-}
-
-struct RunWithHttpRequestAdapter {
-    server: Option<ServerProperties>,
+pub struct HttpRequest {
+    config: Arc<BldConfig>,
     pipeline: String,
-    environment: HashMap<String, String>,
     variables: HashMap<String, String>,
+    environment: HashMap<String, String>,
+    server: String,
 }
 
-impl RunWithHttpRequestAdapter {
-    async fn send_request(&self) -> Result<()> {
-        let server_props = self
-            .server
-            .as_ref()
-            .ok_or_else(|| anyhow!("no server properties"))?;
-
-        let url = format!(
-            "{}://{}:{}/run",
-            server_props.protocol, server_props.host, server_props.port
-        );
-
-        debug!("sending request to {url}");
-
-        let request_data = RunInfo::new(
-            &self.pipeline,
-            Some(self.environment.clone()),
-            Some(self.variables.clone()),
-        );
-        request::post(url, server_props.headers.clone(), request_data)
-            .await
-            .map(|_| {
-                println!("pipeline has been scheduled to run");
-            })
-    }
-}
-
-impl RunAdapter for RunWithHttpRequestAdapter {
-    fn start(&self) -> Result<()> {
-        System::new().block_on(async move { self.send_request().await })
-    }
-}
-
-struct RunWithWebSocketAdapter {
-    server: Option<ServerProperties>,
+pub struct WebSocketRequest {
+    config: Arc<BldConfig>,
     pipeline: String,
-    environment: HashMap<String, String>,
     variables: HashMap<String, String>,
+    environment: HashMap<String, String>,
+    server: String,
 }
 
-impl RunWithWebSocketAdapter {
-    async fn connect_to_socket(&self) -> Result<()> {
-        let server_props = self
-            .server
-            .as_ref()
-            .ok_or_else(|| anyhow!("no server properties"))?;
+pub enum RunConfiguration {
+    Local(LocalRun),
+    Http(HttpRequest),
+    WebSocket(WebSocketRequest),
+}
+
+pub struct RunBuilder {
+    config: RunConfiguration,
+}
+
+impl RunBuilder {
+    pub fn new(
+        config: Arc<BldConfig>,
+        pipeline: String,
+        variables: HashMap<String, String>,
+        environment: HashMap<String, String>,
+    ) -> Self {
+        Self {
+            config: RunConfiguration::Local(LocalRun {
+                config,
+                pipeline,
+                variables,
+                environment,
+            }),
+        }
+    }
+
+    pub fn server(self, server: Option<&String>) -> RunBuilder {
+        match (server, self.config) {
+            (None, RunConfiguration::Local(local)) => RunBuilder {
+                config: RunConfiguration::Local(LocalRun {
+                    config: local.config,
+                    pipeline: local.pipeline,
+                    variables: local.variables,
+                    environment: local.environment,
+                }),
+            },
+
+            (Some(server), RunConfiguration::Local(local)) => RunBuilder {
+                config: RunConfiguration::WebSocket(WebSocketRequest {
+                    config: local.config,
+                    pipeline: local.pipeline,
+                    variables: local.variables,
+                    environment: local.environment,
+                    server: server.to_string(),
+                }),
+            },
+
+            (None, RunConfiguration::WebSocket(socket)) => RunBuilder {
+                config: RunConfiguration::WebSocket(WebSocketRequest {
+                    config: socket.config,
+                    pipeline: socket.pipeline,
+                    variables: socket.variables,
+                    environment: socket.environment,
+                    server: socket.server,
+                }),
+            },
+
+            (Some(server), RunConfiguration::WebSocket(socket)) => RunBuilder {
+                config: RunConfiguration::WebSocket(WebSocketRequest {
+                    config: socket.config,
+                    pipeline: socket.pipeline,
+                    variables: socket.variables,
+                    environment: socket.environment,
+                    server: server.to_string(),
+                }),
+            },
+
+            (None, RunConfiguration::Http(http)) => RunBuilder {
+                config: RunConfiguration::Http(HttpRequest {
+                    config: http.config,
+                    pipeline: http.pipeline,
+                    variables: http.variables,
+                    environment: http.environment,
+                    server: http.server,
+                }),
+            },
+
+            (Some(server), RunConfiguration::Http(http)) => RunBuilder {
+                config: RunConfiguration::Http(HttpRequest {
+                    config: http.config,
+                    pipeline: http.pipeline,
+                    variables: http.variables,
+                    environment: http.environment,
+                    server: server.to_string(),
+                }),
+            },
+        }
+    }
+
+    pub fn detach(self, detach: bool) -> Self {
+        match (detach, self.config) {
+            (_, RunConfiguration::Local(local)) => RunBuilder {
+                config: RunConfiguration::Local(LocalRun {
+                    config: local.config,
+                    pipeline: local.pipeline,
+                    variables: local.variables,
+                    environment: local.environment,
+                }),
+            },
+
+            (false, RunConfiguration::WebSocket(socket)) => RunBuilder {
+                config: RunConfiguration::WebSocket(WebSocketRequest {
+                    config: socket.config,
+                    pipeline: socket.pipeline,
+                    variables: socket.variables,
+                    environment: socket.environment,
+                    server: socket.server,
+                }),
+            },
+
+            (true, RunConfiguration::WebSocket(socket)) => RunBuilder {
+                config: RunConfiguration::Http(HttpRequest {
+                    config: socket.config,
+                    pipeline: socket.pipeline,
+                    variables: socket.variables,
+                    environment: socket.environment,
+                    server: socket.server,
+                }),
+            },
+
+            (true, RunConfiguration::Http(http)) => RunBuilder {
+                config: RunConfiguration::Http(HttpRequest {
+                    config: http.config,
+                    pipeline: http.pipeline,
+                    variables: http.variables,
+                    environment: http.environment,
+                    server: http.server,
+                }),
+            },
+
+            (false, RunConfiguration::Http(http)) => RunBuilder {
+                config: RunConfiguration::WebSocket(WebSocketRequest {
+                    config: http.config,
+                    pipeline: http.pipeline,
+                    variables: http.variables,
+                    environment: http.environment,
+                    server: http.server,
+                }),
+            },
+        }
+    }
+
+    pub fn build(self) -> RunAdapter {
+        RunAdapter {
+            config: self.config,
+        }
+    }
+}
+
+pub struct RunAdapter {
+    config: RunConfiguration,
+}
+
+impl RunAdapter {
+    async fn run_local(mode: LocalRun) -> Result<()> {
+        let runner = RunnerBuilder::default()
+            .config(mode.config)
+            .pipeline(&mode.pipeline)
+            .logger(LoggerSender::shell().into_arc())
+            .environment(mode.environment.into_arc())
+            .variables(mode.variables.into_arc())
+            .build()
+            .await?;
+
+        let result = runner.run().await.await;
+
+        System::current().stop();
+
+        result
+    }
+
+    async fn run_web_socket(mode: WebSocketRequest) -> Result<()> {
+        let server = mode.config.remote.server(&mode.server)?;
+        let server_auth = mode.config.remote.same_auth_as(server)?;
 
         let url = format!(
             "{}://{}:{}/ws-exec/",
-            server_props.protocol, server_props.host, server_props.port
+            server.ws_protocol(),
+            server.host,
+            server.port
         );
 
-        debug!("establishing web socker connection on {}", url);
+        let data = RunInfo::new(&mode.pipeline, Some(mode.environment), Some(mode.variables));
 
-        let mut client = awc_client()?.ws(url);
-        for (key, value) in server_props.headers.iter() {
-            client = client.header(&key[..], &value[..]);
-        }
+        let web_socket = WebSocket::new(&url)?.auth(server_auth);
 
-        let (_, framed) = client.connect().await.map_err(|e| anyhow!(e.to_string()))?;
+        let (_, framed) = web_socket
+            .request()
+            .connect()
+            .await
+            .map_err(|e| anyhow!(e.to_string()))?;
+
         let (sink, stream) = framed.split();
-        let addr = ExecClient::create(|ctx| {
+        let address = ExecClient::create(|ctx| {
             ExecClient::add_stream(stream, ctx);
             ExecClient::new(LoggerSender::shell().into_arc(), SinkWrite::new(sink, ctx))
         });
 
         debug!(
-            "sending self over: {:?} {:?}",
-            self.pipeline, self.variables
+            "sending self over: {:?} {:?} {:?}",
+            data.name, data.variables, data.environment
         );
 
-        addr.send(RunInfo::new(
-            &self.pipeline,
-            Some(self.environment.clone()),
-            Some(self.variables.clone()),
-        ))
-        .await
-        .map_err(|e| anyhow!(e))
+        address.send(data).await.map_err(|e| anyhow!(e))
     }
-}
 
-impl RunAdapter for RunWithWebSocketAdapter {
-    fn start(&self) -> Result<()> {
-        let sys = System::new();
-        let res = sys.block_on(async move { self.connect_to_socket().await });
-        sys.run()?;
-        debug!("server run finished");
-        res
-    }
-}
+    async fn run_http(mode: HttpRequest) -> Result<()> {
+        let server = mode.config.remote.server(&mode.server)?;
+        let server_auth = mode.config.remote.same_auth_as(server)?;
 
-struct ServerProperties {
-    pub host: String,
-    pub port: i64,
-    pub protocol: String,
-    pub headers: HashMap<String, String>,
-}
+        let url = format!(
+            "{}://{}:{}/run",
+            server.http_protocol(),
+            server.host,
+            server.port
+        );
 
-pub fn create_adapter(
-    config: BldConfig,
-    pipeline: String,
-    server: Option<&String>,
-    vars: HashMap<String, String>,
-    env: HashMap<String, String>,
-    detach: bool,
-) -> Result<Box<dyn RunAdapter>> {
-    if let Some(server) = server {
-        let server = config.remote.server(server)?;
-        let server_auth = config.remote.same_auth_as(server)?;
-        let server_props = Some(ServerProperties {
-            host: server.host.clone(),
-            port: server.port,
-            protocol: if detach {
-                server.http_protocol()
-            } else {
-                server.ws_protocol()
-            },
-            headers: headers(&server_auth.name, &server_auth.auth)?,
+        let data = RunInfo::new(
+            &mode.pipeline,
+            Some(mode.environment.clone()),
+            Some(mode.variables.clone()),
+        );
+
+        let request = Request::post(&url).auth(server_auth);
+
+        let result = request.send_json(data).await.map(|_: String| {
+            println!("pipeline has been scheduled to run");
         });
 
-        if detach {
-            Ok(Box::new(RunWithHttpRequestAdapter {
-                server: server_props,
-                pipeline,
-                environment: env,
-                variables: vars,
-            }))
-        } else {
-            Ok(Box::new(RunWithWebSocketAdapter {
-                server: server_props,
-                pipeline,
-                environment: env,
-                variables: vars,
-            }))
-        }
-    } else {
-        Ok(Box::new(RunInProcessAdapter {
-            config: config.into_arc(),
-            pipeline,
-            environment: env,
-            variables: vars,
-        }))
+        System::current().stop();
+
+        result
+    }
+
+    pub fn run(self) -> Result<()> {
+        let system = System::new();
+
+        let result = system.block_on(async move {
+            match self.config {
+                RunConfiguration::Local(run) => Self::run_local(run).await,
+                RunConfiguration::Http(http) => Self::run_http(http).await,
+                RunConfiguration::WebSocket(socket) => Self::run_web_socket(socket).await,
+            }
+        });
+
+        system.run()?;
+        result
     }
 }
