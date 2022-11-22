@@ -1,6 +1,6 @@
 use crate::platform::TargetPlatform;
 use crate::sync::builder::RunnerBuilder;
-use crate::sync::pipeline::{BuildStep, Pipeline};
+use crate::sync::pipeline::{BuildStep, External, ExternalDetails, Pipeline};
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use anyhow::{anyhow, bail, Result};
 use bld_config::definitions::{
@@ -14,6 +14,7 @@ use bld_core::proxies::PipelineFileSystemProxy;
 use bld_sock::clients::ExecClient;
 use bld_sock::messages::{RunInfo, WorkerMessages};
 use bld_utils::request::WebSocket;
+use bld_utils::sync::IntoArc;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
 use std::future::Future;
@@ -195,103 +196,127 @@ impl Runner {
         if let Some(name) = &step.name {
             self.logger.write_line(format!("Step: {name}")).await?;
         }
-        self.invoke(step).await?;
-        self.call(step).await?;
+        self.external(step).await?;
         self.sh(step).await?;
         Ok(())
     }
 
-    async fn invoke(&self, step: &BuildStep) -> Result<()> {
+    async fn external(&self, step: &BuildStep) -> Result<()> {
         debug!(
-            "starting execution of invoke section for step {:?}",
+            "starting execution of external section for step {:?}",
             step.name
         );
-        for invoke in &step.invoke {
-            if let Some(invoke) = self.pip.invoke.iter().find(|i| &i.name == invoke) {
-                let server = self.cfg.remote.server(&invoke.server)?;
-                let server_auth = self.cfg.remote.same_auth_as(server)?;
-                let variables = invoke
-                    .variables
-                    .iter()
-                    .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
-                    .collect();
 
-                let environment = invoke
-                    .environment
-                    .iter()
-                    .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
-                    .collect();
+        for step_external in &step.external {
 
-                let url = format!(
-                    "{}://{}:{}/ws-exec/",
-                    server.ws_protocol(),
-                    server.host,
-                    server.port
-                );
+            let external = self.pip.external.iter().find(|i| match i {
+                External::Local(details) => &details.name == step_external,
+                External::Server { details, .. } => &details.name == step_external,
+            });
 
-                debug!(
-                    "establishing web socket connection with server {}",
-                    server.name
-                );
-
-                let (_, framed) = WebSocket::new(&url)?
-                    .auth(server_auth)
-                    .request()
-                    .connect()
-                    .await
-                    .map_err(|e| anyhow!(e.to_string()))?;
-                let (sink, stream) = framed.split();
-                let addr = ExecClient::create(|ctx| {
-                    ExecClient::add_stream(stream, ctx);
-                    ExecClient::new(self.logger.clone(), SinkWrite::new(sink, ctx))
-                });
-
-                debug!("sending message for pipeline execution over the web socket");
-
-                addr.send(RunInfo::new(
-                    &invoke.pipeline,
-                    Some(environment),
-                    Some(variables),
-                ))
-                .await
-                .map_err(|e| anyhow!(e))?;
-
-                while addr.connected() {
-                    sleep(Duration::from_millis(300)).await;
-                }
+            if let Some(external) = external {
+                match external {
+                    External::Local(details) => self.local_external(details).await?,
+                    External::Server { server, details } => self.server_external(server, details).await?,
+                };
             }
         }
+
         Ok(())
     }
 
-    async fn call(&self, step: &BuildStep) -> Result<()> {
-        debug!("starting execution of call section for step");
-        for call in &step.call {
-            let call = self.apply_context(call);
+    async fn local_external(&self, details: &ExternalDetails) -> Result<()> {
+        debug!("building runner for child pipeline");
 
-            debug!("building runner for child pipeline");
+        let variables: HashMap<String, String> = details
+            .variables
+            .iter()
+            .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
+            .collect();
 
-            let runner = RunnerBuilder::default()
-                .run_id(&self.run_id)
-                .run_start_time(&self.run_start_time)
-                .config(self.cfg.clone())
-                .proxy(self.prx.clone())
-                .pipeline(&call)
-                .execution(self.execution.clone())
-                .logger(self.logger.clone())
-                .environment(self.env.clone())
-                .variables(self.vars.clone())
-                .ipc(self.ipc.clone())
-                .context(self.context.clone())
-                .is_child(true)
-                .build()
-                .await?;
+        let environment: HashMap<String, String> = details
+            .environment
+            .iter()
+            .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
+            .collect();
 
-            debug!("starting child pipeline runner");
+        let runner = RunnerBuilder::default()
+            .run_id(&self.run_id)
+            .run_start_time(&self.run_start_time)
+            .config(self.cfg.clone())
+            .proxy(self.prx.clone())
+            .pipeline(&details.pipeline)
+            .execution(self.execution.clone())
+            .logger(self.logger.clone())
+            .environment(environment.into_arc())
+            .variables(variables.into_arc())
+            .ipc(self.ipc.clone())
+            .context(self.context.clone())
+            .is_child(true)
+            .build()
+            .await?;
 
-            runner.run().await.await?;
-            self.check_stop_signal()?;
+        debug!("starting child pipeline runner");
+
+        runner.run().await.await?;
+        self.check_stop_signal()?;
+
+        Ok(())
+    }
+
+    async fn server_external(&self, server: &str, details: &ExternalDetails) -> Result<()> {
+        let server = self.cfg.remote.server(&server)?;
+        let server_auth = self.cfg.remote.same_auth_as(server)?;
+        let variables = details
+            .variables
+            .iter()
+            .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
+            .collect();
+
+        let environment = details
+            .environment
+            .iter()
+            .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
+            .collect();
+
+        let url = format!(
+            "{}://{}:{}/ws-exec/",
+            server.ws_protocol(),
+            server.host,
+            server.port
+        );
+
+        debug!(
+            "establishing web socket connection with server {}",
+            server.name
+        );
+
+        let (_, framed) = WebSocket::new(&url)?
+            .auth(server_auth)
+            .request()
+            .connect()
+            .await
+            .map_err(|e| anyhow!(e.to_string()))?;
+        let (sink, stream) = framed.split();
+        let addr = ExecClient::create(|ctx| {
+            ExecClient::add_stream(stream, ctx);
+            ExecClient::new(self.logger.clone(), SinkWrite::new(sink, ctx))
+        });
+
+        debug!("sending message for pipeline execution over the web socket");
+
+        addr.send(RunInfo::new(
+            &details.pipeline,
+            Some(environment),
+            Some(variables),
+        ))
+        .await
+        .map_err(|e| anyhow!(e))?;
+
+        while addr.connected() {
+            sleep(Duration::from_millis(300)).await;
         }
+
         Ok(())
     }
 

@@ -1,6 +1,9 @@
 use anyhow::{anyhow, Error, Result};
+use bld_core::proxies::PipelineFileSystemProxy;
+use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
 use yaml_rust::{Yaml, YamlLoader};
+use tracing::debug;
 
 pub fn err_variable_in_yaml() -> Error {
     anyhow!("error in variable section")
@@ -43,25 +46,22 @@ impl Variable {
 }
 
 #[derive(Debug)]
-pub struct Invoke {
+pub struct ExternalDetails {
     pub name: String,
-    pub server: String,
     pub pipeline: String,
     pub variables: Vec<Variable>,
     pub environment: Vec<Variable>,
 }
 
-impl Invoke {
+impl ExternalDetails {
     pub fn new(
         name: String,
-        server: String,
         pipeline: String,
         variables: Vec<Variable>,
         environment: Vec<Variable>,
     ) -> Self {
         Self {
             name,
-            server,
             pipeline,
             variables,
             environment,
@@ -70,11 +70,16 @@ impl Invoke {
 }
 
 #[derive(Debug)]
+pub enum External {
+    Local(ExternalDetails),
+    Server { server: String, details: ExternalDetails }
+}
+
+#[derive(Debug)]
 pub struct BuildStep {
     pub name: Option<String>,
     pub working_dir: Option<String>,
-    pub invoke: Vec<String>,
-    pub call: Vec<String>,
+    pub external: Vec<String>,
     pub commands: Vec<String>,
 }
 
@@ -82,15 +87,13 @@ impl BuildStep {
     pub fn new(
         name: Option<String>,
         working_dir: Option<String>,
-        invoke: Vec<String>,
-        call: Vec<String>,
+        external: Vec<String>,
         commands: Vec<String>,
     ) -> Self {
         Self {
             name,
             working_dir,
-            invoke,
-            call,
+            external,
             commands,
         }
     }
@@ -122,7 +125,6 @@ impl Artifacts {
         }
     }
 }
-
 #[derive(Debug, Default)]
 pub struct Pipeline {
     pub name: Option<String>,
@@ -131,7 +133,7 @@ pub struct Pipeline {
     pub environment: Vec<Variable>,
     pub variables: Vec<Variable>,
     pub artifacts: Vec<Artifacts>,
-    pub invoke: Vec<Invoke>,
+    pub external: Vec<External>,
     pub steps: Vec<BuildStep>,
 }
 
@@ -157,7 +159,7 @@ impl Pipeline {
             environment: Self::variables(yaml, "environment")?,
             variables: Self::variables(yaml, "variables")?,
             artifacts: Self::artifacts(yaml),
-            invoke: Self::invoke(yaml)?,
+            external: Self::external(yaml)?,
             steps: Self::steps(yaml),
         })
     }
@@ -200,19 +202,27 @@ impl Pipeline {
         artifacts
     }
 
-    fn invoke(yaml: &Yaml) -> Result<Vec<Invoke>> {
-        let mut invoke = vec![];
-        if let Some(entries) = yaml["invoke"].as_vec() {
+    fn external(yaml: &Yaml) -> Result<Vec<External>> {
+        let mut externals = vec![];
+        if let Some(entries) = yaml["external"].as_vec() {
             for entry in entries {
                 let name = entry["name"].as_str().unwrap_or("").to_string();
-                let server = entry["server"].as_str().unwrap_or("").to_string();
                 let pipeline = entry["pipeline"].as_str().unwrap_or("").to_string();
                 let variables = Self::variables(entry, "variables")?;
                 let environment = Self::variables(entry, "environment")?;
-                invoke.push(Invoke::new(name, server, pipeline, variables, environment));
+
+                let external = match entry["server"].as_str() {
+                    Some(server) => External::Server {
+                        server: server.to_string(),
+                        details: ExternalDetails::new(name, pipeline, variables, environment)
+                    },
+                    None => External::Local(ExternalDetails::new(name, pipeline, variables, environment)),
+                };
+
+                externals.push(external);
             }
         }
-        Ok(invoke)
+        Ok(externals)
     }
 
     fn steps(yaml: &Yaml) -> Vec<BuildStep> {
@@ -229,15 +239,7 @@ impl Pipeline {
                             .map(|w| w.to_string())
                             .or_else(|| working_dir.clone());
 
-                        let invoke = step["invoke"]
-                            .as_vec()
-                            .unwrap_or(&Vec::<Yaml>::new())
-                            .iter()
-                            .map(|c| c.as_str().unwrap_or("").to_string())
-                            .filter(|c| !c.is_empty())
-                            .collect();
-
-                        let call = step["call"]
+                        let external = step["external"]
                             .as_vec()
                             .unwrap_or(&Vec::<Yaml>::new())
                             .iter()
@@ -253,10 +255,43 @@ impl Pipeline {
                             .filter(|c| !c.is_empty())
                             .collect();
 
-                        BuildStep::new(name, working_dir, invoke, call, commands)
+                        BuildStep::new(name, working_dir, external, commands)
                     })
                     .collect()
             })
             .unwrap_or_else(Vec::new)
+    }
+
+    pub fn dependencies(proxy: &PipelineFileSystemProxy, name: &str) -> Result<HashMap<String, String>> {
+        Self::dependencies_recursive(proxy, name).map(|mut hs| {
+            hs.remove(name);
+            hs.into_iter().collect()
+        })
+    }
+
+    fn dependencies_recursive(proxy: &PipelineFileSystemProxy, name: &str) -> Result<HashMap<String, String>> {
+        debug!("Parsing pipeline {name}");
+
+        let src = proxy
+            .read(name)
+            .map_err(|_| anyhow!("Pipeline {name} not found"))?;
+
+        let pipeline = Pipeline::parse(&src)?;
+        let mut set = HashMap::new();
+        set.insert(name.to_string(), src);
+
+        for external in pipeline.external.iter() {
+            match external {
+                External::Local(details) => {
+                    let subset = Self::dependencies_recursive(proxy, &details.pipeline)?;
+                    for (k, v) in subset {
+                        set.insert(k, v);
+                    }
+                }
+                External::Server { .. } => {},
+            }
+        }
+
+        Ok(set)
     }
 }
