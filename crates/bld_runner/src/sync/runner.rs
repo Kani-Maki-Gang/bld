@@ -208,7 +208,6 @@ impl Runner {
         );
 
         for step_external in &step.external {
-
             let external = self.pip.external.iter().find(|i| match i {
                 External::Local(details) => &details.name == step_external,
                 External::Server { details, .. } => &details.name == step_external,
@@ -217,7 +216,9 @@ impl Runner {
             if let Some(external) = external {
                 match external {
                     External::Local(details) => self.local_external(details).await?,
-                    External::Server { server, details } => self.server_external(server, details).await?,
+                    External::Server { server, details } => {
+                        self.server_external(server, details).await?
+                    }
                 };
             }
         }

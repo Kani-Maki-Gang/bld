@@ -2,8 +2,8 @@ use anyhow::{anyhow, Error, Result};
 use bld_core::proxies::PipelineFileSystemProxy;
 use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
-use yaml_rust::{Yaml, YamlLoader};
 use tracing::debug;
+use yaml_rust::{Yaml, YamlLoader};
 
 pub fn err_variable_in_yaml() -> Error {
     anyhow!("error in variable section")
@@ -72,7 +72,10 @@ impl ExternalDetails {
 #[derive(Debug)]
 pub enum External {
     Local(ExternalDetails),
-    Server { server: String, details: ExternalDetails }
+    Server {
+        server: String,
+        details: ExternalDetails,
+    },
 }
 
 #[derive(Debug)]
@@ -214,9 +217,14 @@ impl Pipeline {
                 let external = match entry["server"].as_str() {
                     Some(server) => External::Server {
                         server: server.to_string(),
-                        details: ExternalDetails::new(name, pipeline, variables, environment)
+                        details: ExternalDetails::new(name, pipeline, variables, environment),
                     },
-                    None => External::Local(ExternalDetails::new(name, pipeline, variables, environment)),
+                    None => External::Local(ExternalDetails::new(
+                        name,
+                        pipeline,
+                        variables,
+                        environment,
+                    )),
                 };
 
                 externals.push(external);
@@ -262,14 +270,20 @@ impl Pipeline {
             .unwrap_or_else(Vec::new)
     }
 
-    pub fn dependencies(proxy: &PipelineFileSystemProxy, name: &str) -> Result<HashMap<String, String>> {
+    pub fn dependencies(
+        proxy: &PipelineFileSystemProxy,
+        name: &str,
+    ) -> Result<HashMap<String, String>> {
         Self::dependencies_recursive(proxy, name).map(|mut hs| {
             hs.remove(name);
             hs.into_iter().collect()
         })
     }
 
-    fn dependencies_recursive(proxy: &PipelineFileSystemProxy, name: &str) -> Result<HashMap<String, String>> {
+    fn dependencies_recursive(
+        proxy: &PipelineFileSystemProxy,
+        name: &str,
+    ) -> Result<HashMap<String, String>> {
         debug!("Parsing pipeline {name}");
 
         let src = proxy
@@ -288,7 +302,7 @@ impl Pipeline {
                         set.insert(k, v);
                     }
                 }
-                External::Server { .. } => {},
+                External::Server { .. } => {}
             }
         }
 
