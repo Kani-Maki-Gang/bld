@@ -1,5 +1,6 @@
 use crate::platform::{Container, Machine, TargetPlatform};
-use crate::sync::pipeline::{Pipeline, RunsOn};
+use crate::pipeline::Pipeline;
+use crate::pipeline::runs_on::RunsOn;
 use crate::sync::runner::Runner;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;

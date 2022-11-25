@@ -1,6 +1,8 @@
 use crate::platform::TargetPlatform;
 use crate::sync::builder::RunnerBuilder;
-use crate::sync::pipeline::{BuildStep, External, ExternalDetails, Pipeline};
+use crate::pipeline::Pipeline;
+use crate::pipeline::step::BuildStep;
+use crate::pipeline::external::{External, ExternalDetails};
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use anyhow::{anyhow, bail, Result};
 use bld_config::definitions::{

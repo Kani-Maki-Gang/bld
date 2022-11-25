@@ -1,133 +1,18 @@
-use anyhow::{anyhow, Error, Result};
+use crate::pipeline::runs_on::RunsOn;
+use crate::pipeline::variable::Variable;
+use crate::pipeline::artifacts::Artifacts;
+use crate::pipeline::external::{External, ExternalDetails};
+use crate::pipeline::step::BuildStep;
+use anyhow::{anyhow, Result, Error};
 use bld_core::proxies::PipelineFileSystemProxy;
 use std::collections::HashMap;
-use std::fmt::{self, Display, Formatter};
 use tracing::debug;
-use yaml_rust::{Yaml, YamlLoader};
+use yaml_rust::yaml::{Yaml, YamlLoader};
 
 pub fn err_variable_in_yaml() -> Error {
     anyhow!("error in variable section")
 }
 
-#[derive(Debug)]
-pub enum RunsOn {
-    Machine,
-    Docker(String),
-}
-
-impl Default for RunsOn {
-    fn default() -> Self {
-        Self::Machine
-    }
-}
-
-impl Display for RunsOn {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Machine => write!(f, "machine"),
-            Self::Docker(image) => write!(f, "docker [ {} ]", image),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct Variable {
-    pub name: String,
-    pub default_value: String,
-}
-
-impl Variable {
-    pub fn new(name: String, default_value: String) -> Self {
-        Variable {
-            name,
-            default_value,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct ExternalDetails {
-    pub name: String,
-    pub pipeline: String,
-    pub variables: Vec<Variable>,
-    pub environment: Vec<Variable>,
-}
-
-impl ExternalDetails {
-    pub fn new(
-        name: String,
-        pipeline: String,
-        variables: Vec<Variable>,
-        environment: Vec<Variable>,
-    ) -> Self {
-        Self {
-            name,
-            pipeline,
-            variables,
-            environment,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum External {
-    Local(ExternalDetails),
-    Server {
-        server: String,
-        details: ExternalDetails,
-    },
-}
-
-#[derive(Debug)]
-pub struct BuildStep {
-    pub name: Option<String>,
-    pub working_dir: Option<String>,
-    pub external: Vec<String>,
-    pub commands: Vec<String>,
-}
-
-impl BuildStep {
-    pub fn new(
-        name: Option<String>,
-        working_dir: Option<String>,
-        external: Vec<String>,
-        commands: Vec<String>,
-    ) -> Self {
-        Self {
-            name,
-            working_dir,
-            external,
-            commands,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct Artifacts {
-    pub method: Option<String>,
-    pub from: Option<String>,
-    pub to: Option<String>,
-    pub ignore_errors: bool,
-    pub after: Option<String>,
-}
-
-impl Artifacts {
-    pub fn new(
-        method: Option<String>,
-        from: Option<String>,
-        to: Option<String>,
-        after: Option<String>,
-        ignore_errors: bool,
-    ) -> Self {
-        Self {
-            method,
-            from,
-            to,
-            ignore_errors,
-            after,
-        }
-    }
-}
 #[derive(Debug, Default)]
 pub struct Pipeline {
     pub name: Option<String>,
