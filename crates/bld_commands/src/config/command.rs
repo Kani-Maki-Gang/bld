@@ -1,6 +1,6 @@
 use crate::command::BldCommand;
 use anyhow::Result;
-use bld_config::{Auth, AuthValidation, BldConfig, BldLocalConfig, BldRemoteConfig};
+use bld_config::{Auth, AuthValidation, BldConfig, BldLocalConfig, BldRemoteServerConfig};
 use bld_utils::term;
 use clap::Args;
 
@@ -12,12 +12,12 @@ impl ConfigCommand {
     fn list_locals(local: &BldLocalConfig) -> Result<()> {
         term::print_info("Local configuration:")?;
         match &local.auth {
-            AuthValidation::OAuth2(url) => {
+            Some(AuthValidation::OAuth2(url)) => {
                 println!("- auth:");
                 println!("  - method: oauth2");
                 println!("  - validation-url: {url}");
             }
-            AuthValidation::Ldap => {
+            Some(AuthValidation::Ldap) => {
                 println!("- auth:");
                 println!("  - method: ldap");
             }
@@ -57,16 +57,17 @@ impl ConfigCommand {
         Ok(())
     }
 
-    fn list_remote(remote: &BldRemoteConfig) -> Result<()> {
+    fn list_remote(remote: &[BldRemoteServerConfig]) -> Result<()> {
         term::print_info("Remote configuration:")?;
 
-        for (i, server) in remote.servers.iter().enumerate() {
+        for (i, server) in remote.iter().enumerate() {
             println!("- name: {}", server.name);
             println!("- host: {}", server.host);
             println!("- port: {}", server.port);
             println!("- tls:  {}", server.tls);
+
             match &server.auth {
-                Auth::OAuth2(info) => {
+                Some(Auth::OAuth2(info)) => {
                     println!("- auth:");
                     println!("  - method: oauth2");
                     println!("  - auth-url: {}", *info.auth_url);
@@ -81,13 +82,14 @@ impl ConfigCommand {
                             .fold(String::new(), |acc, n| format!("{acc} \"{}\",", **n))
                     );
                 }
-                Auth::Ldap => {
+                Some(Auth::Ldap) => {
                     println!("- auth:");
                     println!("  - method: ldap");
                 }
                 _ => {}
             }
-            if i < remote.servers.len() - 1 {
+
+            if i < remote.len() - 1 {
                 println!();
             }
         }

@@ -37,14 +37,14 @@ pub struct PushCommand {
 impl PushCommand {
     async fn push(self) -> Result<()> {
         let config = BldConfig::load()?;
-        let server = config.remote.server_or_first(self.server.as_ref())?;
+        let server = config.server_or_first(self.server.as_ref())?;
 
         debug!(
             "running push subcommand with --server: {} and --pipeline: {}",
             server.name, self.pipeline
         );
 
-        let server_auth = config.remote.same_auth_as(server)?;
+        let server_auth = config.same_auth_as(server)?;
         let url = format!(
             "{}://{}:{}/push",
             server.http_protocol(),

@@ -1,35 +1,32 @@
 use crate::definitions;
 use crate::BldTlsConfig;
-use anyhow::Result;
-use yaml_rust::Yaml;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BldLocalSupervisorConfig {
+    #[serde(default = "BldLocalSupervisorConfig::default_host")]
     pub host: String,
+
+    #[serde(default = "BldLocalSupervisorConfig::default_port")]
     pub port: i64,
+
     pub tls: Option<BldTlsConfig>,
+
+    #[serde(default = "BldLocalSupervisorConfig::default_workers")]
     pub workers: i64,
 }
 
 impl BldLocalSupervisorConfig {
-    pub fn load(yaml: &Yaml) -> Result<Self> {
-        let host = yaml["host"]
-            .as_str()
-            .unwrap_or(definitions::LOCAL_SUPERVISOR_HOST)
-            .to_string();
-        let port = yaml["port"]
-            .as_i64()
-            .unwrap_or(definitions::LOCAL_SUPERVISOR_PORT);
-        let tls = BldTlsConfig::load(&yaml["tls"])?;
-        let workers = yaml["workers"]
-            .as_i64()
-            .unwrap_or(definitions::LOCAL_SUPERVISOR_WORKERS);
-        Ok(Self {
-            host,
-            port,
-            tls,
-            workers,
-        })
+    fn default_host() -> String {
+        definitions::LOCAL_SUPERVISOR_HOST.to_owned()
+    }
+
+    fn default_port() -> i64 {
+        definitions::LOCAL_SUPERVISOR_PORT
+    }
+
+    fn default_workers() -> i64 {
+        definitions::LOCAL_SUPERVISOR_WORKERS
     }
 
     pub fn http_protocol(&self) -> String {
@@ -52,10 +49,10 @@ impl BldLocalSupervisorConfig {
 impl Default for BldLocalSupervisorConfig {
     fn default() -> Self {
         Self {
-            host: definitions::LOCAL_SUPERVISOR_HOST.to_string(),
-            port: definitions::LOCAL_SUPERVISOR_PORT,
+            host: Self::default_host(),
+            port: Self::default_port(),
             tls: None,
-            workers: definitions::LOCAL_SUPERVISOR_WORKERS,
+            workers: Self::default_workers(),
         }
     }
 }

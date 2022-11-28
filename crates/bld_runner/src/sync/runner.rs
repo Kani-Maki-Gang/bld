@@ -1,8 +1,8 @@
 use crate::platform::TargetPlatform;
-use crate::sync::builder::RunnerBuilder;
 use crate::pipeline::Pipeline;
 use crate::pipeline::step::BuildStep;
-use crate::pipeline::external::{External, ExternalDetails};
+use crate::pipeline::external::External;
+use super::builder::RunnerBuilder;
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use anyhow::{anyhow, bail, Result};
 use bld_config::definitions::{
@@ -116,10 +116,12 @@ impl Runner {
             let full_name = format!("{ENV_TOKEN}{key}");
             txt_with_env = txt_with_env.replace(&full_name, value);
         }
-        for env in self.pip.environment.iter() {
-            let full_name = format!("{ENV_TOKEN}{}", &env.name);
-            txt_with_env = txt_with_env.replace(&full_name, &env.default_value);
+
+        for (key, value) in self.pip.environment.iter() {
+            let full_name = format!("{ENV_TOKEN}{}", &key);
+            txt_with_env = txt_with_env.replace(&full_name, &value);
         }
+
         txt_with_env
     }
 
@@ -129,10 +131,12 @@ impl Runner {
             let full_name = format!("{VAR_TOKEN}{key}");
             txt_with_vars = txt_with_vars.replace(&full_name, value);
         }
-        for variable in self.pip.variables.iter() {
-            let full_name = format!("{VAR_TOKEN}{}", &variable.name);
-            txt_with_vars = txt_with_vars.replace(&full_name, &variable.default_value);
+
+        for (key, value) in self.pip.variables.iter() {
+            let full_name = format!("{VAR_TOKEN}{}", &key);
+            txt_with_vars = txt_with_vars.replace(&full_name, &value);
         }
+
         txt_with_vars
     }
 
@@ -210,37 +214,32 @@ impl Runner {
         );
 
         for step_external in &step.external {
-            let external = self.pip.external.iter().find(|i| match i {
-                External::Local(details) => &details.name == step_external,
-                External::Server { details, .. } => &details.name == step_external,
-            });
+            let Some(external) = self.pip.external.iter().find(|i| &i.pipeline == step_external) else {
+                continue;
+            };
 
-            if let Some(external) = external {
-                match external {
-                    External::Local(details) => self.local_external(details).await?,
-                    External::Server { server, details } => {
-                        self.server_external(server, details).await?
-                    }
-                };
-            }
+            match external.server.as_ref() {
+                Some(server) => self.server_external(server, external).await?,
+                None => self.local_external(external).await?,
+            };
         }
 
         Ok(())
     }
 
-    async fn local_external(&self, details: &ExternalDetails) -> Result<()> {
+    async fn local_external(&self, details: &External) -> Result<()> {
         debug!("building runner for child pipeline");
 
         let variables: HashMap<String, String> = details
             .variables
             .iter()
-            .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
+            .map(|(key, value)| (key.to_owned(), self.apply_context(&value)))
             .collect();
 
         let environment: HashMap<String, String> = details
             .environment
             .iter()
-            .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
+            .map(|(key, value)| (key.to_owned(), self.apply_context(&value)))
             .collect();
 
         let runner = RunnerBuilder::default()
@@ -267,19 +266,19 @@ impl Runner {
         Ok(())
     }
 
-    async fn server_external(&self, server: &str, details: &ExternalDetails) -> Result<()> {
-        let server = self.cfg.remote.server(&server)?;
-        let server_auth = self.cfg.remote.same_auth_as(server)?;
+    async fn server_external(&self, server: &str, details: &External) -> Result<()> {
+        let server = self.cfg.server(&server)?;
+        let server_auth = self.cfg.same_auth_as(server)?;
         let variables = details
             .variables
             .iter()
-            .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
+            .map(|(key, value)| (key.to_owned(), self.apply_context(&value)))
             .collect();
 
         let environment = details
             .environment
             .iter()
-            .map(|e| (e.name.to_string(), self.apply_context(&e.default_value)))
+            .map(|(key, value)| (key.to_owned(), self.apply_context(&value)))
             .collect();
 
         let url = format!(
@@ -325,7 +324,7 @@ impl Runner {
 
     async fn sh(&self, step: &BuildStep) -> Result<()> {
         debug!("start execution of exec section for step");
-        for command in step.commands.iter() {
+        for command in step.exec.iter() {
             let working_dir = step.working_dir.as_ref().map(|wd| self.apply_context(wd));
             let command = self.apply_context(command);
 

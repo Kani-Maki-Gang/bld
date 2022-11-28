@@ -15,21 +15,21 @@ pub struct AuthCommand {
 impl BldCommand for AuthCommand {
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?;
-        let server = config.remote.server_or_first(self.server.as_ref())?;
-        let server_auth = config.remote.same_auth_as(server)?;
+        let server = config.server_or_first(self.server.as_ref())?;
+        let server_auth = config.same_auth_as(server)?;
 
         debug!("running login subcommand with --server: {}", server.name);
 
         match &server_auth.auth {
-            Auth::OAuth2(info) => {
+            Some(Auth::OAuth2(info)) => {
                 debug!(
                     "starting login process for server: {} with oauth2 method",
                     server.name
                 );
                 info.login(&server_auth.name).map(|_| ())
             }
-            Auth::Ldap => bail!("unsupported authentication method ldap"),
-            Auth::None => bail!("no authentication method setup"),
+            Some(Auth::Ldap) => bail!("unsupported authentication method ldap"),
+            _ => bail!("no authentication method setup"),
         }
     }
 }

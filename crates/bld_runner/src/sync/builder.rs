@@ -1,6 +1,5 @@
 use crate::platform::{Container, Machine, TargetPlatform};
 use crate::pipeline::Pipeline;
-use crate::pipeline::runs_on::RunsOn;
 use crate::sync::runner::Runner;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
@@ -123,10 +122,10 @@ impl RunnerBuilder {
         let env = pipeline
             .environment
             .iter()
-            .map(|e| {
+            .map(|(key, value)| {
                 (
-                    e.name.to_string(),
-                    env.get(&e.name).unwrap_or(&e.default_value).to_string(),
+                    key.to_owned(),
+                    env.get(key).unwrap_or(value).to_string(),
                 )
             })
             .collect::<HashMap<String, String>>()
@@ -137,22 +136,22 @@ impl RunnerBuilder {
         let vars = pipeline
             .variables
             .iter()
-            .map(|v| {
+            .map(|(key, value)| {
                 (
-                    v.name.to_string(),
-                    vars.get(&v.name).unwrap_or(&v.default_value).to_string(),
+                    key.to_owned(),
+                    vars.get(key).unwrap_or(&value).to_string(),
                 )
             })
             .collect::<HashMap<String, String>>()
             .into_arc();
-        let platform = match &pipeline.runs_on {
-            RunsOn::Machine => {
+        let platform = match &pipeline.runs_on[..] {
+            "machine" => {
                 let machine = Machine::new(&self.run_id, env.clone(), self.logger.clone())?;
                 TargetPlatform::Machine(Box::new(machine))
             }
-            RunsOn::Docker(img) => {
+            image => {
                 let container = Container::new(
-                    img,
+                    image,
                     cfg.clone(),
                     env.clone(),
                     self.logger.clone(),

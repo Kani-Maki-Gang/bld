@@ -1,9 +1,15 @@
-#[derive(Debug)]
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BuildStep {
     pub name: Option<String>,
     pub working_dir: Option<String>,
+
+    #[serde(default)]
     pub external: Vec<String>,
-    pub commands: Vec<String>,
+
+    #[serde(default)]
+    pub exec: Vec<String>,
 }
 
 impl BuildStep {
@@ -11,13 +17,13 @@ impl BuildStep {
         name: Option<String>,
         working_dir: Option<String>,
         external: Vec<String>,
-        commands: Vec<String>,
+        exec: Vec<String>,
     ) -> Self {
         Self {
             name,
             working_dir,
             external,
-            commands,
+            exec,
         }
     }
 }

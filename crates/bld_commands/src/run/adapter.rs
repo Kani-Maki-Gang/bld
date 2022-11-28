@@ -201,16 +201,12 @@ impl RunAdapter {
             .build()
             .await?;
 
-        let result = runner.run().await.await;
-
-        System::current().stop();
-
-        result
+        runner.run().await.await
     }
 
     async fn run_web_socket(mode: WebSocketRequest) -> Result<()> {
-        let server = mode.config.remote.server(&mode.server)?;
-        let server_auth = mode.config.remote.same_auth_as(server)?;
+        let server = mode.config.server(&mode.server)?;
+        let server_auth = mode.config.same_auth_as(server)?;
 
         let url = format!(
             "{}://{}:{}/ws-exec/",
@@ -244,8 +240,8 @@ impl RunAdapter {
     }
 
     async fn run_http(mode: HttpRequest) -> Result<()> {
-        let server = mode.config.remote.server(&mode.server)?;
-        let server_auth = mode.config.remote.same_auth_as(server)?;
+        let server = mode.config.server(&mode.server)?;
+        let server_auth = mode.config.same_auth_as(server)?;
 
         let url = format!(
             "{}://{}:{}/run",
@@ -260,26 +256,26 @@ impl RunAdapter {
             Some(mode.variables.clone()),
         );
 
-        let request = Request::post(&url).auth(server_auth);
-
-        let result = request.send_json(data).await.map(|_: String| {
-            println!("pipeline has been scheduled to run");
-        });
-
-        System::current().stop();
-
-        result
+        Request::post(&url)
+            .auth(server_auth)
+            .send_json(data)
+            .await
+            .map(|_: String| {
+                println!("pipeline has been scheduled to run");
+            })
     }
 
     pub fn run(self) -> Result<()> {
         let system = System::new();
 
         let result = system.block_on(async move {
-            match self.config {
+            let result = match self.config {
                 RunConfiguration::Local(run) => Self::run_local(run).await,
                 RunConfiguration::Http(http) => Self::run_http(http).await,
                 RunConfiguration::WebSocket(socket) => Self::run_web_socket(socket).await,
-            }
+            };
+            System::current().stop();
+            result
         });
 
         system.run()?;

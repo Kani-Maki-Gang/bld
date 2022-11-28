@@ -1,34 +1,15 @@
-use crate::pipeline::variable::Variable;
+use serde::{Serialize, Deserialize};
+use std::collections::HashMap;
 
-#[derive(Debug)]
-pub struct ExternalDetails {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct External {
     pub name: String,
+    pub server: Option<String>,
     pub pipeline: String,
-    pub variables: Vec<Variable>,
-    pub environment: Vec<Variable>,
-}
 
-impl ExternalDetails {
-    pub fn new(
-        name: String,
-        pipeline: String,
-        variables: Vec<Variable>,
-        environment: Vec<Variable>,
-    ) -> Self {
-        Self {
-            name,
-            pipeline,
-            variables,
-            environment,
-        }
-    }
-}
+    #[serde(default)]
+    pub variables: HashMap<String, String>,
 
-#[derive(Debug)]
-pub enum External {
-    Local(ExternalDetails),
-    Server {
-        server: String,
-        details: ExternalDetails,
-    },
+    #[serde(default)]
+    pub environment: HashMap<String, String>,
 }

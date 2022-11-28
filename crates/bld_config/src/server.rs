@@ -1,36 +1,32 @@
 use crate::definitions;
-use crate::{Auth, BldTlsConfig, OAuth2Info};
-use anyhow::{anyhow, Result};
-use yaml_rust::Yaml;
+use crate::{Auth, BldTlsConfig};
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BldLocalServerConfig {
+    #[serde(default = "BldLocalServerConfig::default_host")]
     pub host: String,
+
+    #[serde(default = "BldLocalServerConfig::default_port")]
     pub port: i64,
+
     pub tls: Option<BldTlsConfig>,
+
+    #[serde(default = "BldLocalServerConfig::default_pipelines")]
     pub pipelines: String,
 }
 
 impl BldLocalServerConfig {
-    pub fn load(yaml: &Yaml) -> Result<Self> {
-        let host = yaml["host"]
-            .as_str()
-            .unwrap_or(definitions::LOCAL_SERVER_HOST)
-            .to_string();
-        let port = yaml["port"]
-            .as_i64()
-            .unwrap_or(definitions::LOCAL_SERVER_PORT);
-        let tls = BldTlsConfig::load(&yaml["tls"])?;
-        let pipelines = yaml["pipelines"]
-            .as_str()
-            .unwrap_or(definitions::LOCAL_SERVER_PIPELINES)
-            .to_string();
-        Ok(Self {
-            host,
-            port,
-            tls,
-            pipelines,
-        })
+    fn default_host() -> String {
+        definitions::LOCAL_SERVER_HOST.to_owned()
+    }
+
+    fn default_port() -> i64 {
+        definitions::LOCAL_SERVER_PORT
+    }
+
+    fn default_pipelines() -> String {
+        definitions::LOCAL_SERVER_PIPELINES.to_owned()
     }
 
     pub fn http_protocol(&self) -> String {
@@ -53,57 +49,33 @@ impl BldLocalServerConfig {
 impl Default for BldLocalServerConfig {
     fn default() -> Self {
         Self {
-            host: definitions::LOCAL_SERVER_HOST.to_string(),
-            port: definitions::LOCAL_SERVER_PORT,
+            host: Self::default_host(),
+            port: Self::default_port(),
             tls: None,
-            pipelines: definitions::LOCAL_SERVER_PIPELINES.to_string(),
+            pipelines: Self::default_pipelines(),
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BldRemoteServerConfig {
+    #[serde(rename(serialize = "server", deserialize = "server"))]
     pub name: String,
+
     pub host: String,
     pub port: i64,
+
+    #[serde(default)]
     pub tls: bool,
-    pub auth: Auth,
+
+    #[serde(default)]
+    pub auth: Option<Auth>,
+
+    #[serde(default)]
     pub same_auth_as: Option<String>,
 }
 
 impl BldRemoteServerConfig {
-    pub fn load(yaml: &Yaml) -> Result<Self> {
-        let name = yaml["server"]
-            .as_str()
-            .ok_or_else(|| anyhow!("Server entry must have a name"))?
-            .to_string();
-        let host = yaml["host"]
-            .as_str()
-            .ok_or_else(|| anyhow!("Server entry must define a host address"))?
-            .to_string();
-        let port = yaml["port"]
-            .as_i64()
-            .ok_or_else(|| anyhow!("Server entry must define a port"))?;
-        let tls = yaml["tls"].as_bool().unwrap_or(false);
-        let protocol = Self::http_protocol_internal(tls);
-        let auth = match yaml["auth"]["method"].as_str() {
-            Some("ldap") => Auth::Ldap,
-            Some("oauth2") => {
-                Auth::OAuth2(OAuth2Info::load(&host, port, &protocol, &yaml["auth"])?)
-            }
-            _ => Auth::None,
-        };
-        let same_auth_as = yaml["same-auth-as"].as_str().map(|s| s.to_string());
-        Ok(Self {
-            name,
-            host,
-            port,
-            tls,
-            auth,
-            same_auth_as,
-        })
-    }
-
     fn http_protocol_internal(tls: bool) -> String {
         if tls {
             "https".to_string()
