@@ -1,39 +1,39 @@
-use crate::pipeline::artifacts::Artifacts;
-use crate::pipeline::external::External;
-use crate::pipeline::step::BuildStep;
+use super::artifacts::ArtifactsV1;
+use super::external::ExternalV1;
+use super::step::BuildStepV1;
+use super::traits::Load;
 use anyhow::{anyhow, Result};
 use bld_core::proxies::PipelineFileSystemProxy;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use tracing::debug;
 
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct Pipeline {
-    pub name: Option<String>,
-    pub runs_on: String,
+pub struct Json;
+pub struct Yaml;
 
-    #[serde(default)]
-    pub dispose: bool,
-
-    #[serde(default)]
-    pub environment: HashMap<String, String>,
-
-    #[serde(default)]
-    pub variables: HashMap<String, String>,
-
-    #[serde(default)]
-    pub artifacts: Vec<Artifacts>,
-
-    #[serde(default)]
-    pub external: Vec<External>,
-
-    #[serde(default)]
-    pub steps: Vec<BuildStep>,
+impl Load<VersionedPipeline> for Yaml {
+    fn load(input: &str) -> Result<VersionedPipeline> {
+        serde_yaml::from_str(input).map_err(|e| anyhow!(e))
+    }
 }
 
-impl Pipeline {
-    pub fn parse(src: &str) -> Result<Pipeline> {
-        serde_yaml::from_str(src).map_err(|e| anyhow!(e))
+impl Load<VersionedPipeline> for Json {
+    fn load(input: &str) -> Result<VersionedPipeline> {
+        serde_json::from_str(input).map_err(|e| anyhow!(e))
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "version")]
+pub enum VersionedPipeline {
+    V1(PipelineV1)
+}
+
+impl VersionedPipeline {
+    pub fn runs_on(&self) -> &str {
+        match self {
+            Self::V1(pip) => &pip.runs_on
+        }
     }
 
     pub fn dependencies(
@@ -56,19 +56,55 @@ impl Pipeline {
             .read(name)
             .map_err(|_| anyhow!("Pipeline {name} not found"))?;
 
-        let pipeline = Pipeline::parse(&src)?;
+        let pipeline = Yaml::load(&src)?;
         let mut set = HashMap::new();
         set.insert(name.to_string(), src);
 
-        for external in pipeline.external.iter() {
-            if external.server.is_none() {
-                let subset = Self::dependencies_recursive(proxy, &external.pipeline)?;
-                for (k, v) in subset {
-                    set.insert(k, v);
-                }
+        let local_pipelines = match pipeline {
+            Self::V1(pip) => pip.local_dependencies(),
+        };
+
+        for pipeline in local_pipelines.iter() {
+            for (k, v) in Self::dependencies_recursive(proxy, &pipeline)? {
+                set.insert(k, v);
             }
         }
 
         Ok(set)
+    }
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct PipelineV1 {
+    pub name: Option<String>,
+    pub runs_on: String,
+
+    #[serde(default)]
+    pub dispose: bool,
+
+    #[serde(default)]
+    pub environment: HashMap<String, String>,
+
+    #[serde(default)]
+    pub variables: HashMap<String, String>,
+
+    #[serde(default)]
+    pub artifacts: Vec<ArtifactsV1>,
+
+    #[serde(default)]
+    pub external: Vec<ExternalV1>,
+
+    #[serde(default)]
+    pub steps: Vec<BuildStepV1>,
+
+}
+
+impl PipelineV1 {
+    pub fn local_dependencies(&self) -> Vec<String> {
+        self.external
+            .iter()
+            .filter(|e| e.server.is_none())
+            .map(|e| e.pipeline.to_owned())
+            .collect()
     }
 }

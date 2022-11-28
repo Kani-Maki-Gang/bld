@@ -1,7 +1,7 @@
 use crate::platform::TargetPlatform;
-use crate::pipeline::Pipeline;
-use crate::pipeline::step::BuildStep;
-use crate::pipeline::external::External;
+use crate::pipeline::PipelineV1;
+use crate::pipeline::step::BuildStepV1;
+use crate::pipeline::external::ExternalV1;
 use super::builder::RunnerBuilder;
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use anyhow::{anyhow, bail, Result};
@@ -29,14 +29,26 @@ use tracing::debug;
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 
-pub struct Runner {
+pub enum VersionedRunner {
+    V1(RunnerV1)
+}
+
+impl VersionedRunner {
+    pub async fn run(self) -> Result<()> {
+        match self {
+            Self::V1(runner) => runner.run().await.await,
+        }
+    }
+}
+
+pub struct RunnerV1 {
     pub run_id: String,
     pub run_start_time: String,
     pub cfg: Arc<BldConfig>,
     pub execution: Arc<Execution>,
     pub logger: Arc<LoggerSender>,
     pub prx: Arc<PipelineFileSystemProxy>,
-    pub pip: Pipeline,
+    pub pip: PipelineV1,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
     pub env: Arc<HashMap<String, String>>,
     pub vars: Arc<HashMap<String, String>>,
@@ -46,7 +58,7 @@ pub struct Runner {
     pub has_faulted: bool,
 }
 
-impl Runner {
+impl RunnerV1 {
     async fn register_start(&self) -> Result<()> {
         if !self.is_child {
             debug!("setting the pipeline as running in the execution context");
@@ -150,17 +162,15 @@ impl Runner {
         debug!("executing artifact operation related to step {:?}", name);
 
         for artifact in self.pip.artifacts.iter().filter(|a| &a.after == name) {
-            let can_continue = (artifact.method == Some(PUSH.to_string())
-                || artifact.method == Some(GET.to_string()))
-                && artifact.from.is_some()
-                && artifact.to.is_some();
+            let can_continue = artifact.method == PUSH.to_string()
+                || artifact.method == GET.to_string();
 
             if can_continue {
                 debug!("applying context for artifact");
 
-                let method = self.apply_context(artifact.method.as_ref().unwrap());
-                let from = self.apply_context(artifact.from.as_ref().unwrap());
-                let to = self.apply_context(artifact.to.as_ref().unwrap());
+                let method = self.apply_context(&artifact.method);
+                let from = self.apply_context(&artifact.from);
+                let to = self.apply_context(&artifact.to);
                 self.logger
                     .write_line(format!(
                         "Copying artifacts from: {from} into container to: {to}",
@@ -198,7 +208,7 @@ impl Runner {
         Ok(())
     }
 
-    async fn step(&self, step: &BuildStep) -> Result<()> {
+    async fn step(&self, step: &BuildStepV1) -> Result<()> {
         if let Some(name) = &step.name {
             self.logger.write_line(format!("Step: {name}")).await?;
         }
@@ -207,7 +217,7 @@ impl Runner {
         Ok(())
     }
 
-    async fn external(&self, step: &BuildStep) -> Result<()> {
+    async fn external(&self, step: &BuildStepV1) -> Result<()> {
         debug!(
             "starting execution of external section for step {:?}",
             step.name
@@ -227,7 +237,7 @@ impl Runner {
         Ok(())
     }
 
-    async fn local_external(&self, details: &External) -> Result<()> {
+    async fn local_external(&self, details: &ExternalV1) -> Result<()> {
         debug!("building runner for child pipeline");
 
         let variables: HashMap<String, String> = details
@@ -260,13 +270,13 @@ impl Runner {
 
         debug!("starting child pipeline runner");
 
-        runner.run().await.await?;
+        runner.run().await?;
         self.check_stop_signal()?;
 
         Ok(())
     }
 
-    async fn server_external(&self, server: &str, details: &External) -> Result<()> {
+    async fn server_external(&self, server: &str, details: &ExternalV1) -> Result<()> {
         let server = self.cfg.server(&server)?;
         let server_auth = self.cfg.same_auth_as(server)?;
         let variables = details
@@ -322,7 +332,7 @@ impl Runner {
         Ok(())
     }
 
-    async fn sh(&self, step: &BuildStep) -> Result<()> {
+    async fn sh(&self, step: &BuildStepV1) -> Result<()> {
         debug!("start execution of exec section for step");
         for command in step.exec.iter() {
             let working_dir = step.working_dir.as_ref().map(|wd| self.apply_context(wd));

@@ -201,7 +201,7 @@ impl RunAdapter {
             .build()
             .await?;
 
-        runner.run().await.await
+        runner.run().await
     }
 
     async fn run_web_socket(mode: WebSocketRequest) -> Result<()> {

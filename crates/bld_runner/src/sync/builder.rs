@@ -1,6 +1,7 @@
+use crate::pipeline::traits::Load;
 use crate::platform::{Container, Machine, TargetPlatform};
-use crate::pipeline::Pipeline;
-use crate::sync::runner::Runner;
+use crate::pipeline::{Yaml, VersionedPipeline};
+use super::runner::RunnerV1;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::context::ContextSender;
@@ -14,6 +15,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
+
+use super::runner::VersionedRunner;
 
 pub struct RunnerBuilder {
     run_id: String,
@@ -110,41 +113,22 @@ impl RunnerBuilder {
         self
     }
 
-    pub async fn build(self) -> Result<Runner> {
+    pub async fn build(self) -> Result<VersionedRunner> {
         let cfg = self
             .cfg
             .ok_or_else(|| anyhow!("no bld config instance provided"))?;
         let pip_name = self.pip.ok_or_else(|| anyhow!("no pipeline provided"))?;
-        let pipeline = Pipeline::parse(&self.prx.read(&pip_name)?)?;
+        let pipeline = Yaml::load(&self.prx.read(&pip_name)?)?;
+
         let env = self
             .env
             .ok_or_else(|| anyhow!("no environment instance provided"))?;
-        let env = pipeline
-            .environment
-            .iter()
-            .map(|(key, value)| {
-                (
-                    key.to_owned(),
-                    env.get(key).unwrap_or(value).to_string(),
-                )
-            })
-            .collect::<HashMap<String, String>>()
-            .into_arc();
+
         let vars = self
             .vars
             .ok_or_else(|| anyhow!("no variables instance provided"))?;
-        let vars = pipeline
-            .variables
-            .iter()
-            .map(|(key, value)| {
-                (
-                    key.to_owned(),
-                    vars.get(key).unwrap_or(&value).to_string(),
-                )
-            })
-            .collect::<HashMap<String, String>>()
-            .into_arc();
-        let platform = match &pipeline.runs_on[..] {
+
+        let platform = match pipeline.runs_on() {
             "machine" => {
                 let machine = Machine::new(&self.run_id, env.clone(), self.logger.clone())?;
                 TargetPlatform::Machine(Box::new(machine))
@@ -161,21 +145,26 @@ impl RunnerBuilder {
                 TargetPlatform::Container(Box::new(container))
             }
         };
-        Ok(Runner {
-            run_id: self.run_id,
-            run_start_time: self.run_start_time,
-            cfg,
-            execution: self.execution,
-            logger: self.logger,
-            prx: self.prx,
-            pip: pipeline,
-            ipc: self.ipc,
-            env,
-            vars,
-            context: self.context,
-            platform,
-            is_child: self.is_child,
-            has_faulted: false,
-        })
+
+        let runner = match pipeline {
+            VersionedPipeline::V1(pip) => VersionedRunner::V1(RunnerV1 {
+                run_id: self.run_id,
+                run_start_time: self.run_start_time,
+                cfg,
+                execution: self.execution,
+                logger: self.logger,
+                prx: self.prx,
+                pip,
+                ipc: self.ipc,
+                env,
+                vars,
+                context: self.context,
+                platform,
+                is_child: self.is_child,
+                has_faulted: false,
+            })
+        };
+
+        Ok(runner)
     }
 }

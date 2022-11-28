@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct BuildStep {
+pub struct BuildStepV1 {
     pub name: Option<String>,
     pub working_dir: Option<String>,
 
@@ -12,7 +12,7 @@ pub struct BuildStep {
     pub exec: Vec<String>,
 }
 
-impl BuildStep {
+impl BuildStepV1 {
     pub fn new(
         name: Option<String>,
         working_dir: Option<String>,

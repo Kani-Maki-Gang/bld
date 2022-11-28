@@ -2,7 +2,7 @@ use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct External {
+pub struct ExternalV1 {
     pub name: String,
     pub server: Option<String>,
     pub pipeline: String,

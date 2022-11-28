@@ -3,7 +3,7 @@ use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_runner::Pipeline;
+use bld_runner::VersionedPipeline;
 use bld_server::requests::PushInfo;
 use bld_utils::request::Request;
 use clap::Args;
@@ -60,7 +60,7 @@ impl PushCommand {
         if !self.ignore_deps {
             print!("Resolving dependecies...");
 
-            let mut deps = Pipeline::dependencies(&PipelineFileSystemProxy::Local, &self.pipeline)
+            let mut deps = VersionedPipeline::dependencies(&PipelineFileSystemProxy::Local, &self.pipeline)
                 .map(|pips| {
                     println!("Done.");
                     pips.iter().map(|(n, s)| PushInfo::new(n, s)).collect()

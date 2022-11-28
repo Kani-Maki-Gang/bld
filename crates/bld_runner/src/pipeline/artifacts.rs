@@ -1,28 +1,10 @@
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Artifacts {
-    pub method: Option<String>,
-    pub from: Option<String>,
-    pub to: Option<String>,
+pub struct ArtifactsV1 {
+    pub method: String,
+    pub from: String,
+    pub to: String,
     pub ignore_errors: bool,
     pub after: Option<String>,
-}
-
-impl Artifacts {
-    pub fn new(
-        method: Option<String>,
-        from: Option<String>,
-        to: Option<String>,
-        after: Option<String>,
-        ignore_errors: bool,
-    ) -> Self {
-        Self {
-            method,
-            from,
-            to,
-            ignore_errors,
-            after,
-        }
-    }
 }
