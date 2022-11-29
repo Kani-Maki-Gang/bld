@@ -26,13 +26,14 @@ impl Load<VersionedPipeline> for Json {
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "version")]
 pub enum VersionedPipeline {
-    V1(PipelineV1)
+    #[serde(rename(serialize = "1", deserialize = "1"))]
+    Version1(PipelineV1)
 }
 
 impl VersionedPipeline {
     pub fn runs_on(&self) -> &str {
         match self {
-            Self::V1(pip) => &pip.runs_on
+            Self::Version1(pipeline) => &pipeline.runs_on
         }
     }
 
@@ -61,7 +62,7 @@ impl VersionedPipeline {
         set.insert(name.to_string(), src);
 
         let local_pipelines = match pipeline {
-            Self::V1(pip) => pip.local_dependencies(),
+            Self::Version1(pip) => pip.local_dependencies(),
         };
 
         for pipeline in local_pipelines.iter() {

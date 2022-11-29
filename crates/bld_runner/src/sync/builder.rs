@@ -147,7 +147,7 @@ impl RunnerBuilder {
         };
 
         let runner = match pipeline {
-            VersionedPipeline::V1(pip) => VersionedRunner::V1(RunnerV1 {
+            VersionedPipeline::Version1(pip) => VersionedRunner::V1(RunnerV1 {
                 run_id: self.run_id,
                 run_start_time: self.run_start_time,
                 cfg,
