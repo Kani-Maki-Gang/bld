@@ -44,12 +44,8 @@ impl PipelineFileSystemProxy {
         let path = self.path(name)?;
 
         match self {
-            Self::Local => {
-                Ok(read_to_string(path)?)
-            }
-            Self::Server { config: _, pool: _ } if path.is_yaml() => {
-                Ok(read_to_string(path)?)
-            }
+            Self::Local => Ok(read_to_string(path)?),
+            Self::Server { config: _, pool: _ } if path.is_yaml() => Ok(read_to_string(path)?),
             _ => bail!("pipeline not found"),
         }
     }

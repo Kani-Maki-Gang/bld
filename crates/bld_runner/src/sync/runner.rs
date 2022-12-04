@@ -1,8 +1,8 @@
-use crate::platform::TargetPlatform;
-use crate::pipeline::PipelineV1;
-use crate::pipeline::step::BuildStepV1;
-use crate::pipeline::external::ExternalV1;
 use super::builder::RunnerBuilder;
+use crate::pipeline::external::ExternalV1;
+use crate::pipeline::step::{BuildStepExecV1, BuildStepV1};
+use crate::pipeline::PipelineV1;
+use crate::platform::TargetPlatform;
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use anyhow::{anyhow, bail, Result};
 use bld_config::definitions::{
@@ -19,6 +19,7 @@ use bld_utils::request::WebSocket;
 use bld_utils::sync::IntoArc;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -30,13 +31,13 @@ use tracing::debug;
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 
 pub enum VersionedRunner {
-    V1(RunnerV1)
+    Version1(RunnerV1),
 }
 
 impl VersionedRunner {
     pub async fn run(self) -> Result<()> {
         match self {
-            Self::V1(runner) => runner.run().await.await,
+            Self::Version1(runner) => runner.run().await.await,
         }
     }
 }
@@ -104,15 +105,17 @@ impl RunnerV1 {
     async fn info(&self) -> Result<()> {
         debug!("printing pipeline informantion");
 
+        let mut message = String::new();
+
+        writeln!(message)?;
         if let Some(name) = &self.pip.name {
-            let message = format!("Pipeline: {name}");
-            self.logger.write_line(message).await?;
+            writeln!(message, "{:<10}: {name}", "Name")?;
         }
+        writeln!(message, "{:<10}: {}", "Runs on", &self.pip.runs_on)?;
+        writeln!(message, "{:<10}: 1", "Version")?;
+        writeln!(message)?;
 
-        let message = format!("Runs on: {}", self.pip.runs_on);
-        self.logger.write_line(message).await?;
-
-        Ok(())
+        self.logger.write(message).await
     }
 
     fn apply_run_properties(&self, txt: &str) -> String {
@@ -162,8 +165,8 @@ impl RunnerV1 {
         debug!("executing artifact operation related to step {:?}", name);
 
         for artifact in self.pip.artifacts.iter().filter(|a| &a.after == name) {
-            let can_continue = artifact.method == PUSH.to_string()
-                || artifact.method == GET.to_string();
+            let can_continue =
+                artifact.method == PUSH.to_string() || artifact.method == GET.to_string();
 
             if can_continue {
                 debug!("applying context for artifact");
@@ -212,27 +215,33 @@ impl RunnerV1 {
         if let Some(name) = &step.name {
             self.logger.write_line(format!("Step: {name}")).await?;
         }
-        self.external(step).await?;
-        self.sh(step).await?;
+
+        for exec in &step.exec {
+            match exec {
+                BuildStepExecV1::Shell(cmd) => self.shell(&step, &cmd).await?,
+                BuildStepExecV1::External { value } => self.external(&value.as_ref()).await?,
+            }
+        }
+
         Ok(())
     }
 
-    async fn external(&self, step: &BuildStepV1) -> Result<()> {
-        debug!(
-            "starting execution of external section for step {:?}",
-            step.name
-        );
+    async fn external(&self, value: &str) -> Result<()> {
+        debug!("starting execution of external section {value}");
 
-        for step_external in &step.external {
-            let Some(external) = self.pip.external.iter().find(|i| &i.pipeline == step_external) else {
-                continue;
+        let Some(external) = self
+            .pip
+            .external
+            .iter()
+            .find(|i| i.name.as_ref().map(|n| n == value).unwrap_or(false) || &i.pipeline == value) else {
+                self.local_external(&ExternalV1::local(&value)).await?;
+                return Ok(());
             };
 
-            match external.server.as_ref() {
-                Some(server) => self.server_external(server, external).await?,
-                None => self.local_external(external).await?,
-            };
-        }
+        match external.server.as_ref() {
+            Some(server) => self.server_external(server, external).await?,
+            None => self.local_external(external).await?,
+        };
 
         Ok(())
     }
@@ -332,19 +341,17 @@ impl RunnerV1 {
         Ok(())
     }
 
-    async fn sh(&self, step: &BuildStepV1) -> Result<()> {
+    async fn shell(&self, step: &BuildStepV1, command: &str) -> Result<()> {
         debug!("start execution of exec section for step");
-        for command in step.exec.iter() {
-            let working_dir = step.working_dir.as_ref().map(|wd| self.apply_context(wd));
-            let command = self.apply_context(command);
+        let working_dir = step.working_dir.as_ref().map(|wd| self.apply_context(wd));
+        let command = self.apply_context(command);
 
-            debug!("executing shell command {}", command);
-            self.platform
-                .shell(&working_dir, &command, self.execution.clone())
-                .await?;
+        debug!("executing shell command {}", command);
+        self.platform
+            .shell(&working_dir, &command, self.execution.clone())
+            .await?;
 
-            self.check_stop_signal()?;
-        }
+        self.check_stop_signal()?;
         Ok(())
     }
 

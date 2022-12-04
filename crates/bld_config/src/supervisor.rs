@@ -1,6 +1,6 @@
 use crate::definitions;
 use crate::BldTlsConfig;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BldLocalSupervisorConfig {

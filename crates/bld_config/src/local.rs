@@ -1,5 +1,5 @@
 use crate::{definitions, AuthValidation, BldLocalServerConfig, BldLocalSupervisorConfig};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use tracing::debug;
 
 #[derive(Debug, Serialize, Deserialize)]

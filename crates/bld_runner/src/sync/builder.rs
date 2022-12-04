@@ -1,7 +1,7 @@
-use crate::pipeline::traits::Load;
-use crate::platform::{Container, Machine, TargetPlatform};
-use crate::pipeline::{Yaml, VersionedPipeline};
 use super::runner::RunnerV1;
+use crate::pipeline::traits::Load;
+use crate::pipeline::{VersionedPipeline, Yaml};
+use crate::platform::{Container, Machine, TargetPlatform};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::context::ContextSender;
@@ -147,7 +147,7 @@ impl RunnerBuilder {
         };
 
         let runner = match pipeline {
-            VersionedPipeline::Version1(pip) => VersionedRunner::V1(RunnerV1 {
+            VersionedPipeline::Version1(pip) => VersionedRunner::Version1(RunnerV1 {
                 run_id: self.run_id,
                 run_start_time: self.run_start_time,
                 cfg,
@@ -162,7 +162,7 @@ impl RunnerBuilder {
                 platform,
                 is_child: self.is_child,
                 has_faulted: false,
-            })
+            }),
         };
 
         Ok(runner)

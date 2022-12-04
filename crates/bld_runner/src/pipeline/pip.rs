@@ -4,7 +4,7 @@ use super::step::BuildStepV1;
 use super::traits::Load;
 use anyhow::{anyhow, Result};
 use bld_core::proxies::PipelineFileSystemProxy;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::debug;
 
@@ -27,13 +27,13 @@ impl Load<VersionedPipeline> for Json {
 #[serde(tag = "version")]
 pub enum VersionedPipeline {
     #[serde(rename(serialize = "1", deserialize = "1"))]
-    Version1(PipelineV1)
+    Version1(PipelineV1),
 }
 
 impl VersionedPipeline {
     pub fn runs_on(&self) -> &str {
         match self {
-            Self::Version1(pipeline) => &pipeline.runs_on
+            Self::Version1(pipeline) => &pipeline.runs_on,
         }
     }
 
@@ -97,7 +97,6 @@ pub struct PipelineV1 {
 
     #[serde(default)]
     pub steps: Vec<BuildStepV1>,
-
 }
 
 impl PipelineV1 {

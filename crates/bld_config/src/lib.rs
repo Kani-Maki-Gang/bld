@@ -13,10 +13,10 @@ pub use server::*;
 pub use supervisor::*;
 pub use tls::*;
 
-use anyhow::{anyhow, bail, Result, Error};
-use std::path::PathBuf;
+use anyhow::{anyhow, bail, Error, Result};
+use serde::{Deserialize, Serialize};
 use std::fs::read_to_string;
-use serde::{Serialize, Deserialize};
+use std::path::PathBuf;
 use tracing::debug;
 
 pub fn err_server_not_in_config() -> Error {

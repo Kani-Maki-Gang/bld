@@ -60,15 +60,16 @@ impl PushCommand {
         if !self.ignore_deps {
             print!("Resolving dependecies...");
 
-            let mut deps = VersionedPipeline::dependencies(&PipelineFileSystemProxy::Local, &self.pipeline)
-                .map(|pips| {
-                    println!("Done.");
-                    pips.iter().map(|(n, s)| PushInfo::new(n, s)).collect()
-                })
-                .map_err(|e| {
-                    println!("Error. {e}");
-                    e
-                })?;
+            let mut deps =
+                VersionedPipeline::dependencies(&PipelineFileSystemProxy::Local, &self.pipeline)
+                    .map(|pips| {
+                        println!("Done.");
+                        pips.iter().map(|(n, s)| PushInfo::new(n, s)).collect()
+                    })
+                    .map_err(|e| {
+                        println!("Error. {e}");
+                        e
+                    })?;
 
             pipelines.append(&mut deps);
         }

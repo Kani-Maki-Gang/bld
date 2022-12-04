@@ -1,6 +1,6 @@
 use crate::definitions;
 use crate::{Auth, BldTlsConfig};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BldLocalServerConfig {

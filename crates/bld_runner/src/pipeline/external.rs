@@ -1,9 +1,9 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ExternalV1 {
-    pub name: String,
+    pub name: Option<String>,
     pub server: Option<String>,
     pub pipeline: String,
 
@@ -12,4 +12,12 @@ pub struct ExternalV1 {
 
     #[serde(default)]
     pub environment: HashMap<String, String>,
+}
+
+impl ExternalV1 {
+    pub fn local(pipeline: &str) -> Self {
+        let mut ext = ExternalV1::default();
+        ext.pipeline = pipeline.to_owned();
+        ext
+    }
 }
