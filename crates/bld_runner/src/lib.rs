@@ -4,4 +4,4 @@ mod sync;
 
 pub use pipeline::VersionedPipeline;
 pub use sync::builder::RunnerBuilder;
-pub use sync::runner::VersionedRunner;
+pub use sync::versioned::VersionedRunner;

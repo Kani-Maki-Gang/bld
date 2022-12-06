@@ -30,18 +30,6 @@ use tracing::debug;
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 
-pub enum VersionedRunner {
-    Version1(RunnerV1),
-}
-
-impl VersionedRunner {
-    pub async fn run(self) -> Result<()> {
-        match self {
-            Self::Version1(runner) => runner.run().await.await,
-        }
-    }
-}
-
 pub struct RunnerV1 {
     pub run_id: String,
     pub run_start_time: String,

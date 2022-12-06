@@ -1,4 +1,5 @@
 use super::runner::RunnerV1;
+use super::versioned::VersionedRunner;
 use crate::pipeline::traits::Load;
 use crate::pipeline::{VersionedPipeline, Yaml};
 use crate::platform::{Container, Machine, TargetPlatform};
@@ -15,8 +16,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
-
-use super::runner::VersionedRunner;
 
 pub struct RunnerBuilder {
     run_id: String,
