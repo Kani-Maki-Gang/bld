@@ -117,7 +117,9 @@ impl RunnerBuilder {
             .config
             .ok_or_else(|| anyhow!("no bld config instance provided"))?;
 
-        let pipeline_name = self.pipeline.ok_or_else(|| anyhow!("no pipeline provided"))?;
+        let pipeline_name = self
+            .pipeline
+            .ok_or_else(|| anyhow!("no pipeline provided"))?;
         let pipeline = Yaml::load(&self.proxy.read(&pipeline_name)?)?;
         pipeline.validate(config.clone(), self.proxy.clone())?;
 

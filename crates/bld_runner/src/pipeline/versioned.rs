@@ -6,6 +6,7 @@ use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::sync::Arc;
 use tracing::debug;
 
@@ -13,7 +14,19 @@ pub struct Yaml;
 
 impl Load<VersionedPipeline> for Yaml {
     fn load(input: &str) -> Result<VersionedPipeline> {
-        serde_yaml::from_str(input).map_err(|e| anyhow!(e))
+        serde_yaml::from_str(input).map_err(|e| {
+            let mut message = String::new();
+            if let Some(location) = e.location() {
+                let _ = write!(
+                    message,
+                    "line: {}, column: {}",
+                    location.line(),
+                    location.column()
+                );
+            }
+            let _ = write!(message, "{e}");
+            anyhow!(message)
+        })
     }
 }
 

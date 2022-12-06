@@ -153,8 +153,7 @@ impl RunnerV1 {
         debug!("executing artifact operation related to step {:?}", name);
 
         for artifact in self.pipeline.artifacts.iter().filter(|a| &a.after == name) {
-            let can_continue =
-                artifact.method == *PUSH || artifact.method == *GET;
+            let can_continue = artifact.method == *PUSH || artifact.method == *GET;
 
             if can_continue {
                 debug!("applying context for artifact");
@@ -180,7 +179,7 @@ impl RunnerV1 {
                     _ => unreachable!(),
                 };
 
-                if !artifact.ignore_errors {
+                if !artifact.ignore_errors.unwrap_or_default() {
                     result?;
                 }
             }

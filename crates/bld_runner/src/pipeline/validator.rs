@@ -6,7 +6,6 @@ use bld_core::proxies::PipelineFileSystemProxy;
 use bld_utils::fs::IsYaml;
 use std::fmt::Write;
 use std::sync::Arc;
-use tracing::debug;
 
 pub struct PipelineValidatorV1<'a> {
     pipeline: &'a PipelineV1,
@@ -28,7 +27,6 @@ impl<'a> PipelineValidatorV1<'a> {
     }
 
     pub fn validate(&self) -> Result<()> {
-        debug!("starting pipeline validation");
         let mut errors = String::new();
 
         if let Err(e) = self.validate_external() {
@@ -36,6 +34,10 @@ impl<'a> PipelineValidatorV1<'a> {
         }
 
         if let Err(e) = self.validate_steps() {
+            write!(errors, "{e}")?;
+        }
+
+        if let Err(e) = self.validate_artifacts() {
             write!(errors, "{e}")?;
         }
 
@@ -128,6 +130,39 @@ impl<'a> PipelineValidatorV1<'a> {
             .unwrap_or_default();
         if !found_path {
             bail!("[steps > exec > ext: {value}] not found in either the external section or as a local pipeline");
+        }
+
+        Ok(())
+    }
+
+    fn validate_artifacts(&self) -> Result<()> {
+        let mut errors = String::new();
+
+        for artifact in &self.pipeline.artifacts {
+            if let Err(e) = self.validate_artifact_after(artifact.after.as_ref()) {
+                writeln!(errors, "{e}")?;
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            bail!(errors)
+        }
+    }
+
+    fn validate_artifact_after(&self, after: Option<&String>) -> Result<()> {
+        let Some(after) = after else {
+            return Ok(());
+        };
+
+        if !self
+            .pipeline
+            .steps
+            .iter()
+            .any(|s| s.name.as_ref().map(|n| n == after).unwrap_or_default())
+        {
+            bail!("[artifacts > after: {after}] not a declared step name");
         }
 
         Ok(())
