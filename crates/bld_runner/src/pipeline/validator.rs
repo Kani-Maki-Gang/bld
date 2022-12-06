@@ -67,7 +67,7 @@ impl<'a> PipelineValidatorV1<'a> {
     }
 
     fn validate_external_pipeline(&self, pipeline: &str) -> Result<()> {
-        match self.proxy.path(&pipeline) {
+        match self.proxy.path(pipeline) {
             Ok(path) if !path.is_yaml() => {
                 bail!("[external > pipeline: {}] ", pipeline)
             }
@@ -81,7 +81,7 @@ impl<'a> PipelineValidatorV1<'a> {
             return Ok(());
         };
 
-        if let Err(_) = self.config.server(&server) {
+        if self.config.server(server).is_err() {
             bail!(
                 "[external > server: {}] doesn't exist in current config",
                 server
@@ -96,7 +96,7 @@ impl<'a> PipelineValidatorV1<'a> {
 
         for step in &self.pipeline.steps {
             for exec in &step.exec {
-                if let Err(e) = self.validate_exec(&exec) {
+                if let Err(e) = self.validate_exec(exec) {
                     writeln!(errors, "{e}")?;
                 }
             }
@@ -112,12 +112,12 @@ impl<'a> PipelineValidatorV1<'a> {
     fn validate_exec(&self, step: &BuildStepExecV1) -> Result<()> {
         match step {
             BuildStepExecV1::Shell(_) => Ok(()),
-            BuildStepExecV1::External { value } => self.validate_exec_ext(&value),
+            BuildStepExecV1::External { value } => self.validate_exec_ext(value),
         }
     }
 
     fn validate_exec_ext(&self, value: &str) -> Result<()> {
-        if let Some(_) = self.pipeline.external.iter().find(|e| e.is(value)) {
+        if self.pipeline.external.iter().any(|e| e.is(value)) {
             return Ok(());
         }
 

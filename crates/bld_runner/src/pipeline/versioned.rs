@@ -60,7 +60,7 @@ impl VersionedPipeline {
         };
 
         for pipeline in local_pipelines.iter() {
-            for (k, v) in Self::dependencies_recursive(proxy, &pipeline)? {
+            for (k, v) in Self::dependencies_recursive(proxy, pipeline)? {
                 set.insert(k, v);
             }
         }
@@ -74,7 +74,7 @@ impl VersionedPipeline {
         proxy: Arc<PipelineFileSystemProxy>,
     ) -> Result<()> {
         match self {
-            Self::Version1(pip) => PipelineValidatorV1::new(&pip, config, proxy).validate(),
+            Self::Version1(pip) => PipelineValidatorV1::new(pip, config, proxy).validate(),
         }
     }
 }

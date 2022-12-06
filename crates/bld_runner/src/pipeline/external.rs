@@ -20,8 +20,9 @@ impl ExternalV1 {
     }
 
     pub fn local(pipeline: &str) -> Self {
-        let mut ext = ExternalV1::default();
-        ext.pipeline = pipeline.to_owned();
-        ext
+        ExternalV1 {
+            pipeline: pipeline.to_owned(),
+            ..Default::default()
+        }
     }
 }

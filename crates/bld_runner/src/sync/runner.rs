@@ -134,7 +134,7 @@ impl RunnerV1 {
 
         for (key, value) in self.pipeline.environment.iter() {
             let full_name = format!("{ENV_TOKEN}{}", &key);
-            txt_with_env = txt_with_env.replace(&full_name, &value);
+            txt_with_env = txt_with_env.replace(&full_name, value);
         }
 
         txt_with_env
@@ -149,7 +149,7 @@ impl RunnerV1 {
 
         for (key, value) in self.pipeline.variables.iter() {
             let full_name = format!("{VAR_TOKEN}{}", &key);
-            txt_with_vars = txt_with_vars.replace(&full_name, &value);
+            txt_with_vars = txt_with_vars.replace(&full_name, value);
         }
 
         txt_with_vars
@@ -166,7 +166,7 @@ impl RunnerV1 {
 
         for artifact in self.pipeline.artifacts.iter().filter(|a| &a.after == name) {
             let can_continue =
-                artifact.method == PUSH.to_string() || artifact.method == GET.to_string();
+                artifact.method == *PUSH || artifact.method == *GET;
 
             if can_continue {
                 debug!("applying context for artifact");
@@ -218,8 +218,8 @@ impl RunnerV1 {
 
         for exec in &step.exec {
             match exec {
-                BuildStepExecV1::Shell(cmd) => self.shell(&step, &cmd).await?,
-                BuildStepExecV1::External { value } => self.external(&value.as_ref()).await?,
+                BuildStepExecV1::Shell(cmd) => self.shell(step, cmd).await?,
+                BuildStepExecV1::External { value } => self.external(value.as_ref()).await?,
             }
         }
 
@@ -234,7 +234,7 @@ impl RunnerV1 {
             .external
             .iter()
             .find(|i| i.is(value)) else {
-                self.local_external(&ExternalV1::local(&value)).await?;
+                self.local_external(&ExternalV1::local(value)).await?;
                 return Ok(());
             };
 
@@ -252,13 +252,13 @@ impl RunnerV1 {
         let variables: HashMap<String, String> = details
             .variables
             .iter()
-            .map(|(key, value)| (key.to_owned(), self.apply_context(&value)))
+            .map(|(key, value)| (key.to_owned(), self.apply_context(value)))
             .collect();
 
         let environment: HashMap<String, String> = details
             .environment
             .iter()
-            .map(|(key, value)| (key.to_owned(), self.apply_context(&value)))
+            .map(|(key, value)| (key.to_owned(), self.apply_context(value)))
             .collect();
 
         let runner = RunnerBuilder::default()
@@ -286,18 +286,18 @@ impl RunnerV1 {
     }
 
     async fn server_external(&self, server: &str, details: &ExternalV1) -> Result<()> {
-        let server = self.config.server(&server)?;
+        let server = self.config.server(server)?;
         let server_auth = self.config.same_auth_as(server)?;
         let variables = details
             .variables
             .iter()
-            .map(|(key, value)| (key.to_owned(), self.apply_context(&value)))
+            .map(|(key, value)| (key.to_owned(), self.apply_context(value)))
             .collect();
 
         let environment = details
             .environment
             .iter()
-            .map(|(key, value)| (key.to_owned(), self.apply_context(&value)))
+            .map(|(key, value)| (key.to_owned(), self.apply_context(value)))
             .collect();
 
         let url = format!(
