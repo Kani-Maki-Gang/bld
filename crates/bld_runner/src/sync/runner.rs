@@ -45,11 +45,11 @@ impl VersionedRunner {
 pub struct RunnerV1 {
     pub run_id: String,
     pub run_start_time: String,
-    pub cfg: Arc<BldConfig>,
+    pub config: Arc<BldConfig>,
     pub execution: Arc<Execution>,
     pub logger: Arc<LoggerSender>,
-    pub prx: Arc<PipelineFileSystemProxy>,
-    pub pip: PipelineV1,
+    pub proxy: Arc<PipelineFileSystemProxy>,
+    pub pipeline: PipelineV1,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
     pub env: Arc<HashMap<String, String>>,
     pub vars: Arc<HashMap<String, String>>,
@@ -77,7 +77,7 @@ impl RunnerV1 {
                 self.execution.set_as_finished()?;
             }
         }
-        if self.pip.dispose {
+        if self.pipeline.dispose {
             debug!("executing dispose operations for platform");
             self.platform.dispose(self.is_child).await?;
         } else {
@@ -108,10 +108,10 @@ impl RunnerV1 {
         let mut message = String::new();
 
         writeln!(message)?;
-        if let Some(name) = &self.pip.name {
+        if let Some(name) = &self.pipeline.name {
             writeln!(message, "{:<10}: {name}", "Name")?;
         }
-        writeln!(message, "{:<10}: {}", "Runs on", &self.pip.runs_on)?;
+        writeln!(message, "{:<10}: {}", "Runs on", &self.pipeline.runs_on)?;
         writeln!(message, "{:<10}: 1", "Version")?;
         writeln!(message)?;
 
@@ -132,7 +132,7 @@ impl RunnerV1 {
             txt_with_env = txt_with_env.replace(&full_name, value);
         }
 
-        for (key, value) in self.pip.environment.iter() {
+        for (key, value) in self.pipeline.environment.iter() {
             let full_name = format!("{ENV_TOKEN}{}", &key);
             txt_with_env = txt_with_env.replace(&full_name, &value);
         }
@@ -147,7 +147,7 @@ impl RunnerV1 {
             txt_with_vars = txt_with_vars.replace(&full_name, value);
         }
 
-        for (key, value) in self.pip.variables.iter() {
+        for (key, value) in self.pipeline.variables.iter() {
             let full_name = format!("{VAR_TOKEN}{}", &key);
             txt_with_vars = txt_with_vars.replace(&full_name, &value);
         }
@@ -164,7 +164,7 @@ impl RunnerV1 {
     async fn artifacts(&self, name: &Option<String>) -> Result<()> {
         debug!("executing artifact operation related to step {:?}", name);
 
-        for artifact in self.pip.artifacts.iter().filter(|a| &a.after == name) {
+        for artifact in self.pipeline.artifacts.iter().filter(|a| &a.after == name) {
             let can_continue =
                 artifact.method == PUSH.to_string() || artifact.method == GET.to_string();
 
@@ -203,7 +203,7 @@ impl RunnerV1 {
 
     async fn steps(&mut self) -> Result<()> {
         debug!("starting execution of pipeline steps");
-        for step in &self.pip.steps {
+        for step in &self.pipeline.steps {
             self.step(step).await?;
             self.artifacts(&step.name).await?;
             self.check_stop_signal()?;
@@ -230,10 +230,10 @@ impl RunnerV1 {
         debug!("starting execution of external section {value}");
 
         let Some(external) = self
-            .pip
+            .pipeline
             .external
             .iter()
-            .find(|i| i.name.as_ref().map(|n| n == value).unwrap_or(false) || &i.pipeline == value) else {
+            .find(|i| i.is(value)) else {
                 self.local_external(&ExternalV1::local(&value)).await?;
                 return Ok(());
             };
@@ -264,8 +264,8 @@ impl RunnerV1 {
         let runner = RunnerBuilder::default()
             .run_id(&self.run_id)
             .run_start_time(&self.run_start_time)
-            .config(self.cfg.clone())
-            .proxy(self.prx.clone())
+            .config(self.config.clone())
+            .proxy(self.proxy.clone())
             .pipeline(&details.pipeline)
             .execution(self.execution.clone())
             .logger(self.logger.clone())
@@ -286,8 +286,8 @@ impl RunnerV1 {
     }
 
     async fn server_external(&self, server: &str, details: &ExternalV1) -> Result<()> {
-        let server = self.cfg.server(&server)?;
-        let server_auth = self.cfg.same_auth_as(server)?;
+        let server = self.config.server(&server)?;
+        let server_auth = self.config.same_auth_as(server)?;
         let variables = details
             .variables
             .iter()

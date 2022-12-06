@@ -6,9 +6,6 @@ pub struct BuildStepV1 {
     pub working_dir: Option<String>,
 
     #[serde(default)]
-    pub external: Vec<String>,
-
-    #[serde(default)]
     pub exec: Vec<BuildStepExecV1>,
 }
 

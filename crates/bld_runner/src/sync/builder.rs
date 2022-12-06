@@ -21,11 +21,11 @@ use super::runner::VersionedRunner;
 pub struct RunnerBuilder {
     run_id: String,
     run_start_time: String,
-    cfg: Option<Arc<BldConfig>>,
+    config: Option<Arc<BldConfig>>,
     execution: Arc<Execution>,
     logger: Arc<LoggerSender>,
-    prx: Arc<PipelineFileSystemProxy>,
-    pip: Option<String>,
+    proxy: Arc<PipelineFileSystemProxy>,
+    pipeline: Option<String>,
     ipc: Arc<Option<Sender<WorkerMessages>>>,
     env: Option<Arc<HashMap<String, String>>>,
     vars: Option<Arc<HashMap<String, String>>>,
@@ -38,11 +38,11 @@ impl Default for RunnerBuilder {
         Self {
             run_id: Uuid::new_v4().to_string(),
             run_start_time: Local::now().format("%F %X").to_string(),
-            cfg: None,
+            config: None,
             execution: Execution::default().into_arc(),
             logger: LoggerSender::default().into_arc(),
-            prx: PipelineFileSystemProxy::default().into_arc(),
-            pip: None,
+            proxy: PipelineFileSystemProxy::default().into_arc(),
+            pipeline: None,
             ipc: None.into_arc(),
             env: None,
             vars: None,
@@ -63,8 +63,8 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn config(mut self, cfg: Arc<BldConfig>) -> Self {
-        self.cfg = Some(cfg);
+    pub fn config(mut self, config: Arc<BldConfig>) -> Self {
+        self.config = Some(config);
         self
     }
 
@@ -79,12 +79,12 @@ impl RunnerBuilder {
     }
 
     pub fn pipeline(mut self, name: &str) -> Self {
-        self.pip = Some(name.to_string());
+        self.pipeline = Some(name.to_string());
         self
     }
 
-    pub fn proxy(mut self, prx: Arc<PipelineFileSystemProxy>) -> Self {
-        self.prx = prx;
+    pub fn proxy(mut self, proxy: Arc<PipelineFileSystemProxy>) -> Self {
+        self.proxy = proxy;
         self
     }
 
@@ -114,11 +114,13 @@ impl RunnerBuilder {
     }
 
     pub async fn build(self) -> Result<VersionedRunner> {
-        let cfg = self
-            .cfg
+        let config = self
+            .config
             .ok_or_else(|| anyhow!("no bld config instance provided"))?;
-        let pip_name = self.pip.ok_or_else(|| anyhow!("no pipeline provided"))?;
-        let pipeline = Yaml::load(&self.prx.read(&pip_name)?)?;
+
+        let pipeline_name = self.pipeline.ok_or_else(|| anyhow!("no pipeline provided"))?;
+        let pipeline = Yaml::load(&self.proxy.read(&pipeline_name)?)?;
+        pipeline.validate(config.clone(), self.proxy.clone())?;
 
         let env = self
             .env
@@ -136,7 +138,7 @@ impl RunnerBuilder {
             image => {
                 let container = Container::new(
                     image,
-                    cfg.clone(),
+                    config.clone(),
                     env.clone(),
                     self.logger.clone(),
                     self.context.clone(),
@@ -147,14 +149,14 @@ impl RunnerBuilder {
         };
 
         let runner = match pipeline {
-            VersionedPipeline::Version1(pip) => VersionedRunner::Version1(RunnerV1 {
+            VersionedPipeline::Version1(pipeline) => VersionedRunner::Version1(RunnerV1 {
                 run_id: self.run_id,
                 run_start_time: self.run_start_time,
-                cfg,
+                config,
                 execution: self.execution,
                 logger: self.logger,
-                prx: self.prx,
-                pip,
+                proxy: self.proxy,
+                pipeline,
                 ipc: self.ipc,
                 env,
                 vars,

@@ -15,6 +15,10 @@ pub struct ExternalV1 {
 }
 
 impl ExternalV1 {
+    pub fn is(&self, value: &str) -> bool {
+        self.name.as_ref().map(|n| n == value).unwrap_or_default() || self.pipeline == value
+    }
+
     pub fn local(pipeline: &str) -> Self {
         let mut ext = ExternalV1::default();
         ext.pipeline = pipeline.to_owned();
