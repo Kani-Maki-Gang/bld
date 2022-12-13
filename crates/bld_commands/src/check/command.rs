@@ -18,10 +18,8 @@ impl BldCommand for CheckCommand {
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let proxy = PipelineFileSystemProxy::Local.into_arc();
-        let pipeline_content = proxy.read(&self.pipeline)?;
-        let pipeline = Yaml::load(&pipeline_content)?;
-        pipeline
-            .validate(config, proxy)
-            .map(|_| println!("No errors found"))
+        let content = proxy.read(&self.pipeline)?;
+        let pipeline = Yaml::load_with_verbose_errors(&content)?;
+        pipeline.validate_with_verbose_errors(config, proxy)
     }
 }

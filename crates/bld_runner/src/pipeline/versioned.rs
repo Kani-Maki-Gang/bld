@@ -14,8 +14,15 @@ pub struct Yaml;
 
 impl Load<VersionedPipeline> for Yaml {
     fn load(input: &str) -> Result<VersionedPipeline> {
+        serde_yaml::from_str(input).map_err(|_| anyhow!("Pipeline file has syntax errors"))
+    }
+
+    fn load_with_verbose_errors(input: &str) -> Result<VersionedPipeline> {
         serde_yaml::from_str(input).map_err(|e| {
-            let mut message = String::new();
+            let mut message = "Syntax errors".to_string();
+
+            let _ = write!(message, "\r\n\r\n");
+
             if let Some(location) = e.location() {
                 let _ = write!(
                     message,
@@ -24,7 +31,9 @@ impl Load<VersionedPipeline> for Yaml {
                     location.column()
                 );
             }
+
             let _ = write!(message, "{e}");
+
             anyhow!(message)
         })
     }
@@ -81,13 +90,24 @@ impl VersionedPipeline {
         Ok(set)
     }
 
-    pub fn validate(
+    pub fn validate_with_verbose_errors(
         &self,
         config: Arc<BldConfig>,
         proxy: Arc<PipelineFileSystemProxy>,
     ) -> Result<()> {
         match self {
-            Self::Version1(pip) => PipelineValidatorV1::new(pip, config, proxy).validate(),
+            Self::Version1(pip) => PipelineValidatorV1::new(pip, config, proxy)
+                .validate()
+                .map_err(|e| anyhow!("Expression errors\r\n\r\n{e}")),
         }
+    }
+
+    pub fn validate(
+        &self,
+        config: Arc<BldConfig>,
+        proxy: Arc<PipelineFileSystemProxy>,
+    ) -> Result<()> {
+        self.validate_with_verbose_errors(config, proxy)
+            .map_err(|_| anyhow!("Pipeline has expression errors"))
     }
 }

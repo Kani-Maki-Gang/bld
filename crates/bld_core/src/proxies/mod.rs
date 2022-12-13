@@ -4,12 +4,10 @@ use bld_config::{definitions::TOOL_DIR, path, BldConfig};
 use bld_utils::fs::IsYaml;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
-use std::{
-    fs::{create_dir_all, read_to_string, remove_file, File},
-    io::Write,
-    path::PathBuf,
-    sync::Arc,
-};
+use std::fs::{create_dir_all, read_to_string, remove_file, File};
+use std::io::Write;
+use std::path::PathBuf;
+use std::sync::Arc;
 
 pub enum PipelineFileSystemProxy {
     Local,

@@ -71,7 +71,7 @@ impl<'a> PipelineValidatorV1<'a> {
     fn validate_external_pipeline(&self, pipeline: &str) -> Result<()> {
         match self.proxy.path(pipeline) {
             Ok(path) if !path.is_yaml() => {
-                bail!("[external > pipeline: {}] ", pipeline)
+                bail!("[external > pipeline: {}] Not found", pipeline)
             }
             Err(e) => bail!("[external > pipeline: {}] {e}", pipeline),
             _ => Ok(()),
@@ -85,7 +85,7 @@ impl<'a> PipelineValidatorV1<'a> {
 
         if self.config.server(server).is_err() {
             bail!(
-                "[external > server: {}] doesn't exist in current config",
+                "[external > server: {}] Doesn't exist in current config",
                 server
             );
         }
@@ -129,7 +129,7 @@ impl<'a> PipelineValidatorV1<'a> {
             .map(|x| x.is_yaml())
             .unwrap_or_default();
         if !found_path {
-            bail!("[steps > exec > ext: {value}] not found in either the external section or as a local pipeline");
+            bail!("[steps > exec > ext: {value}] Not found in either the external section or as a local pipeline");
         }
 
         Ok(())
@@ -162,7 +162,7 @@ impl<'a> PipelineValidatorV1<'a> {
             .iter()
             .any(|s| s.name.as_ref().map(|n| n == after).unwrap_or_default())
         {
-            bail!("[artifacts > after: {after}] not a declared step name");
+            bail!("[artifacts > after: {after}] Not a declared step name");
         }
 
         Ok(())
