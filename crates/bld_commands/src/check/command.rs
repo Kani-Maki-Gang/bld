@@ -36,7 +36,7 @@ impl CheckCommand {
     fn exec_server(&self, server: &str) -> Result<()> {
         let config = BldConfig::load()?;
         let server = config.server(server)?;
-        let server_auth = config.same_auth_as(&server)?;
+        let server_auth = config.same_auth_as(server)?;
 
         let url = format!(
             "{}://{}:{}/check",
