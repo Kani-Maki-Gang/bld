@@ -1,5 +1,5 @@
 use crate::endpoints::{
-    auth_redirect, deps, hist, home, inspect, list, pull, push, remove, run, stop,
+    auth_redirect, check, deps, hist, home, inspect, list, pull, push, remove, run, stop,
 };
 use crate::sockets::{ws_exec, ws_monit};
 use crate::supervisor::channel::SupervisorMessageSender;
@@ -40,6 +40,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .wrap(middleware::Logger::default())
             .service(home)
             .service(auth_redirect)
+            .service(check)
             .service(hist)
             .service(list)
             .service(remove)

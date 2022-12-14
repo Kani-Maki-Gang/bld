@@ -1,6 +1,6 @@
 use crate::command::BldCommand;
 use actix_web::rt::System;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::VersionedPipeline;
@@ -68,7 +68,7 @@ impl PushCommand {
                     })
                     .map_err(|e| {
                         println!("Error. {e}");
-                        e
+                        anyhow!("")
                     })?;
 
             pipelines.append(&mut deps);

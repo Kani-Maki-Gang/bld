@@ -73,7 +73,7 @@ impl VersionedPipeline {
             .read(name)
             .map_err(|_| anyhow!("Pipeline {name} not found"))?;
 
-        let pipeline = Yaml::load(&src)?;
+        let pipeline = Yaml::load(&src).map_err(|e| anyhow!("{e} ({name})"))?;
         let mut set = HashMap::new();
         set.insert(name.to_string(), src);
 
