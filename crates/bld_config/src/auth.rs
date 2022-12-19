@@ -14,12 +14,21 @@ pub struct OAuth2Info {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "method")]
 pub enum Auth {
+    #[serde(rename(serialize = "ldap", deserialize = "ldap"))]
     Ldap,
+
+    #[serde(rename(serialize = "oauth2", deserialize = "oauth2"))]
     OAuth2(Box<OAuth2Info>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "method")]
 pub enum AuthValidation {
+    #[serde(rename(serialize = "ldap", deserialize = "ldap"))]
     Ldap,
-    OAuth2(String),
+
+    #[serde(rename(serialize = "oauth2", deserialize = "oauth2"))]
+    OAuth2 {
+        validation_url: String
+    },
 }

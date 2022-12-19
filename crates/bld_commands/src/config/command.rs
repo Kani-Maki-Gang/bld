@@ -12,10 +12,10 @@ impl ConfigCommand {
     fn list_locals(local: &BldLocalConfig) -> Result<()> {
         term::print_info("Local configuration:")?;
         match &local.auth {
-            Some(AuthValidation::OAuth2(url)) => {
+            Some(AuthValidation::OAuth2 { validation_url }) => {
                 println!("- auth:");
                 println!("  - method: oauth2");
-                println!("  - validation-url: {url}");
+                println!("  - validation-url: {validation_url}");
             }
             Some(AuthValidation::Ldap) => {
                 println!("- auth:");

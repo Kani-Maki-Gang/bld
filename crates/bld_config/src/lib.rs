@@ -44,7 +44,9 @@ impl BldConfig {
             format!("{}.yaml", definitions::TOOL_DEFAULT_CONFIG)
         ];
         debug!("loading config file from: {}", &path.display());
-        serde_yaml::from_str(&read_to_string(&path)?).map_err(|e| anyhow!(e))
+        let instance: Self = serde_yaml::from_str(&read_to_string(&path)?).map_err(|e| anyhow!(e))?;
+        instance.local.debug_info();
+        Ok(instance)
     }
 
     pub fn server(&self, name: &str) -> Result<&BldRemoteServerConfig> {

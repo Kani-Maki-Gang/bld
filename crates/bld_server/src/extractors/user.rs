@@ -32,8 +32,8 @@ impl FromRequest for User {
         let config = req.app_data::<Data<BldConfig>>().unwrap().clone();
         let bearer = get_bearer(req);
         async move {
-            if let Some(AuthValidation::OAuth2(url)) = &config.get_ref().local.auth {
-                return match oauth2_validate(url.to_string(), bearer).await {
+            if let Some(AuthValidation::OAuth2 { validation_url }) = &config.get_ref().local.auth {
+                return match oauth2_validate(validation_url.to_string(), bearer).await {
                     Ok(user) => Ok(user),
                     Err(_) => Err(ErrorUnauthorized("")),
                 };

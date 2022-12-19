@@ -26,7 +26,7 @@ impl Load<VersionedPipeline> for Yaml {
             if let Some(location) = e.location() {
                 let _ = write!(
                     message,
-                    "line: {}, column: {}",
+                    "line: {}, column: {} ",
                     location.line(),
                     location.column()
                 );

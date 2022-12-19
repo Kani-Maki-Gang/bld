@@ -35,7 +35,7 @@ impl BldLocalConfig {
         definitions::LOCAL_DOCKER_URL.to_owned()
     }
 
-    fn debug_info(&self) {
+    pub fn debug_info(&self) {
         debug!("loaded local configuration");
         debug!("server > host: {}", self.server.host);
         debug!("server > port: {}", self.server.port);
@@ -54,9 +54,9 @@ impl BldLocalConfig {
         debug!("logs: {}", self.logs);
         debug!("db: {}", self.db);
         debug!("docker-url: {}", self.docker_url);
-        if let Some(AuthValidation::OAuth2(url)) = &self.auth {
+        if let Some(AuthValidation::OAuth2{validation_url}) = &self.auth {
             debug!("auth > method: oauth2");
-            debug!("auth > validation-url: {}", url);
+            debug!("auth > validation-url: {}", validation_url);
         }
     }
 }
