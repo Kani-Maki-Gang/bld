@@ -201,7 +201,10 @@ impl RunAdapter {
             .build()
             .await?;
 
-        runner.run().await
+        let result = runner.run().await;
+
+        System::current().stop();
+        result
     }
 
     async fn run_web_socket(mode: WebSocketRequest) -> Result<()> {
@@ -256,26 +259,27 @@ impl RunAdapter {
             Some(mode.variables.clone()),
         );
 
-        Request::post(&url)
+        let result = Request::post(&url)
             .auth(server_auth)
             .send_json(data)
             .await
             .map(|_: String| {
                 println!("pipeline has been scheduled to run");
-            })
+            });
+
+        System::current().stop();
+        result
     }
 
     pub fn run(self) -> Result<()> {
         let system = System::new();
 
         let result = system.block_on(async move {
-            let result = match self.config {
+            match self.config {
                 RunConfiguration::Local(run) => Self::run_local(run).await,
                 RunConfiguration::Http(http) => Self::run_http(http).await,
                 RunConfiguration::WebSocket(socket) => Self::run_web_socket(socket).await,
-            };
-            System::current().stop();
-            result
+            }
         });
 
         system.run()?;
