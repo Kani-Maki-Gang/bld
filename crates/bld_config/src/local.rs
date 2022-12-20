@@ -54,7 +54,7 @@ impl BldLocalConfig {
         debug!("logs: {}", self.logs);
         debug!("db: {}", self.db);
         debug!("docker-url: {}", self.docker_url);
-        if let Some(AuthValidation::OAuth2{validation_url}) = &self.auth {
+        if let Some(AuthValidation::OAuth2 { validation_url }) = &self.auth {
             debug!("auth > method: oauth2");
             debug!("auth > validation-url: {}", validation_url);
         }
