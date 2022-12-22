@@ -112,7 +112,7 @@ pub fn delete_by_name(conn: &mut SqliteConnection, pip_name: &str) -> Result<()>
                 anyhow!(e)
             })
             .map(|_| {
-                debug!("pipeline delete successfully");
+                debug!("pipeline deleted successfully");
             })
     })
 }

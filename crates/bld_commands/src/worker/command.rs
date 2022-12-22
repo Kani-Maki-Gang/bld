@@ -110,7 +110,7 @@ impl BldCommand for WorkerCommand {
                     .await
                 {
                     Ok(runner) => {
-                        if let Err(e) = runner.run().await.await {
+                        if let Err(e) = runner.run().await {
                             error!("error with runner, {e}");
                         }
                     }

@@ -29,11 +29,10 @@ pub const REMOTE_SERVER_HOST: &str = "127.0.0.1";
 pub const REMOTE_SERVER_PORT: i64 = 6080;
 pub const REMOTE_SERVER_OAUTH2: &str = ".bld/oauth2";
 
-pub const DEFAULT_PIPELINE_CONTENT: &str = r"name: Default Pipeline
-runs-on: machine
-steps: 
-- name: echo 
-  exec:
+pub const DEFAULT_PIPELINE_CONTENT: &str = r"runs_on: machine
+version: 1
+steps:
+- exec:
   - echo 'hello world'
 ";
 

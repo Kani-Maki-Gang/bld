@@ -1,9 +1,9 @@
 use crate::command::BldCommand;
 use actix_web::rt::System;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_runner::Pipeline;
+use bld_runner::VersionedPipeline;
 use bld_server::requests::PushInfo;
 use bld_utils::request::Request;
 use clap::Args;
@@ -37,14 +37,14 @@ pub struct PushCommand {
 impl PushCommand {
     async fn push(self) -> Result<()> {
         let config = BldConfig::load()?;
-        let server = config.remote.server_or_first(self.server.as_ref())?;
+        let server = config.server_or_first(self.server.as_ref())?;
 
         debug!(
             "running push subcommand with --server: {} and --pipeline: {}",
             server.name, self.pipeline
         );
 
-        let server_auth = config.remote.same_auth_as(server)?;
+        let server_auth = config.same_auth_as(server)?;
         let url = format!(
             "{}://{}:{}/push",
             server.http_protocol(),
@@ -60,15 +60,16 @@ impl PushCommand {
         if !self.ignore_deps {
             print!("Resolving dependecies...");
 
-            let mut deps = Pipeline::dependencies(&PipelineFileSystemProxy::Local, &self.pipeline)
-                .map(|pips| {
-                    println!("Done.");
-                    pips.iter().map(|(n, s)| PushInfo::new(n, s)).collect()
-                })
-                .map_err(|e| {
-                    println!("Error. {e}");
-                    e
-                })?;
+            let mut deps =
+                VersionedPipeline::dependencies(&PipelineFileSystemProxy::Local, &self.pipeline)
+                    .map(|pips| {
+                        println!("Done.");
+                        pips.iter().map(|(n, s)| PushInfo::new(n, s)).collect()
+                    })
+                    .map_err(|e| {
+                        println!("Error. {e}");
+                        anyhow!("")
+                    })?;
 
             pipelines.append(&mut deps);
         }

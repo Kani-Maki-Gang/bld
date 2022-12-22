@@ -1,4 +1,5 @@
 mod auth;
+mod check;
 pub mod cli;
 pub mod command;
 mod config;

@@ -1,7 +1,7 @@
 use crate::command::BldCommand;
 use crate::run::adapter::RunBuilder;
 use anyhow::Result;
-use bld_config::definitions::TOOL_DEFAULT_PIPELINE;
+use bld_config::definitions::TOOL_DEFAULT_PIPELINE_FILE;
 use bld_config::BldConfig;
 use bld_utils::sync::IntoArc;
 use clap::Args;
@@ -10,7 +10,7 @@ use std::collections::HashMap;
 #[derive(Args)]
 #[command(about = "Executes a build pipeline")]
 pub struct RunCommand {
-    #[arg(short = 'p', long = "pipeline", default_value = TOOL_DEFAULT_PIPELINE, help = "Path to pipeline script")]
+    #[arg(short = 'p', long = "pipeline", default_value = TOOL_DEFAULT_PIPELINE_FILE, help = "Path to pipeline script")]
     pipeline: String,
 
     #[arg(

@@ -1,4 +1,5 @@
 use crate::auth::AuthCommand;
+use crate::check::CheckCommand;
 use crate::command::BldCommand;
 use crate::config::ConfigCommand;
 use crate::hist::HistCommand;
@@ -22,6 +23,7 @@ use tracing_subscriber::filter::LevelFilter;
 #[derive(Subcommand)]
 enum Commands {
     Login(AuthCommand),
+    Check(CheckCommand),
     Config(ConfigCommand),
     Hist(HistCommand),
     Init(InitCommand),
@@ -71,6 +73,7 @@ impl BldCommand for Cli {
 
         match self.command {
             Commands::Login(auth) => auth.exec(),
+            Commands::Check(check) => check.exec(),
             Commands::Config(config) => config.exec(),
             Commands::Hist(hist) => hist.exec(),
             Commands::Init(init) => init.exec(),

@@ -2,7 +2,6 @@ mod auth;
 pub mod definitions;
 mod local;
 mod path;
-mod remote;
 mod server;
 mod supervisor;
 mod tls;
@@ -10,20 +9,31 @@ mod tls;
 pub use auth::*;
 pub use local::*;
 pub use path::*;
-pub use remote::*;
 pub use server::*;
 pub use supervisor::*;
 pub use tls::*;
 
-use anyhow::Result;
+use anyhow::{anyhow, bail, Error, Result};
+use serde::{Deserialize, Serialize};
+use std::fs::read_to_string;
 use std::path::PathBuf;
 use tracing::debug;
-use yaml_rust::YamlLoader;
 
-#[derive(Debug, Default)]
+pub fn err_server_not_in_config() -> Error {
+    anyhow!("server not found in config")
+}
+
+pub fn err_no_server_in_config() -> Error {
+    anyhow!("no server found in config")
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct BldConfig {
+    #[serde(default)]
     pub local: BldLocalConfig,
-    pub remote: BldRemoteConfig,
+
+    #[serde(default)]
+    pub remote: Vec<BldRemoteServerConfig>,
 }
 
 impl BldConfig {
@@ -34,17 +44,40 @@ impl BldConfig {
             format!("{}.yaml", definitions::TOOL_DEFAULT_CONFIG)
         ];
         debug!("loading config file from: {}", &path.display());
-        match std::fs::read_to_string(&path) {
-            Ok(content) => {
-                let yaml = YamlLoader::load_from_str(&content)?;
-                let yaml = &yaml[0];
+        let instance: Self =
+            serde_yaml::from_str(&read_to_string(&path)?).map_err(|e| anyhow!(e))?;
+        instance.local.debug_info();
+        Ok(instance)
+    }
 
-                Ok(Self {
-                    local: BldLocalConfig::load(yaml)?,
-                    remote: BldRemoteConfig::load(yaml)?,
-                })
-            }
-            Err(_) => Ok(BldConfig::default()),
+    pub fn server(&self, name: &str) -> Result<&BldRemoteServerConfig> {
+        self.remote
+            .iter()
+            .find(|s| s.name == name)
+            .ok_or_else(err_server_not_in_config)
+    }
+
+    pub fn nth_server(&self, i: usize) -> Result<&BldRemoteServerConfig> {
+        self.remote.get(i).ok_or_else(err_no_server_in_config)
+    }
+
+    pub fn server_or_first(&self, name: Option<&String>) -> Result<&BldRemoteServerConfig> {
+        match name {
+            Some(name) => self.server(name),
+            None => self.nth_server(0),
         }
+    }
+
+    pub fn same_auth_as<'a>(
+        &'a self,
+        server: &'a BldRemoteServerConfig,
+    ) -> Result<&'a BldRemoteServerConfig> {
+        if let Some(name) = &server.same_auth_as {
+            return match self.remote.iter().find(|s| &s.name == name) {
+                Some(srv) => Ok(srv),
+                None => bail!("could not parse auth settings for server"),
+            };
+        }
+        Ok(server)
     }
 }

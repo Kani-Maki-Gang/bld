@@ -28,8 +28,8 @@ pub struct InspectCommand {
 impl BldCommand for InspectCommand {
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?;
-        let server = config.remote.server_or_first(self.server.as_ref())?;
-        let server_auth = config.remote.same_auth_as(server)?;
+        let server = config.server_or_first(self.server.as_ref())?;
+        let server_auth = config.same_auth_as(server)?;
         let protocol = server.http_protocol();
         let url = format!("{protocol}://{}:{}/inspect", server.host, server.port);
         let request = Request::post(&url).auth(server_auth);

@@ -181,6 +181,14 @@ impl LoggerSender {
         Ok(())
     }
 
+    pub async fn write_seperator(&self) -> Result<()> {
+        if let Some(tx) = &self.tx {
+            tx.send(LoggerMessage::WriteLine(format!("{:-<1$}", "", 80)))
+                .await?;
+        }
+        Ok(())
+    }
+
     pub async fn info(&self, txt: String) -> Result<()> {
         if let Some(tx) = &self.tx {
             tx.send(LoggerMessage::Info(txt)).await?;

@@ -201,16 +201,15 @@ impl RunAdapter {
             .build()
             .await?;
 
-        let result = runner.run().await.await;
+        let result = runner.run().await;
 
         System::current().stop();
-
         result
     }
 
     async fn run_web_socket(mode: WebSocketRequest) -> Result<()> {
-        let server = mode.config.remote.server(&mode.server)?;
-        let server_auth = mode.config.remote.same_auth_as(server)?;
+        let server = mode.config.server(&mode.server)?;
+        let server_auth = mode.config.same_auth_as(server)?;
 
         let url = format!(
             "{}://{}:{}/ws-exec/",
@@ -244,8 +243,8 @@ impl RunAdapter {
     }
 
     async fn run_http(mode: HttpRequest) -> Result<()> {
-        let server = mode.config.remote.server(&mode.server)?;
-        let server_auth = mode.config.remote.same_auth_as(server)?;
+        let server = mode.config.server(&mode.server)?;
+        let server_auth = mode.config.same_auth_as(server)?;
 
         let url = format!(
             "{}://{}:{}/run",
@@ -260,14 +259,15 @@ impl RunAdapter {
             Some(mode.variables.clone()),
         );
 
-        let request = Request::post(&url).auth(server_auth);
-
-        let result = request.send_json(data).await.map(|_: String| {
-            println!("pipeline has been scheduled to run");
-        });
+        let result = Request::post(&url)
+            .auth(server_auth)
+            .send_json(data)
+            .await
+            .map(|_: String| {
+                println!("pipeline has been scheduled to run");
+            });
 
         System::current().stop();
-
         result
     }
 
