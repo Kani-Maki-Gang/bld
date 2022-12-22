@@ -1,6 +1,6 @@
 use crate::command::BldCommand;
 use anyhow::Result;
-use bld_config::{Auth, AuthValidation, BldConfig, BldLocalConfig, BldRemoteServerConfig};
+use bld_config::{BldConfig, BldLocalConfig, BldRemoteServerConfig};
 use bld_utils::term;
 use clap::Args;
 
