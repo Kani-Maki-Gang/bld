@@ -14,7 +14,7 @@ pub const PRC_STATE_REMOVED: &str = "removed";
 pub const PRC_STATE_FAULTED: &str = "faulted";
 pub const PRC_STATE_KEEP_ALIVE: &str = "keep-alive"; // Set when the pipeline is configured to not dispose.
 
-#[derive(Debug, Associations, Identifiable, Queryable)]
+#[derive(Clone, Debug, Associations, Identifiable, Queryable)]
 #[diesel(belongs_to(PipelineRuns, foreign_key = run_id))]
 #[diesel(table_name = pipeline_run_containers)]
 pub struct PipelineRunContainers {

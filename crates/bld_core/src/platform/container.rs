@@ -1,8 +1,8 @@
+use crate::context::ContextSender;
+use crate::execution::Execution;
+use crate::logger::LoggerSender;
 use anyhow::{bail, Result};
 use bld_config::BldConfig;
-use bld_core::context::ContextSender;
-use bld_core::execution::Execution;
-use bld_core::logger::LoggerSender;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
 use shiplift::tty::TtyChunk;
@@ -86,7 +86,7 @@ impl Container {
         let client = Container::docker(&config)?;
         let env: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
         let id = Container::create(&client, image, &env, &mut logger.clone()).await?;
-        containers.add(id.clone()).await?;
+        containers.add_container(id.clone()).await?;
         Ok(Self {
             config: Some(config),
             image: image.to_string(),
@@ -170,17 +170,17 @@ impl Container {
 
         if let Err(e) = client.containers().get(id).stop(None).await {
             error!("could not stop container, {e}");
-            self.containers.set_as_faulted(id.to_string()).await?;
+            self.containers.set_container_as_faulted(id.to_string()).await?;
             bail!(e);
         }
 
         if let Err(e) = client.containers().get(id).delete().await {
             error!("could not stop container, {e}");
-            self.containers.set_as_faulted(id.to_string()).await?;
+            self.containers.set_container_as_faulted(id.to_string()).await?;
             bail!(e);
         }
 
-        self.containers.set_as_removed(id.to_string()).await?;
+        self.containers.set_container_as_removed(id.to_string()).await?;
         Ok(())
     }
 }

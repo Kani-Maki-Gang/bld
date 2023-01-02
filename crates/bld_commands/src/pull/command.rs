@@ -54,7 +54,7 @@ impl PullCommand {
 
             Request::post(&metadata_url)
                 .auth(server_auth)
-                .send_json(self.pipeline)
+                .send_json(&self.pipeline)
                 .await
                 .map(|mut deps: Vec<String>| {
                     println!("Done.");
@@ -72,7 +72,7 @@ impl PullCommand {
 
             Request::post(&url)
                 .auth(server_auth)
-                .send_json(pipeline.to_string())
+                .send_json(pipeline)
                 .await
                 .and_then(Self::save)
                 .map(|_| {

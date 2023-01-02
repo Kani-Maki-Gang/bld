@@ -1,7 +1,7 @@
+use crate::logger::LoggerSender;
 use anyhow::{bail, Result};
 use bld_config::definitions::LOCAL_MACHINE_TMP_DIR;
 use bld_config::{os_name, path, OSname};
-use bld_core::logger::LoggerSender;
 use std::collections::HashMap;
 use std::env::current_dir;
 use std::fmt::Write;

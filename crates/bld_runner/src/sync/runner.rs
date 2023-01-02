@@ -2,7 +2,7 @@ use super::builder::RunnerBuilder;
 use crate::pipeline::external::ExternalV1;
 use crate::pipeline::step::{BuildStepExecV1, BuildStepV1};
 use crate::pipeline::PipelineV1;
-use crate::platform::TargetPlatform;
+use actix::spawn;
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use anyhow::{anyhow, bail, Result};
 use bld_config::definitions::{
@@ -12,12 +12,15 @@ use bld_config::BldConfig;
 use bld_core::context::ContextSender;
 use bld_core::execution::Execution;
 use bld_core::logger::LoggerSender;
+use bld_core::platform::TargetPlatform;
 use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::signals::{UnixSignalsReceiver, UnixSignalMessage};
 use bld_sock::clients::ExecClient;
 use bld_sock::messages::{RunInfo, WorkerMessages};
 use bld_utils::request::WebSocket;
 use bld_utils::sync::IntoArc;
 use futures::stream::StreamExt;
+use tokio::sync::Mutex;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::future::Future;
@@ -35,6 +38,7 @@ pub struct RunnerV1 {
     pub run_start_time: String,
     pub config: Arc<BldConfig>,
     pub execution: Arc<Execution>,
+    pub signals: Option<Arc<Mutex<UnixSignalsReceiver>>>,
     pub logger: Arc<LoggerSender>,
     pub proxy: Arc<PipelineFileSystemProxy>,
     pub pipeline: PipelineV1,
@@ -42,7 +46,7 @@ pub struct RunnerV1 {
     pub env: Arc<HashMap<String, String>>,
     pub vars: Arc<HashMap<String, String>>,
     pub context: Arc<ContextSender>,
-    pub platform: TargetPlatform,
+    pub platform: Arc<TargetPlatform>,
     pub is_child: bool,
     pub has_faulted: bool,
 }
@@ -350,7 +354,17 @@ impl RunnerV1 {
         Ok(())
     }
 
-    async fn execute(&mut self) -> Result<()> {
+    async fn stop(&self) -> Result<()> {
+        debug!("starting cleanup operations for runner");
+        self.register_completion().await?;
+        self.ipc_send_completed().await?;
+        self.context.remove_platform(self.platform.clone()).await?;
+        Ok(())
+    }
+
+    async fn execute(mut self) -> Result<Self> {
+        self.start().await?;
+
         // using let expressions to log the errors and let an empty string be used
         // by the final print_error of main.
 
@@ -366,23 +380,41 @@ impl RunnerV1 {
             bail!("");
         }
 
-        Ok(())
-    }
-
-    async fn cleanup(&self) -> Result<()> {
-        debug!("starting cleanup operations for runner");
-        self.register_completion().await?;
-        self.ipc_send_completed().await?;
-        Ok(())
+        self.stop().await?;
+        Ok(self)
     }
 
     pub async fn run(mut self) -> RecursiveFuture {
         Box::pin(async move {
-            self.start().await?;
-            let execution_result = self.execute().await;
-            let cleanup_result = self.cleanup().await;
-            debug!("runner completed");
-            execution_result.and(cleanup_result)
+            let signals = self.signals.as_mut().map(|s| s.clone());
+
+            if self.is_child || self.signals.is_none() {
+                return self.execute().await.map(|_| ())
+            }
+
+            let context = self.context.clone();
+            let logger = self.logger.clone();
+            let signals = signals.unwrap();
+            let runner_handle = spawn(self.execute());
+
+            loop {
+                sleep(Duration::from_millis(200)).await;
+
+                if runner_handle.is_finished() {
+                    break runner_handle.await?.map(|_| ());
+                }
+
+                let mut signals = signals.lock().await;
+                if let Ok(signal) = signals.try_next() {
+                    match signal {
+                        UnixSignalMessage::SIGINT | UnixSignalMessage::SIGTERM => {
+                            runner_handle.abort();
+                            logger.write_line("Runner interruped. Starting graceful shutdown...".to_string()).await?;
+                            break context.cleanup().await;
+                        }
+                    }
+                }
+            }
         })
     }
 }

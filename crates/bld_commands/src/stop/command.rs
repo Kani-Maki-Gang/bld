@@ -37,7 +37,7 @@ impl BldCommand for StopCommand {
         System::new().block_on(async move {
             Request::post(&url)
                 .auth(server_auth)
-                .send_json(self.pipeline_id)
+                .send_json(&self.pipeline_id)
                 .await
                 .map(|r: String| {
                     println!("{r}");

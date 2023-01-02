@@ -33,7 +33,7 @@ impl BldCommand for RemoveCommand {
 
         System::new().block_on(async move {
             debug!("sending request to {}", url);
-            request.send_json(self.pipeline).await.map(|r: String| {
+            request.send_json(&self.pipeline).await.map(|r: String| {
                 println!("{r}");
             })
         })

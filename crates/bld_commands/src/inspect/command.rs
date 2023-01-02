@@ -37,7 +37,7 @@ impl BldCommand for InspectCommand {
         debug!("sending http request to {}", url);
 
         System::new().block_on(async move {
-            request.send_json(self.pipeline).await.map(|r: String| {
+            request.send_json(&self.pipeline).await.map(|r: String| {
                 println!("{r}");
             })
         })

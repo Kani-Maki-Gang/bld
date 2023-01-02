@@ -81,7 +81,7 @@ impl PushCommand {
 
             let _ = Request::post(&url)
                 .auth(server_auth)
-                .send_json(info)
+                .send_json(&info)
                 .await
                 .map(|_: String| {
                     println!("Done.");

@@ -85,7 +85,7 @@ impl BldCommand for WorkerCommand {
 
         System::new().block_on(async move {
             let logger = LoggerSender::file(config.clone(), &run_id)?.into_arc();
-            let context = ContextSender::new(pool, &run_id).into_arc();
+            let context = ContextSender::server(pool, &run_id).into_arc();
 
             let socket_handle = spawn(async move {
                 if let Err(e) = connect_to_supervisor(socket_cfg, worker_rx).await {

@@ -1,6 +1,10 @@
-use crate::definitions;
+use crate::definitions::REMOTE_SERVER_OAUTH2;
+use crate::{definitions, path};
 use crate::{Auth, BldTlsConfig};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
+use std::fs::read_to_string;
+use std::path::PathBuf;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BldLocalServerConfig {
@@ -98,5 +102,10 @@ impl BldRemoteServerConfig {
         } else {
             "ws".to_string()
         }
+    }
+
+    pub fn bearer(&self) -> Result<String> {
+        let path = path![REMOTE_SERVER_OAUTH2, &self.name];
+        read_to_string(path).map_err(|e| anyhow!(e))
     }
 }

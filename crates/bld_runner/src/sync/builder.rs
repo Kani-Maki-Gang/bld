@@ -2,16 +2,18 @@ use super::runner::RunnerV1;
 use super::versioned::VersionedRunner;
 use crate::pipeline::traits::Load;
 use crate::pipeline::{VersionedPipeline, Yaml};
-use crate::platform::{Container, Machine, TargetPlatform};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::context::ContextSender;
 use bld_core::execution::Execution;
 use bld_core::logger::LoggerSender;
+use bld_core::platform::{TargetPlatform, Machine, Container};
 use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::signals::UnixSignalsReceiver;
 use bld_sock::messages::WorkerMessages;
 use bld_utils::sync::IntoArc;
 use chrono::offset::Local;
+use tokio::sync::Mutex;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
@@ -22,6 +24,7 @@ pub struct RunnerBuilder {
     run_start_time: String,
     config: Option<Arc<BldConfig>>,
     execution: Arc<Execution>,
+    signals: Option<Arc<Mutex<UnixSignalsReceiver>>>,
     logger: Arc<LoggerSender>,
     proxy: Arc<PipelineFileSystemProxy>,
     pipeline: Option<String>,
@@ -34,18 +37,21 @@ pub struct RunnerBuilder {
 
 impl Default for RunnerBuilder {
     fn default() -> Self {
+        let run_id = Uuid::new_v4().to_string();
+        let context = ContextSender::local(&run_id).into_arc();
         Self {
-            run_id: Uuid::new_v4().to_string(),
+            run_id,
             run_start_time: Local::now().format("%F %X").to_string(),
             config: None,
             execution: Execution::default().into_arc(),
+            signals: None,
             logger: LoggerSender::default().into_arc(),
             proxy: PipelineFileSystemProxy::default().into_arc(),
             pipeline: None,
             ipc: None.into_arc(),
             env: None,
             vars: None,
-            context: ContextSender::default().into_arc(),
+            context,
             is_child: false,
         }
     }
@@ -69,6 +75,11 @@ impl RunnerBuilder {
 
     pub fn execution(mut self, ex: Arc<Execution>) -> Self {
         self.execution = ex;
+        self
+    }
+
+    pub fn signals(mut self, signals: Arc<Mutex<UnixSignalsReceiver>>) -> Self {
+        self.signals = Some(signals);
         self
     }
 
@@ -134,7 +145,7 @@ impl RunnerBuilder {
         let platform = match pipeline.runs_on() {
             "machine" => {
                 let machine = Machine::new(&self.run_id, env.clone(), self.logger.clone())?;
-                TargetPlatform::Machine(Box::new(machine))
+                TargetPlatform::machine(Box::new(machine))
             }
             image => {
                 let container = Container::new(
@@ -145,27 +156,31 @@ impl RunnerBuilder {
                     self.context.clone(),
                 )
                 .await?;
-                TargetPlatform::Container(Box::new(container))
+                TargetPlatform::container(Box::new(container))
             }
-        };
+        }.into_arc();
+        self.context.add_platform(platform.clone()).await?;
 
         let runner = match pipeline {
-            VersionedPipeline::Version1(pipeline) => VersionedRunner::Version1(RunnerV1 {
-                run_id: self.run_id,
-                run_start_time: self.run_start_time,
-                config,
-                execution: self.execution,
-                logger: self.logger,
-                proxy: self.proxy,
-                pipeline,
-                ipc: self.ipc,
-                env,
-                vars,
-                context: self.context,
-                platform,
-                is_child: self.is_child,
-                has_faulted: false,
-            }),
+            VersionedPipeline::Version1(pipeline) => {
+                VersionedRunner::Version1(RunnerV1 {
+                    run_id: self.run_id,
+                    run_start_time: self.run_start_time,
+                    config,
+                    execution: self.execution,
+                    signals: self.signals,
+                    logger: self.logger,
+                    proxy: self.proxy,
+                    pipeline,
+                    ipc: self.ipc,
+                    env,
+                    vars,
+                    context: self.context,
+                    platform,
+                    is_child: self.is_child,
+                    has_faulted: false,
+                })
+            }
         };
 
         Ok(runner)
