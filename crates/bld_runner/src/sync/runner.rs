@@ -20,7 +20,6 @@ use bld_sock::messages::{RunInfo, WorkerMessages};
 use bld_utils::request::WebSocket;
 use bld_utils::sync::IntoArc;
 use futures::stream::StreamExt;
-use tokio::sync::Mutex;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::future::Future;
@@ -38,7 +37,7 @@ pub struct RunnerV1 {
     pub run_start_time: String,
     pub config: Arc<BldConfig>,
     pub execution: Arc<Execution>,
-    pub signals: Option<Arc<Mutex<UnixSignalsReceiver>>>,
+    pub signals: Option<UnixSignalsReceiver>,
     pub logger: Arc<LoggerSender>,
     pub proxy: Arc<PipelineFileSystemProxy>,
     pub pipeline: PipelineV1,
@@ -386,15 +385,18 @@ impl RunnerV1 {
 
     pub async fn run(mut self) -> RecursiveFuture {
         Box::pin(async move {
-            let signals = self.signals.as_mut().map(|s| s.clone());
+            // Changing the value internally since the signals needs to be mutated
+            // and child runners wont handle any unix signals.
+            let signals = self.signals;
+            self.signals = None;
 
-            if self.is_child || self.signals.is_none() {
-                return self.execute().await.map(|_| ())
+            if self.is_child || signals.is_none() {
+                return self.execute().await.map(|_| ());
             }
 
             let context = self.context.clone();
             let logger = self.logger.clone();
-            let signals = signals.unwrap();
+            let mut signals = signals.unwrap();
             let runner_handle = spawn(self.execute());
 
             loop {
@@ -404,7 +406,6 @@ impl RunnerV1 {
                     break runner_handle.await?.map(|_| ());
                 }
 
-                let mut signals = signals.lock().await;
                 if let Ok(signal) = signals.try_next() {
                     match signal {
                         UnixSignalMessage::SIGINT | UnixSignalMessage::SIGTERM => {

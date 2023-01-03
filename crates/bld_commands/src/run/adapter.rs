@@ -1,23 +1,19 @@
-use actix::spawn;
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::logger::LoggerSender;
-use bld_core::signals::{UnixSignalsSender, UnixSignalsReceiver};
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::ExecClient;
 use bld_sock::messages::RunInfo;
 use bld_utils::request::{Request, WebSocket};
 use bld_utils::sync::IntoArc;
 use futures::stream::StreamExt;
-use signal_hook::consts::{SIGINT, SIGTERM};
-use signal_hook_tokio::Signals;
-use tokio::sync::Mutex;
-use tokio::sync::mpsc::channel;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::debug;
+
+use crate::signals::CommandSignals;
 
 pub struct LocalRun {
     config: Arc<BldConfig>,
@@ -198,27 +194,13 @@ pub struct RunAdapter {
 
 impl RunAdapter {
     async fn run_local(mode: LocalRun) -> Result<()> {
-        let (tx, rx) = channel(4096);
-        let mut signals_sender = UnixSignalsSender::new(tx);
-        let signals_receiver = UnixSignalsReceiver::new(rx);
-
-        let mut signals = Signals::new(&[SIGINT, SIGTERM])?;
-        let signals_handle = signals.handle();
-        let signals_task = spawn(async move {
-            while let Some(signal) = signals.next().await {
-                let _ = match signal {
-                    SIGINT => signals_sender.sigint().await,
-                    SIGTERM => signals_sender.sigterm().await,
-                    _ => Ok(())
-                };
-            }
-        });
+        let (cmd_signals, signals_rx) = CommandSignals::new()?;
 
         let runner = RunnerBuilder::default()
             .config(mode.config)
             .pipeline(&mode.pipeline)
             .logger(LoggerSender::shell().into_arc())
-            .signals(Mutex::new(signals_receiver).into_arc())
+            .signals(signals_rx)
             .environment(mode.environment.into_arc())
             .variables(mode.variables.into_arc())
             .build()
@@ -226,10 +208,9 @@ impl RunAdapter {
 
         let result = runner.run().await;
 
-        signals_handle.close();
-        signals_task.await?;
-
+        cmd_signals.stop().await?;
         System::current().stop();
+
         result
     }
 

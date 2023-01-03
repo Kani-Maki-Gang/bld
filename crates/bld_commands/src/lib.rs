@@ -2,6 +2,7 @@ mod auth;
 mod check;
 pub mod cli;
 pub mod command;
+mod signals;
 mod config;
 mod hist;
 mod init;

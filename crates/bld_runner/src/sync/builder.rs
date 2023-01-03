@@ -13,7 +13,6 @@ use bld_core::signals::UnixSignalsReceiver;
 use bld_sock::messages::WorkerMessages;
 use bld_utils::sync::IntoArc;
 use chrono::offset::Local;
-use tokio::sync::Mutex;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
@@ -24,7 +23,7 @@ pub struct RunnerBuilder {
     run_start_time: String,
     config: Option<Arc<BldConfig>>,
     execution: Arc<Execution>,
-    signals: Option<Arc<Mutex<UnixSignalsReceiver>>>,
+    signals: Option<UnixSignalsReceiver>,
     logger: Arc<LoggerSender>,
     proxy: Arc<PipelineFileSystemProxy>,
     pipeline: Option<String>,
@@ -78,7 +77,7 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn signals(mut self, signals: Arc<Mutex<UnixSignalsReceiver>>) -> Self {
+    pub fn signals(mut self, signals: UnixSignalsReceiver) -> Self {
         self.signals = Some(signals);
         self
     }
