@@ -24,6 +24,7 @@ impl ServerSocket {
         let msg: ServerMessages = serde_json::from_slice(&bytes[..])?;
         match msg {
             ServerMessages::Ack => info!("a new server connection was acknowledged"),
+
             ServerMessages::Enqueue {
                 pipeline,
                 run_id,
@@ -60,6 +61,19 @@ impl ServerSocket {
                         .enqueue(PipelineWorker::new(run_id, command))
                         .await
                         .map(|_| info!("worker for pipeline: {pipeline} has been queued"))
+                        .map_err(|e| error!("{e}"));
+                });
+            }
+
+            ServerMessages::Stop { run_id } => {
+                info!("server sent a stop message for run_id: {run_id}");
+
+                let tx = self.worker_queue_tx.clone();
+                spawn(async move {
+                    let _ = tx
+                        .stop(&run_id)
+                        .await
+                        .map(|_| info!("stop signal sent to worker for run_id: {run_id}"))
                         .map_err(|e| error!("{e}"));
                 });
             }

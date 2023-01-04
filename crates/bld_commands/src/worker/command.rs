@@ -1,5 +1,6 @@
 use crate::command::BldCommand;
 use crate::run::parse_variables;
+use crate::signals::CommandSignals;
 use actix::io::SinkWrite;
 use actix::{Actor, StreamHandler};
 use actix_web::rt::{spawn, System};
@@ -86,6 +87,7 @@ impl BldCommand for WorkerCommand {
         System::new().block_on(async move {
             let logger = LoggerSender::file(config.clone(), &run_id)?.into_arc();
             let context = ContextSender::server(pool, &run_id).into_arc();
+            let (cmd_signals, signals_rx) = CommandSignals::new()?;
 
             let socket_handle = spawn(async move {
                 if let Err(e) = connect_to_supervisor(socket_cfg, worker_rx).await {
@@ -106,6 +108,7 @@ impl BldCommand for WorkerCommand {
                     .variables(variables)
                     .context(context)
                     .ipc(worker_tx)
+                    .signals(signals_rx)
                     .build()
                     .await
                 {
@@ -116,6 +119,8 @@ impl BldCommand for WorkerCommand {
                     }
                     Err(e) => error!("failed on building the runner, {e}"),
                 }
+
+                let _ = cmd_signals.stop().await;
             });
 
             let _ = join!(socket_handle, runner_handle);

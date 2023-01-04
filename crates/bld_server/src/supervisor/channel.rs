@@ -14,7 +14,7 @@ use tokio::process::{Child, Command};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 struct SupervisorMessageReceiver {
     config: Arc<BldConfig>,
@@ -145,6 +145,14 @@ impl SupervisorMessageSender {
             run_id,
             variables,
             environment,
+        };
+
+        self.tx.send(message).await.map_err(|e| anyhow!(e))
+    }
+
+    pub async fn stop(&self, run_id: &str) -> Result<()> {
+        let message = ServerMessages::Stop {
+            run_id: run_id.to_owned(),
         };
 
         self.tx.send(message).await.map_err(|e| anyhow!(e))

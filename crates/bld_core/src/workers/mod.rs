@@ -1,4 +1,6 @@
 use anyhow::{anyhow, Result};
+use nix::sys::signal::{self, Signal};
+use nix::unistd::Pid;
 use std::process::{Child, Command, ExitStatus};
 
 #[derive(Debug)]
@@ -19,6 +21,10 @@ impl PipelineWorker {
 
     pub fn get_run_id(&self) -> &str {
         &self.run_id
+    }
+
+    pub fn has_run_id(&self, run_id: &str) -> bool {
+        self.run_id == run_id
     }
 
     pub fn get_pid(&self) -> Option<u32> {
@@ -54,5 +60,11 @@ impl PipelineWorker {
                     .ok_or_else(|| anyhow!("worker has not spawned"))
                     .and_then(|c| c.wait().map_err(|e| anyhow!(e)))
             })
+    }
+
+    pub fn stop(&mut self) -> Result<()> {
+        let pid = self.get_pid().ok_or_else(|| anyhow!("child instance doesnt have a pid"))?;
+        signal::kill(Pid::from_raw(pid.try_into()?), Signal::SIGTERM)?;
+        Ok(())
     }
 }
