@@ -1,5 +1,5 @@
 use crate::database::pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_RUNNING};
-use anyhow::{bail, Result};
+use anyhow::Result;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::sync::Arc;
@@ -46,18 +46,5 @@ impl Execution {
 
     pub fn set_as_faulted(&self) -> Result<()> {
         self.update_state(PR_STATE_FAULTED)
-    }
-
-    pub fn check_stop_signal(&self) -> Result<()> {
-        match self {
-            Self::Empty => Ok(()),
-            Self::Pipeline { pool, run_id } => {
-                let mut conn = pool.get()?;
-                pipeline_runs::select_by_id(&mut conn, run_id).and_then(|r| match r.stopped {
-                    Some(true) => bail!(""),
-                    _ => Ok(()),
-                })
-            }
-        }
     }
 }

@@ -1,5 +1,4 @@
 use crate::context::ContextSender;
-use crate::execution::Execution;
 use crate::logger::LoggerSender;
 use anyhow::{bail, Result};
 use bld_config::BldConfig;
@@ -114,12 +113,7 @@ impl Container {
         Ok(())
     }
 
-    pub async fn sh(
-        &self,
-        working_dir: &Option<String>,
-        input: &str,
-        execution: Arc<Execution>,
-    ) -> Result<()> {
+    pub async fn sh(&self, working_dir: &Option<String>, input: &str) -> Result<()> {
         let client = self.get_client()?;
         let id = self.get_id()?;
         let input = working_dir
@@ -138,8 +132,6 @@ impl Container {
         let mut exec_stream = exec.start();
 
         while let Some(result) = exec_stream.next().await {
-            execution.check_stop_signal()?;
-
             let chunk = match result {
                 Ok(TtyChunk::StdOut(bytes)) => String::from_utf8(bytes)?,
                 Ok(TtyChunk::StdErr(bytes)) => String::from_utf8(bytes)?,

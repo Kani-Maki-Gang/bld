@@ -78,11 +78,6 @@ impl RunnerV1 {
         Ok(())
     }
 
-    fn check_stop_signal(&self) -> Result<()> {
-        debug!("checking for stop signal");
-        self.execution.check_stop_signal()
-    }
-
     async fn ipc_send_completed(&self) -> Result<()> {
         if !self.is_child {
             if let Some(ipc) = Option::as_ref(&self.ipc) {
@@ -194,7 +189,6 @@ impl RunnerV1 {
         for step in &self.pipeline.steps {
             self.step(step).await?;
             self.artifacts(&step.name).await?;
-            self.check_stop_signal()?;
         }
         Ok(())
     }
@@ -270,9 +264,7 @@ impl RunnerV1 {
             .await?;
 
         debug!("starting child pipeline runner");
-
         runner.run().await?;
-        self.check_stop_signal()?;
 
         Ok(())
     }
@@ -339,11 +331,8 @@ impl RunnerV1 {
         let command = self.apply_context(command);
 
         debug!("executing shell command {}", command);
-        self.platform
-            .shell(&working_dir, &command, self.execution.clone())
-            .await?;
+        self.platform.shell(&working_dir, &command).await?;
 
-        self.check_stop_signal()?;
         Ok(())
     }
 

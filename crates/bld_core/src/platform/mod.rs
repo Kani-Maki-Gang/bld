@@ -5,9 +5,7 @@ pub use container::*;
 pub use machine::*;
 use uuid::Uuid;
 
-use crate::execution::Execution;
 use anyhow::Result;
-use std::sync::Arc;
 
 pub enum TargetPlatform {
     Machine {
@@ -57,15 +55,10 @@ impl TargetPlatform {
         }
     }
 
-    pub async fn shell(
-        &self,
-        working_dir: &Option<String>,
-        command: &str,
-        exec: Arc<Execution>,
-    ) -> Result<()> {
+    pub async fn shell(&self, working_dir: &Option<String>, command: &str) -> Result<()> {
         match self {
             Self::Machine { machine, .. } => machine.sh(working_dir, command).await,
-            Self::Container { container, .. } => container.sh(working_dir, command, exec).await,
+            Self::Container { container, .. } => container.sh(working_dir, command).await,
         }
     }
 

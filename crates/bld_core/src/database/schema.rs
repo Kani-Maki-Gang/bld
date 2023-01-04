@@ -1,4 +1,6 @@
-table! {
+// @generated automatically by Diesel CLI.
+
+diesel::table! {
     ha_client_serial_responses (id) {
         id -> Integer,
         state_machine_id -> Integer,
@@ -9,7 +11,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     ha_client_status (id) {
         id -> Integer,
         state_machine_id -> Integer,
@@ -19,7 +21,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     ha_hard_state (id) {
         id -> Integer,
         current_term -> Integer,
@@ -29,7 +31,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     ha_log (id) {
         id -> Integer,
         term -> Integer,
@@ -40,7 +42,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     ha_members (id) {
         id -> Integer,
         snapshot_id -> Integer,
@@ -49,7 +51,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     ha_members_after_consensus (id) {
         id -> Integer,
         snapshot_id -> Integer,
@@ -58,7 +60,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     ha_snapshot (id) {
         id -> Integer,
         term -> Integer,
@@ -68,7 +70,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     ha_state_machine (id) {
         id -> Integer,
         last_applied_log -> Integer,
@@ -77,7 +79,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     pipeline (id) {
         id -> Text,
         name -> Text,
@@ -85,7 +87,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     pipeline_run_containers (id) {
         id -> Text,
         run_id -> Text,
@@ -95,7 +97,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     pipeline_runs (id) {
         id -> Text,
         name -> Text,
@@ -103,17 +105,16 @@ table! {
         user -> Text,
         start_date_time -> Text,
         end_date_time -> Nullable<Text>,
-        stopped -> Nullable<Bool>,
     }
 }
 
-joinable!(ha_client_serial_responses -> ha_state_machine (state_machine_id));
-joinable!(ha_client_status -> ha_state_machine (state_machine_id));
-joinable!(ha_members -> ha_snapshot (snapshot_id));
-joinable!(ha_members_after_consensus -> ha_snapshot (snapshot_id));
-joinable!(pipeline_run_containers -> pipeline_runs (run_id));
+diesel::joinable!(ha_client_serial_responses -> ha_state_machine (state_machine_id));
+diesel::joinable!(ha_client_status -> ha_state_machine (state_machine_id));
+diesel::joinable!(ha_members -> ha_snapshot (snapshot_id));
+diesel::joinable!(ha_members_after_consensus -> ha_snapshot (snapshot_id));
+diesel::joinable!(pipeline_run_containers -> pipeline_runs (run_id));
 
-allow_tables_to_appear_in_same_query!(
+diesel::allow_tables_to_appear_in_same_query!(
     ha_client_serial_responses,
     ha_client_status,
     ha_hard_state,
