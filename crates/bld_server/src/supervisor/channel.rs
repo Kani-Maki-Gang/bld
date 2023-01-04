@@ -14,7 +14,7 @@ use tokio::process::{Child, Command};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 struct SupervisorMessageReceiver {
     config: Arc<BldConfig>,

@@ -15,11 +15,13 @@ pub struct CommandSignals {
 impl CommandSignals {
     pub fn new() -> Result<(Self, UnixSignalsReceiver)> {
         let (tx, rx) = channel(4096);
+
         let mut signals_tx = UnixSignalsSender::new(tx);
         let signals_rx = UnixSignalsReceiver::new(rx);
 
-        let mut signals = Signals::new(&[SIGINT, SIGTERM])?;
+        let mut signals = Signals::new([SIGINT, SIGTERM])?;
         let handle = signals.handle();
+
         let task = spawn(async move {
             while let Some(signal) = signals.next().await {
                 let _ = match signal {

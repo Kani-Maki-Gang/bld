@@ -136,92 +136,85 @@ impl Context {
     }
 
     fn add_container(&mut self, container_id: &str) -> Result<()> {
-        match self {
-            Self::Server {
-                run_id,
-                pool,
-                instances,
-                ..
-            } => {
-                let mut conn = pool.get()?;
-                let instance = pipeline_run_containers::insert(
-                    &mut conn,
-                    InsertPipelineRunContainer {
-                        id: &Uuid::new_v4().to_string(),
-                        run_id: &run_id,
-                        container_id,
-                        state: "active",
-                    },
-                )?;
-                instances.push(instance);
-            }
-            _ => {}
+        if let Self::Server {
+            run_id,
+            pool,
+            instances,
+            ..
+        } = self
+        {
+            let mut conn = pool.get()?;
+            let instance = pipeline_run_containers::insert(
+                &mut conn,
+                InsertPipelineRunContainer {
+                    id: &Uuid::new_v4().to_string(),
+                    run_id,
+                    container_id,
+                    state: "active",
+                },
+            )?;
+            instances.push(instance);
         }
         Ok(())
     }
 
     fn set_container_as_removed(&mut self, container_id: &str) -> Result<()> {
-        match self {
-            Self::Server {
-                pool, instances, ..
-            } => {
-                if let Some(idx) = instances
-                    .iter()
-                    .position(|i| i.container_id == container_id)
-                {
-                    let mut conn = pool.get()?;
-                    instances[idx] = pipeline_run_containers::update_state(
-                        &mut conn,
-                        &instances[idx].id,
-                        PRC_STATE_REMOVED,
-                    )?;
-                }
+        if let Self::Server {
+            pool, instances, ..
+        } = self
+        {
+            if let Some(idx) = instances
+                .iter()
+                .position(|i| i.container_id == container_id)
+            {
+                let mut conn = pool.get()?;
+                instances[idx] = pipeline_run_containers::update_state(
+                    &mut conn,
+                    &instances[idx].id,
+                    PRC_STATE_REMOVED,
+                )?;
             }
-            _ => {}
         }
         Ok(())
     }
 
     fn set_container_as_faulted(&mut self, container_id: &str) -> Result<()> {
-        match self {
-            Self::Server {
-                pool, instances, ..
-            } => {
-                if let Some(idx) = instances
-                    .iter()
-                    .position(|i| i.container_id == container_id)
-                {
-                    let mut conn = pool.get()?;
-                    instances[idx] = pipeline_run_containers::update_state(
-                        &mut conn,
-                        &instances[idx].id,
-                        PRC_STATE_FAULTED,
-                    )?;
-                }
-            }
-            _ => {}
-        }
+        if let Self::Server {
+            pool, instances, ..
+        } = self
+        {
+            if let Some(idx) = instances
+                .iter()
+                .position(|i| i.container_id == container_id)
+            {
+                let mut conn = pool.get()?;
+                instances[idx] = pipeline_run_containers::update_state(
+                    &mut conn,
+                    &instances[idx].id,
+                    PRC_STATE_FAULTED,
+                )?;
+            };
+        };
+
         Ok(())
     }
 
     fn keep_alive_container(&mut self, container_id: &str) -> Result<()> {
-        match self {
-            Self::Server {
-                pool, instances, ..
-            } => {
-                if let Some(idx) = instances
-                    .iter()
-                    .position(|i| i.container_id == container_id)
-                {
-                    let mut conn = pool.get()?;
-                    instances[idx] = pipeline_run_containers::update_state(
-                        &mut conn,
-                        &instances[idx].id,
-                        PRC_STATE_KEEP_ALIVE,
-                    )?;
-                }
+        if let Self::Server {
+            pool, instances, ..
+        } = self
+        {
+            if let Some(idx) = instances
+                .iter()
+                .position(|i| i.container_id == container_id)
+            {
+                let mut conn = pool.get()?;
+                instances[idx] = pipeline_run_containers::update_state(
+                    &mut conn,
+                    &instances[idx].id,
+                    PRC_STATE_KEEP_ALIVE,
+                )?;
             }
-            _ => {}
         }
         Ok(())
     }
@@ -234,7 +227,7 @@ impl Context {
                 ..
             } => {
                 for run in remote_runs.iter() {
-                    let _ = Self::cleanup_remote_run(&run).await;
+                    let _ = Self::cleanup_remote_run(run).await;
                 }
                 for platform in platforms.iter() {
                     let _ = platform.dispose(false).await;
@@ -246,7 +239,7 @@ impl Context {
                 ..
             } => {
                 for run in remote_runs.iter() {
-                    let _ = Self::cleanup_remote_run(&run).await;
+                    let _ = Self::cleanup_remote_run(run).await;
                 }
                 for platform in platforms.iter() {
                     let _ = platform.dispose(false).await;
