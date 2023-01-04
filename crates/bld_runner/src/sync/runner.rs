@@ -14,7 +14,7 @@ use bld_core::execution::Execution;
 use bld_core::logger::LoggerSender;
 use bld_core::platform::TargetPlatform;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_core::signals::{UnixSignalsReceiver, UnixSignalMessage};
+use bld_core::signals::{UnixSignalMessage, UnixSignalsReceiver};
 use bld_sock::clients::ExecClient;
 use bld_sock::messages::{RunInfo, WorkerMessages};
 use bld_utils::request::WebSocket;
@@ -410,7 +410,11 @@ impl RunnerV1 {
                     match signal {
                         UnixSignalMessage::SIGINT | UnixSignalMessage::SIGTERM => {
                             runner_handle.abort();
-                            logger.write_line("Runner interruped. Starting graceful shutdown...".to_string()).await?;
+                            logger
+                                .write_line(
+                                    "Runner interruped. Starting graceful shutdown...".to_string(),
+                                )
+                                .await?;
                             break context.cleanup().await;
                         }
                     }

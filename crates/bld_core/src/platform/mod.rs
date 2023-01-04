@@ -10,8 +10,14 @@ use anyhow::Result;
 use std::sync::Arc;
 
 pub enum TargetPlatform {
-    Machine { id: String, machine: Box<Machine> },
-    Container { id: String, container: Box<Container> },
+    Machine {
+        id: String,
+        machine: Box<Machine>,
+    },
+    Container {
+        id: String,
+        container: Box<Container>,
+    },
 }
 
 impl TargetPlatform {
@@ -27,24 +33,20 @@ impl TargetPlatform {
 
     pub fn id(&self) -> String {
         match self {
-            Self::Machine { id, .. } | Self::Container { id, .. } => {
-                id.to_owned()
-            }
+            Self::Machine { id, .. } | Self::Container { id, .. } => id.to_owned(),
         }
     }
 
     pub fn is(&self, pid: &str) -> bool {
         match self {
-            Self::Machine { id, .. } | Self::Container { id, .. } => {
-                pid == id
-            }
+            Self::Machine { id, .. } | Self::Container { id, .. } => pid == id,
         }
     }
 
     pub async fn push(&self, from: &str, to: &str) -> Result<()> {
         match self {
             Self::Machine { machine, .. } => machine.copy_into(from, to),
-            Self::Container {container, .. }=> container.copy_into(from, to).await,
+            Self::Container { container, .. } => container.copy_into(from, to).await,
         }
     }
 

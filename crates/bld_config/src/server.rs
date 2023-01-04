@@ -1,7 +1,7 @@
 use crate::definitions::REMOTE_SERVER_OAUTH2;
 use crate::{definitions, path};
 use crate::{Auth, BldTlsConfig};
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::fs::read_to_string;
 use std::path::PathBuf;

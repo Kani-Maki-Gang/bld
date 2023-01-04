@@ -7,7 +7,7 @@ use bld_config::BldConfig;
 use bld_core::context::ContextSender;
 use bld_core::execution::Execution;
 use bld_core::logger::LoggerSender;
-use bld_core::platform::{TargetPlatform, Machine, Container};
+use bld_core::platform::{Container, Machine, TargetPlatform};
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::signals::UnixSignalsReceiver;
 use bld_sock::messages::WorkerMessages;
@@ -157,29 +157,28 @@ impl RunnerBuilder {
                 .await?;
                 TargetPlatform::container(Box::new(container))
             }
-        }.into_arc();
+        }
+        .into_arc();
         self.context.add_platform(platform.clone()).await?;
 
         let runner = match pipeline {
-            VersionedPipeline::Version1(pipeline) => {
-                VersionedRunner::Version1(RunnerV1 {
-                    run_id: self.run_id,
-                    run_start_time: self.run_start_time,
-                    config,
-                    execution: self.execution,
-                    signals: self.signals,
-                    logger: self.logger,
-                    proxy: self.proxy,
-                    pipeline,
-                    ipc: self.ipc,
-                    env,
-                    vars,
-                    context: self.context,
-                    platform,
-                    is_child: self.is_child,
-                    has_faulted: false,
-                })
-            }
+            VersionedPipeline::Version1(pipeline) => VersionedRunner::Version1(RunnerV1 {
+                run_id: self.run_id,
+                run_start_time: self.run_start_time,
+                config,
+                execution: self.execution,
+                signals: self.signals,
+                logger: self.logger,
+                proxy: self.proxy,
+                pipeline,
+                ipc: self.ipc,
+                env,
+                vars,
+                context: self.context,
+                platform,
+                is_child: self.is_child,
+                has_faulted: false,
+            }),
         };
 
         Ok(runner)

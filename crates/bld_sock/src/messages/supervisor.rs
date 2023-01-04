@@ -16,7 +16,7 @@ pub enum ServerMessages {
     },
     Stop {
         run_id: String,
-    }
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize, Message)]

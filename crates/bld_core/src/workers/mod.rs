@@ -63,7 +63,9 @@ impl PipelineWorker {
     }
 
     pub fn stop(&mut self) -> Result<()> {
-        let pid = self.get_pid().ok_or_else(|| anyhow!("child instance doesnt have a pid"))?;
+        let pid = self
+            .get_pid()
+            .ok_or_else(|| anyhow!("child instance doesnt have a pid"))?;
         signal::kill(Pid::from_raw(pid.try_into()?), Signal::SIGTERM)?;
         Ok(())
     }

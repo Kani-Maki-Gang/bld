@@ -228,7 +228,11 @@ impl Context {
 
     async fn do_cleanup(&mut self, resp_tx: oneshot::Sender<()>) -> Result<()> {
         match self {
-            Self::Server { remote_runs, platforms, .. } => {
+            Self::Server {
+                remote_runs,
+                platforms,
+                ..
+            } => {
                 for run in remote_runs.iter() {
                     let _ = Self::cleanup_remote_run(&run).await;
                 }
@@ -236,7 +240,11 @@ impl Context {
                     let _ = platform.dispose(false).await;
                 }
             }
-            Self::Local { remote_runs, platforms, .. } => {
+            Self::Local {
+                remote_runs,
+                platforms,
+                ..
+            } => {
                 for run in remote_runs.iter() {
                     let _ = Self::cleanup_remote_run(&run).await;
                 }

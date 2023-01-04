@@ -170,17 +170,23 @@ impl Container {
 
         if let Err(e) = client.containers().get(id).stop(None).await {
             error!("could not stop container, {e}");
-            self.containers.set_container_as_faulted(id.to_string()).await?;
+            self.containers
+                .set_container_as_faulted(id.to_string())
+                .await?;
             bail!(e);
         }
 
         if let Err(e) = client.containers().get(id).delete().await {
             error!("could not stop container, {e}");
-            self.containers.set_container_as_faulted(id.to_string()).await?;
+            self.containers
+                .set_container_as_faulted(id.to_string())
+                .await?;
             bail!(e);
         }
 
-        self.containers.set_container_as_removed(id.to_string()).await?;
+        self.containers
+            .set_container_as_removed(id.to_string())
+            .await?;
         Ok(())
     }
 }

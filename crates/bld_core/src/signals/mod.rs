@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 #[derive(Debug)]

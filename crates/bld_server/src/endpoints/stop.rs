@@ -8,7 +8,7 @@ use tracing::info;
 pub async fn stop(
     _: User,
     req: Json<String>,
-    supervisor_sender: Data<SupervisorMessageSender>
+    supervisor_sender: Data<SupervisorMessageSender>,
 ) -> impl Responder {
     info!("Reached handler for /stop route");
     let id = req.into_inner();

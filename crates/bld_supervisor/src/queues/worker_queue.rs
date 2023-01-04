@@ -174,7 +174,10 @@ impl WorkerQueueReceiver {
             let found = w.has_run_id(&run_id);
             if found {
                 found_in_active = true;
-                if let Err(e) = w.stop().and_then(|_| try_cleanup_process(self.pool.clone(), w)) {
+                if let Err(e) = w
+                    .stop()
+                    .and_then(|_| try_cleanup_process(self.pool.clone(), w))
+                {
                     error!("error while stopping worker process, {e}");
                 }
             }
@@ -228,7 +231,10 @@ impl WorkerQueueSender {
 
     pub async fn stop(&self, run_id: &str) -> Result<()> {
         let (resp_tx, resp_rx) = oneshot::channel();
-        let message = WorkerQueueMessage::Stop { run_id: run_id.to_owned(), resp_tx };
+        let message = WorkerQueueMessage::Stop {
+            run_id: run_id.to_owned(),
+            resp_tx,
+        };
 
         self.tx.send(message).await.map_err(|e| anyhow!(e))?;
 

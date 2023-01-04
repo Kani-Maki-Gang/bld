@@ -1,9 +1,9 @@
 use actix::spawn;
 use anyhow::Result;
-use bld_core::signals::{UnixSignalsSender, UnixSignalsReceiver};
+use bld_core::signals::{UnixSignalsReceiver, UnixSignalsSender};
 use futures::stream::StreamExt;
 use signal_hook::consts::{SIGINT, SIGTERM};
-use signal_hook_tokio::{Signals, Handle};
+use signal_hook_tokio::{Handle, Signals};
 use tokio::sync::mpsc::channel;
 use tokio::task::JoinHandle;
 
@@ -25,15 +25,12 @@ impl CommandSignals {
                 let _ = match signal {
                     SIGINT => signals_tx.sigint().await,
                     SIGTERM => signals_tx.sigterm().await,
-                    _ => Ok(())
+                    _ => Ok(()),
                 };
             }
         });
 
-        let instance = Self {
-            handle,
-            task
-        };
+        let instance = Self { handle, task };
 
         Ok((instance, signals_rx))
     }
