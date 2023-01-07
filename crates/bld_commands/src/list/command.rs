@@ -22,8 +22,7 @@ impl BldCommand for ListCommand {
         let config = BldConfig::load()?;
         let server = config.server_or_first(self.server.as_ref())?;
         let server_auth = config.same_auth_as(server)?;
-        let protocol = server.http_protocol();
-        let url = format!("{protocol}://{}:{}/list", server.host, server.port);
+        let url = format!("{}/list", server.base_url_http());
         let request = Request::get(&url).auth(server_auth);
 
         debug!("sending request to {}", url);

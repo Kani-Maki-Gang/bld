@@ -44,12 +44,7 @@ impl SupervisorMessageReceiver {
             sleep(Duration::from_millis(300)).await;
 
             let supervisor = &self.config.local.supervisor;
-            let url = format!(
-                "{}://{}:{}/ws-server/",
-                supervisor.ws_protocol(),
-                supervisor.host,
-                supervisor.port
-            );
+            let url = format!("{}/ws-server/", supervisor.base_url_ws());
 
             debug!("establishing web socket connection on {}", url);
 

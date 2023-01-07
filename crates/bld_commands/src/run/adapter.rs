@@ -221,12 +221,7 @@ impl RunAdapter {
         let server = mode.config.server(&mode.server)?;
         let server_auth = mode.config.same_auth_as(server)?;
 
-        let url = format!(
-            "{}://{}:{}/ws-exec/",
-            server.ws_protocol(),
-            server.host,
-            server.port
-        );
+        let url = format!("{}/ws-exec/", server.base_url_ws());
 
         let data = ExecClientMessage::EnqueueRun {
             name: mode.pipeline,
@@ -268,12 +263,7 @@ impl RunAdapter {
         let server = mode.config.server(&mode.server)?;
         let server_auth = mode.config.same_auth_as(server)?;
 
-        let url = format!(
-            "{}://{}:{}/run",
-            server.http_protocol(),
-            server.host,
-            server.port
-        );
+        let url = format!("{}/run", server.base_url_http());
 
         let data = ExecClientMessage::EnqueueRun {
             name: mode.pipeline,

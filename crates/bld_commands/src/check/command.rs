@@ -38,12 +38,7 @@ impl CheckCommand {
         let server = config.server(server)?;
         let server_auth = config.same_auth_as(server)?;
 
-        let url = format!(
-            "{}://{}:{}/check",
-            server.http_protocol(),
-            server.host,
-            server.port
-        );
+        let url = format!("{}/check", server.base_url_http());
         let request = Request::get(&url)
             .auth(server_auth)
             .query(&CheckQueryParams {

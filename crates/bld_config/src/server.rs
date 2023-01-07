@@ -32,22 +32,6 @@ impl BldLocalServerConfig {
     fn default_pipelines() -> String {
         definitions::LOCAL_SERVER_PIPELINES.to_owned()
     }
-
-    pub fn http_protocol(&self) -> String {
-        if self.tls.is_some() {
-            "https".to_string()
-        } else {
-            "http".to_string()
-        }
-    }
-
-    pub fn ws_protocol(&self) -> String {
-        if self.tls.is_some() {
-            "https".to_string()
-        } else {
-            "http".to_string()
-        }
-    }
 }
 
 impl Default for BldLocalServerConfig {
@@ -82,7 +66,7 @@ pub struct BldRemoteServerConfig {
 impl BldRemoteServerConfig {
     /// Checks the value of the tls field and returns the appropriate form
     /// of the http protocol to be used, either http or https.
-    pub fn http_protocol(&self) -> String {
+    fn http_protocol(&self) -> String {
         if self.tls {
             "https".to_string()
         } else {
@@ -98,7 +82,7 @@ impl BldRemoteServerConfig {
 
     /// Checks the value of the tls field and returns the appropriate form
     /// of th ws protocol to be used, either ws or wss.
-    pub fn ws_protocol(&self) -> String {
+    fn ws_protocol(&self) -> String {
         if self.tls {
             "wss".to_string()
         } else {

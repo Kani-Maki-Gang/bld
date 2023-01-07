@@ -30,8 +30,7 @@ impl BldCommand for InspectCommand {
         let config = BldConfig::load()?;
         let server = config.server_or_first(self.server.as_ref())?;
         let server_auth = config.same_auth_as(server)?;
-        let protocol = server.http_protocol();
-        let url = format!("{protocol}://{}:{}/inspect", server.host, server.port);
+        let url = format!("{}/inspect", server.base_url_http());
         let request = Request::post(&url).auth(server_auth);
 
         debug!("sending http request to {}", url);
