@@ -80,18 +80,20 @@ pub struct BldRemoteServerConfig {
 }
 
 impl BldRemoteServerConfig {
-    fn http_protocol_internal(tls: bool) -> String {
-        if tls {
+    /// Checks the value of the tls field and returns the appropriate form
+    /// of the http protocol to be used, either http or https.
+    pub fn http_protocol(&self) -> String {
+        if self.tls {
             "https".to_string()
         } else {
             "http".to_string()
         }
     }
 
-    /// Checks the value of the tls field and returns the appropriate form
-    /// of the http protocol to be used, either http or https.
-    pub fn http_protocol(&self) -> String {
-        Self::http_protocol_internal(self.tls)
+    // Returns the base url for the server using the http or https protocol
+    // depending on the server's tls options.
+    pub fn base_url_http(&self) -> String {
+        format!("{}://{}:{}", self.http_protocol(), self.host, self.port)
     }
 
     /// Checks the value of the tls field and returns the appropriate form
@@ -102,6 +104,12 @@ impl BldRemoteServerConfig {
         } else {
             "ws".to_string()
         }
+    }
+
+    // Returns the base url for the server using the ws or wss protocol
+    // depending on the server's tls options.
+    pub fn base_url_ws(&self) -> String {
+        format!("{}://{}:{}", self.ws_protocol(), self.host, self.port)
     }
 
     pub fn bearer(&self) -> Result<String> {

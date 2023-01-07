@@ -8,7 +8,6 @@ use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::context::ContextSender;
 use bld_core::database::{new_connection_pool, pipeline_runs};
-use bld_core::execution::Execution;
 use bld_core::logger::LoggerSender;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::RunnerBuilder;
@@ -79,14 +78,12 @@ impl BldCommand for WorkerCommand {
         }
         .into_arc();
 
-        let exec = Execution::new(pool.clone(), &run_id).into_arc();
-
         let (worker_tx, worker_rx) = channel(4096);
         let worker_tx = Some(worker_tx).into_arc();
 
         System::new().block_on(async move {
             let logger = LoggerSender::file(config.clone(), &run_id)?.into_arc();
-            let context = ContextSender::server(pool, &run_id).into_arc();
+            let context = ContextSender::server(config.clone(), pool, &run_id).into_arc();
             let (cmd_signals, signals_rx) = CommandSignals::new()?;
 
             let socket_handle = spawn(async move {
@@ -102,7 +99,6 @@ impl BldCommand for WorkerCommand {
                     .config(config)
                     .proxy(proxy)
                     .pipeline(&pipeline)
-                    .execution(exec)
                     .logger(logger)
                     .environment(environment)
                     .variables(variables)

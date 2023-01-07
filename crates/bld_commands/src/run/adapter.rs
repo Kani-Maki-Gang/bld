@@ -2,15 +2,18 @@ use actix::{io::SinkWrite, Actor, StreamHandler};
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
+use bld_core::context::ContextSender;
 use bld_core::logger::LoggerSender;
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::ExecClient;
-use bld_sock::messages::RunInfo;
+use bld_sock::messages::ExecClientMessage;
 use bld_utils::request::{Request, WebSocket};
 use bld_utils::sync::IntoArc;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::sleep;
 use tracing::debug;
 
 use crate::signals::CommandSignals;
@@ -197,20 +200,20 @@ impl RunAdapter {
         let (cmd_signals, signals_rx) = CommandSignals::new()?;
 
         let runner = RunnerBuilder::default()
-            .config(mode.config)
+            .config(mode.config.clone())
             .pipeline(&mode.pipeline)
             .logger(LoggerSender::shell().into_arc())
+            .context(ContextSender::local(mode.config.clone()).into_arc())
             .signals(signals_rx)
             .environment(mode.environment.into_arc())
             .variables(mode.variables.into_arc())
             .build()
             .await?;
 
+        debug!("starting run");
         let result = runner.run().await;
 
         cmd_signals.stop().await?;
-        System::current().stop();
-
         result
     }
 
@@ -225,7 +228,11 @@ impl RunAdapter {
             server.port
         );
 
-        let data = RunInfo::new(&mode.pipeline, Some(mode.environment), Some(mode.variables));
+        let data = ExecClientMessage::EnqueueRun {
+            name: mode.pipeline,
+            environment: Some(mode.environment),
+            variables: Some(mode.variables),
+        };
 
         let web_socket = WebSocket::new(&url)?.auth(server_auth);
 
@@ -238,15 +245,23 @@ impl RunAdapter {
         let (sink, stream) = framed.split();
         let address = ExecClient::create(|ctx| {
             ExecClient::add_stream(stream, ctx);
-            ExecClient::new(LoggerSender::shell().into_arc(), SinkWrite::new(sink, ctx))
+            ExecClient::new(
+                mode.server.to_owned(),
+                LoggerSender::shell().into_arc(),
+                ContextSender::local(mode.config.clone()).into_arc(),
+                SinkWrite::new(sink, ctx),
+            )
         });
 
-        debug!(
-            "sending self over: {:?} {:?} {:?}",
-            data.name, data.variables, data.environment
-        );
+        debug!("sending message to socket: {:?}", data);
 
-        address.send(data).await.map_err(|e| anyhow!(e))
+        address.send(data).await.map_err(|e| anyhow!(e))?;
+
+        while address.connected() {
+            sleep(Duration::from_millis(200)).await;
+        }
+
+        Ok(())
     }
 
     async fn run_http(mode: HttpRequest) -> Result<()> {
@@ -260,36 +275,28 @@ impl RunAdapter {
             server.port
         );
 
-        let data = RunInfo::new(
-            &mode.pipeline,
-            Some(mode.environment.clone()),
-            Some(mode.variables.clone()),
-        );
+        let data = ExecClientMessage::EnqueueRun {
+            name: mode.pipeline,
+            environment: Some(mode.environment.clone()),
+            variables: Some(mode.variables.clone()),
+        };
 
-        let result = Request::post(&url)
+        Request::post(&url)
             .auth(server_auth)
             .send_json(&data)
             .await
             .map(|_: String| {
                 println!("pipeline has been scheduled to run");
-            });
-
-        System::current().stop();
-        result
+            })
     }
 
     pub fn run(self) -> Result<()> {
-        let system = System::new();
-
-        let result = system.block_on(async move {
+        System::new().block_on(async move {
             match self.config {
                 RunConfiguration::Local(run) => Self::run_local(run).await,
                 RunConfiguration::Http(http) => Self::run_http(http).await,
                 RunConfiguration::WebSocket(socket) => Self::run_web_socket(socket).await,
             }
-        });
-
-        system.run()?;
-        result
+        })
     }
 }

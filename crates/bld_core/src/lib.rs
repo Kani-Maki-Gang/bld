@@ -2,7 +2,6 @@ extern crate diesel;
 
 pub mod context;
 pub mod database;
-pub mod execution;
 pub mod logger;
 pub mod platform;
 pub mod proxies;
