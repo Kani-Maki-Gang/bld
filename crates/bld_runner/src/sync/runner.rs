@@ -81,6 +81,8 @@ impl RunnerV1 {
             self.platform.keep_alive().await?;
         }
 
+        self.context.remove_platform(self.platform.id()).await?;
+
         Ok(())
     }
 
@@ -353,7 +355,6 @@ impl RunnerV1 {
         debug!("starting cleanup operations for runner");
         self.register_completion().await?;
         self.ipc_send_completed().await?;
-        self.context.remove_platform(self.platform.id()).await?;
         Ok(())
     }
 
@@ -408,7 +409,7 @@ impl RunnerV1 {
                             runner_handle.abort();
                             logger
                                 .write_line(
-                                    "Runner interruped. Starting graceful shutdown...".to_string(),
+                                    "Runner interruped. Starting graceful shutdown...".to_owned(),
                                 )
                                 .await?;
                             break context.cleanup().await;

@@ -8,7 +8,6 @@ use bld_runner::{Load, Yaml};
 use bld_server::requests::CheckQueryParams;
 use bld_utils::{request::Request, sync::IntoArc};
 use clap::Args;
-use tracing::error;
 
 #[derive(Args)]
 #[command(about = "Checks a pipeline file for errors")]
@@ -46,10 +45,7 @@ impl CheckCommand {
             })?;
 
         System::new().block_on(async move {
-            request.send::<String>().await.map(|_| ()).map_err(|e| {
-                error!("{e}");
-                e
-            })
+            request.send::<String>().await.map(|_| ())
         })
     }
 }
