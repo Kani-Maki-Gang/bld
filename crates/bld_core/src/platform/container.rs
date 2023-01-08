@@ -166,7 +166,8 @@ impl Container {
         if let Err(e) = client.containers().get(id).stop(None).await {
             error!("could not stop container, {e}");
             if let Some(entity) = &self.entity {
-                let _ = self.context
+                let _ = self
+                    .context
                     .set_container_as_faulted(entity.id.to_owned())
                     .await
                     .map_err(|e| error!("could not set container as faulted, {e}"));
@@ -177,7 +178,8 @@ impl Container {
         if let Err(e) = client.containers().get(id).delete().await {
             error!("could not stop container, {e}");
             if let Some(entity) = &self.entity {
-                let _ = self.context
+                let _ = self
+                    .context
                     .set_container_as_faulted(entity.id.to_owned())
                     .await
                     .map_err(|e| error!("could not set container as faulted, {e}"));
@@ -186,7 +188,8 @@ impl Container {
         }
 
         if let Some(entity) = &self.entity {
-            let _ = self.context
+            let _ = self
+                .context
                 .set_container_as_removed(entity.id.to_owned())
                 .await
                 .map_err(|e| error!("could not set container as faulted, {e}"));

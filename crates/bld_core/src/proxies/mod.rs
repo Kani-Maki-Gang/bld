@@ -4,6 +4,7 @@ use bld_config::{definitions::TOOL_DIR, path, BldConfig};
 use bld_utils::fs::IsYaml;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
+use std::env::current_dir;
 use std::fs::{create_dir_all, read_to_string, remove_file, File};
 use std::io::Write;
 use std::path::PathBuf;
@@ -26,7 +27,7 @@ impl Default for PipelineFileSystemProxy {
 impl PipelineFileSystemProxy {
     pub fn path(&self, name: &str) -> anyhow::Result<PathBuf> {
         match self {
-            Self::Local => Ok(path![std::env::current_dir()?, TOOL_DIR, name]),
+            Self::Local => Ok(path![current_dir()?, TOOL_DIR, name]),
             Self::Server { config, pool } => {
                 let mut conn = pool.get()?;
                 let pip = pipeline::select_by_name(&mut conn, name)?;
