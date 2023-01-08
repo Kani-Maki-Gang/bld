@@ -11,28 +11,36 @@ A simple and BLAZINGLY fast CI/CD tool.
 
 This is a basic hello-world.yaml pipeline
 ```yaml
-name: Hello world pipeline
-runs-on: machine
+version: 1
+runs_on: machine
 steps:
-- name: Say hello
-  exec:
+- exec:
   - echo hello world
 ```
 
 This is a basic hello-world.container.yaml pipeline
 ```yaml
-name: Hello world from a container
-runs-on: ubuntu
+version: 1
+runs_on: ubuntu
 steps:
-- name: Say hello
-  exec:
+- exec:
   - echo hello world
 ```
 
-Run these 2 pipeline with
+This is calling the hello-world.yaml pipeline from another pipeline
+```yaml
+version: 1
+runs_on: ubuntu
+steps:
+- exec:
+  - ext: hello-world.yaml
+```
+
+Run these 3 pipeline with
 ```bash
 $ bld run -p hello-world.yaml
 $ bld run -p hello-world.container.yaml
+$ bld run -p parent.yaml
 ```
 
 # Wiki
