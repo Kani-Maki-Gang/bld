@@ -1,5 +1,6 @@
 use crate::database::pipeline_run_containers::{
-    self, InsertPipelineRunContainer, PRC_STATE_FAULTED, PRC_STATE_KEEP_ALIVE, PRC_STATE_REMOVED,
+    self, InsertPipelineRunContainer, PipelineRunContainers, PRC_STATE_FAULTED,
+    PRC_STATE_KEEP_ALIVE, PRC_STATE_REMOVED,
 };
 use crate::database::pipeline_runs::{self, PR_STATE_FINISHED, PR_STATE_RUNNING};
 use crate::platform::TargetPlatform;
@@ -23,7 +24,10 @@ pub enum ContextMessage {
     SetPipelineAsRunning(String),
     SetPipelineAsFinished(String),
     SetPipelineAsFaulted(String),
-    AddContainer(String),
+    AddContainer {
+        container_id: String,
+        resp_tx: oneshot::Sender<Option<PipelineRunContainers>>,
+    },
     SetContainerAsRemoved(String),
     SetContainerAsFaulted(String),
     KeepAliveContainer(String),
@@ -93,22 +97,42 @@ impl Context {
         while let Some(message) = rx.recv().await {
             match message {
                 ContextMessage::AddRemoteRun(remote_run) => self.add_remote_run(remote_run),
+
                 ContextMessage::RemoveRemoteRun(run_id) => self.remove_remote_run(run_id),
+
                 ContextMessage::AddPlatform(platform) => self.add_platform(platform),
+
                 ContextMessage::RemovePlatform(platform_id) => self.remove_platform(&platform_id),
+
                 ContextMessage::SetPipelineAsRunning(run_id) => {
                     self.set_pipeline_as_running(&run_id)?
                 }
+
                 ContextMessage::SetPipelineAsFinished(run_id) => {
                     self.set_pipeline_as_finished(&run_id)?
                 }
+
                 ContextMessage::SetPipelineAsFaulted(run_id) => {
                     self.set_pipeline_as_faulted(&run_id)?
                 }
-                ContextMessage::AddContainer(id) => self.add_container(&id)?,
-                ContextMessage::SetContainerAsRemoved(id) => self.set_container_as_removed(&id)?,
-                ContextMessage::SetContainerAsFaulted(id) => self.set_container_as_faulted(&id)?,
-                ContextMessage::KeepAliveContainer(id) => self.keep_alive_container(&id)?,
+
+                ContextMessage::AddContainer {
+                    container_id,
+                    resp_tx,
+                } => self.add_container(&container_id, resp_tx)?,
+
+                ContextMessage::SetContainerAsRemoved(entity_id) => {
+                    self.set_container_as_removed(&entity_id)?
+                }
+
+                ContextMessage::SetContainerAsFaulted(entity_id) => {
+                    self.set_container_as_faulted(&entity_id)?
+                }
+
+                ContextMessage::KeepAliveContainer(entity_id) => {
+                    self.keep_alive_container(&entity_id)?
+                }
+
                 ContextMessage::DoCleanup(resp_tx) => self.do_cleanup(resp_tx).await?,
             }
         }
@@ -160,10 +184,17 @@ impl Context {
         self.update_pipeline_state(run_id, PRC_STATE_FAULTED)
     }
 
-    fn add_container(&mut self, container_id: &str) -> Result<()> {
+    fn add_container(
+        &mut self,
+        container_id: &str,
+        resp_tx: oneshot::Sender<Option<PipelineRunContainers>>,
+    ) -> Result<()> {
+        let mut entity = None;
+
         if let Self::Server { run_id, pool, .. } = self {
             let mut conn = pool.get()?;
-            pipeline_run_containers::insert(
+
+            entity = pipeline_run_containers::insert(
                 &mut conn,
                 InsertPipelineRunContainer {
                     id: &Uuid::new_v4().to_string(),
@@ -171,32 +202,39 @@ impl Context {
                     container_id,
                     state: "active",
                 },
-            )?;
+            )
+            .map_err(|e| error!("{e}"))
+            .ok();
+        }
+
+        resp_tx
+            .send(entity)
+            .map_err(|_| anyhow!("oneshot response sender dropped"))?;
+
+        Ok(())
+    }
+
+    fn set_container_as_removed(&mut self, entity_id: &str) -> Result<()> {
+        if let Self::Server { pool, .. } = self {
+            let mut conn = pool.get()?;
+            pipeline_run_containers::update_state(&mut conn, entity_id, PRC_STATE_REMOVED)?;
         }
         Ok(())
     }
 
-    fn set_container_as_removed(&mut self, id: &str) -> Result<()> {
+    fn set_container_as_faulted(&mut self, entity_id: &str) -> Result<()> {
         if let Self::Server { pool, .. } = self {
             let mut conn = pool.get()?;
-            pipeline_run_containers::update_state(&mut conn, id, PRC_STATE_REMOVED)?;
-        }
-        Ok(())
-    }
-
-    fn set_container_as_faulted(&mut self, id: &str) -> Result<()> {
-        if let Self::Server { pool, .. } = self {
-            let mut conn = pool.get()?;
-            pipeline_run_containers::update_state(&mut conn, id, PRC_STATE_FAULTED)?;
+            pipeline_run_containers::update_state(&mut conn, entity_id, PRC_STATE_FAULTED)?;
         };
 
         Ok(())
     }
 
-    fn keep_alive_container(&mut self, id: &str) -> Result<()> {
+    fn keep_alive_container(&mut self, entity_id: &str) -> Result<()> {
         if let Self::Server { pool, .. } = self {
             let mut conn = pool.get()?;
-            pipeline_run_containers::update_state(&mut conn, id, PRC_STATE_KEEP_ALIVE)?;
+            pipeline_run_containers::update_state(&mut conn, entity_id, PRC_STATE_KEEP_ALIVE)?;
         }
         Ok(())
     }
@@ -299,77 +337,87 @@ impl ContextSender {
         self.tx
             .send(ContextMessage::AddRemoteRun(remote_run))
             .await
-            .map_err(|e| anyhow!(e.to_string()))
+            .map_err(|e| anyhow!("{e}"))
     }
 
     pub async fn remove_remote_run(&self, run_id: &str) -> Result<()> {
         self.tx
             .send(ContextMessage::RemoveRemoteRun(run_id.to_owned()))
             .await
-            .map_err(|e| anyhow!(e.to_string()))
+            .map_err(|e| anyhow!("{e}"))
     }
 
     pub async fn add_platform(&self, platform: Arc<TargetPlatform>) -> Result<()> {
         self.tx
             .send(ContextMessage::AddPlatform(platform))
             .await
-            .map_err(|e| anyhow!(e.to_string()))
+            .map_err(|e| anyhow!("{e}"))
     }
 
     pub async fn remove_platform(&self, platform_id: String) -> Result<()> {
         self.tx
             .send(ContextMessage::RemovePlatform(platform_id))
             .await
-            .map_err(|e| anyhow!(e.to_string()))
+            .map_err(|e| anyhow!("{e}"))
     }
 
     pub async fn set_pipeline_as_running(&self, run_id: String) -> Result<()> {
         self.tx
             .send(ContextMessage::SetPipelineAsRunning(run_id))
             .await
-            .map_err(|e| anyhow!(e.to_string()))
+            .map_err(|e| anyhow!("{e}"))
     }
 
     pub async fn set_pipeline_as_finished(&self, run_id: String) -> Result<()> {
         self.tx
             .send(ContextMessage::SetPipelineAsFinished(run_id))
             .await
-            .map_err(|e| anyhow!(e.to_string()))
+            .map_err(|e| anyhow!("{e}"))
     }
 
     pub async fn set_pipeline_as_faulted(&self, run_id: String) -> Result<()> {
         self.tx
             .send(ContextMessage::SetPipelineAsFaulted(run_id))
             .await
-            .map_err(|e| anyhow!(e.to_string()))
+            .map_err(|e| anyhow!("{e}"))
     }
 
-    pub async fn add_container(&self, id: String) -> Result<()> {
+    pub async fn add_container(
+        &self,
+        container_id: String,
+    ) -> Result<Option<PipelineRunContainers>> {
+        let (resp_tx, resp_rx) = oneshot::channel();
+
         self.tx
-            .send(ContextMessage::AddContainer(id))
+            .send(ContextMessage::AddContainer {
+                container_id,
+                resp_tx,
+            })
             .await
-            .map_err(|e| anyhow!(e.to_string()))
+            .map_err(|e| anyhow!(e.to_string()))?;
+
+        resp_rx.await.map_err(|e| anyhow!("{e}"))
     }
 
     pub async fn set_container_as_removed(&self, id: String) -> Result<()> {
         self.tx
             .send(ContextMessage::SetContainerAsRemoved(id))
             .await
-            .map_err(|e| anyhow!(e.to_string()))
+            .map_err(|e| anyhow!("{e}"))
     }
 
     pub async fn set_container_as_faulted(&self, id: String) -> Result<()> {
         self.tx
             .send(ContextMessage::SetContainerAsFaulted(id))
             .await
-            .map_err(|e| anyhow!(e.to_string()))
+            .map_err(|e| anyhow!("{e}"))
     }
 
     pub async fn keep_alive(&self, id: String) -> Result<()> {
         self.tx
             .send(ContextMessage::KeepAliveContainer(id))
             .await
-            .map_err(|e| anyhow!(e.to_string()))
+            .map_err(|e| anyhow!("{e}"))
     }
 
     pub async fn cleanup(&self) -> Result<()> {
@@ -378,7 +426,7 @@ impl ContextSender {
         self.tx
             .send(ContextMessage::DoCleanup(resp_tx))
             .await
-            .map_err(|e| anyhow!(e.to_string()))?;
+            .map_err(|e| anyhow!("{e}"))?;
 
         resp_rx.await.map_err(|e| anyhow!(e))
     }
