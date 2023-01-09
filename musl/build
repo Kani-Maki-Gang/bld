@@ -1,0 +1,4 @@
+#! /usr/bin/sh
+
+docker rmi bld-musl-builder
+docker build -t bld-musl-builder .

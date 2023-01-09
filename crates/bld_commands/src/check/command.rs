@@ -44,9 +44,7 @@ impl CheckCommand {
                 pipeline: self.pipeline.to_owned(),
             })?;
 
-        System::new().block_on(async move {
-            request.send::<String>().await.map(|_| ())
-        })
+        System::new().block_on(async move { request.send::<String>().await.map(|_| ()) })
     }
 }
 

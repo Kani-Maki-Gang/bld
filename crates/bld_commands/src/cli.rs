@@ -41,7 +41,7 @@ enum Commands {
 }
 
 #[derive(Parser)]
-#[command(author = "Kostas Vlachos", version = VERSION, about = "A simple CI/CD")]
+#[command(author = "Kostas Vlachos", name = "Bld", version = VERSION, about = "A simple CI/CD")]
 #[command(propagate_version = true)]
 pub struct Cli {
     #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
