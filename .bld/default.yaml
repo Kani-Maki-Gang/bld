@@ -10,7 +10,6 @@ steps:
   working_dir: /usr/src
   exec:
     - git clone -b bld:var:branch https://github.com/kostas-vl/bld.git
-    - cd ./bld && git branch --show-current
 
 - name: Build project
   working_dir: /usr/src/bld
