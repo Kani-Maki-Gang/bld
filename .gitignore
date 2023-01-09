@@ -1,6 +1,5 @@
 /target
 /.build
-/.bld
 /.vscode
 /.vimspector.json
 /musl/dist

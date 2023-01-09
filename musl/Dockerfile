@@ -57,10 +57,3 @@ ENV X86_64_UNKNOWN_LINUX_MUSL_OPENSSL_DIR=/usr/local/musl/ \
     TARGET=musl
 
 RUN echo '%sudo   ALL=(ALL:ALL) NOPASSWD:ALL' > /etc/sudoers.d/nopasswd
-
-RUN git clone https://github.com/kostas-vl/bld.git -b feat/target-musl
-
-WORKDIR /usr/src/bld
-
-RUN cargo build --release --target x86_64-unknown-linux-musl
-
