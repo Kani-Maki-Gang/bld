@@ -1,27 +1,69 @@
-use crate::messages::RunInfo;
+use crate::messages::{ExecClientMessage, ExecServerMessage};
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, Context, Handler, StreamHandler};
 use actix_codec::Framed;
 use actix_web::rt::{spawn, System};
+use anyhow::Result;
 use awc::error::WsProtocolError;
 use awc::ws::{Codec, Frame, Message};
 use awc::BoxedSocket;
+use bld_core::context::ContextSender;
 use bld_core::logger::LoggerSender;
 use futures::stream::SplitSink;
 use std::sync::Arc;
 use tracing::{debug, error};
 
 pub struct ExecClient {
+    run_id: Option<String>,
+    server: String,
     logger: Arc<LoggerSender>,
+    context: Arc<ContextSender>,
     writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>,
 }
 
 impl ExecClient {
     pub fn new(
+        server: String,
         logger: Arc<LoggerSender>,
+        context: Arc<ContextSender>,
         writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>,
     ) -> Self {
-        Self { logger, writer }
+        Self {
+            run_id: None,
+            server,
+            logger,
+            context,
+            writer,
+        }
+    }
+
+    fn handle_server_message(&mut self, message: &str) -> Result<()> {
+        let message: ExecServerMessage = serde_json::from_str(message)?;
+
+        match message {
+            ExecServerMessage::QueuedRun { run_id } => {
+                self.run_id = Some(run_id.to_owned());
+                let server = self.server.to_owned();
+                let context = self.context.clone();
+
+                spawn(async move {
+                    if let Err(e) = context.add_remote_run(server, run_id).await {
+                        error!("{e}");
+                    }
+                });
+            }
+
+            ExecServerMessage::Log { content } => {
+                let logger = self.logger.clone();
+                spawn(async move {
+                    if let Err(e) = logger.write_line(content).await {
+                        error!("{e}");
+                    }
+                });
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -40,10 +82,10 @@ impl Actor for ExecClient {
     }
 }
 
-impl Handler<RunInfo> for ExecClient {
+impl Handler<ExecClientMessage> for ExecClient {
     type Result = ();
 
-    fn handle(&mut self, msg: RunInfo, _ctx: &mut Self::Context) {
+    fn handle(&mut self, msg: ExecClientMessage, _ctx: &mut Self::Context) {
         if let Ok(msg) = serde_json::to_string(&msg) {
             let _ = self.writer.write(Message::Text(msg.into()));
         }
@@ -55,12 +97,9 @@ impl StreamHandler<Result<Frame, WsProtocolError>> for ExecClient {
         match msg {
             Ok(Frame::Text(bt)) => {
                 let message = format!("{}", String::from_utf8_lossy(&bt[..]));
-                let logger = self.logger.clone();
-                spawn(async move {
-                    if let Err(e) = logger.write_line(message).await {
-                        error!("{e}");
-                    }
-                });
+                let _ = self
+                    .handle_server_message(&message)
+                    .map_err(|e| error!("{e}"));
             }
             Ok(Frame::Close(_)) => ctx.stop(),
             _ => {}
@@ -68,6 +107,16 @@ impl StreamHandler<Result<Frame, WsProtocolError>> for ExecClient {
     }
 
     fn finished(&mut self, ctx: &mut Context<Self>) {
+        if let Some(run_id) = &self.run_id {
+            let context = self.context.clone();
+            let run_id = run_id.clone();
+            spawn(async move {
+                let _ = context
+                    .remove_remote_run(&run_id)
+                    .await
+                    .map_err(|e| error!("{e}"));
+            });
+        }
         ctx.stop();
     }
 }

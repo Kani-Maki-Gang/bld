@@ -45,12 +45,7 @@ impl PushCommand {
         );
 
         let server_auth = config.same_auth_as(server)?;
-        let url = format!(
-            "{}://{}:{}/push",
-            server.http_protocol(),
-            server.host,
-            server.port
-        );
+        let url = format!("{}/push", server.base_url_http());
 
         let mut pipelines = vec![PushInfo::new(
             &self.pipeline,
@@ -81,7 +76,7 @@ impl PushCommand {
 
             let _ = Request::post(&url)
                 .auth(server_auth)
-                .send_json(info)
+                .send_json(&info)
                 .await
                 .map(|_: String| {
                     println!("Done.");

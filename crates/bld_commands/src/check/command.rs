@@ -8,7 +8,6 @@ use bld_runner::{Load, Yaml};
 use bld_server::requests::CheckQueryParams;
 use bld_utils::{request::Request, sync::IntoArc};
 use clap::Args;
-use tracing::error;
 
 #[derive(Args)]
 #[command(about = "Checks a pipeline file for errors")]
@@ -38,12 +37,7 @@ impl CheckCommand {
         let server = config.server(server)?;
         let server_auth = config.same_auth_as(server)?;
 
-        let url = format!(
-            "{}://{}:{}/check",
-            server.http_protocol(),
-            server.host,
-            server.port
-        );
+        let url = format!("{}/check", server.base_url_http());
         let request = Request::get(&url)
             .auth(server_auth)
             .query(&CheckQueryParams {
@@ -51,10 +45,7 @@ impl CheckCommand {
             })?;
 
         System::new().block_on(async move {
-            request.send::<String>().await.map(|_| ()).map_err(|e| {
-                error!("{e}");
-                e
-            })
+            request.send::<String>().await.map(|_| ())
         })
     }
 }

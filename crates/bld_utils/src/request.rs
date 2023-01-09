@@ -57,7 +57,7 @@ impl Request {
         Self::do_send::<T>(send_request).await
     }
 
-    pub async fn send_json<T, V>(self, json: T) -> Result<V>
+    pub async fn send_json<T, V>(self, json: &T) -> Result<V>
     where
         T: 'static + Serialize,
         V: DeserializeOwned,
@@ -113,9 +113,8 @@ impl WebSocket {
     }
 
     pub fn auth(mut self, server: &BldRemoteServerConfig) -> Self {
-        if let Some(Auth::OAuth2(_info)) = &server.auth {
-            let path = path![REMOTE_SERVER_OAUTH2, &server.name];
-            if let Ok(token) = fs::read_to_string(path) {
+        if let Some(Auth::OAuth2(_)) = &server.auth {
+            if let Ok(token) = server.bearer() {
                 self.request = self
                     .request
                     .header("Authorization", format!("Bearer {token}"));

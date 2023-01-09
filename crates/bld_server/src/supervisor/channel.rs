@@ -44,12 +44,7 @@ impl SupervisorMessageReceiver {
             sleep(Duration::from_millis(300)).await;
 
             let supervisor = &self.config.local.supervisor;
-            let url = format!(
-                "{}://{}:{}/ws-server/",
-                supervisor.ws_protocol(),
-                supervisor.host,
-                supervisor.port
-            );
+            let url = format!("{}/ws-server/", supervisor.base_url_ws());
 
             debug!("establishing web socket connection on {}", url);
 
@@ -145,6 +140,14 @@ impl SupervisorMessageSender {
             run_id,
             variables,
             environment,
+        };
+
+        self.tx.send(message).await.map_err(|e| anyhow!(e))
+    }
+
+    pub async fn stop(&self, run_id: &str) -> Result<()> {
+        let message = ServerMessages::Stop {
+            run_id: run_id.to_owned(),
         };
 
         self.tx.send(message).await.map_err(|e| anyhow!(e))

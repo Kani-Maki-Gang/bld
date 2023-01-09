@@ -1,11 +1,11 @@
+use crate::logger::LoggerSender;
 use anyhow::{bail, Result};
 use bld_config::definitions::LOCAL_MACHINE_TMP_DIR;
 use bld_config::{os_name, path, OSname};
-use bld_core::logger::LoggerSender;
 use std::collections::HashMap;
 use std::env::current_dir;
 use std::fmt::Write;
-use std::fs::{copy, create_dir_all};
+use std::fs::{copy, create_dir_all, remove_dir_all};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 use std::sync::Arc;
@@ -90,7 +90,7 @@ impl Machine {
     }
 
     pub fn dispose(&self) -> Result<()> {
-        std::fs::remove_dir_all(&self.tmp_dir)?;
+        remove_dir_all(&self.tmp_dir)?;
         Ok(())
     }
 }

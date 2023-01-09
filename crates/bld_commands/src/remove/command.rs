@@ -27,13 +27,12 @@ impl BldCommand for RemoveCommand {
         );
 
         let server_auth = config.same_auth_as(server)?;
-        let protocol = server.http_protocol();
-        let url = format!("{protocol}://{}:{}/remove", server.host, server.port);
+        let url = format!("{}/remove", server.base_url_http());
         let request = Request::post(&url).auth(server_auth);
 
         System::new().block_on(async move {
             debug!("sending request to {}", url);
-            request.send_json(self.pipeline).await.map(|r: String| {
+            request.send_json(&self.pipeline).await.map(|r: String| {
                 println!("{r}");
             })
         })

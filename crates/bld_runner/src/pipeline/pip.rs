@@ -9,7 +9,7 @@ pub struct PipelineV1 {
     pub name: Option<String>,
     pub runs_on: String,
 
-    #[serde(default)]
+    #[serde(default = "PipelineV1::default_dispose")]
     pub dispose: bool,
 
     #[serde(default)]
@@ -29,11 +29,19 @@ pub struct PipelineV1 {
 }
 
 impl PipelineV1 {
+    fn default_dispose() -> bool {
+        true
+    }
+
     pub fn local_dependencies(&self) -> Vec<String> {
-        self.external
+        let from_steps = self.steps.iter().flat_map(|s| s.local_dependencies());
+
+        let from_external = self
+            .external
             .iter()
             .filter(|e| e.server.is_none())
-            .map(|e| e.pipeline.to_owned())
-            .collect()
+            .map(|e| e.pipeline.to_owned());
+
+        from_steps.chain(from_external).collect()
     }
 }

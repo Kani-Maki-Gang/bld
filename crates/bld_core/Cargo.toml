@@ -13,10 +13,15 @@ bld_config = { path = "../bld_config" }
 bld_utils = { path = "../bld_utils" }
 diesel = { version = "2.0.2", features = ["sqlite", "r2d2"] }
 diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
+futures = "0.3.15"
+futures-util = "0.3.15"
+shiplift = "0.7.0"
 serde = "1.0.126"
 serde_derive = "1.0.126"
 serde_json = "1.0.64"
+tar = "0.4.35"
 termcolor = "1.1.2"
 tokio = { version = "1.15", features = ["full"] }
 tracing = "0.1.36"
 uuid = { version = "0.8.2", features = ["v4"] }
+nix = { version = "0.26.1", features = ["process"] }

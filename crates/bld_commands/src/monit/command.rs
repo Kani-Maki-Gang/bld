@@ -46,12 +46,7 @@ impl MonitCommand {
         let config = BldConfig::load()?;
         let server = config.server_or_first(self.server.as_ref())?;
         let server_auth = config.same_auth_as(server)?.to_owned();
-        let url = format!(
-            "{}://{}:{}/ws-monit/",
-            server.ws_protocol(),
-            server.host,
-            server.port
-        );
+        let url = format!("{}/ws-monit/", server.base_url_ws());
 
         debug!("establishing web socket connection on {}", url);
 

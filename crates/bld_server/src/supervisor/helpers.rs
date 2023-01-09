@@ -5,7 +5,7 @@ use actix_web::web::Data;
 use anyhow::{bail, Result};
 use bld_core::database::pipeline_runs;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_sock::messages::RunInfo;
+use bld_sock::messages::ExecClientMessage;
 use bld_utils::fs::IsYaml;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::SqliteConnection;
@@ -18,23 +18,29 @@ pub fn enqueue_worker(
     proxy: Data<PipelineFileSystemProxy>,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
     supervisor_sender: Data<SupervisorMessageSender>,
-    data: RunInfo,
+    data: ExecClientMessage,
 ) -> Result<String> {
-    let path = proxy.path(&data.name)?;
+    let ExecClientMessage::EnqueueRun {
+        name,
+        environment,
+        variables,
+    } = data;
+
+    let path = proxy.path(&name)?;
     if !path.is_yaml() {
         bail!("pipeline file not found");
     }
 
     let run_id = Uuid::new_v4().to_string();
     let mut conn = pool.get()?;
-    let run = pipeline_runs::insert(&mut conn, &run_id, &data.name, &user.name)?;
+    let run = pipeline_runs::insert(&mut conn, &run_id, &name, &user.name)?;
 
-    let variables = data.variables.map(hash_map_to_var_string);
-    let environment = data.environment.map(hash_map_to_var_string);
+    let variables = variables.map(hash_map_to_var_string);
+    let environment = environment.map(hash_map_to_var_string);
 
     spawn(async move {
         let result = supervisor_sender
-            .enqueue(data.name.to_string(), run_id, variables, environment)
+            .enqueue(name.to_string(), run_id, variables, environment)
             .await;
 
         match result {

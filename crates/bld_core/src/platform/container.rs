@@ -1,8 +1,8 @@
+use crate::context::ContextSender;
+use crate::database::pipeline_run_containers::PipelineRunContainers;
+use crate::logger::LoggerSender;
 use anyhow::{bail, Result};
 use bld_config::BldConfig;
-use bld_core::context::ContextSender;
-use bld_core::execution::Execution;
-use bld_core::logger::LoggerSender;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
 use shiplift::tty::TtyChunk;
@@ -21,7 +21,8 @@ pub struct Container {
     pub image: String,
     pub client: Option<Docker>,
     pub logger: Arc<LoggerSender>,
-    pub containers: Arc<ContextSender>,
+    pub context: Arc<ContextSender>,
+    pub entity: Option<PipelineRunContainers>,
 }
 
 impl Container {
@@ -81,19 +82,20 @@ impl Container {
         config: Arc<BldConfig>,
         env: Arc<HashMap<String, String>>,
         logger: Arc<LoggerSender>,
-        containers: Arc<ContextSender>,
+        context: Arc<ContextSender>,
     ) -> Result<Self> {
         let client = Container::docker(&config)?;
         let env: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
         let id = Container::create(&client, image, &env, &mut logger.clone()).await?;
-        containers.add(id.clone()).await?;
+        let entity = context.add_container(id.clone()).await?;
         Ok(Self {
             config: Some(config),
             image: image.to_string(),
             client: Some(client),
             id: Some(id),
             logger,
-            containers,
+            context,
+            entity,
         })
     }
 
@@ -114,12 +116,7 @@ impl Container {
         Ok(())
     }
 
-    pub async fn sh(
-        &self,
-        working_dir: &Option<String>,
-        input: &str,
-        execution: Arc<Execution>,
-    ) -> Result<()> {
+    pub async fn sh(&self, working_dir: &Option<String>, input: &str) -> Result<()> {
         let client = self.get_client()?;
         let id = self.get_id()?;
         let input = working_dir
@@ -138,8 +135,6 @@ impl Container {
         let mut exec_stream = exec.start();
 
         while let Some(result) = exec_stream.next().await {
-            execution.check_stop_signal()?;
-
             let chunk = match result {
                 Ok(TtyChunk::StdOut(bytes)) => String::from_utf8(bytes)?,
                 Ok(TtyChunk::StdErr(bytes)) => String::from_utf8(bytes)?,
@@ -161,7 +156,7 @@ impl Container {
 
     pub async fn keep_alive(&self) -> Result<()> {
         let id = self.get_id()?;
-        self.containers.keep_alive(id.to_string()).await
+        self.context.keep_alive(id.to_string()).await
     }
 
     pub async fn dispose(&self) -> Result<()> {
@@ -170,17 +165,36 @@ impl Container {
 
         if let Err(e) = client.containers().get(id).stop(None).await {
             error!("could not stop container, {e}");
-            self.containers.set_as_faulted(id.to_string()).await?;
+            if let Some(entity) = &self.entity {
+                let _ = self
+                    .context
+                    .set_container_as_faulted(entity.id.to_owned())
+                    .await
+                    .map_err(|e| error!("could not set container as faulted, {e}"));
+            }
             bail!(e);
         }
 
         if let Err(e) = client.containers().get(id).delete().await {
             error!("could not stop container, {e}");
-            self.containers.set_as_faulted(id.to_string()).await?;
+            if let Some(entity) = &self.entity {
+                let _ = self
+                    .context
+                    .set_container_as_faulted(entity.id.to_owned())
+                    .await
+                    .map_err(|e| error!("could not set container as faulted, {e}"));
+            }
             bail!(e);
         }
 
-        self.containers.set_as_removed(id.to_string()).await?;
+        if let Some(entity) = &self.entity {
+            let _ = self
+                .context
+                .set_container_as_removed(entity.id.to_owned())
+                .await
+                .map_err(|e| error!("could not set container as faulted, {e}"));
+        }
+
         Ok(())
     }
 }

@@ -74,7 +74,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WorkerSocket {
             Ok(ws::Message::Ping(msg)) => {
                 ctx.pong(&msg);
             }
-            Ok(ws::Message::Close(reason)) => ctx.close(reason),
+            Ok(ws::Message::Close(reason)) => {
+                debug!("worker socket closed with reason: {reason:?}");
+                self.cleanup(ctx);
+            }
             _ => {}
         }
     }

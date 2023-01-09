@@ -30,6 +30,10 @@ pub enum WorkerQueueMessage {
         pid: u32,
         resp_tx: oneshot::Sender<Result<()>>,
     },
+    Stop {
+        run_id: String,
+        resp_tx: oneshot::Sender<Result<()>>,
+    },
     Contains {
         pid: u32,
         resp_tx: oneshot::Sender<bool>,
@@ -85,6 +89,10 @@ impl WorkerQueueReceiver {
                     let result = self.dequeue(pid);
                     resp_tx.send(result).map_err(oneshot_send_err)?;
                 }
+                WorkerQueueMessage::Stop { run_id, resp_tx } => {
+                    let result = self.stop(run_id);
+                    resp_tx.send(result).map_err(oneshot_send_err)?;
+                }
                 WorkerQueueMessage::Contains { pid, resp_tx } => {
                     let result = self.contains(pid);
                     resp_tx.send(result).map_err(oneshot_send_err)?;
@@ -107,6 +115,24 @@ impl WorkerQueueReceiver {
         let mut conn = self.pool.get()?;
         pipeline_runs::update_state(&mut conn, worker.get_run_id(), PR_STATE_QUEUED)?;
         self.backlog.push_back(worker);
+        Ok(())
+    }
+
+    fn after_removal(&mut self) -> Result<()> {
+        for _ in 0..(self.capacity - self.active.len()) {
+            if let Some(worker) = self.backlog.pop_front() {
+                self.activate(worker)?;
+            }
+        }
+
+        let config = self.config.clone();
+        let pool = self.pool.clone();
+        spawn(async move {
+            if let Err(e) = try_cleanup_containers(config, pool).await {
+                error!("error while cleaning up containers, {e}");
+            }
+        });
+
         Ok(())
     }
 
@@ -137,18 +163,33 @@ impl WorkerQueueReceiver {
             }
             !found
         });
-        for _ in 0..(self.capacity - self.active.len()) {
-            if let Some(worker) = self.backlog.pop_front() {
-                self.activate(worker)?;
+        self.after_removal()?;
+        Ok(())
+    }
+
+    fn stop(&mut self, run_id: String) -> Result<()> {
+        let mut found_in_active = false;
+
+        self.active.retain_mut(|w| {
+            let found = w.has_run_id(&run_id);
+            if found {
+                found_in_active = true;
+                if let Err(e) = w
+                    .stop()
+                    .and_then(|_| try_cleanup_process(self.pool.clone(), w))
+                {
+                    error!("error while stopping worker process, {e}");
+                }
             }
-        }
-        let config = self.config.clone();
-        let pool = self.pool.clone();
-        spawn(async move {
-            if let Err(e) = try_cleanup_containers(config, pool).await {
-                error!("error while cleaning up containers, {e}");
-            }
+            !found
         });
+
+        if found_in_active {
+            self.after_removal()?;
+        } else {
+            self.backlog.retain(|w| !w.has_run_id(&run_id));
+        }
+
         Ok(())
     }
 
@@ -182,6 +223,18 @@ impl WorkerQueueSender {
     pub async fn dequeue(&self, pid: u32) -> Result<()> {
         let (resp_tx, resp_rx) = oneshot::channel();
         let message = WorkerQueueMessage::Dequeue { pid, resp_tx };
+
+        self.tx.send(message).await.map_err(|e| anyhow!(e))?;
+
+        resp_rx.await?
+    }
+
+    pub async fn stop(&self, run_id: &str) -> Result<()> {
+        let (resp_tx, resp_rx) = oneshot::channel();
+        let message = WorkerQueueMessage::Stop {
+            run_id: run_id.to_owned(),
+            resp_tx,
+        };
 
         self.tx.send(message).await.map_err(|e| anyhow!(e))?;
 

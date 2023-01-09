@@ -13,6 +13,7 @@ mod push;
 mod remove;
 mod run;
 mod server;
+mod signals;
 mod stop;
 mod supervisor;
 mod worker;

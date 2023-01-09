@@ -48,8 +48,7 @@ impl BldCommand for HistCommand {
         let config = BldConfig::load()?;
         let server = config.server_or_first(self.server.as_ref())?;
         let server_auth = config.same_auth_as(server)?.to_owned();
-        let protocol = server.http_protocol();
-        let url = format!("{protocol}://{}:{}/hist?", server.host, server.port);
+        let url = format!("{}/hist?", server.base_url_http());
         let params = HistQueryParams {
             state: if self.state != "all" {
                 Some(self.state.to_string())

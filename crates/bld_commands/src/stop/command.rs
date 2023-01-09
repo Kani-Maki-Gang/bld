@@ -31,13 +31,12 @@ impl BldCommand for StopCommand {
         let server = config.server_or_first(self.server.as_ref())?;
 
         let server_auth = config.same_auth_as(server)?;
-        let protocol = server.http_protocol();
-        let url = format!("{protocol}://{}:{}/stop", server.host, server.port);
+        let url = format!("{}/stop", server.base_url_http());
 
         System::new().block_on(async move {
             Request::post(&url)
                 .auth(server_auth)
-                .send_json(self.pipeline_id)
+                .send_json(&self.pipeline_id)
                 .await
                 .map(|r: String| {
                     println!("{r}");

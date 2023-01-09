@@ -14,6 +14,9 @@ pub enum ServerMessages {
         variables: Option<Vec<String>>,
         environment: Option<Vec<String>>,
     },
+    Stop {
+        run_id: String,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize, Message)]

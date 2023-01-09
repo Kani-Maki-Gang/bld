@@ -6,14 +6,14 @@ use actix_web::error::ErrorUnauthorized;
 use actix_web::web::{Data, Payload};
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::database::pipeline_runs::{
     self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED,
 };
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::scanner::FileScanner;
-use bld_sock::messages::RunInfo;
+use bld_sock::messages::{ExecClientMessage, ExecServerMessage};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::sync::Arc;
@@ -53,7 +53,10 @@ impl ExecutePipelineSocket {
         if let Some(scanner) = act.scanner.as_mut() {
             let content = scanner.scan();
             for line in content.iter() {
-                ctx.text(line.to_string());
+                let message = ExecServerMessage::Log {
+                    content: line.to_string(),
+                };
+                let _ = serde_json::to_string(&message).map(|data| ctx.text(data));
             }
         }
     }
@@ -79,19 +82,32 @@ impl ExecutePipelineSocket {
         }
     }
 
-    fn enqueue(&mut self, text: &str) -> Result<()> {
-        let data = serde_json::from_str::<RunInfo>(text)?;
+    fn handle_client_message(
+        &mut self,
+        message: &str,
+        ctx: &mut <Self as Actor>::Context,
+    ) -> Result<()> {
+        let message: ExecClientMessage = serde_json::from_str(message)?;
+
         debug!("enqueueing run");
         enqueue_worker(
             &self.user,
             self.proxy.clone(),
             self.pool.clone(),
             self.supervisor_sender.clone(),
-            data,
+            message,
         )
         .map(|run_id| {
             self.scanner = Some(FileScanner::new(Arc::clone(&self.config), &run_id));
-            self.run_id = Some(run_id);
+            self.run_id = Some(run_id.to_owned());
+            let message = ExecServerMessage::QueuedRun { run_id };
+            if let Ok(data) = serde_json::to_string(&message) {
+                ctx.text(data);
+            }
+        })
+        .map_err(|e| {
+            error!("{e}");
+            anyhow!("Unable to run pipeline")
         })
     }
 }
@@ -113,20 +129,23 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSo
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(txt)) => {
-                if let Err(e) = self.enqueue(&txt) {
-                    error!("{}", e.to_string());
-                    ctx.text("Unable to run pipeline");
+                if let Err(e) = self.handle_client_message(&txt, ctx) {
+                    ctx.text(e.to_string());
                     ctx.stop();
                 }
             }
+
             Ok(ws::Message::Ping(msg)) => {
                 ctx.pong(&msg);
             }
+
             Ok(ws::Message::Pong(_)) => {}
+
             Ok(ws::Message::Close(reason)) => {
                 ctx.close(reason);
                 ctx.stop();
             }
+
             _ => ctx.stop(),
         }
     }

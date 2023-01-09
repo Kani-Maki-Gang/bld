@@ -1,5 +1,4 @@
 mod pipeline;
-mod platform;
 mod sync;
 
 pub use pipeline::traits::Load;

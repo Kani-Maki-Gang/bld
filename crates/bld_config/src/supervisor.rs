@@ -29,7 +29,7 @@ impl BldLocalSupervisorConfig {
         definitions::LOCAL_SUPERVISOR_WORKERS
     }
 
-    pub fn http_protocol(&self) -> String {
+    fn http_protocol(&self) -> String {
         if self.tls.is_some() {
             "https".to_string()
         } else {
@@ -37,12 +37,20 @@ impl BldLocalSupervisorConfig {
         }
     }
 
-    pub fn ws_protocol(&self) -> String {
+    pub fn base_url_http(&self) -> String {
+        format!("{}://{}:{}", self.http_protocol(), self.host, self.port)
+    }
+
+    fn ws_protocol(&self) -> String {
         if self.tls.is_some() {
             "wss".to_string()
         } else {
             "ws".to_string()
         }
+    }
+
+    pub fn base_url_ws(&self) -> String {
+        format!("{}://{}:{}", self.ws_protocol(), self.host, self.port)
     }
 }
 

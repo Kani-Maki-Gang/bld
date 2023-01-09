@@ -37,9 +37,10 @@ impl PullCommand {
         let config = BldConfig::load()?;
         let server = config.server_or_first(self.server.as_ref())?;
         let server_auth = config.same_auth_as(server)?;
-        let protocol = server.http_protocol();
-        let metadata_url = format!("{protocol}://{}:{}/deps", server.host, server.port);
-        let url = format!("{protocol}://{}:{}/pull", server.host, server.port);
+
+        let base_url = server.base_url_http();
+        let metadata_url = format!("{}/deps", base_url);
+        let url = format!("{}/pull", base_url);
 
         debug!(
             "running pull subcommand with --server: {}, --pipeline: {} and --ignore-deps: {}",
@@ -54,7 +55,7 @@ impl PullCommand {
 
             Request::post(&metadata_url)
                 .auth(server_auth)
-                .send_json(self.pipeline)
+                .send_json(&self.pipeline)
                 .await
                 .map(|mut deps: Vec<String>| {
                     println!("Done.");
@@ -72,7 +73,7 @@ impl PullCommand {
 
             Request::post(&url)
                 .auth(server_auth)
-                .send_json(pipeline.to_string())
+                .send_json(pipeline)
                 .await
                 .and_then(Self::save)
                 .map(|_| {
