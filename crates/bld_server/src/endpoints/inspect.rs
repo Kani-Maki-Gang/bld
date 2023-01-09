@@ -13,6 +13,6 @@ pub async fn inspect(
     info!("Reached handler for /inspect route");
     match prx.read(&body.into_inner()) {
         Ok(content) => HttpResponse::Ok().json(content),
-        Err(_) => HttpResponse::BadRequest().body(""),
+        Err(_) => HttpResponse::BadRequest().body("pipeline not found"),
     }
 }
