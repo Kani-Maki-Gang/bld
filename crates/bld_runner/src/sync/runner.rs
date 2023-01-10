@@ -109,7 +109,7 @@ impl RunnerV1 {
         writeln!(message, "{:<10}: {}", "Runs on", &self.pipeline.runs_on)?;
         writeln!(message, "{:<10}: 1", "Version")?;
 
-        self.logger.write(message).await
+        self.logger.write_line(message).await
     }
 
     fn apply_run_properties(&self, txt: &str) -> String {
@@ -209,9 +209,7 @@ impl RunnerV1 {
     async fn step(&self, step: &BuildStepV1) -> Result<()> {
         if let Some(name) = &step.name {
             let mut message = String::new();
-            writeln!(message)?;
             writeln!(message, "{:<10}: {name}", "Step")?;
-
             self.logger.write_line(message).await?;
         }
 
