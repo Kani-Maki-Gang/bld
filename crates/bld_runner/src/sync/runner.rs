@@ -2,9 +2,10 @@ use super::builder::RunnerBuilder;
 use crate::pipeline::external::ExternalV1;
 use crate::pipeline::step::{BuildStepExecV1, BuildStepV1};
 use crate::pipeline::PipelineV1;
+use actix::io::SinkWrite;
 use actix::spawn;
-use actix::{io::SinkWrite, Actor, StreamHandler};
-use anyhow::{anyhow, bail, Result};
+use actix::{Actor, StreamHandler};
+use anyhow::{anyhow, Result};
 use bld_config::definitions::{
     ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN,
 };
@@ -72,7 +73,10 @@ impl RunnerV1 {
                     .await?;
             }
         }
+        Ok(())
+    }
 
+    async fn dispose_platform(&self) -> Result<()> {
         if self.pipeline.dispose {
             debug!("executing dispose operations for platform");
             self.platform.dispose(self.is_child).await?;
@@ -81,9 +85,7 @@ impl RunnerV1 {
             self.platform.keep_alive().await?;
         }
 
-        self.context.remove_platform(self.platform.id()).await?;
-
-        Ok(())
+        self.context.remove_platform(self.platform.id()).await
     }
 
     async fn ipc_send_completed(&self) -> Result<()> {
@@ -193,11 +195,14 @@ impl RunnerV1 {
     }
 
     async fn steps(&mut self) -> Result<()> {
+        self.artifacts(&None).await?;
+
         debug!("starting execution of pipeline steps");
         for step in &self.pipeline.steps {
             self.step(step).await?;
             self.artifacts(&step.name).await?;
         }
+
         Ok(())
     }
 
@@ -354,30 +359,28 @@ impl RunnerV1 {
     async fn stop(&self) -> Result<()> {
         debug!("starting cleanup operations for runner");
         self.register_completion().await?;
+        self.dispose_platform().await?;
         self.ipc_send_completed().await?;
         Ok(())
     }
 
-    async fn execute(mut self) -> Result<Self> {
+    async fn execute(mut self) -> Result<()> {
         self.start().await?;
 
-        // using let expressions to log the errors and let an empty string be used
+        // using let expression to log the errors and let an empty string be used
         // by the final print_error of main.
 
-        if let Err(e) = self.artifacts(&None).await {
+        let result = if let Err(e) = self.steps().await {
             self.logger.write(e.to_string()).await?;
             self.has_faulted = true;
-            bail!("");
-        }
-
-        if let Err(e) = self.steps().await {
-            self.logger.write(e.to_string()).await?;
-            self.has_faulted = true;
-            bail!("");
-        }
+            Err(anyhow!(""))
+        } else {
+            Ok(())
+        };
 
         self.stop().await?;
-        Ok(self)
+
+        result
     }
 
     pub async fn run(mut self) -> RecursiveFuture {
