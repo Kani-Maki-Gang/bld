@@ -44,9 +44,10 @@ impl Request {
         if let Some(Auth::OAuth2(_info)) = &server.auth {
             let path = path![REMOTE_SERVER_OAUTH2, &server.name];
             if let Ok(token) = fs::read_to_string(path) {
+                let bearer = format!("Bearer {}", token.trim());
                 self.request = self
                     .request
-                    .insert_header(("Authorization", format!("Bearer {token}")));
+                    .insert_header(("Authorization", bearer));
             }
         }
         self
