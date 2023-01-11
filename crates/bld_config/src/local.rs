@@ -16,8 +16,6 @@ pub struct BldLocalConfig {
     #[serde(default = "BldLocalConfig::default_db")]
     pub db: String,
 
-    pub auth: Option<AuthValidation>,
-
     #[serde(default = "BldLocalConfig::default_docker_url")]
     pub docker_url: String,
 }
@@ -40,6 +38,10 @@ impl BldLocalConfig {
         debug!("server > host: {}", self.server.host);
         debug!("server > port: {}", self.server.port);
         debug!("server > pipelines: {}", self.server.pipelines);
+        if let Some(AuthValidation::OAuth2 { validation_url }) = &self.server.auth {
+            debug!("auth > method: oauth2");
+            debug!("auth > validation-url: {}", validation_url);
+        }
         if let Some(tls) = &self.server.tls {
             debug!("server > tls > cert-chain: {}", tls.cert_chain);
             debug!("server > tls > private-key: {}", tls.private_key);
@@ -54,10 +56,6 @@ impl BldLocalConfig {
         debug!("logs: {}", self.logs);
         debug!("db: {}", self.db);
         debug!("docker-url: {}", self.docker_url);
-        if let Some(AuthValidation::OAuth2 { validation_url }) = &self.auth {
-            debug!("auth > method: oauth2");
-            debug!("auth > validation-url: {}", validation_url);
-        }
     }
 }
 
@@ -68,7 +66,6 @@ impl Default for BldLocalConfig {
             supervisor: BldLocalSupervisorConfig::default(),
             logs: Self::default_logs(),
             db: Self::default_db(),
-            auth: None,
             docker_url: Self::default_docker_url(),
         }
     }

@@ -1,5 +1,5 @@
 use crate::definitions::REMOTE_SERVER_OAUTH2;
-use crate::{definitions, path};
+use crate::{definitions, path, AuthValidation};
 use crate::{Auth, BldTlsConfig};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,8 @@ pub struct BldLocalServerConfig {
 
     #[serde(default = "BldLocalServerConfig::default_port")]
     pub port: i64,
+
+    pub auth: Option<AuthValidation>,
 
     pub tls: Option<BldTlsConfig>,
 
@@ -40,6 +42,7 @@ impl Default for BldLocalServerConfig {
             host: Self::default_host(),
             port: Self::default_port(),
             tls: None,
+            auth: None,
             pipelines: Self::default_pipelines(),
         }
     }
