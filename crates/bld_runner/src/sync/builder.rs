@@ -11,7 +11,7 @@ use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::signals::UnixSignalsReceiver;
 use bld_sock::messages::WorkerMessages;
 use bld_utils::sync::IntoArc;
-use chrono::offset::Local;
+use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
@@ -36,7 +36,7 @@ impl Default for RunnerBuilder {
     fn default() -> Self {
         Self {
             run_id: Uuid::new_v4().to_string(),
-            run_start_time: Local::now().format("%F %X").to_string(),
+            run_start_time: Utc::now().format("%F %X").to_string(),
             config: None,
             signals: None,
             logger: LoggerSender::default().into_arc(),
