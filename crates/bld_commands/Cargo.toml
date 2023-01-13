@@ -17,17 +17,17 @@ bld_sock = { path = "../bld_sock" }
 bld_runner = { path = "../bld_runner" }
 bld_server = { path = "../bld_server" }
 bld_supervisor = { path = "../bld_supervisor" }
-chrono = "0.4.19"
+chrono = { version = "0.4.23", default-features = false, features = ["std"] }
 clap = { version = "4.0.18", features = ["derive"] }
 futures = "0.3.15"
-oauth2 = "4.0.0"
+oauth2 = "4.3.0"
 serde = "1.0.126"
 serde_derive = "1.0.126"
 serde_json = "1.0.64"
 serde_yaml = "0.9.14"
-tokio = { version = "1.15", features = ["full"] }
+tokio = { version = "1.24", features = ["full"] }
 tracing = "0.1.36"
-tracing-subscriber = "0.3.15"
+tracing-subscriber = "0.3.16"
 uuid = { version = "0.8.2", features = ["v4"] }
 tabled = "0.9.0"
 signal-hook = "0.3.14"

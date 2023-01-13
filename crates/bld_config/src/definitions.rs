@@ -6,7 +6,7 @@ pub const GET: &str = "get";
 pub const ENV_TOKEN: &str = "bld:env:";
 pub const VAR_TOKEN: &str = "bld:var:";
 pub const RUN_PROPS_ID: &str = "bld:run:id";
-pub const RUN_PROPS_START_TIME: &str = "bld:run:start-time";
+pub const RUN_PROPS_START_TIME: &str = "bld:run:start_time";
 
 pub const TOOL_DEFAULT_PIPELINE: &str = "default";
 pub const TOOL_DEFAULT_PIPELINE_FILE: &str = "default.yaml";
