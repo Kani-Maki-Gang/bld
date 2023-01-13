@@ -15,14 +15,14 @@ bld_config = { path = "../bld_config" }
 bld_utils = { path = "../bld_utils" }
 bld_core = { path = "../bld_core" }
 bld_sock = { path = "../bld_sock" }
-chrono = "0.4.19"
+chrono = "0.4.23"
 futures = "0.3.15"
 futures-util = "0.3.15"
 serde = "1.0.126"
 serde_derive = "1.0.126"
 serde_json = "1.0.64"
 serde_yaml = "0.9.14"
-shiplift = "0.7.0"
+shiplift = { version = "0.7.0", default-features = false, features = ["unix-socket", "tls"] }
 tar = "0.4.35"
 tokio = { version = "1.24", features = ["full"] }
 tracing = "0.1.36"
