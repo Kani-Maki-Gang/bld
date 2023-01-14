@@ -6,9 +6,7 @@ use bld_config::BldConfig;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
 use shiplift::tty::TtyChunk;
-use shiplift::{
-    ContainerOptions, Docker, Exec, ExecContainerOptions, ImageListOptions, PullOptions,
-};
+use shiplift::{ContainerOptions, Docker, Exec, ExecContainerOptions};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -46,31 +44,7 @@ impl Container {
         Ok(host)
     }
 
-    async fn pull(client: &Docker, image: &str, logger: &mut Arc<LoggerSender>) -> Result<()> {
-        let options = ImageListOptions::builder().filter_name(image).build();
-        let images = client.images().list(&options).await?;
-
-        if images.is_empty() {
-            logger.info(format!("Download image: {image}")).await?;
-
-            let options = PullOptions::builder().image(image).build();
-            let mut pull_iter = client.images().pull(&options);
-
-            while let Some(Ok(progress)) = pull_iter.next().await {
-                logger.write_line(progress.to_string()).await?;
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn create(
-        client: &Docker,
-        image: &str,
-        env: &[String],
-        logger: &mut Arc<LoggerSender>,
-    ) -> Result<String> {
-        Container::pull(client, image, logger).await?;
+    async fn create(client: &Docker, image: &str, env: &[String]) -> Result<String> {
         let options = ContainerOptions::builder(image).env(env).tty(true).build();
         let info = client.containers().create(&options).await?;
         client.containers().get(&info.id).start().await?;
@@ -86,7 +60,7 @@ impl Container {
     ) -> Result<Self> {
         let client = Container::docker(&config)?;
         let env: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
-        let id = Container::create(&client, image, &env, &mut logger.clone()).await?;
+        let id = Container::create(&client, image, &env).await?;
         let entity = context.add_container(id.clone()).await?;
         Ok(Self {
             config: Some(config),
