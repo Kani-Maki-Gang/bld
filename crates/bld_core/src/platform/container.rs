@@ -6,9 +6,7 @@ use bld_config::BldConfig;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
 use shiplift::tty::TtyChunk;
-use shiplift::{
-    ContainerOptions, Docker, Exec, ExecContainerOptions
-};
+use shiplift::{ContainerOptions, Docker, Exec, ExecContainerOptions};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -46,11 +44,7 @@ impl Container {
         Ok(host)
     }
 
-    async fn create(
-        client: &Docker,
-        image: &str,
-        env: &[String],
-    ) -> Result<String> {
+    async fn create(client: &Docker, image: &str, env: &[String]) -> Result<String> {
         let options = ContainerOptions::builder(image).env(env).tty(true).build();
         let info = client.containers().create(&options).await?;
         client.containers().get(&info.id).start().await?;
