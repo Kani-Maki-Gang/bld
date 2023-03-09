@@ -3,3 +3,4 @@
 /.vscode
 /.vimspector.json
 /musl/dist
+/.bld
