@@ -4,3 +4,5 @@
 /.vimspector.json
 /musl/dist
 /.bld
+!/.bld/config.yaml
+!/.bld/build-musl.yaml
