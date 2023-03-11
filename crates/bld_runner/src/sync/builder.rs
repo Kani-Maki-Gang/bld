@@ -1,12 +1,13 @@
-use super::runner::RunnerV1;
 use super::versioned::VersionedRunner;
 use crate::pipeline::traits::Load;
-use crate::pipeline::{VersionedPipeline, Yaml};
+use crate::pipeline::versioned::{VersionedPipeline, Yaml};
+use crate::platform::builder::TargetPlatformBuilder;
+use crate::runner::version1;
+use crate::runner::version2;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::context::ContextSender;
 use bld_core::logger::LoggerSender;
-use bld_core::platform::{Container, Machine, TargetPlatform};
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::signals::UnixSignalsReceiver;
 use bld_sock::messages::WorkerMessages;
@@ -136,28 +137,37 @@ impl RunnerBuilder {
             .context
             .ok_or_else(|| anyhow!("no context instance provided"))?;
 
-        let platform = match pipeline.runs_on() {
-            "machine" => {
-                let machine = Machine::new(&self.run_id, env.clone(), self.logger.clone())?;
-                TargetPlatform::machine(Box::new(machine))
-            }
-            image => {
-                let container = Container::new(
-                    image,
-                    config.clone(),
-                    env.clone(),
-                    self.logger.clone(),
-                    context.clone(),
-                )
-                .await?;
-                TargetPlatform::container(Box::new(container))
-            }
-        }
-        .into_arc();
+        let platform = TargetPlatformBuilder::default()
+            .run_id(&self.run_id)
+            .pipeline(&pipeline)
+            .config(config.clone())
+            .environment(env.clone())
+            .logger(self.logger.clone())
+            .context(context.clone())
+            .build()
+            .await?;
+
         context.add_platform(platform.clone()).await?;
 
         let runner = match pipeline {
-            VersionedPipeline::Version1(pipeline) => VersionedRunner::Version1(RunnerV1 {
+            VersionedPipeline::Version1(pipeline) => VersionedRunner::Version1(version1::Runner {
+                run_id: self.run_id,
+                run_start_time: self.run_start_time,
+                config,
+                signals: self.signals,
+                logger: self.logger,
+                proxy: self.proxy,
+                pipeline,
+                ipc: self.ipc,
+                env,
+                vars,
+                context,
+                platform,
+                is_child: self.is_child,
+                has_faulted: false,
+            }),
+
+            VersionedPipeline::Version2(pipeline) => VersionedRunner::Version2(version2::Runner {
                 run_id: self.run_id,
                 run_start_time: self.run_start_time,
                 config,

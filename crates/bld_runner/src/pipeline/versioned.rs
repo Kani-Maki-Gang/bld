@@ -1,6 +1,8 @@
 use super::traits::Load;
-use super::validator::PipelineValidatorV1;
-use super::PipelineV1;
+use super::version1;
+use super::version2;
+use crate::validator::version1 as validator_version1;
+use crate::validator::version2 as validator_version2;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
@@ -43,13 +45,16 @@ impl Load<VersionedPipeline> for Yaml {
 #[serde(tag = "version")]
 pub enum VersionedPipeline {
     #[serde(rename(serialize = "1", deserialize = "1"))]
-    Version1(PipelineV1),
+    Version1(version1::Pipeline),
+    #[serde(rename(serialize = "2", deserialize = "2"))]
+    Version2(version2::Pipeline),
 }
 
 impl VersionedPipeline {
     pub fn runs_on(&self) -> &str {
         match self {
             Self::Version1(pipeline) => &pipeline.runs_on,
+            Self::Version2(_) => unimplemented!(),
         }
     }
 
@@ -79,6 +84,7 @@ impl VersionedPipeline {
 
         let local_pipelines = match pipeline {
             Self::Version1(pip) => pip.local_dependencies(),
+            Self::Version2(pip) => pip.local_dependencies(),
         };
 
         for pipeline in local_pipelines.iter() {
@@ -96,10 +102,14 @@ impl VersionedPipeline {
         proxy: Arc<PipelineFileSystemProxy>,
     ) -> Result<()> {
         match self {
-            Self::Version1(pip) => PipelineValidatorV1::new(pip, config, proxy)
-                .validate()
-                .map_err(|e| anyhow!("Expression errors\r\n\r\n{e}")),
+            Self::Version1(pip) => {
+                validator_version1::PipelineValidator::new(pip, config, proxy).validate()
+            }
+            Self::Version2(pip) => {
+                validator_version2::PipelineValidator::new(pip, config, proxy).validate()
+            }
         }
+        .map_err(|e| anyhow!("Expression errors\r\n\r\n{e}"))
     }
 
     pub fn validate(

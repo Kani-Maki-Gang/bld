@@ -1,7 +1,7 @@
 use crate::context::ContextSender;
 use crate::database::pipeline_run_containers::PipelineRunContainers;
 use crate::logger::LoggerSender;
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use bld_config::BldConfig;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
@@ -12,6 +12,16 @@ use std::path::Path;
 use std::sync::Arc;
 use tar::Archive;
 use tracing::error;
+
+pub enum ContainerDefinition {
+    Image(String),
+    Dockerfile {
+        image: String,
+        path: String,
+        tag: String,
+        rebuild: bool,
+    },
+}
 
 pub struct Container {
     pub id: Option<String>,
@@ -25,17 +35,15 @@ pub struct Container {
 
 impl Container {
     fn get_client(&self) -> Result<&Docker> {
-        match &self.client {
-            Some(client) => Ok(client),
-            None => bail!("container not started"),
-        }
+        self.client
+            .as_ref()
+            .ok_or_else(|| anyhow!("container not started"))
     }
 
     fn get_id(&self) -> Result<&str> {
-        match &self.id {
-            Some(id) => Ok(id),
-            None => bail!("container id not found"),
-        }
+        self.id
+            .as_deref()
+            .ok_or_else(|| anyhow!("container id not found"))
     }
 
     fn docker(config: &Arc<BldConfig>) -> Result<Docker> {

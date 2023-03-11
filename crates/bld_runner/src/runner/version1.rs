@@ -1,7 +1,7 @@
-use super::builder::RunnerBuilder;
-use crate::pipeline::external::ExternalV1;
-use crate::pipeline::step::{BuildStepExecV1, BuildStepV1};
-use crate::pipeline::PipelineV1;
+use crate::external::version1::External;
+use crate::pipeline::version1::Pipeline;
+use crate::step::version1::{BuildStep, BuildStepExec};
+use crate::sync::builder::RunnerBuilder;
 use actix::io::SinkWrite;
 use actix::spawn;
 use actix::{Actor, StreamHandler};
@@ -32,14 +32,14 @@ use tracing::debug;
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 
-pub struct RunnerV1 {
+pub struct Runner {
     pub run_id: String,
     pub run_start_time: String,
     pub config: Arc<BldConfig>,
     pub signals: Option<UnixSignalsReceiver>,
     pub logger: Arc<LoggerSender>,
     pub proxy: Arc<PipelineFileSystemProxy>,
-    pub pipeline: PipelineV1,
+    pub pipeline: Pipeline,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
     pub env: Arc<HashMap<String, String>>,
     pub vars: Arc<HashMap<String, String>>,
@@ -49,7 +49,7 @@ pub struct RunnerV1 {
     pub has_faulted: bool,
 }
 
-impl RunnerV1 {
+impl Runner {
     async fn register_start(&self) -> Result<()> {
         if !self.is_child {
             debug!("setting the pipeline as running in the execution context");
@@ -206,7 +206,7 @@ impl RunnerV1 {
         Ok(())
     }
 
-    async fn step(&self, step: &BuildStepV1) -> Result<()> {
+    async fn step(&self, step: &BuildStep) -> Result<()> {
         if let Some(name) = &step.name {
             let mut message = String::new();
             writeln!(message, "{:<10}: {name}", "Step")?;
@@ -215,8 +215,8 @@ impl RunnerV1 {
 
         for exec in &step.exec {
             match exec {
-                BuildStepExecV1::Shell(cmd) => self.shell(step, cmd).await?,
-                BuildStepExecV1::External { value } => self.external(value.as_ref()).await?,
+                BuildStepExec::Shell(cmd) => self.shell(step, cmd).await?,
+                BuildStepExec::External { value } => self.external(value.as_ref()).await?,
             }
         }
 
@@ -231,7 +231,7 @@ impl RunnerV1 {
             .external
             .iter()
             .find(|i| i.is(value)) else {
-                self.local_external(&ExternalV1::local(value)).await?;
+                self.local_external(&External::local(value)).await?;
                 return Ok(());
             };
 
@@ -243,7 +243,7 @@ impl RunnerV1 {
         Ok(())
     }
 
-    async fn local_external(&self, details: &ExternalV1) -> Result<()> {
+    async fn local_external(&self, details: &External) -> Result<()> {
         debug!("building runner for child pipeline");
 
         let variables: HashMap<String, String> = details
@@ -279,7 +279,7 @@ impl RunnerV1 {
         Ok(())
     }
 
-    async fn server_external(&self, server: &str, details: &ExternalV1) -> Result<()> {
+    async fn server_external(&self, server: &str, details: &External) -> Result<()> {
         let server_name = server.to_owned();
         let server = self.config.server(server)?;
         let server_auth = self.config.same_auth_as(server)?;
@@ -337,7 +337,7 @@ impl RunnerV1 {
         Ok(())
     }
 
-    async fn shell(&self, step: &BuildStepV1, command: &str) -> Result<()> {
+    async fn shell(&self, step: &BuildStep, command: &str) -> Result<()> {
         debug!("start execution of exec section for step");
         let working_dir = step.working_dir.as_ref().map(|wd| self.apply_context(wd));
         let command = self.apply_context(command);
