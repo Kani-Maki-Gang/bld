@@ -1,34 +1,33 @@
-use crate::external::version2::External;
-use crate::pipeline::version2::Pipeline;
-use crate::step::version2::{BuildStep, BuildStepExec};
-use crate::sync::builder::RunnerBuilder;
-use actix::io::SinkWrite;
-use actix::spawn;
-use actix::{Actor, StreamHandler};
-use anyhow::{anyhow, Result};
-use bld_config::definitions::{
-    ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN,
+use std::{collections::HashMap, fmt::Write, pin::Pin, sync::Arc, time::Duration};
+
+use actix::{clock::sleep, io::SinkWrite, spawn, Actor, StreamHandler};
+use anyhow::{anyhow, bail, Result};
+use bld_config::{
+    definitions::{ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN},
+    BldConfig,
 };
-use bld_config::BldConfig;
-use bld_core::context::ContextSender;
-use bld_core::logger::LoggerSender;
-use bld_core::platform::TargetPlatform;
-use bld_core::proxies::PipelineFileSystemProxy;
-use bld_core::signals::{UnixSignalMessage, UnixSignalsReceiver};
-use bld_sock::clients::ExecClient;
-use bld_sock::messages::{ExecClientMessage, WorkerMessages};
-use bld_utils::request::WebSocket;
-use bld_utils::sync::IntoArc;
-use futures::stream::StreamExt;
-use std::collections::HashMap;
-use std::fmt::Write;
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::time::Duration;
+use bld_core::{
+    context::ContextSender,
+    logger::LoggerSender,
+    platform::{TargetPlatform, Image},
+    proxies::PipelineFileSystemProxy,
+    signals::{UnixSignalMessage, UnixSignalsReceiver},
+};
+use bld_sock::{
+    clients::ExecClient,
+    messages::{ExecClientMessage, WorkerMessages},
+};
+use bld_utils::{request::WebSocket, sync::IntoArc};
+use futures::{Future, StreamExt};
 use tokio::sync::mpsc::Sender;
-use tokio::time::sleep;
 use tracing::debug;
+
+use crate::{
+    external::version2::External,
+    pipeline::version2::Pipeline,
+    step::version2::{BuildStep, BuildStepExec},
+    RunnerBuilder, platform::{version2::Platform, builder::TargetPlatformBuilder},
+};
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 
@@ -44,7 +43,7 @@ pub struct Runner {
     pub env: Arc<HashMap<String, String>>,
     pub vars: Arc<HashMap<String, String>>,
     pub context: Arc<ContextSender>,
-    pub platform: Arc<TargetPlatform>,
+    pub platform: Option<Arc<TargetPlatform>>,
     pub is_child: bool,
     pub has_faulted: bool,
 }
@@ -76,16 +75,40 @@ impl Runner {
         Ok(())
     }
 
+    async fn create_platform(&mut self) -> Result<()> {
+        let image = match &self.pipeline.runs_on {
+            Platform::Machine => None,
+            Platform::Container(image) | Platform::ContainerByPull { image, pull: false } => Some(Image::Use(image.to_owned())),
+            Platform::ContainerByPull { image, pull: true } => Some(Image::Pull(image.to_owned())),
+            Platform::ContainerByBuild { tag, dockerfile } => Some(Image::Build { dockerfile: dockerfile.to_owned(), tag: tag.to_owned() }),
+        };
+
+        let platform = TargetPlatformBuilder::default()
+            .run_id(&self.run_id)
+            .config(self.config.clone())
+            .image(image)
+            .environment(self.env.clone())
+            .logger(self.logger.clone())
+            .context(self.context.clone())
+            .build()
+            .await?;
+
+        self.context.add_platform(platform.clone()).await?;
+        self.platform = Some(platform);
+        Ok(())
+    }
+
     async fn dispose_platform(&self) -> Result<()> {
+        let Some(platform) = self.platform.as_ref() else {bail!("no platform instance for runner");};
         if self.pipeline.dispose {
             debug!("executing dispose operations for platform");
-            self.platform.dispose(self.is_child).await?;
+            platform.dispose(self.is_child).await?;
         } else {
             debug!("keeping platform alive");
-            self.platform.keep_alive().await?;
+            platform.keep_alive().await?;
         }
 
-        self.context.remove_platform(self.platform.id()).await
+        self.context.remove_platform(platform.id()).await
     }
 
     async fn ipc_send_completed(&self) -> Result<()> {
@@ -158,6 +181,8 @@ impl Runner {
     async fn artifacts(&self, name: &Option<String>) -> Result<()> {
         debug!("executing artifact operation related to step {:?}", name);
 
+        let Some(platform) = self.platform.as_ref() else {bail!("no platform instance for runner");};
+
         for artifact in self.pipeline.artifacts.iter().filter(|a| &a.after == name) {
             let can_continue = artifact.method == *PUSH || artifact.method == *GET;
 
@@ -176,11 +201,11 @@ impl Runner {
                 let result = match &method[..] {
                     PUSH => {
                         debug!("executing {PUSH} artifact operation");
-                        self.platform.push(&from, &to).await
+                        platform.push(&from, &to).await
                     }
                     GET => {
                         debug!("executing {GET} artifact operation");
-                        self.platform.get(&from, &to).await
+                        platform.get(&from, &to).await
                     }
                     _ => unreachable!(),
                 };
@@ -339,16 +364,19 @@ impl Runner {
 
     async fn shell(&self, step: &BuildStep, command: &str) -> Result<()> {
         debug!("start execution of exec section for step");
+        let Some(platform) = self.platform.as_ref() else {bail!("no platform instance for runner");};
+
         let working_dir = step.working_dir.as_ref().map(|wd| self.apply_context(wd));
         let command = self.apply_context(command);
 
         debug!("executing shell command {}", command);
-        self.platform.shell(&working_dir, &command).await?;
+        platform.shell(&working_dir, &command).await?;
 
         Ok(())
     }
 
-    async fn start(&self) -> Result<()> {
+    async fn start(&mut self) -> Result<()> {
+        self.create_platform().await?;
         self.register_start().await?;
         self.info().await?;
         Ok(())

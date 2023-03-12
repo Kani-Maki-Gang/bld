@@ -8,6 +8,7 @@ use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::context::ContextSender;
 use bld_core::logger::LoggerSender;
+use bld_core::platform::Image;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::signals::UnixSignalsReceiver;
 use bld_sock::messages::WorkerMessages;
@@ -137,35 +138,42 @@ impl RunnerBuilder {
             .context
             .ok_or_else(|| anyhow!("no context instance provided"))?;
 
-        let platform = TargetPlatformBuilder::default()
-            .run_id(&self.run_id)
-            .pipeline(&pipeline)
-            .config(config.clone())
-            .environment(env.clone())
-            .logger(self.logger.clone())
-            .context(context.clone())
-            .build()
-            .await?;
-
-        context.add_platform(platform.clone()).await?;
-
         let runner = match pipeline {
-            VersionedPipeline::Version1(pipeline) => VersionedRunner::Version1(version1::Runner {
-                run_id: self.run_id,
-                run_start_time: self.run_start_time,
-                config,
-                signals: self.signals,
-                logger: self.logger,
-                proxy: self.proxy,
-                pipeline,
-                ipc: self.ipc,
-                env,
-                vars,
-                context,
-                platform,
-                is_child: self.is_child,
-                has_faulted: false,
-            }),
+            VersionedPipeline::Version1(pipeline) => {
+                let image = match pipeline.runs_on.as_str() {
+                    "machine" => None,
+                    image => Some(Image::Use(image.to_owned())),
+                };
+
+                let platform = TargetPlatformBuilder::default()
+                    .run_id(&self.run_id)
+                    .image(image)
+                    .config(config.clone())
+                    .environment(env.clone())
+                    .logger(self.logger.clone())
+                    .context(context.clone())
+                    .build()
+                    .await?;
+
+                context.add_platform(platform.clone()).await?;
+
+                VersionedRunner::Version1(version1::Runner {
+                    run_id: self.run_id,
+                    run_start_time: self.run_start_time,
+                    config,
+                    signals: self.signals,
+                    logger: self.logger,
+                    proxy: self.proxy,
+                    pipeline,
+                    ipc: self.ipc,
+                    env,
+                    vars,
+                    context,
+                    platform,
+                    is_child: self.is_child,
+                    has_faulted: false,
+                })
+            }
 
             VersionedPipeline::Version2(pipeline) => VersionedRunner::Version2(version2::Runner {
                 run_id: self.run_id,
@@ -179,7 +187,7 @@ impl RunnerBuilder {
                 env,
                 vars,
                 context,
-                platform,
+                platform: None,
                 is_child: self.is_child,
                 has_faulted: false,
             }),

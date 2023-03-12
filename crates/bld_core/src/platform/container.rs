@@ -5,7 +5,7 @@ use anyhow::{anyhow, bail, Result};
 use bld_config::BldConfig;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
-use shiplift::builder::PullOptionsBuilder;
+use shiplift::builder::{BuildOptionsBuilder, PullOptionsBuilder};
 use shiplift::tty::TtyChunk;
 use shiplift::{ContainerOptions, Docker, Exec, ExecContainerOptions};
 use std::collections::HashMap;
@@ -17,12 +17,7 @@ use tracing::error;
 pub enum Image {
     Use(String),
     Pull(String),
-    Build {
-        image: String,
-        dockerfile: String,
-        tag: Option<String>,
-        rebuild: bool,
-    },
+    Build { dockerfile: String, tag: String },
 }
 
 impl Image {
@@ -45,11 +40,38 @@ impl Image {
         Ok(image.to_owned())
     }
 
+    async fn build(
+        client: &Docker,
+        dockerfile: &str,
+        tag: &str,
+        logger: Arc<LoggerSender>,
+    ) -> Result<String> {
+        logger
+            .write_line(format!("{:<10}: {dockerfile} to {tag}", "Build"))
+            .await?;
+
+        let build_opts = BuildOptionsBuilder::default()
+            .dockerfile(dockerfile)
+            .tag(tag)
+            .build();
+
+        let mut stream = client.images().build(&build_opts);
+
+        while let Some(result) = stream.next().await {
+            if let Err(e) = result {
+                logger.write_line(e.to_string()).await?;
+                bail!("Unable to build image");
+            }
+        }
+
+        Ok(tag.to_string())
+    }
+
     pub async fn create(self, client: &Docker, logger: Arc<LoggerSender>) -> Result<String> {
         match self {
             Self::Use(image) => Ok(image),
             Self::Pull(image) => Self::pull(client, &image, logger).await,
-            Self::Build { image, .. } => Ok(image),
+            Self::Build { dockerfile, tag } => Self::build(client, &dockerfile, &tag, logger).await,
         }
     }
 }

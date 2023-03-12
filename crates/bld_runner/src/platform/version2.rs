@@ -14,10 +14,8 @@ pub enum Platform {
         pull: bool,
     },
     ContainerByBuild {
-        image: String,
+        tag: String,
         dockerfile: String,
-        tag: Option<String>,
-        rebuild: bool,
     },
 }
 
@@ -27,7 +25,7 @@ impl Display for Platform {
             Self::Machine => write!(f, "machine"),
             Self::Container(image) => write!(f, "{image}"),
             Self::ContainerByPull { image, .. } => write!(f, "{image}"),
-            Self::ContainerByBuild { image, .. } => write!(f, "{image}"),
+            Self::ContainerByBuild { tag, .. } => write!(f, "{tag}"),
         }
     }
 }

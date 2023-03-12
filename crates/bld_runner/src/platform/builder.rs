@@ -9,17 +9,10 @@ use bld_core::{
 };
 use bld_utils::sync::IntoArc;
 
-use crate::{
-    pipeline::{version1, version2},
-    VersionedPipeline,
-};
-
-use super::version2::Platform;
-
 #[derive(Default)]
 pub struct TargetPlatformBuilder<'a> {
     run_id: Option<&'a str>,
-    pipeline: Option<&'a VersionedPipeline>,
+    image: Option<Image>,
     config: Option<Arc<BldConfig>>,
     environment: Option<Arc<HashMap<String, String>>>,
     logger: Option<Arc<LoggerSender>>,
@@ -32,8 +25,8 @@ impl<'a> TargetPlatformBuilder<'a> {
         self
     }
 
-    pub fn pipeline(mut self, pipeline: &'a VersionedPipeline) -> Self {
-        self.pipeline = Some(pipeline);
+    pub fn image(mut self, image: Option<Image>) -> Self {
+        self.image = image;
         self
     }
 
@@ -62,10 +55,6 @@ impl<'a> TargetPlatformBuilder<'a> {
             .run_id
             .ok_or_else(|| anyhow!("no run id provided for target platform builder"))?;
 
-        let pipeline = self
-            .pipeline
-            .ok_or_else(|| anyhow!("no pipeline provided for target platform builder"))?;
-
         let config = self
             .config
             .ok_or_else(|| anyhow!("no config provided for target platform builder"))?;
@@ -82,68 +71,14 @@ impl<'a> TargetPlatformBuilder<'a> {
             .context
             .ok_or_else(|| anyhow!("no context provided for target platform builder"))?;
 
-        let platform = match pipeline {
-            VersionedPipeline::Version1(version1::Pipeline { runs_on, .. })
-                if runs_on == "machine" =>
-            {
+        let platform = match self.image {
+            Some(image) => {
+                let container = Container::new(image, config, environment, logger, context).await?;
+                TargetPlatform::container(Box::new(container))
+            }
+            None => {
                 let machine = Machine::new(run_id, environment, logger)?;
                 TargetPlatform::machine(Box::new(machine))
-            }
-
-            VersionedPipeline::Version1(version1::Pipeline { runs_on, .. }) => {
-                let image = Image::Use(runs_on.to_owned());
-                let container = Container::new(image, config, environment, logger, context).await?;
-                TargetPlatform::container(Box::new(container))
-            }
-
-            VersionedPipeline::Version2(version2::Pipeline {
-                runs_on: Platform::Machine,
-                ..
-            }) => {
-                let machine = Machine::new(run_id, environment, logger)?;
-                TargetPlatform::machine(Box::new(machine))
-            }
-
-            VersionedPipeline::Version2(version2::Pipeline {
-                runs_on: Platform::Container(runs_on),
-                ..
-            }) => {
-                let image = Image::Use(runs_on.to_owned());
-                let container = Container::new(image, config, environment, logger, context).await?;
-                TargetPlatform::container(Box::new(container))
-            }
-
-            VersionedPipeline::Version2(version2::Pipeline {
-                runs_on: Platform::ContainerByPull { image, pull },
-                ..
-            }) => {
-                let image = if *pull {
-                    Image::Pull(image.to_owned())
-                } else {
-                    Image::Use(image.to_owned())
-                };
-                let container = Container::new(image, config, environment, logger, context).await?;
-                TargetPlatform::container(Box::new(container))
-            }
-
-            VersionedPipeline::Version2(version2::Pipeline {
-                runs_on:
-                    Platform::ContainerByBuild {
-                        image,
-                        dockerfile,
-                        tag,
-                        rebuild,
-                    },
-                ..
-            }) => {
-                let image = Image::Build {
-                    image: image.to_owned(),
-                    dockerfile: dockerfile.to_owned(),
-                    tag: tag.to_owned(),
-                    rebuild: *rebuild,
-                };
-                let container = Container::new(image, config, environment, logger, context).await?;
-                TargetPlatform::container(Box::new(container))
             }
         }
         .into_arc();
