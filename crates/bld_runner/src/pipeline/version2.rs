@@ -10,7 +10,7 @@ pub struct Pipeline {
     pub name: Option<String>,
     pub runs_on: Platform,
 
-    #[serde(default)]
+    #[serde(default = "Pipeline::default_dispose")]
     pub dispose: bool,
 
     #[serde(default)]
@@ -30,6 +30,10 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
+    fn default_dispose() -> bool {
+        true
+    }
+
     pub fn local_dependencies(&self) -> Vec<String> {
         let from_steps = self.steps.iter().flat_map(|s| s.local_dependencies());
 

@@ -107,7 +107,7 @@ impl Runner {
             writeln!(message, "{:<10}: {name}", "Name")?;
         }
         writeln!(message, "{:<10}: {}", "Runs on", &self.pipeline.runs_on)?;
-        writeln!(message, "{:<10}: 1", "Version")?;
+        writeln!(message, "{:<10}: 2", "Version")?;
 
         self.logger.write_line(message).await
     }

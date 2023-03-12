@@ -5,7 +5,7 @@ use bld_config::BldConfig;
 use bld_core::{
     context::ContextSender,
     logger::LoggerSender,
-    platform::{Container, Machine, TargetPlatform},
+    platform::{Container, Image, Machine, TargetPlatform},
 };
 use bld_utils::sync::IntoArc;
 
@@ -91,8 +91,8 @@ impl<'a> TargetPlatformBuilder<'a> {
             }
 
             VersionedPipeline::Version1(version1::Pipeline { runs_on, .. }) => {
-                let container =
-                    Container::new(runs_on, config, environment, logger, context).await?;
+                let image = Image::Use(runs_on.to_owned());
+                let container = Container::new(image, config, environment, logger, context).await?;
                 TargetPlatform::container(Box::new(container))
             }
 
@@ -105,20 +105,44 @@ impl<'a> TargetPlatformBuilder<'a> {
             }
 
             VersionedPipeline::Version2(version2::Pipeline {
-                runs_on: Platform::Image(runs_on),
+                runs_on: Platform::Container(runs_on),
                 ..
             }) => {
-                let container =
-                    Container::new(runs_on, config, environment, logger, context).await?;
+                let image = Image::Use(runs_on.to_owned());
+                let container = Container::new(image, config, environment, logger, context).await?;
                 TargetPlatform::container(Box::new(container))
             }
 
             VersionedPipeline::Version2(version2::Pipeline {
-                runs_on: Platform::Dockerfile { image, .. },
+                runs_on: Platform::ContainerByPull { image, pull },
                 ..
             }) => {
-                let container =
-                    Container::new(image, config, environment, logger, context).await?;
+                let image = if *pull {
+                    Image::Pull(image.to_owned())
+                } else {
+                    Image::Use(image.to_owned())
+                };
+                let container = Container::new(image, config, environment, logger, context).await?;
+                TargetPlatform::container(Box::new(container))
+            }
+
+            VersionedPipeline::Version2(version2::Pipeline {
+                runs_on:
+                    Platform::ContainerByBuild {
+                        image,
+                        dockerfile,
+                        tag,
+                        rebuild,
+                    },
+                ..
+            }) => {
+                let image = Image::Build {
+                    image: image.to_owned(),
+                    dockerfile: dockerfile.to_owned(),
+                    tag: tag.to_owned(),
+                    rebuild: *rebuild,
+                };
+                let container = Container::new(image, config, environment, logger, context).await?;
                 TargetPlatform::container(Box::new(container))
             }
         }

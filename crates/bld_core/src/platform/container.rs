@@ -5,6 +5,7 @@ use anyhow::{anyhow, bail, Result};
 use bld_config::BldConfig;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
+use shiplift::builder::PullOptionsBuilder;
 use shiplift::tty::TtyChunk;
 use shiplift::{ContainerOptions, Docker, Exec, ExecContainerOptions};
 use std::collections::HashMap;
@@ -13,14 +14,44 @@ use std::sync::Arc;
 use tar::Archive;
 use tracing::error;
 
-pub enum ContainerDefinition {
-    Image(String),
-    Dockerfile {
+pub enum Image {
+    Use(String),
+    Pull(String),
+    Build {
         image: String,
-        path: String,
-        tag: String,
+        dockerfile: String,
+        tag: Option<String>,
         rebuild: bool,
     },
+}
+
+impl Image {
+    async fn pull(client: &Docker, image: &str, logger: Arc<LoggerSender>) -> Result<String> {
+        logger
+            .write_line(format!("{:<10}: {image}", "Pull"))
+            .await?;
+
+        let pull_opts = PullOptionsBuilder::default().image(image).build();
+
+        let mut stream = client.images().pull(&pull_opts);
+
+        while let Some(result) = stream.next().await {
+            if let Err(error) = result {
+                logger.write_line(error.to_string()).await?;
+                bail!("Unable to pull image");
+            }
+        }
+
+        Ok(image.to_owned())
+    }
+
+    pub async fn create(self, client: &Docker, logger: Arc<LoggerSender>) -> Result<String> {
+        match self {
+            Self::Use(image) => Ok(image),
+            Self::Pull(image) => Self::pull(client, &image, logger).await,
+            Self::Build { image, .. } => Ok(image),
+        }
+    }
 }
 
 pub struct Container {
@@ -60,7 +91,7 @@ impl Container {
     }
 
     pub async fn new(
-        image: &str,
+        image: Image,
         config: Arc<BldConfig>,
         env: Arc<HashMap<String, String>>,
         logger: Arc<LoggerSender>,
@@ -68,7 +99,8 @@ impl Container {
     ) -> Result<Self> {
         let client = Container::docker(&config)?;
         let env: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
-        let id = Container::create(&client, image, &env).await?;
+        let image = image.create(&client, logger.clone()).await?;
+        let id = Container::create(&client, &image, &env).await?;
         let entity = context.add_container(id.clone()).await?;
         Ok(Self {
             config: Some(config),
