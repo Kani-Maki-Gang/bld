@@ -1,80 +1,18 @@
-use crate::context::ContextSender;
-use crate::database::pipeline_run_containers::PipelineRunContainers;
-use crate::logger::LoggerSender;
+use std::{collections::HashMap, path::Path, sync::Arc};
+
 use anyhow::{anyhow, bail, Result};
 use bld_config::BldConfig;
-use futures::TryStreamExt;
-use futures_util::StreamExt;
-use shiplift::builder::{BuildOptionsBuilder, PullOptionsBuilder};
-use shiplift::tty::TtyChunk;
-use shiplift::{ContainerOptions, Docker, Exec, ExecContainerOptions};
-use std::collections::HashMap;
-use std::path::Path;
-use std::sync::Arc;
+use futures::{StreamExt, TryStreamExt};
+use shiplift::{tty::TtyChunk, ContainerOptions, Docker, Exec, ExecContainerOptions};
 use tar::Archive;
 use tracing::error;
 
-pub enum Image {
-    Use(String),
-    Pull(String),
-    Build { dockerfile: String, tag: String },
-}
+use crate::{
+    context::ContextSender, database::pipeline_run_containers::PipelineRunContainers,
+    logger::LoggerSender,
+};
 
-impl Image {
-    async fn pull(client: &Docker, image: &str, logger: Arc<LoggerSender>) -> Result<String> {
-        logger
-            .write_line(format!("{:<10}: {image}", "Pull"))
-            .await?;
-
-        let pull_opts = PullOptionsBuilder::default().image(image).build();
-
-        let mut stream = client.images().pull(&pull_opts);
-
-        while let Some(result) = stream.next().await {
-            if let Err(error) = result {
-                logger.write_line(error.to_string()).await?;
-                bail!("Unable to pull image");
-            }
-        }
-
-        Ok(image.to_owned())
-    }
-
-    async fn build(
-        client: &Docker,
-        dockerfile: &str,
-        tag: &str,
-        logger: Arc<LoggerSender>,
-    ) -> Result<String> {
-        logger
-            .write_line(format!("{:<10}: {dockerfile} to {tag}", "Build"))
-            .await?;
-
-        let build_opts = BuildOptionsBuilder::default()
-            .dockerfile(dockerfile)
-            .tag(tag)
-            .build();
-
-        let mut stream = client.images().build(&build_opts);
-
-        while let Some(result) = stream.next().await {
-            if let Err(e) = result {
-                logger.write_line(e.to_string()).await?;
-                bail!("Unable to build image");
-            }
-        }
-
-        Ok(tag.to_string())
-    }
-
-    pub async fn create(self, client: &Docker, logger: Arc<LoggerSender>) -> Result<String> {
-        match self {
-            Self::Use(image) => Ok(image),
-            Self::Pull(image) => Self::pull(client, &image, logger).await,
-            Self::Build { dockerfile, tag } => Self::build(client, &dockerfile, &tag, logger).await,
-        }
-    }
-}
+use super::Image;
 
 pub struct Container {
     pub id: Option<String>,

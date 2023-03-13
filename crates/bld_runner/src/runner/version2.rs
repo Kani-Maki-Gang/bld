@@ -9,7 +9,7 @@ use bld_config::{
 use bld_core::{
     context::ContextSender,
     logger::LoggerSender,
-    platform::{TargetPlatform, Image},
+    platform::{Image, TargetPlatform},
     proxies::PipelineFileSystemProxy,
     signals::{UnixSignalMessage, UnixSignalsReceiver},
 };
@@ -25,8 +25,9 @@ use tracing::debug;
 use crate::{
     external::version2::External,
     pipeline::version2::Pipeline,
+    platform::{builder::TargetPlatformBuilder, version2::Platform},
     step::version2::{BuildStep, BuildStepExec},
-    RunnerBuilder, platform::{version2::Platform, builder::TargetPlatformBuilder},
+    RunnerBuilder,
 };
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
@@ -78,9 +79,19 @@ impl Runner {
     async fn create_platform(&mut self) -> Result<()> {
         let image = match &self.pipeline.runs_on {
             Platform::Machine => None,
-            Platform::Container(image) | Platform::ContainerByPull { image, pull: false } => Some(Image::Use(image.to_owned())),
+            Platform::Container(image) | Platform::ContainerByPull { image, pull: false } => {
+                Some(Image::Use(image.to_owned()))
+            }
             Platform::ContainerByPull { image, pull: true } => Some(Image::Pull(image.to_owned())),
-            Platform::ContainerByBuild { tag, dockerfile } => Some(Image::Build { dockerfile: dockerfile.to_owned(), tag: tag.to_owned() }),
+            Platform::ContainerByBuild {
+                name,
+                tag,
+                dockerfile,
+            } => Some(Image::Build {
+                name: name.to_owned(),
+                dockerfile: dockerfile.to_owned(),
+                tag: tag.to_owned(),
+            }),
         };
 
         let platform = TargetPlatformBuilder::default()
