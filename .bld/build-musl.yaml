@@ -1,6 +1,9 @@
 name: Bld build pipeline for musl
-runs_on: bld-musl-builder
-version: 1
+version: 2
+runs_on:
+  name: bld-musl-builder
+  dockerfile: ./musl/Dockerfile
+  tag: latest
 
 variables:
   branch: master
@@ -19,5 +22,5 @@ steps:
 artifacts:
 - method: get
   from: /usr/src/bld/target/x86_64-unknown-linux-musl/release/bld
-  to: ./musl/dist
+  to: ./dist
   after: Build project

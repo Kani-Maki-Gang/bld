@@ -15,6 +15,7 @@ pub use tls::*;
 
 use anyhow::{anyhow, bail, Error, Result};
 use serde::{Deserialize, Serialize};
+use std::env::current_dir;
 use std::fs::read_to_string;
 use std::path::PathBuf;
 use tracing::debug;
@@ -29,6 +30,9 @@ pub fn err_no_server_in_config() -> Error {
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct BldConfig {
+    #[serde(skip_serializing)]
+    pub path: String,
+
     #[serde(default)]
     pub local: BldLocalConfig,
 
@@ -37,15 +41,27 @@ pub struct BldConfig {
 }
 
 impl BldConfig {
-    pub fn load() -> Result<Self> {
-        let path = path![
-            std::env::current_dir()?,
+    pub fn path() -> Result<PathBuf> {
+        Ok(path![
+            current_dir()?,
             definitions::TOOL_DIR,
             format!("{}.yaml", definitions::TOOL_DEFAULT_CONFIG)
-        ];
+        ])
+    }
+
+    pub fn load() -> Result<Self> {
+        let path = Self::path()?;
+
         debug!("loading config file from: {}", &path.display());
-        let instance: Self =
+
+        let mut instance: Self =
             serde_yaml::from_str(&read_to_string(&path)?).map_err(|e| anyhow!(e))?;
+
+        instance.path = path
+            .into_os_string()
+            .into_string()
+            .map_err(|_| anyhow!("unable to get text reprasentation of config path"))?;
+
         instance.local.debug_info();
         Ok(instance)
     }

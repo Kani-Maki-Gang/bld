@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt::Write, pin::Pin, sync::Arc, time::Duration}
 use actix::{clock::sleep, io::SinkWrite, spawn, Actor, StreamHandler};
 use anyhow::{anyhow, bail, Result};
 use bld_config::{
-    definitions::{ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN},
+    definitions::{GET, PUSH},
     BldConfig,
 };
 use bld_core::{
@@ -24,7 +24,10 @@ use tracing::debug;
 
 use crate::{
     external::version2::External,
-    pipeline::version2::Pipeline,
+    pipeline::{
+        traits::ApplyContext,
+        version2::{Pipeline, PipelineContext},
+    },
     platform::{builder::TargetPlatformBuilder, version2::Platform},
     step::version2::{BuildStep, BuildStepExec},
     RunnerBuilder,
@@ -73,6 +76,18 @@ impl Runner {
                     .await?;
             }
         }
+        Ok(())
+    }
+
+    fn apply_context(&mut self) -> Result<()> {
+        let context = PipelineContext {
+            bld_directory: &self.config.path,
+            variables: self.vars.clone(),
+            environment: self.env.clone(),
+            run_id: &self.run_id,
+            run_start_time: &self.run_start_time,
+        };
+        self.pipeline = self.pipeline.apply_context(context)?;
         Ok(())
     }
 
@@ -146,49 +161,6 @@ impl Runner {
         self.logger.write_line(message).await
     }
 
-    fn apply_run_properties(&self, txt: &str) -> String {
-        let mut txt_with_props = String::from(txt);
-        txt_with_props = txt_with_props.replace(RUN_PROPS_ID, &self.run_id);
-        txt_with_props = txt_with_props.replace(RUN_PROPS_START_TIME, &self.run_start_time);
-        txt_with_props
-    }
-
-    fn apply_environment(&self, txt: &str) -> String {
-        let mut txt_with_env = String::from(txt);
-        for (key, value) in self.env.iter() {
-            let full_name = format!("{ENV_TOKEN}{key}");
-            txt_with_env = txt_with_env.replace(&full_name, value);
-        }
-
-        for (key, value) in self.pipeline.environment.iter() {
-            let full_name = format!("{ENV_TOKEN}{}", &key);
-            txt_with_env = txt_with_env.replace(&full_name, value);
-        }
-
-        txt_with_env
-    }
-
-    fn apply_variables(&self, txt: &str) -> String {
-        let mut txt_with_vars = String::from(txt);
-        for (key, value) in self.vars.iter() {
-            let full_name = format!("{VAR_TOKEN}{key}");
-            txt_with_vars = txt_with_vars.replace(&full_name, value);
-        }
-
-        for (key, value) in self.pipeline.variables.iter() {
-            let full_name = format!("{VAR_TOKEN}{}", &key);
-            txt_with_vars = txt_with_vars.replace(&full_name, value);
-        }
-
-        txt_with_vars
-    }
-
-    fn apply_context(&self, txt: &str) -> String {
-        let txt = self.apply_run_properties(txt);
-        let txt = self.apply_environment(&txt);
-        self.apply_variables(&txt)
-    }
-
     async fn artifacts(&self, name: &Option<String>) -> Result<()> {
         debug!("executing artifact operation related to step {:?}", name);
 
@@ -200,23 +172,21 @@ impl Runner {
             if can_continue {
                 debug!("applying context for artifact");
 
-                let method = self.apply_context(&artifact.method);
-                let from = self.apply_context(&artifact.from);
-                let to = self.apply_context(&artifact.to);
                 self.logger
                     .write_line(format!(
-                        "Copying artifacts from: {from} into container to: {to}",
+                        "Copying artifacts from: {} into container to: {}",
+                        artifact.from, artifact.to
                     ))
                     .await?;
 
-                let result = match &method[..] {
+                let result = match &artifact.method[..] {
                     PUSH => {
                         debug!("executing {PUSH} artifact operation");
-                        platform.push(&from, &to).await
+                        platform.push(&artifact.from, &artifact.to).await
                     }
                     GET => {
                         debug!("executing {GET} artifact operation");
-                        platform.get(&from, &to).await
+                        platform.get(&artifact.from, &artifact.to).await
                     }
                     _ => unreachable!(),
                 };
@@ -282,17 +252,8 @@ impl Runner {
     async fn local_external(&self, details: &External) -> Result<()> {
         debug!("building runner for child pipeline");
 
-        let variables: HashMap<String, String> = details
-            .variables
-            .iter()
-            .map(|(key, value)| (key.to_owned(), self.apply_context(value)))
-            .collect();
-
-        let environment: HashMap<String, String> = details
-            .environment
-            .iter()
-            .map(|(key, value)| (key.to_owned(), self.apply_context(value)))
-            .collect();
+        let variables = details.variables.clone();
+        let environment = details.environment.clone();
 
         let runner = RunnerBuilder::default()
             .run_id(&self.run_id)
@@ -319,17 +280,8 @@ impl Runner {
         let server_name = server.to_owned();
         let server = self.config.server(server)?;
         let server_auth = self.config.same_auth_as(server)?;
-        let variables = details
-            .variables
-            .iter()
-            .map(|(key, value)| (key.to_owned(), self.apply_context(value)))
-            .collect();
-
-        let environment = details
-            .environment
-            .iter()
-            .map(|(key, value)| (key.to_owned(), self.apply_context(value)))
-            .collect();
+        let variables = details.variables.clone();
+        let environment = details.environment.clone();
 
         let url = format!("{}/ws-exec/", server.base_url_ws());
 
@@ -377,16 +329,14 @@ impl Runner {
         debug!("start execution of exec section for step");
         let Some(platform) = self.platform.as_ref() else {bail!("no platform instance for runner");};
 
-        let working_dir = step.working_dir.as_ref().map(|wd| self.apply_context(wd));
-        let command = self.apply_context(command);
-
         debug!("executing shell command {}", command);
-        platform.shell(&working_dir, &command).await?;
+        platform.shell(&step.working_dir, &command).await?;
 
         Ok(())
     }
 
     async fn start(&mut self) -> Result<()> {
+        self.apply_context()?;
         self.create_platform().await?;
         self.register_start().await?;
         self.info().await?;

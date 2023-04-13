@@ -7,7 +7,7 @@ use actix::spawn;
 use actix::{Actor, StreamHandler};
 use anyhow::{anyhow, Result};
 use bld_config::definitions::{
-    ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN,
+    GET, KEYWORD_ENV, KEYWORD_RUN_PROPS_ID, KEYWORD_RUN_PROPS_START_TIME, KEYWORD_VAR, PUSH,
 };
 use bld_config::BldConfig;
 use bld_core::context::ContextSender;
@@ -114,20 +114,20 @@ impl Runner {
 
     fn apply_run_properties(&self, txt: &str) -> String {
         let mut txt_with_props = String::from(txt);
-        txt_with_props = txt_with_props.replace(RUN_PROPS_ID, &self.run_id);
-        txt_with_props = txt_with_props.replace(RUN_PROPS_START_TIME, &self.run_start_time);
+        txt_with_props = txt_with_props.replace(KEYWORD_RUN_PROPS_ID, &self.run_id);
+        txt_with_props = txt_with_props.replace(KEYWORD_RUN_PROPS_START_TIME, &self.run_start_time);
         txt_with_props
     }
 
     fn apply_environment(&self, txt: &str) -> String {
         let mut txt_with_env = String::from(txt);
         for (key, value) in self.env.iter() {
-            let full_name = format!("{ENV_TOKEN}{key}");
+            let full_name = format!("{KEYWORD_ENV}{key}");
             txt_with_env = txt_with_env.replace(&full_name, value);
         }
 
         for (key, value) in self.pipeline.environment.iter() {
-            let full_name = format!("{ENV_TOKEN}{}", &key);
+            let full_name = format!("{KEYWORD_ENV}{}", &key);
             txt_with_env = txt_with_env.replace(&full_name, value);
         }
 
@@ -137,12 +137,12 @@ impl Runner {
     fn apply_variables(&self, txt: &str) -> String {
         let mut txt_with_vars = String::from(txt);
         for (key, value) in self.vars.iter() {
-            let full_name = format!("{VAR_TOKEN}{key}");
+            let full_name = format!("{KEYWORD_VAR}{key}");
             txt_with_vars = txt_with_vars.replace(&full_name, value);
         }
 
         for (key, value) in self.pipeline.variables.iter() {
-            let full_name = format!("{VAR_TOKEN}{}", &key);
+            let full_name = format!("{KEYWORD_VAR}{}", &key);
             txt_with_vars = txt_with_vars.replace(&full_name, value);
         }
 

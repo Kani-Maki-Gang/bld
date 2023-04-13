@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 
 pub trait Load<T> {
@@ -5,20 +7,29 @@ pub trait Load<T> {
     fn load_with_verbose_errors(input: &str) -> Result<T>;
 }
 
-pub trait Validate {
-    fn validate_root(&self) -> Result<()>;
-
-    fn validate<T>(&self, parent: &T) -> Result<()>;
+pub trait StaticTokenContext<'a, T> {
+    fn retrieve(&'a self) -> &'a str;
 }
 
-pub trait ApplyContext {
-    fn apply_context(&self) -> Result<()>;
+pub trait DynamicTokenContext<'a, T> {
+    fn retrieve(&'a self) -> HashMap<String, String>;
 }
 
-pub trait Executable {
-    fn execute(&self) -> Result<()>;
+pub trait StaticTokenTransformer<'a, T, V> {
+    fn transform(&self, text: String, context: &V) -> String
+    where
+        V: StaticTokenContext<'a, T>;
 }
 
-pub trait Disposable {
-    fn dispose(&self) -> Result<()>;
+pub trait DynamicTokenTransformer<'a, T, V> {
+    fn transform(&self, text: String, context: &V) -> String
+    where
+        V: DynamicTokenContext<'a, T>;
+}
+
+pub trait ApplyStaticTokens<'a, T, V> {
+    fn apply_tokens(&mut self, context: &T) -> Result<Self>
+    where
+        Self: Sized,
+        T: StaticTokenContext<'a, V>;
 }
