@@ -24,12 +24,10 @@ use tracing::debug;
 
 use crate::{
     external::version2::External,
-    pipeline::{
-        traits::ApplyContext,
-        version2::{Pipeline, PipelineContext},
-    },
+    pipeline::{traits::ApplyTokens, version2::Pipeline},
     platform::{builder::TargetPlatformBuilder, version2::Platform},
     step::version2::{BuildStep, BuildStepExec},
+    token_context::version2::PipelineContext,
     RunnerBuilder,
 };
 
@@ -87,7 +85,7 @@ impl Runner {
             run_id: &self.run_id,
             run_start_time: &self.run_start_time,
         };
-        self.pipeline = self.pipeline.apply_context(context)?;
+        self.pipeline.apply_tokens(&context)?;
         Ok(())
     }
 
@@ -170,8 +168,6 @@ impl Runner {
             let can_continue = artifact.method == *PUSH || artifact.method == *GET;
 
             if can_continue {
-                debug!("applying context for artifact");
-
                 self.logger
                     .write_line(format!(
                         "Copying artifacts from: {} into container to: {}",
@@ -330,7 +326,7 @@ impl Runner {
         let Some(platform) = self.platform.as_ref() else {bail!("no platform instance for runner");};
 
         debug!("executing shell command {}", command);
-        platform.shell(&step.working_dir, &command).await?;
+        platform.shell(&step.working_dir, command).await?;
 
         Ok(())
     }
