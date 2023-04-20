@@ -30,7 +30,7 @@ pub fn err_no_server_in_config() -> Error {
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct BldConfig {
-    #[serde(skip_serializing)]
+    #[serde(skip_serializing, skip_deserializing)]
     pub path: String,
 
     #[serde(default)]

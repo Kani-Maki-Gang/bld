@@ -1,4 +1,4 @@
-pub const VERSION: &str = "0.1";
+pub const VERSION: &str = "0.2";
 pub const TOOL_DIR: &str = ".bld";
 pub const DB_NAME: &str = "bld-server.db";
 pub const PUSH: &str = "push";

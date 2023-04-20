@@ -9,7 +9,7 @@ return {
       end,
       cwd = '${workspaceFolder}',
       stopOnEntry = false,
-      args = {},
+      args = {'check', '-p', 'sample.yaml'},
       prelaunchTask = "cargo build"
     },
     {
@@ -21,8 +21,11 @@ return {
       end,
       cwd = '${workspaceFolder}',
       stopOnEntry = false,
-      args = { 'run', '-p', 'sample.yaml' },
-      prelaunchTask = "cargo build"
+      args = { 'run', '-p', 'build-musl.yaml' },
+      prelaunchTask = function()
+        print("Building project...")
+        return "cargo build"
+      end
     },
     {
       name = 'Run pipeline on server',

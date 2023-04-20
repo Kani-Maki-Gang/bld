@@ -27,7 +27,7 @@ use crate::{
     pipeline::{traits::ApplyTokens, version2::Pipeline},
     platform::{builder::TargetPlatformBuilder, version2::Platform},
     step::version2::{BuildStep, BuildStepExec},
-    token_context::version2::PipelineContext,
+    token_context::version2::PipelineContextBuilder,
     RunnerBuilder,
 };
 
@@ -78,13 +78,16 @@ impl Runner {
     }
 
     fn apply_context(&mut self) -> Result<()> {
-        let context = PipelineContext {
-            bld_directory: &self.config.path,
-            variables: self.vars.clone(),
-            environment: self.env.clone(),
-            run_id: &self.run_id,
-            run_start_time: &self.run_start_time,
-        };
+        let context = PipelineContextBuilder::default()
+            .bld_directory(&self.config.path)
+            .add_variables(&self.pipeline.variables)
+            .add_variables(&self.vars)
+            .add_environment(&self.pipeline.environment)
+            .add_environment(&self.env)
+            .run_id(&self.run_id)
+            .run_start_time(&self.run_start_time)
+            .build()?;
+
         self.pipeline.apply_tokens(&context)?;
         Ok(())
     }

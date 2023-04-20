@@ -14,7 +14,7 @@ pub trait StaticTokenContext<'a, T> {
 }
 
 pub trait DynamicTokenContext<'a, T> {
-    fn retrieve(&'a self) -> HashMap<String, String>;
+    fn retrieve(&'a self) -> &HashMap<String, String>;
 }
 
 pub trait StaticTokenTransformer<'a, T>: StaticTokenContext<'a, T> {

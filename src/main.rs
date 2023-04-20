@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::Result;
 use bld_commands::cli::Cli;
 use bld_commands::command::BldCommand;
 use bld_utils::term::print_error;
@@ -9,9 +9,7 @@ fn main() -> Result<()> {
 
     match cli.exec().map_err(|e| e.to_string()) {
         Err(e) if !e.is_empty() => {
-            if let Err(e) = print_error(&e) {
-                bail!("{e}");
-            }
+            print_error(&e)?;
         }
         _ => {}
     }

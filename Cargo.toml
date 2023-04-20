@@ -12,7 +12,7 @@ members = [
 
 [package]
 name = "bld"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Kostas Vlachos <kvl_93@outlook.com>"]
 edition = "2021"
 
