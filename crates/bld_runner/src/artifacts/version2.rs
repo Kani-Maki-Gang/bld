@@ -2,10 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    keywords::version2::{BldDirectory, Environment, RunId, RunStartTime, Variable},
-    pipeline::traits::{
-        ApplyTokens, DynamicTokenTransformer, HolisticTokenTransformer, StaticTokenTransformer,
-    },
+    pipeline::traits::{ApplyTokens, HolisticTokenTransformer},
     token_context::version2::PipelineContext,
 };
 
@@ -19,15 +16,7 @@ pub struct Artifacts {
 }
 
 impl<'a> ApplyTokens<'a, PipelineContext<'a>> for Artifacts {
-    fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()>
-    where
-        Self: Sized,
-        PipelineContext<'a>: StaticTokenTransformer<'a, BldDirectory>
-            + DynamicTokenTransformer<'a, Variable>
-            + DynamicTokenTransformer<'a, Environment>
-            + StaticTokenTransformer<'a, RunId>
-            + StaticTokenTransformer<'a, RunStartTime>,
-    {
+    fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
         self.from =
             <PipelineContext as HolisticTokenTransformer>::transform(context, self.from.to_owned());
         self.to =

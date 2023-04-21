@@ -1,3 +1,4 @@
+use anyhow::Result;
 use bld_config::definitions::TOOL_DIR;
 use bld_config::path;
 use bld_utils::fs::IsYaml;
@@ -36,15 +37,7 @@ impl BuildStep {
 }
 
 impl<'a> ApplyTokens<'a, PipelineContext<'a>> for BuildStep {
-    fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> anyhow::Result<()>
-    where
-        Self: Sized,
-        PipelineContext<'a>: StaticTokenTransformer<'a, BldDirectory>
-            + DynamicTokenTransformer<'a, Variable>
-            + DynamicTokenTransformer<'a, Environment>
-            + StaticTokenTransformer<'a, RunId>
-            + StaticTokenTransformer<'a, RunStartTime>,
-    {
+    fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
         self.name = self.name.as_mut().map(|x| {
             <PipelineContext as HolisticTokenTransformer>::transform(context, x.to_owned())
         });

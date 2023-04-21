@@ -1,6 +1,5 @@
 use crate::artifacts::version2::Artifacts;
 use crate::external::version2::External;
-use crate::keywords::version2::{BldDirectory, Environment, RunId, RunStartTime, Variable};
 use crate::platform::version2::Platform;
 use crate::step::version2::BuildStep;
 use crate::token_context::version2::PipelineContext;
@@ -8,9 +7,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use super::traits::{
-    ApplyTokens, DynamicTokenTransformer, HolisticTokenTransformer, StaticTokenTransformer,
-};
+use super::traits::{ApplyTokens, HolisticTokenTransformer};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Pipeline {
@@ -55,15 +52,7 @@ impl Pipeline {
 }
 
 impl<'a> ApplyTokens<'a, PipelineContext<'a>> for Pipeline {
-    fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()>
-    where
-        Self: Sized,
-        PipelineContext<'a>: StaticTokenTransformer<'a, BldDirectory>
-            + DynamicTokenTransformer<'a, Variable>
-            + DynamicTokenTransformer<'a, Environment>
-            + StaticTokenTransformer<'a, RunId>
-            + StaticTokenTransformer<'a, RunStartTime>,
-    {
+    fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
         self.runs_on.apply_tokens(context)?;
 
         self.dispose = <PipelineContext as HolisticTokenTransformer>::transform(

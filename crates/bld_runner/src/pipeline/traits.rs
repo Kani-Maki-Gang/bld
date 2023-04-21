@@ -39,9 +39,5 @@ pub trait ApplyTokens<'a, T> {
     fn apply_tokens(&mut self, context: &'a T) -> Result<()>
     where
         Self: Sized,
-        T: StaticTokenTransformer<'a, BldDirectory>
-            + DynamicTokenTransformer<'a, Variable>
-            + DynamicTokenTransformer<'a, Environment>
-            + StaticTokenTransformer<'a, RunId>
-            + StaticTokenTransformer<'a, RunStartTime>;
+        T: HolisticTokenTransformer<'a>;
 }

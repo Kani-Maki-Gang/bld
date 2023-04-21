@@ -10,24 +10,13 @@ use crate::{
     },
 };
 
+#[derive(Default)]
 pub struct PipelineContextBuilder<'a> {
     bld_directory: Option<&'a str>,
     variables: HashMap<String, String>,
     environment: HashMap<String, String>,
     run_id: Option<&'a str>,
     run_start_time: Option<&'a str>,
-}
-
-impl<'a> Default for PipelineContextBuilder<'a> {
-    fn default() -> Self {
-        Self {
-            bld_directory: None,
-            variables: HashMap::new(),
-            environment: HashMap::new(),
-            run_id: None,
-            run_start_time: None,
-        }
-    }
 }
 
 impl<'a> PipelineContextBuilder<'a> {
@@ -39,7 +28,8 @@ impl<'a> PipelineContextBuilder<'a> {
     pub fn add_variables(mut self, variables: &HashMap<String, String>) -> Self {
         let variable_token = Variable::token();
         for (k, v) in variables.iter() {
-            self.variables.insert(format!("{variable_token}{k}"), v.to_owned());
+            self.variables
+                .insert(format!("{variable_token}{k}"), v.to_owned());
         }
         self
     }
@@ -47,7 +37,8 @@ impl<'a> PipelineContextBuilder<'a> {
     pub fn add_environment(mut self, environment: &HashMap<String, String>) -> Self {
         let environment_token = Environment::token();
         for (k, v) in environment.iter() {
-            self.environment.insert(format!("{environment_token}{k}"), v.to_owned());
+            self.environment
+                .insert(format!("{environment_token}{k}"), v.to_owned());
         }
         self
     }
@@ -63,16 +54,22 @@ impl<'a> PipelineContextBuilder<'a> {
     }
 
     pub fn build(self) -> Result<PipelineContext<'a>> {
-        let bld_directory = self.bld_directory.ok_or_else(|| anyhow!("bld directory not provided in pipeline context"))?;
-        let run_id = self.run_id.ok_or_else(|| anyhow!("run id not provided in pipeline context"))?;
-        let run_start_time = self.run_start_time.ok_or_else(|| anyhow!("run start time not provided in pipeline context"))?;
+        let bld_directory = self
+            .bld_directory
+            .ok_or_else(|| anyhow!("bld directory not provided in pipeline context"))?;
+        let run_id = self
+            .run_id
+            .ok_or_else(|| anyhow!("run id not provided in pipeline context"))?;
+        let run_start_time = self
+            .run_start_time
+            .ok_or_else(|| anyhow!("run start time not provided in pipeline context"))?;
 
         Ok(PipelineContext {
             bld_directory,
             variables: self.variables,
             environment: self.environment,
             run_id,
-            run_start_time
+            run_start_time,
         })
     }
 }
