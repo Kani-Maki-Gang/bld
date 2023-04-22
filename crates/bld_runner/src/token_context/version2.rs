@@ -105,7 +105,7 @@ impl<'a> DynamicTokenContext<'a, Variable> for PipelineContext<'a> {
 
 impl<'a> DynamicTokenTransformer<'a, Variable> for PipelineContext<'a> {
     fn transform(&'a self, mut text: String) -> String {
-        for (k, v) in DynamicTokenContext::<'a, Variable>::retrieve(self).iter() {
+        for (k, v) in DynamicTokenContext::<'a, Variable>::retrieve(self) {
             text = text.replace(k, v);
         }
         text
@@ -120,7 +120,7 @@ impl<'a> DynamicTokenContext<'a, Environment> for PipelineContext<'a> {
 
 impl<'a> DynamicTokenTransformer<'a, Environment> for PipelineContext<'a> {
     fn transform(&'a self, mut text: String) -> String {
-        for (k, v) in DynamicTokenContext::<'a, Environment>::retrieve(self).iter() {
+        for (k, v) in DynamicTokenContext::<'a, Environment>::retrieve(self) {
             text = text.replace(k, v);
         }
         text
@@ -159,11 +159,11 @@ impl<'a> StaticTokenTransformer<'a, RunStartTime> for PipelineContext<'a> {
 
 impl<'a> HolisticTokenTransformer<'a> for PipelineContext<'a> {
     fn transform(&'a self, mut text: String) -> String {
-        text = <PipelineContext as StaticTokenTransformer<'a, BldDirectory>>::transform(self, text);
-        text = <PipelineContext as DynamicTokenTransformer<'a, Variable>>::transform(self, text);
-        text = <PipelineContext as DynamicTokenTransformer<'a, Environment>>::transform(self, text);
-        text = <PipelineContext as StaticTokenTransformer<'a, RunId>>::transform(self, text);
-        text = <PipelineContext as StaticTokenTransformer<'a, RunStartTime>>::transform(self, text);
+        text = <Self as StaticTokenTransformer<'a, BldDirectory>>::transform(self, text);
+        text = <Self as DynamicTokenTransformer<'a, Variable>>::transform(self, text);
+        text = <Self as DynamicTokenTransformer<'a, Environment>>::transform(self, text);
+        text = <Self as StaticTokenTransformer<'a, RunId>>::transform(self, text);
+        text = <Self as StaticTokenTransformer<'a, RunStartTime>>::transform(self, text);
         text
     }
 }

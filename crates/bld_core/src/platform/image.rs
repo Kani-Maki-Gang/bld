@@ -11,7 +11,7 @@ use shiplift::{
 use crate::logger::LoggerSender;
 
 #[derive(Serialize, Deserialize)]
-pub struct BuildData {
+pub struct StreamData {
     stream: String,
 }
 
@@ -35,8 +35,15 @@ impl Image {
 
         let mut stream = client.images().pull(&pull_opts);
 
-        while let Some(output) = stream.try_next().await? {
-            logger.write_line(output.to_string()).await?
+        loop {
+            match stream.try_next().await {
+                Ok(Some(output)) => {
+                    let Ok(data) = serde_json::from_value::<StreamData>(output) else {continue};
+                    logger.write(data.stream).await?
+                }
+                Ok(None) => break,
+                Err(_) => continue,
+            }
         }
 
         Ok(image.to_owned())
@@ -78,8 +85,15 @@ impl Image {
 
         let mut stream = client.images().build(&build_opts);
 
-        while let Some(output) = stream.try_next().await? {
-            logger.write_line(output.to_string()).await?;
+        loop {
+            match stream.try_next().await {
+                Ok(Some(output)) => {
+                    let Ok(data) = serde_json::from_value::<StreamData>(output) else {continue};
+                    logger.write(data.stream).await?
+                }
+                Ok(None) => break,
+                _ => continue,
+            }
         }
 
         logger.write_line(String::new()).await?;
