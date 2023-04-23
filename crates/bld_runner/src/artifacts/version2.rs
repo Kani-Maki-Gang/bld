@@ -19,17 +19,11 @@ pub struct Artifacts {
 #[async_trait]
 impl<'a> ApplyTokens<'a, PipelineContext<'a>> for Artifacts {
     async fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
-        self.from =
-            <PipelineContext as CompleteTokenTransformer>::transform(context, self.from.to_owned())
-                .await?;
-        self.to =
-            <PipelineContext as CompleteTokenTransformer>::transform(context, self.to.to_owned())
-                .await?;
+        self.from = context.transform(self.from.to_owned()).await?;
+        self.to = context.transform(self.to.to_owned()).await?;
+
         if let Some(after) = self.after.as_mut() {
-            self.after = Some(
-                <PipelineContext as CompleteTokenTransformer>::transform(context, after.to_owned())
-                    .await?,
-            );
+            self.after = Some(context.transform(after.to_owned()).await?);
         }
 
         Ok(())

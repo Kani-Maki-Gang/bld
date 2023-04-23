@@ -57,21 +57,21 @@ impl<'a> ApplyTokens<'a, PipelineContext<'a>> for Pipeline {
     async fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
         self.runs_on.apply_tokens(context).await?;
 
-        self.dispose = <PipelineContext as CompleteTokenTransformer>::transform(
-            context,
-            self.dispose.to_string(),
-        )
-        .await?
-        .parse::<bool>()?;
+        self.dispose = context
+            .transform(self.dispose.to_string())
+            .await?
+            .parse::<bool>()?;
 
         for (_, v) in self.environment.iter_mut() {
-            *v = <PipelineContext as CompleteTokenTransformer>::transform(context, v.to_owned())
-                .await?;
+            *v = context.transform(v.to_owned()).await?;
         }
 
         for (_, v) in self.variables.iter_mut() {
-            *v = <PipelineContext as CompleteTokenTransformer>::transform(context, v.to_owned())
-                .await?;
+            *v = context.transform(v.to_owned()).await?;
+        }
+
+        for entry in self.external.iter_mut() {
+            entry.apply_tokens(context).await?;
         }
 
         for entry in self.artifacts.iter_mut() {

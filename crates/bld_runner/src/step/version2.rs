@@ -38,20 +38,11 @@ impl BuildStep {
 impl<'a> ApplyTokens<'a, PipelineContext<'a>> for BuildStep {
     async fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
         if let Some(name) = self.name.as_mut() {
-            self.name = Some(
-                <PipelineContext as CompleteTokenTransformer>::transform(context, name.to_owned())
-                    .await?,
-            );
+            self.name = Some(context.transform(name.to_owned()).await?);
         }
 
         if let Some(working_dir) = self.working_dir.as_mut() {
-            self.working_dir = Some(
-                <PipelineContext as CompleteTokenTransformer>::transform(
-                    context,
-                    working_dir.to_owned(),
-                )
-                .await?,
-            );
+            self.working_dir = Some(context.transform(working_dir.to_owned()).await?);
         }
 
         for exec in self.exec.iter_mut() {
@@ -77,18 +68,10 @@ impl<'a> ApplyTokens<'a, PipelineContext<'a>> for BuildStepExec {
     async fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
         match self {
             Self::Shell(cmd) => {
-                *cmd = <PipelineContext as CompleteTokenTransformer>::transform(
-                    context,
-                    cmd.to_owned(),
-                )
-                .await?;
+                *cmd = context.transform(cmd.to_owned()).await?;
             }
             Self::External { value } => {
-                *value = <PipelineContext as CompleteTokenTransformer>::transform(
-                    context,
-                    value.to_owned(),
-                )
-                .await?;
+                *value = context.transform(value.to_owned()).await?;
             }
         }
         Ok(())

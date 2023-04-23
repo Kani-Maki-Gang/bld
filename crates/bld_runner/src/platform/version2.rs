@@ -40,39 +40,19 @@ impl<'a> ApplyTokens<'a, PipelineContext<'a>> for Platform {
     async fn apply_tokens(&mut self, context: &'a PipelineContext) -> Result<()> {
         match self {
             Platform::Pull { image, .. } => {
-                *image = <PipelineContext as CompleteTokenTransformer>::transform(
-                    context,
-                    image.to_owned(),
-                )
-                .await?;
+                *image = context.transform(image.to_owned()).await?;
             }
             Platform::Build {
                 name,
                 tag,
                 dockerfile,
             } => {
-                *name = <PipelineContext as CompleteTokenTransformer>::transform(
-                    context,
-                    name.to_owned(),
-                )
-                .await?;
-                *tag = <PipelineContext as CompleteTokenTransformer>::transform(
-                    context,
-                    tag.to_owned(),
-                )
-                .await?;
-                *dockerfile = <PipelineContext as CompleteTokenTransformer>::transform(
-                    context,
-                    dockerfile.to_owned(),
-                )
-                .await?;
+                *name = context.transform(name.to_owned()).await?;
+                *tag = context.transform(tag.to_owned()).await?;
+                *dockerfile = context.transform(dockerfile.to_owned()).await?;
             }
             Platform::ContainerOrMachine(image) if image != "machine" => {
-                *image = <PipelineContext as CompleteTokenTransformer>::transform(
-                    context,
-                    image.to_owned(),
-                )
-                .await?;
+                *image = context.transform(image.to_owned()).await?;
             }
             _ => {}
         }
