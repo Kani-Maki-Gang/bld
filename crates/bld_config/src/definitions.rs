@@ -4,11 +4,15 @@ pub const DB_NAME: &str = "bld-server.db";
 pub const PUSH: &str = "push";
 pub const GET: &str = "get";
 
-pub const KEYWORD_BLD_DIR: &str = "bld:root_dir";
-pub const KEYWORD_ENV: &str = "bld:env:";
-pub const KEYWORD_VAR: &str = "bld:var:";
-pub const KEYWORD_RUN_PROPS_ID: &str = "bld:run:id";
-pub const KEYWORD_RUN_PROPS_START_TIME: &str = "bld:run:start_time";
+pub const KEYWORD_BLD_DIR_V1: &str = "bld:root_dir";
+pub const KEYWORD_ENV_V1: &str = "bld:env:";
+pub const KEYWORD_VAR_V1: &str = "bld:var:";
+pub const KEYWORD_RUN_PROPS_ID_V1: &str = "bld:run:id";
+pub const KEYWORD_RUN_PROPS_START_TIME_V1: &str = "bld:run:start_time";
+
+pub const KEYWORD_BLD_DIR_V2: &str = "bld_root_dir";
+pub const KEYWORD_RUN_PROPS_ID_V2: &str = "bld_run_id";
+pub const KEYWORD_RUN_PROPS_START_TIME_V2: &str = "bld_start_time";
 
 pub const TOOL_DEFAULT_PIPELINE: &str = "default";
 pub const TOOL_DEFAULT_PIPELINE_FILE: &str = "default.yaml";

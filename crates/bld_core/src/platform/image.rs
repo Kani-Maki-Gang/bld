@@ -11,6 +11,22 @@ use shiplift::{
 use crate::logger::LoggerSender;
 
 #[derive(Serialize, Deserialize)]
+pub struct StatusData {
+    id: String,
+    status: String,
+    progress: Option<String>,
+}
+
+impl ToString for StatusData {
+    fn to_string(&self) -> String {
+        match &self.progress {
+            Some(progress) => format!("{} {} {progress}", self.id, self.status),
+            None => format!("{} {}", self.id, self.status),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct StreamData {
     stream: String,
 }
@@ -38,8 +54,8 @@ impl Image {
         loop {
             match stream.try_next().await {
                 Ok(Some(output)) => {
-                    let Ok(data) = serde_json::from_value::<StreamData>(output) else {continue};
-                    logger.write(data.stream).await?
+                    let Ok(data) = serde_json::from_value::<StatusData>(output) else {continue};
+                    logger.write_line(data.to_string()).await?
                 }
                 Ok(None) => break,
                 Err(_) => continue,

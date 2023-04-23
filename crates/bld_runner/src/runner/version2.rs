@@ -11,6 +11,7 @@ use bld_core::{
     logger::LoggerSender,
     platform::{Image, TargetPlatform},
     proxies::PipelineFileSystemProxy,
+    regex::RegexCache,
     signals::{UnixSignalMessage, UnixSignalsReceiver},
 };
 use bld_sock::{
@@ -39,6 +40,7 @@ pub struct Runner {
     pub config: Arc<BldConfig>,
     pub signals: Option<UnixSignalsReceiver>,
     pub logger: Arc<LoggerSender>,
+    pub regex_cache: Arc<RegexCache>,
     pub proxy: Arc<PipelineFileSystemProxy>,
     pub pipeline: Pipeline,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
@@ -77,7 +79,7 @@ impl Runner {
         Ok(())
     }
 
-    fn apply_context(&mut self) -> Result<()> {
+    async fn apply_context(&mut self) -> Result<()> {
         let context = PipelineContextBuilder::default()
             .bld_directory(&self.config.path)
             .add_variables(&self.pipeline.variables)
@@ -86,16 +88,17 @@ impl Runner {
             .add_environment(&self.env)
             .run_id(&self.run_id)
             .run_start_time(&self.run_start_time)
+            .regex_cache(self.regex_cache.clone())
             .build()?;
 
-        self.pipeline.apply_tokens(&context)?;
+        self.pipeline.apply_tokens(&context).await?;
         Ok(())
     }
 
     async fn create_platform(&mut self) -> Result<()> {
         let image = match &self.pipeline.runs_on {
-            Platform::Machine => None,
-            Platform::Container(image) | Platform::ContainerByPull { image, pull: false } => {
+            Platform::ContainerOrMachine(image) if image == "machine" => None,
+            Platform::ContainerOrMachine(image) | Platform::ContainerByPull { image, pull: false } => {
                 Some(Image::Use(image.to_owned()))
             }
             Platform::ContainerByPull { image, pull: true } => Some(Image::Pull(image.to_owned())),
@@ -335,7 +338,7 @@ impl Runner {
     }
 
     async fn start(&mut self) -> Result<()> {
-        self.apply_context()?;
+        self.apply_context().await?;
         self.create_platform().await?;
         self.register_start().await?;
         self.info().await?;

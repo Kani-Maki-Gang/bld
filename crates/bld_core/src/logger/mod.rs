@@ -188,9 +188,14 @@ impl LoggerReceiver {
     }
 }
 
-#[derive(Default)]
 pub struct LoggerSender {
-    tx: Option<Sender<LoggerMessage>>,
+    tx: Sender<LoggerMessage>,
+}
+
+impl Default for LoggerSender {
+    fn default() -> Self {
+        Self::shell()
+    }
 }
 
 impl LoggerSender {
@@ -204,7 +209,7 @@ impl LoggerSender {
             }
         });
 
-        Self { tx: Some(tx) }
+        Self { tx }
     }
 
     pub fn file(config: Arc<BldConfig>, run_id: &str) -> Result<Self> {
@@ -213,74 +218,72 @@ impl LoggerSender {
 
         spawn(async move { logger.receive(rx).await });
 
-        Ok(Self { tx: Some(tx) })
+        Ok(Self { tx })
     }
 
     pub async fn write(&self, text: String) -> Result<()> {
-        let Some(tx) = &self.tx else {
-            return Ok(())
-        };
-
         let (resp_tx, resp_rx) = oneshot::channel();
-        tx.send(LoggerMessage::Write { text, resp_tx }).await?;
+
+        self.tx.send(LoggerMessage::Write { text, resp_tx }).await?;
 
         resp_rx.await.map_err(|e| anyhow!(e))
     }
 
     pub async fn write_line(&self, text: String) -> Result<()> {
-        let Some(tx) = &self.tx else {return Ok(())};
-
         let (resp_tx, resp_rx) = oneshot::channel();
-        tx.send(LoggerMessage::WriteLine { text, resp_tx }).await?;
+
+        self.tx
+            .send(LoggerMessage::WriteLine { text, resp_tx })
+            .await?;
 
         resp_rx.await.map_err(|e| anyhow!(e))
     }
 
     pub async fn write_seperator(&self) -> Result<()> {
-        let Some(tx) = &self.tx else {return Ok(())};
-
         let (resp_tx, resp_rx) = oneshot::channel();
-        tx.send(LoggerMessage::WriteLine {
-            text: format!("{:-<1$}", "", 80),
-            resp_tx,
-        })
-        .await?;
+
+        self.tx
+            .send(LoggerMessage::WriteLine {
+                text: format!("{:-<1$}", "", 80),
+                resp_tx,
+            })
+            .await?;
 
         resp_rx.await.map_err(|e| anyhow!(e))
     }
 
     pub async fn info(&self, text: String) -> Result<()> {
-        let Some(tx) = &self.tx else {return Ok(())};
-
         let (resp_tx, resp_rx) = oneshot::channel();
-        tx.send(LoggerMessage::Info { text, resp_tx }).await?;
+
+        self.tx.send(LoggerMessage::Info { text, resp_tx }).await?;
 
         resp_rx.await.map_err(|e| anyhow!(e))
     }
 
     pub async fn info_line(&self, text: String) -> Result<()> {
-        let Some(tx) = &self.tx else {return Ok(())};
-
         let (resp_tx, resp_rx) = oneshot::channel();
-        tx.send(LoggerMessage::InfoLine { text, resp_tx }).await?;
+
+        self.tx
+            .send(LoggerMessage::InfoLine { text, resp_tx })
+            .await?;
 
         resp_rx.await.map_err(|e| anyhow!(e))
     }
 
     pub async fn error(&self, text: String) -> Result<()> {
-        let Some(tx) = &self.tx else {return Ok(())};
-
         let (resp_tx, resp_rx) = oneshot::channel();
-        tx.send(LoggerMessage::Error { text, resp_tx }).await?;
+
+        self.tx.send(LoggerMessage::Error { text, resp_tx }).await?;
 
         resp_rx.await.map_err(|e| anyhow!(e))
     }
 
     pub async fn error_line(&self, text: String) -> Result<()> {
-        let Some(tx) = &self.tx else {return Ok(())};
-
         let (resp_tx, resp_rx) = oneshot::channel();
-        tx.send(LoggerMessage::ErrorLine { text, resp_tx }).await?;
+
+        self.tx
+            .send(LoggerMessage::ErrorLine { text, resp_tx })
+            .await?;
 
         resp_rx.await.map_err(|e| anyhow!(e))
     }

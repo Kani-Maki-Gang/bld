@@ -4,12 +4,13 @@ use crate::platform::version2::Platform;
 use crate::step::version2::BuildStep;
 use crate::token_context::version2::PipelineContext;
 use anyhow::Result;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use super::traits::{ApplyTokens, HolisticTokenTransformer};
+use super::traits::{ApplyTokens, CompleteTokenTransformer};
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Pipeline {
     pub name: Option<String>,
     pub runs_on: Platform,
@@ -51,30 +52,34 @@ impl Pipeline {
     }
 }
 
+#[async_trait]
 impl<'a> ApplyTokens<'a, PipelineContext<'a>> for Pipeline {
-    fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
-        self.runs_on.apply_tokens(context)?;
+    async fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
+        self.runs_on.apply_tokens(context).await?;
 
-        self.dispose = <PipelineContext as HolisticTokenTransformer>::transform(
+        self.dispose = <PipelineContext as CompleteTokenTransformer>::transform(
             context,
             self.dispose.to_string(),
         )
+        .await?
         .parse::<bool>()?;
 
         for (_, v) in self.environment.iter_mut() {
-            *v = <PipelineContext as HolisticTokenTransformer>::transform(context, v.to_owned());
+            *v = <PipelineContext as CompleteTokenTransformer>::transform(context, v.to_owned())
+                .await?;
         }
 
         for (_, v) in self.variables.iter_mut() {
-            *v = <PipelineContext as HolisticTokenTransformer>::transform(context, v.to_owned());
+            *v = <PipelineContext as CompleteTokenTransformer>::transform(context, v.to_owned())
+                .await?;
         }
 
         for entry in self.artifacts.iter_mut() {
-            entry.apply_tokens(context)?;
+            entry.apply_tokens(context).await?;
         }
 
         for entry in self.steps.iter_mut() {
-            entry.apply_tokens(context)?;
+            entry.apply_tokens(context).await?;
         }
 
         Ok(())

@@ -7,7 +7,8 @@ use actix::spawn;
 use actix::{Actor, StreamHandler};
 use anyhow::{anyhow, Result};
 use bld_config::definitions::{
-    GET, KEYWORD_ENV, KEYWORD_RUN_PROPS_ID, KEYWORD_RUN_PROPS_START_TIME, KEYWORD_VAR, PUSH,
+    GET, KEYWORD_ENV_V1, KEYWORD_RUN_PROPS_ID_V1, KEYWORD_RUN_PROPS_START_TIME_V1, KEYWORD_VAR_V1,
+    PUSH,
 };
 use bld_config::BldConfig;
 use bld_core::context::ContextSender;
@@ -114,20 +115,21 @@ impl Runner {
 
     fn apply_run_properties(&self, txt: &str) -> String {
         let mut txt_with_props = String::from(txt);
-        txt_with_props = txt_with_props.replace(KEYWORD_RUN_PROPS_ID, &self.run_id);
-        txt_with_props = txt_with_props.replace(KEYWORD_RUN_PROPS_START_TIME, &self.run_start_time);
+        txt_with_props = txt_with_props.replace(KEYWORD_RUN_PROPS_ID_V1, &self.run_id);
+        txt_with_props =
+            txt_with_props.replace(KEYWORD_RUN_PROPS_START_TIME_V1, &self.run_start_time);
         txt_with_props
     }
 
     fn apply_environment(&self, txt: &str) -> String {
         let mut txt_with_env = String::from(txt);
         for (key, value) in self.env.iter() {
-            let full_name = format!("{KEYWORD_ENV}{key}");
+            let full_name = format!("{KEYWORD_ENV_V1}{key}");
             txt_with_env = txt_with_env.replace(&full_name, value);
         }
 
         for (key, value) in self.pipeline.environment.iter() {
-            let full_name = format!("{KEYWORD_ENV}{}", &key);
+            let full_name = format!("{KEYWORD_ENV_V1}{}", &key);
             txt_with_env = txt_with_env.replace(&full_name, value);
         }
 
@@ -137,12 +139,12 @@ impl Runner {
     fn apply_variables(&self, txt: &str) -> String {
         let mut txt_with_vars = String::from(txt);
         for (key, value) in self.vars.iter() {
-            let full_name = format!("{KEYWORD_VAR}{key}");
+            let full_name = format!("{KEYWORD_VAR_V1}{key}");
             txt_with_vars = txt_with_vars.replace(&full_name, value);
         }
 
         for (key, value) in self.pipeline.variables.iter() {
-            let full_name = format!("{KEYWORD_VAR}{}", &key);
+            let full_name = format!("{KEYWORD_VAR_V1}{}", &key);
             txt_with_vars = txt_with_vars.replace(&full_name, value);
         }
 

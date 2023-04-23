@@ -10,6 +10,7 @@ use bld_core::context::ContextSender;
 use bld_core::logger::LoggerSender;
 use bld_core::platform::Image;
 use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::regex::RegexCache;
 use bld_core::signals::UnixSignalsReceiver;
 use bld_sock::messages::WorkerMessages;
 use bld_utils::sync::IntoArc;
@@ -25,6 +26,7 @@ pub struct RunnerBuilder {
     config: Option<Arc<BldConfig>>,
     signals: Option<UnixSignalsReceiver>,
     logger: Arc<LoggerSender>,
+    regex_cache: Arc<RegexCache>,
     proxy: Arc<PipelineFileSystemProxy>,
     pipeline: Option<String>,
     ipc: Arc<Option<Sender<WorkerMessages>>>,
@@ -42,6 +44,7 @@ impl Default for RunnerBuilder {
             config: None,
             signals: None,
             logger: LoggerSender::default().into_arc(),
+            regex_cache: RegexCache::default().into_arc(),
             proxy: PipelineFileSystemProxy::default().into_arc(),
             pipeline: None,
             ipc: None.into_arc(),
@@ -76,6 +79,11 @@ impl RunnerBuilder {
 
     pub fn logger(mut self, logger: Arc<LoggerSender>) -> Self {
         self.logger = logger;
+        self
+    }
+
+    pub fn regex_cache(mut self, regex_cache: Arc<RegexCache>) -> Self {
+        self.regex_cache = regex_cache;
         self
     }
 
@@ -181,6 +189,7 @@ impl RunnerBuilder {
                 config,
                 signals: self.signals,
                 logger: self.logger,
+                regex_cache: self.regex_cache,
                 proxy: self.proxy,
                 pipeline,
                 ipc: self.ipc,

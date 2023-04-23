@@ -1,8 +1,9 @@
 use anyhow::Result;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    pipeline::traits::{ApplyTokens, HolisticTokenTransformer},
+    pipeline::traits::{ApplyTokens, CompleteTokenTransformer},
     token_context::version2::PipelineContext,
 };
 
@@ -15,15 +16,22 @@ pub struct Artifacts {
     pub after: Option<String>,
 }
 
+#[async_trait]
 impl<'a> ApplyTokens<'a, PipelineContext<'a>> for Artifacts {
-    fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
+    async fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
         self.from =
-            <PipelineContext as HolisticTokenTransformer>::transform(context, self.from.to_owned());
+            <PipelineContext as CompleteTokenTransformer>::transform(context, self.from.to_owned())
+                .await?;
         self.to =
-            <PipelineContext as HolisticTokenTransformer>::transform(context, self.to.to_owned());
-        self.after = self.after.as_mut().map(|x| {
-            <PipelineContext as HolisticTokenTransformer>::transform(context, x.to_owned())
-        });
+            <PipelineContext as CompleteTokenTransformer>::transform(context, self.to.to_owned())
+                .await?;
+        if let Some(after) = self.after.as_mut() {
+            self.after = Some(
+                <PipelineContext as CompleteTokenTransformer>::transform(context, after.to_owned())
+                    .await?,
+            );
+        }
+
         Ok(())
     }
 }
