@@ -13,11 +13,11 @@ use crate::{
 #[serde(untagged)]
 pub enum Platform {
     ContainerOrMachine(String),
-    ContainerByPull {
+    Pull {
         image: String,
         pull: bool,
     },
-    ContainerByBuild {
+    Build {
         name: String,
         tag: String,
         dockerfile: String,
@@ -29,8 +29,8 @@ impl Display for Platform {
         match self {
             Self::ContainerOrMachine(image) if image == "machine" => write!(f, "machine"),
             Self::ContainerOrMachine(image) => write!(f, "{image}"),
-            Self::ContainerByPull { image, .. } => write!(f, "{image}"),
-            Self::ContainerByBuild { name, tag, .. } => write!(f, "{name}:{tag}"),
+            Self::Pull { image, .. } => write!(f, "{image}"),
+            Self::Build { name, tag, .. } => write!(f, "{name}:{tag}"),
         }
     }
 }
@@ -39,14 +39,14 @@ impl Display for Platform {
 impl<'a> ApplyTokens<'a, PipelineContext<'a>> for Platform {
     async fn apply_tokens(&mut self, context: &'a PipelineContext) -> Result<()> {
         match self {
-            Platform::ContainerByPull { image, .. } => {
+            Platform::Pull { image, .. } => {
                 *image = <PipelineContext as CompleteTokenTransformer>::transform(
                     context,
                     image.to_owned(),
                 )
                 .await?;
             }
-            Platform::ContainerByBuild {
+            Platform::Build {
                 name,
                 tag,
                 dockerfile,

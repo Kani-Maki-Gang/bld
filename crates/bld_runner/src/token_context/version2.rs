@@ -8,7 +8,7 @@ use regex::Regex;
 
 use crate::{
     keywords::version2::{BldDirectory, Environment, Keyword, RunId, RunStartTime, Variable},
-    pipeline::traits::{TokenContext, TokenTransformer, CompleteTokenTransformer},
+    pipeline::traits::{CompleteTokenTransformer, TokenContext, TokenTransformer},
 };
 
 #[derive(Default)]
@@ -142,7 +142,7 @@ impl<'a> TokenContext<'a, Variable, &'a HashMap<String, String>> for PipelineCon
 impl<'a> TokenTransformer<'a, Variable, &'a HashMap<String, String>> for PipelineContext<'a> {
     async fn transform(&'a self, mut text: String) -> Result<String> {
         for (k, v) in TokenContext::<'a, Variable, &'a HashMap<String, String>>::retrieve(self) {
-            let pattern = Self::get_regex_pattern(&k);
+            let pattern = Self::get_regex_pattern(k);
             let re = match self.regex_cache.get(pattern.clone()).await? {
                 Some(v) => v,
                 None => self.cache_new_regex(pattern).await?,
@@ -163,7 +163,7 @@ impl<'a> TokenContext<'a, Environment, &'a HashMap<String, String>> for Pipeline
 impl<'a> TokenTransformer<'a, Environment, &'a HashMap<String, String>> for PipelineContext<'a> {
     async fn transform(&'a self, mut text: String) -> Result<String> {
         for (k, v) in TokenContext::<'a, Environment, &'a HashMap<String, String>>::retrieve(self) {
-            let pattern = Self::get_regex_pattern(&k);
+            let pattern = Self::get_regex_pattern(k);
             let re = match self.regex_cache.get(pattern.clone()).await? {
                 Some(v) => v,
                 None => self.cache_new_regex(pattern).await?,

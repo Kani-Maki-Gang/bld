@@ -98,11 +98,11 @@ impl Runner {
     async fn create_platform(&mut self) -> Result<()> {
         let image = match &self.pipeline.runs_on {
             Platform::ContainerOrMachine(image) if image == "machine" => None,
-            Platform::ContainerOrMachine(image) | Platform::ContainerByPull { image, pull: false } => {
+            Platform::ContainerOrMachine(image) | Platform::Pull { image, pull: false } => {
                 Some(Image::Use(image.to_owned()))
             }
-            Platform::ContainerByPull { image, pull: true } => Some(Image::Pull(image.to_owned())),
-            Platform::ContainerByBuild {
+            Platform::Pull { image, pull: true } => Some(Image::Pull(image.to_owned())),
+            Platform::Build {
                 name,
                 tag,
                 dockerfile,

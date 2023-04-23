@@ -48,7 +48,7 @@ impl RegexCacheReceiver {
     }
 
     fn get(&mut self, key: String, resp_tx: oneshot::Sender<Option<Arc<Regex>>>) -> Result<()> {
-        let value = self.cache.get(&key).map(|v| v.clone());
+        let value = self.cache.get(&key).cloned();
         resp_tx
             .send(value)
             .map_err(|_| anyhow!("oneshot response sender dropped"))
