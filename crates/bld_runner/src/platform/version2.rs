@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     pipeline::traits::{ApplyTokens, CompleteTokenTransformer},
-    token_context::version2::PipelineContext,
+    token_context::v2::PipelineContext,
 };
 
 #[derive(Debug, Serialize, Deserialize)]

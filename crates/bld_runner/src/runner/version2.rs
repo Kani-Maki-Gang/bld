@@ -28,7 +28,7 @@ use crate::{
     pipeline::{traits::ApplyTokens, version2::Pipeline},
     platform::{builder::TargetPlatformBuilder, version2::Platform},
     step::version2::{BuildStep, BuildStepExec},
-    token_context::version2::PipelineContextBuilder,
+    token_context::v2::PipelineContextBuilder,
     RunnerBuilder,
 };
 
