@@ -1,4 +1,4 @@
-use crate::artifacts::version1::Artifacts;
+use crate::artifacts::v1::Artifacts;
 use crate::external::version1::External;
 use crate::step::version1::BuildStep;
 use serde::{Deserialize, Serialize};
