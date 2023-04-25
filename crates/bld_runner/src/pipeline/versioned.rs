@@ -1,8 +1,8 @@
 use super::traits::Load;
 use super::v1;
 use super::v2;
-use crate::validator::version1 as validator_version1;
-use crate::validator::version2 as validator_version2;
+use crate::validator::v1 as validator_v1;
+use crate::validator::v2 as validator_v2;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
@@ -103,10 +103,10 @@ impl VersionedPipeline {
     ) -> Result<()> {
         match self {
             Self::Version1(pip) => {
-                validator_version1::PipelineValidator::new(pip, config, proxy).validate()
+                validator_v1::PipelineValidator::new(pip, config, proxy).validate()
             }
             Self::Version2(pip) => {
-                validator_version2::PipelineValidator::new(pip, config, proxy).validate()
+                validator_v2::PipelineValidator::new(pip, config, proxy).validate()
             }
         }
         .map_err(|e| anyhow!("Expression errors\r\n\r\n{e}"))
