@@ -1,6 +1,6 @@
 use crate::artifacts::v1::Artifacts;
 use crate::external::v1::External;
-use crate::step::version1::BuildStep;
+use crate::step::v1::BuildStep;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

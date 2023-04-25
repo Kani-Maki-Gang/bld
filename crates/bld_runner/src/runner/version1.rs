@@ -1,6 +1,6 @@
 use crate::external::v1::External;
 use crate::pipeline::version1::Pipeline;
-use crate::step::version1::{BuildStep, BuildStepExec};
+use crate::step::v1::{BuildStep, BuildStepExec};
 use crate::sync::builder::RunnerBuilder;
 use actix::io::SinkWrite;
 use actix::spawn;

@@ -1,5 +1,5 @@
 use crate::pipeline::version2::Pipeline;
-use crate::step::version2::BuildStepExec;
+use crate::step::v2::BuildStepExec;
 use anyhow::{bail, Result};
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
