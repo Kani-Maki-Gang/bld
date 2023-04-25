@@ -1,15 +1,11 @@
 use anyhow::Result;
-use async_trait::async_trait;
 use bld_config::definitions::TOOL_DIR;
 use bld_config::path;
 use bld_utils::fs::IsYaml;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use crate::{
-    pipeline::traits::{ApplyTokens, CompleteTokenTransformer},
-    token_context::v2::PipelineContext,
-};
+use crate::token_context::v2::PipelineContext;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct BuildStep {
@@ -32,11 +28,8 @@ impl BuildStep {
             })
             .collect()
     }
-}
 
-#[async_trait]
-impl<'a> ApplyTokens<'a, PipelineContext<'a>> for BuildStep {
-    async fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
+    pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
         if let Some(name) = self.name.as_mut() {
             self.name = Some(context.transform(name.to_owned()).await?);
         }
@@ -63,9 +56,8 @@ pub enum BuildStepExec {
     },
 }
 
-#[async_trait]
-impl<'a> ApplyTokens<'a, PipelineContext<'a>> for BuildStepExec {
-    async fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
+impl BuildStepExec {
+    pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
         match self {
             Self::Shell(cmd) => {
                 *cmd = context.transform(cmd.to_owned()).await?;

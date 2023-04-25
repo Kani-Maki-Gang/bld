@@ -1,15 +1,12 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{anyhow, Result};
-use async_trait::async_trait;
+use bld_config::definitions::{
+    KEYWORD_BLD_DIR_V2, KEYWORD_RUN_PROPS_ID_V2, KEYWORD_RUN_PROPS_START_TIME_V2,
+};
 use bld_core::regex::RegexCache;
 use bld_utils::sync::IntoArc;
 use regex::Regex;
-
-use crate::{
-    keywords::version2::{BldDirectory, Environment, Keyword, RunId, RunStartTime, Variable},
-    pipeline::traits::{CompleteTokenTransformer, TokenContext, TokenTransformer},
-};
 
 #[derive(Default)]
 pub struct PipelineContextBuilder<'a> {
@@ -103,45 +100,22 @@ impl<'a> PipelineContext<'a> {
         self.regex_cache.set(pattern, re.clone()).await?;
         Ok(re)
     }
-}
 
-impl<'a> TokenContext<'a, BldDirectory, &'a str> for PipelineContext<'a> {
-    fn retrieve(&'a self) -> &'a str {
-        self.bld_directory
-    }
-}
-
-#[async_trait]
-impl<'a> TokenTransformer<'a, BldDirectory, &'a str> for PipelineContext<'a> {
-    async fn transform(&'a self, text: String) -> Result<String> {
-        let pattern = Self::get_regex_pattern(BldDirectory::token());
+    async fn bld_directory_transform(&'a self, text: String) -> Result<String> {
+        let pattern = Self::get_regex_pattern(KEYWORD_BLD_DIR_V2);
 
         let re = match self.regex_cache.get(pattern.clone()).await? {
             Some(v) => v,
             None => self.cache_new_regex(pattern).await?,
         };
 
-        let result = re
-            .replace_all(
-                &text,
-                TokenContext::<'a, BldDirectory, &'a str>::retrieve(self),
-            )
-            .to_string();
+        let result = re.replace_all(&text, self.bld_directory).to_string();
 
         Ok(result)
     }
-}
 
-impl<'a> TokenContext<'a, Variable, &'a HashMap<String, String>> for PipelineContext<'a> {
-    fn retrieve(&'a self) -> &HashMap<String, String> {
-        &self.variables
-    }
-}
-
-#[async_trait]
-impl<'a> TokenTransformer<'a, Variable, &'a HashMap<String, String>> for PipelineContext<'a> {
-    async fn transform(&'a self, mut text: String) -> Result<String> {
-        for (k, v) in TokenContext::<'a, Variable, &'a HashMap<String, String>>::retrieve(self) {
+    async fn variables_transform(&'a self, mut text: String) -> Result<String> {
+        for (k, v) in self.variables.iter() {
             let pattern = Self::get_regex_pattern(k);
             let re = match self.regex_cache.get(pattern.clone()).await? {
                 Some(v) => v,
@@ -151,18 +125,9 @@ impl<'a> TokenTransformer<'a, Variable, &'a HashMap<String, String>> for Pipelin
         }
         Ok(text)
     }
-}
 
-impl<'a> TokenContext<'a, Environment, &'a HashMap<String, String>> for PipelineContext<'a> {
-    fn retrieve(&'a self) -> &HashMap<String, String> {
-        &self.environment
-    }
-}
-
-#[async_trait]
-impl<'a> TokenTransformer<'a, Environment, &'a HashMap<String, String>> for PipelineContext<'a> {
-    async fn transform(&'a self, mut text: String) -> Result<String> {
-        for (k, v) in TokenContext::<'a, Environment, &'a HashMap<String, String>>::retrieve(self) {
+    async fn environment_transform(&'a self, mut text: String) -> Result<String> {
+        for (k, v) in self.environment.iter() {
             let pattern = Self::get_regex_pattern(k);
             let re = match self.regex_cache.get(pattern.clone()).await? {
                 Some(v) => v,
@@ -172,64 +137,30 @@ impl<'a> TokenTransformer<'a, Environment, &'a HashMap<String, String>> for Pipe
         }
         Ok(text)
     }
-}
 
-impl<'a> TokenContext<'a, RunId, &'a str> for PipelineContext<'a> {
-    fn retrieve(&'a self) -> &'a str {
-        self.run_id
-    }
-}
-
-#[async_trait]
-impl<'a> TokenTransformer<'a, RunId, &'a str> for PipelineContext<'a> {
-    async fn transform(&'a self, text: String) -> Result<String> {
-        let pattern = Self::get_regex_pattern(RunId::token());
+    async fn run_id_transform(&'a self, text: String) -> Result<String> {
+        let pattern = Self::get_regex_pattern(KEYWORD_RUN_PROPS_ID_V2);
         let re = match self.regex_cache.get(pattern.clone()).await? {
             Some(v) => v,
             None => self.cache_new_regex(pattern).await?,
         };
-        Ok(re
-            .replace_all(&text, TokenContext::<'a, RunId, &'a str>::retrieve(self))
-            .to_string())
+        Ok(re.replace_all(&text, self.run_id).to_string())
     }
-}
 
-impl<'a> TokenContext<'a, RunStartTime, &'a str> for PipelineContext<'a> {
-    fn retrieve(&'a self) -> &'a str {
-        self.run_start_time
-    }
-}
-
-#[async_trait]
-impl<'a> TokenTransformer<'a, RunStartTime, &'a str> for PipelineContext<'a> {
-    async fn transform(&'a self, text: String) -> Result<String> {
-        let pattern = Self::get_regex_pattern(RunStartTime::token());
+    async fn run_start_time_transform(&'a self, text: String) -> Result<String> {
+        let pattern = Self::get_regex_pattern(KEYWORD_RUN_PROPS_START_TIME_V2);
         let re = match self.regex_cache.get(pattern.clone()).await? {
             Some(v) => v,
             None => self.cache_new_regex(pattern).await?,
         };
-        Ok(re
-            .replace_all(
-                &text,
-                TokenContext::<'a, RunStartTime, &'a str>::retrieve(self),
-            )
-            .to_string())
+        Ok(re.replace_all(&text, self.run_start_time).to_string())
     }
-}
 
-#[async_trait]
-impl<'a> CompleteTokenTransformer<'a> for PipelineContext<'a> {
-    async fn transform(&'a self, mut text: String) -> Result<String> {
-        text = <Self as TokenTransformer<'a, BldDirectory, &'a str>>::transform(self, text).await?;
-        text = <Self as TokenTransformer<'a, Variable, &'a HashMap<String, String>>>::transform(
-            self, text,
-        )
-        .await?;
-        text = <Self as TokenTransformer<'a, Environment, &'a HashMap<String, String>>>::transform(
-            self, text,
-        )
-        .await?;
-        text = <Self as TokenTransformer<'a, RunId, &'a str>>::transform(self, text).await?;
-        <Self as TokenTransformer<'a, RunStartTime, &'a str>>::transform(self, text).await
+    pub async fn transform(&self, mut text: String) -> Result<String> {
+        text = self.bld_directory_transform(text).await?;
+        text = self.variables_transform(text).await?;
+        text = self.environment_transform(text).await?;
+        text = self.run_id_transform(text).await?;
+        self.run_start_time_transform(text).await
     }
 }

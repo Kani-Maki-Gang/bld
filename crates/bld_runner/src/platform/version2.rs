@@ -1,13 +1,9 @@
 use std::fmt::Display;
 
 use anyhow::Result;
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    pipeline::traits::{ApplyTokens, CompleteTokenTransformer},
-    token_context::v2::PipelineContext,
-};
+use crate::token_context::v2::PipelineContext;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -35,9 +31,8 @@ impl Display for Platform {
     }
 }
 
-#[async_trait]
-impl<'a> ApplyTokens<'a, PipelineContext<'a>> for Platform {
-    async fn apply_tokens(&mut self, context: &'a PipelineContext) -> Result<()> {
+impl Platform {
+    pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
         match self {
             Platform::Pull { image, .. } => {
                 *image = context.transform(image.to_owned()).await?;

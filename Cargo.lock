@@ -541,7 +541,6 @@ dependencies = [
  "actix-web",
  "actix-web-actors",
  "anyhow",
- "async-trait",
  "bld_config",
  "bld_core",
  "bld_sock",

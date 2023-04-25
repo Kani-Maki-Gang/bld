@@ -4,11 +4,8 @@ use crate::platform::version2::Platform;
 use crate::step::version2::BuildStep;
 use crate::token_context::v2::PipelineContext;
 use anyhow::Result;
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-
-use super::traits::{ApplyTokens, CompleteTokenTransformer};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Pipeline {
@@ -50,11 +47,8 @@ impl Pipeline {
 
         from_steps.chain(from_external).collect()
     }
-}
 
-#[async_trait]
-impl<'a> ApplyTokens<'a, PipelineContext<'a>> for Pipeline {
-    async fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
+    pub async fn apply_tokens<'a>(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
         self.runs_on.apply_tokens(context).await?;
 
         self.dispose = context

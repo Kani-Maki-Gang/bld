@@ -29,4 +29,3 @@ tracing = "0.1.36"
 yaml-rust = "0.4.5"
 uuid = { version = "0.8.2", features = ["v4"] }
 regex = "1.8.1"
-async-trait = "0.1.68"

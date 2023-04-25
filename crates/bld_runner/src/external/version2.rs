@@ -1,12 +1,8 @@
 use anyhow::Result;
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::{
-    pipeline::traits::{ApplyTokens, CompleteTokenTransformer},
-    token_context::v2::PipelineContext,
-};
+use crate::token_context::v2::PipelineContext;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct External {
@@ -32,11 +28,8 @@ impl External {
             ..Default::default()
         }
     }
-}
 
-#[async_trait]
-impl<'a> ApplyTokens<'a, PipelineContext<'a>> for External {
-    async fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
+    pub async fn apply_tokens<'a>(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
         if let Some(name) = self.name.as_mut() {
             *name = context.transform(name.to_owned()).await?;
         }

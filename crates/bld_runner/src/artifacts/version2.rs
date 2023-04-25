@@ -1,11 +1,7 @@
 use anyhow::Result;
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    pipeline::traits::{ApplyTokens, CompleteTokenTransformer},
-    token_context::v2::PipelineContext,
-};
+use crate::token_context::v2::PipelineContext;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Artifacts {
@@ -16,9 +12,8 @@ pub struct Artifacts {
     pub after: Option<String>,
 }
 
-#[async_trait]
-impl<'a> ApplyTokens<'a, PipelineContext<'a>> for Artifacts {
-    async fn apply_tokens(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
+impl Artifacts {
+    pub async fn apply_tokens<'a>(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
         self.from = context.transform(self.from.to_owned()).await?;
         self.to = context.transform(self.to.to_owned()).await?;
 
