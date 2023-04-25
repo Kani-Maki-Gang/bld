@@ -1,2 +1,2 @@
 pub mod builder;
-pub mod version2;
+pub mod v2;
