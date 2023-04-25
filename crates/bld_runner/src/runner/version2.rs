@@ -24,7 +24,7 @@ use tokio::sync::mpsc::Sender;
 use tracing::debug;
 
 use crate::{
-    external::version2::External,
+    external::v2::External,
     pipeline::version2::Pipeline,
     platform::{builder::TargetPlatformBuilder, version2::Platform},
     step::version2::{BuildStep, BuildStepExec},

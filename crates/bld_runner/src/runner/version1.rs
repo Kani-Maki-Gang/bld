@@ -1,4 +1,4 @@
-use crate::external::version1::External;
+use crate::external::v1::External;
 use crate::pipeline::version1::Pipeline;
 use crate::step::version1::{BuildStep, BuildStepExec};
 use crate::sync::builder::RunnerBuilder;

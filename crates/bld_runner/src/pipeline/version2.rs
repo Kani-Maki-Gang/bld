@@ -1,5 +1,5 @@
 use crate::artifacts::v2::Artifacts;
-use crate::external::version2::External;
+use crate::external::v2::External;
 use crate::platform::version2::Platform;
 use crate::step::version2::BuildStep;
 use crate::token_context::v2::PipelineContext;
