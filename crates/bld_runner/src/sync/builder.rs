@@ -2,8 +2,8 @@ use super::versioned::VersionedRunner;
 use crate::pipeline::traits::Load;
 use crate::pipeline::versioned::{VersionedPipeline, Yaml};
 use crate::platform::builder::TargetPlatformBuilder;
-use crate::runner::version1;
-use crate::runner::version2;
+use crate::runner::v1;
+use crate::runner::v2;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::context::ContextSender;
@@ -165,7 +165,7 @@ impl RunnerBuilder {
 
                 context.add_platform(platform.clone()).await?;
 
-                VersionedRunner::Version1(version1::Runner {
+                VersionedRunner::V1(v1::Runner {
                     run_id: self.run_id,
                     run_start_time: self.run_start_time,
                     config,
@@ -183,7 +183,7 @@ impl RunnerBuilder {
                 })
             }
 
-            VersionedPipeline::Version2(pipeline) => VersionedRunner::Version2(version2::Runner {
+            VersionedPipeline::Version2(pipeline) => VersionedRunner::V2(v2::Runner {
                 run_id: self.run_id,
                 run_start_time: self.run_start_time,
                 config,
