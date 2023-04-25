@@ -25,7 +25,7 @@ use tracing::debug;
 
 use crate::{
     external::v2::External,
-    pipeline::version2::Pipeline,
+    pipeline::v2::Pipeline,
     platform::{builder::TargetPlatformBuilder, v2::Platform},
     step::v2::{BuildStep, BuildStepExec},
     token_context::v2::PipelineContextBuilder,

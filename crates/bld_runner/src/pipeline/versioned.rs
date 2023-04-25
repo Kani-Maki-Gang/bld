@@ -1,6 +1,6 @@
 use super::traits::Load;
-use super::version1;
-use super::version2;
+use super::v1;
+use super::v2;
 use crate::validator::version1 as validator_version1;
 use crate::validator::version2 as validator_version2;
 use anyhow::{anyhow, Result};
@@ -45,9 +45,9 @@ impl Load<VersionedPipeline> for Yaml {
 #[serde(tag = "version")]
 pub enum VersionedPipeline {
     #[serde(rename(serialize = "1", deserialize = "1"))]
-    Version1(version1::Pipeline),
+    Version1(v1::Pipeline),
     #[serde(rename(serialize = "2", deserialize = "2"))]
-    Version2(version2::Pipeline),
+    Version2(v2::Pipeline),
 }
 
 impl VersionedPipeline {

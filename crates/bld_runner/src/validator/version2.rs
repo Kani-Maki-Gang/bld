@@ -1,4 +1,4 @@
-use crate::pipeline::version2::Pipeline;
+use crate::pipeline::v2::Pipeline;
 use crate::step::v2::BuildStepExec;
 use anyhow::{bail, Result};
 use bld_config::BldConfig;

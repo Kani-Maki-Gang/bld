@@ -1,5 +1,5 @@
 use crate::external::v1::External;
-use crate::pipeline::version1::Pipeline;
+use crate::pipeline::v1::Pipeline;
 use crate::step::v1::{BuildStep, BuildStepExec};
 use crate::sync::builder::RunnerBuilder;
 use actix::io::SinkWrite;
