@@ -1,14 +1,17 @@
-use super::runner::RunnerV1;
+use crate::runner::v1;
+use crate::runner::v2;
 use anyhow::Result;
 
 pub enum VersionedRunner {
-    Version1(RunnerV1),
+    V1(v1::Runner),
+    V2(v2::Runner),
 }
 
 impl VersionedRunner {
     pub async fn run(self) -> Result<()> {
         match self {
-            Self::Version1(runner) => runner.run().await.await,
+            Self::V1(runner) => runner.run().await.await,
+            Self::V2(runner) => runner.run().await.await,
         }
     }
 }

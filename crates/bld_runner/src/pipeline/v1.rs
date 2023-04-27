@@ -1,15 +1,15 @@
-use super::artifacts::ArtifactsV1;
-use super::external::ExternalV1;
-use super::step::BuildStepV1;
+use crate::artifacts::v1::Artifacts;
+use crate::external::v1::External;
+use crate::step::v1::BuildStep;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
-pub struct PipelineV1 {
+pub struct Pipeline {
     pub name: Option<String>,
     pub runs_on: String,
 
-    #[serde(default = "PipelineV1::default_dispose")]
+    #[serde(default = "Pipeline::default_dispose")]
     pub dispose: bool,
 
     #[serde(default)]
@@ -19,16 +19,16 @@ pub struct PipelineV1 {
     pub variables: HashMap<String, String>,
 
     #[serde(default)]
-    pub artifacts: Vec<ArtifactsV1>,
+    pub artifacts: Vec<Artifacts>,
 
     #[serde(default)]
-    pub external: Vec<ExternalV1>,
+    pub external: Vec<External>,
 
     #[serde(default)]
-    pub steps: Vec<BuildStepV1>,
+    pub steps: Vec<BuildStep>,
 }
 
-impl PipelineV1 {
+impl Pipeline {
     fn default_dispose() -> bool {
         true
     }

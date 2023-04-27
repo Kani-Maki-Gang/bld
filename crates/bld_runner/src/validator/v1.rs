@@ -1,5 +1,5 @@
-use super::step::BuildStepExecV1;
-use super::PipelineV1;
+use crate::pipeline::v1::Pipeline;
+use crate::step::v1::BuildStepExec;
 use anyhow::{bail, Result};
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
@@ -7,15 +7,15 @@ use bld_utils::fs::IsYaml;
 use std::fmt::Write;
 use std::sync::Arc;
 
-pub struct PipelineValidatorV1<'a> {
-    pipeline: &'a PipelineV1,
+pub struct PipelineValidator<'a> {
+    pipeline: &'a Pipeline,
     config: Arc<BldConfig>,
     proxy: Arc<PipelineFileSystemProxy>,
 }
 
-impl<'a> PipelineValidatorV1<'a> {
+impl<'a> PipelineValidator<'a> {
     pub fn new(
-        pipeline: &'a PipelineV1,
+        pipeline: &'a Pipeline,
         config: Arc<BldConfig>,
         proxy: Arc<PipelineFileSystemProxy>,
     ) -> Self {
@@ -111,10 +111,10 @@ impl<'a> PipelineValidatorV1<'a> {
         }
     }
 
-    fn validate_exec(&self, step: &BuildStepExecV1) -> Result<()> {
+    fn validate_exec(&self, step: &BuildStepExec) -> Result<()> {
         match step {
-            BuildStepExecV1::Shell(_) => Ok(()),
-            BuildStepExecV1::External { value } => self.validate_exec_ext(value),
+            BuildStepExec::Shell(_) => Ok(()),
+            BuildStepExec::External { value } => self.validate_exec_ext(value),
         }
     }
 

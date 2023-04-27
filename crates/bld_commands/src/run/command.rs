@@ -58,11 +58,11 @@ impl BldCommand for RunCommand {
 pub fn parse_variables(variables: &[String]) -> HashMap<String, String> {
     variables
         .iter()
-        .map(|v| {
+        .flat_map(|v| {
             let mut split = v.split('=');
-            let name = split.next().unwrap_or("").to_string();
-            let value = split.next().unwrap_or("").to_string();
-            (name, value)
+            let name = split.next()?.to_owned();
+            let value = split.next()?.to_owned();
+            Some((name, value))
         })
         .collect::<HashMap<String, String>>()
 }

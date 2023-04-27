@@ -1,17 +1,18 @@
-use crate::context::ContextSender;
-use crate::database::pipeline_run_containers::PipelineRunContainers;
-use crate::logger::LoggerSender;
-use anyhow::{bail, Result};
+use std::{collections::HashMap, path::Path, sync::Arc};
+
+use anyhow::{anyhow, bail, Result};
 use bld_config::BldConfig;
-use futures::TryStreamExt;
-use futures_util::StreamExt;
-use shiplift::tty::TtyChunk;
-use shiplift::{ContainerOptions, Docker, Exec, ExecContainerOptions};
-use std::collections::HashMap;
-use std::path::Path;
-use std::sync::Arc;
+use futures::{StreamExt, TryStreamExt};
+use shiplift::{tty::TtyChunk, ContainerOptions, Docker, Exec, ExecContainerOptions};
 use tar::Archive;
 use tracing::error;
+
+use crate::{
+    context::ContextSender, database::pipeline_run_containers::PipelineRunContainers,
+    logger::LoggerSender,
+};
+
+use super::Image;
 
 pub struct Container {
     pub id: Option<String>,
@@ -25,17 +26,15 @@ pub struct Container {
 
 impl Container {
     fn get_client(&self) -> Result<&Docker> {
-        match &self.client {
-            Some(client) => Ok(client),
-            None => bail!("container not started"),
-        }
+        self.client
+            .as_ref()
+            .ok_or_else(|| anyhow!("container not started"))
     }
 
     fn get_id(&self) -> Result<&str> {
-        match &self.id {
-            Some(id) => Ok(id),
-            None => bail!("container id not found"),
-        }
+        self.id
+            .as_deref()
+            .ok_or_else(|| anyhow!("container id not found"))
     }
 
     fn docker(config: &Arc<BldConfig>) -> Result<Docker> {
@@ -52,7 +51,7 @@ impl Container {
     }
 
     pub async fn new(
-        image: &str,
+        image: Image,
         config: Arc<BldConfig>,
         env: Arc<HashMap<String, String>>,
         logger: Arc<LoggerSender>,
@@ -60,7 +59,8 @@ impl Container {
     ) -> Result<Self> {
         let client = Container::docker(&config)?;
         let env: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
-        let id = Container::create(&client, image, &env).await?;
+        let image = image.create(&client, logger.clone()).await?;
+        let id = Container::create(&client, &image, &env).await?;
         let entity = context.add_container(id.clone()).await?;
         Ok(Self {
             config: Some(config),

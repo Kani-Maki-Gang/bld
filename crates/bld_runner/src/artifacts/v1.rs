@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
-pub struct ArtifactsV1 {
+pub struct Artifacts {
     pub method: String,
     pub from: String,
     pub to: String,

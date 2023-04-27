@@ -1,7 +1,9 @@
 mod container;
+mod image;
 mod machine;
 
 pub use container::*;
+pub use image::*;
 pub use machine::*;
 use uuid::Uuid;
 

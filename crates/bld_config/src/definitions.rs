@@ -1,12 +1,18 @@
-pub const VERSION: &str = "0.1";
+pub const VERSION: &str = "0.2";
 pub const TOOL_DIR: &str = ".bld";
 pub const DB_NAME: &str = "bld-server.db";
 pub const PUSH: &str = "push";
 pub const GET: &str = "get";
-pub const ENV_TOKEN: &str = "bld:env:";
-pub const VAR_TOKEN: &str = "bld:var:";
-pub const RUN_PROPS_ID: &str = "bld:run:id";
-pub const RUN_PROPS_START_TIME: &str = "bld:run:start_time";
+
+pub const KEYWORD_BLD_DIR_V1: &str = "bld:root_dir";
+pub const KEYWORD_ENV_V1: &str = "bld:env:";
+pub const KEYWORD_VAR_V1: &str = "bld:var:";
+pub const KEYWORD_RUN_PROPS_ID_V1: &str = "bld:run:id";
+pub const KEYWORD_RUN_PROPS_START_TIME_V1: &str = "bld:run:start_time";
+
+pub const KEYWORD_BLD_DIR_V2: &str = "bld_root_dir";
+pub const KEYWORD_RUN_PROPS_ID_V2: &str = "bld_run_id";
+pub const KEYWORD_RUN_PROPS_START_TIME_V2: &str = "bld_start_time";
 
 pub const TOOL_DEFAULT_PIPELINE: &str = "default";
 pub const TOOL_DEFAULT_PIPELINE_FILE: &str = "default.yaml";
@@ -24,6 +30,7 @@ pub const LOCAL_LOGS: &str = ".bld/logs";
 pub const LOCAL_DB: &str = ".bld/db";
 pub const LOCAL_DOCKER_URL: &str = "tcp://127.0.0.1:2376";
 pub const LOCAL_MACHINE_TMP_DIR: &str = ".bld/tmp";
+
 pub const REMOTE_SERVER_NAME: &str = "demo_server";
 pub const REMOTE_SERVER_HOST: &str = "127.0.0.1";
 pub const REMOTE_SERVER_PORT: i64 = 6080;

@@ -1,55 +1,58 @@
-use super::builder::RunnerBuilder;
-use crate::pipeline::external::ExternalV1;
-use crate::pipeline::step::{BuildStepExecV1, BuildStepV1};
-use crate::pipeline::PipelineV1;
-use actix::io::SinkWrite;
-use actix::spawn;
-use actix::{Actor, StreamHandler};
-use anyhow::{anyhow, Result};
-use bld_config::definitions::{
-    ENV_TOKEN, GET, PUSH, RUN_PROPS_ID, RUN_PROPS_START_TIME, VAR_TOKEN,
+use std::{collections::HashMap, fmt::Write, pin::Pin, sync::Arc, time::Duration};
+
+use actix::{clock::sleep, io::SinkWrite, spawn, Actor, StreamHandler};
+use anyhow::{anyhow, bail, Result};
+use bld_config::{
+    definitions::{GET, PUSH},
+    BldConfig,
 };
-use bld_config::BldConfig;
-use bld_core::context::ContextSender;
-use bld_core::logger::LoggerSender;
-use bld_core::platform::TargetPlatform;
-use bld_core::proxies::PipelineFileSystemProxy;
-use bld_core::signals::{UnixSignalMessage, UnixSignalsReceiver};
-use bld_sock::clients::ExecClient;
-use bld_sock::messages::{ExecClientMessage, WorkerMessages};
-use bld_utils::request::WebSocket;
-use bld_utils::sync::IntoArc;
-use futures::stream::StreamExt;
-use std::collections::HashMap;
-use std::fmt::Write;
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::time::Duration;
+use bld_core::{
+    context::ContextSender,
+    logger::LoggerSender,
+    platform::{Image, TargetPlatform},
+    proxies::PipelineFileSystemProxy,
+    regex::RegexCache,
+    signals::{UnixSignalMessage, UnixSignalsReceiver},
+};
+use bld_sock::{
+    clients::ExecClient,
+    messages::{ExecClientMessage, WorkerMessages},
+};
+use bld_utils::{request::WebSocket, sync::IntoArc};
+use futures::{Future, StreamExt};
 use tokio::sync::mpsc::Sender;
-use tokio::time::sleep;
 use tracing::debug;
+
+use crate::{
+    external::v2::External,
+    pipeline::v2::Pipeline,
+    platform::{builder::TargetPlatformBuilder, v2::Platform},
+    step::v2::{BuildStep, BuildStepExec},
+    token_context::v2::PipelineContextBuilder,
+    RunnerBuilder,
+};
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 
-pub struct RunnerV1 {
+pub struct Runner {
     pub run_id: String,
     pub run_start_time: String,
     pub config: Arc<BldConfig>,
     pub signals: Option<UnixSignalsReceiver>,
     pub logger: Arc<LoggerSender>,
+    pub regex_cache: Arc<RegexCache>,
     pub proxy: Arc<PipelineFileSystemProxy>,
-    pub pipeline: PipelineV1,
+    pub pipeline: Pipeline,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
     pub env: Arc<HashMap<String, String>>,
     pub vars: Arc<HashMap<String, String>>,
     pub context: Arc<ContextSender>,
-    pub platform: Arc<TargetPlatform>,
+    pub platform: Option<Arc<TargetPlatform>>,
     pub is_child: bool,
     pub has_faulted: bool,
 }
 
-impl RunnerV1 {
+impl Runner {
     async fn register_start(&self) -> Result<()> {
         if !self.is_child {
             debug!("setting the pipeline as running in the execution context");
@@ -76,16 +79,66 @@ impl RunnerV1 {
         Ok(())
     }
 
+    async fn apply_context(&mut self) -> Result<()> {
+        let context = PipelineContextBuilder::default()
+            .bld_directory(&self.config.path)
+            .add_variables(&self.pipeline.variables)
+            .add_variables(&self.vars)
+            .add_environment(&self.pipeline.environment)
+            .add_environment(&self.env)
+            .run_id(&self.run_id)
+            .run_start_time(&self.run_start_time)
+            .regex_cache(self.regex_cache.clone())
+            .build()?;
+
+        self.pipeline.apply_tokens(&context).await?;
+        Ok(())
+    }
+
+    async fn create_platform(&mut self) -> Result<()> {
+        let image = match &self.pipeline.runs_on {
+            Platform::ContainerOrMachine(image) if image == "machine" => None,
+            Platform::ContainerOrMachine(image) | Platform::Pull { image, pull: false } => {
+                Some(Image::Use(image.to_owned()))
+            }
+            Platform::Pull { image, pull: true } => Some(Image::Pull(image.to_owned())),
+            Platform::Build {
+                name,
+                tag,
+                dockerfile,
+            } => Some(Image::Build {
+                name: name.to_owned(),
+                dockerfile: dockerfile.to_owned(),
+                tag: tag.to_owned(),
+            }),
+        };
+
+        let platform = TargetPlatformBuilder::default()
+            .run_id(&self.run_id)
+            .config(self.config.clone())
+            .image(image)
+            .environment(self.env.clone())
+            .logger(self.logger.clone())
+            .context(self.context.clone())
+            .build()
+            .await?;
+
+        self.context.add_platform(platform.clone()).await?;
+        self.platform = Some(platform);
+        Ok(())
+    }
+
     async fn dispose_platform(&self) -> Result<()> {
+        let Some(platform) = self.platform.as_ref() else {bail!("no platform instance for runner");};
         if self.pipeline.dispose {
             debug!("executing dispose operations for platform");
-            self.platform.dispose(self.is_child).await?;
+            platform.dispose(self.is_child).await?;
         } else {
             debug!("keeping platform alive");
-            self.platform.keep_alive().await?;
+            platform.keep_alive().await?;
         }
 
-        self.context.remove_platform(self.platform.id()).await
+        self.context.remove_platform(platform.id()).await
     }
 
     async fn ipc_send_completed(&self) -> Result<()> {
@@ -107,80 +160,35 @@ impl RunnerV1 {
             writeln!(message, "{:<10}: {name}", "Name")?;
         }
         writeln!(message, "{:<10}: {}", "Runs on", &self.pipeline.runs_on)?;
-        writeln!(message, "{:<10}: 1", "Version")?;
+        writeln!(message, "{:<10}: 2", "Version")?;
 
         self.logger.write_line(message).await
-    }
-
-    fn apply_run_properties(&self, txt: &str) -> String {
-        let mut txt_with_props = String::from(txt);
-        txt_with_props = txt_with_props.replace(RUN_PROPS_ID, &self.run_id);
-        txt_with_props = txt_with_props.replace(RUN_PROPS_START_TIME, &self.run_start_time);
-        txt_with_props
-    }
-
-    fn apply_environment(&self, txt: &str) -> String {
-        let mut txt_with_env = String::from(txt);
-        for (key, value) in self.env.iter() {
-            let full_name = format!("{ENV_TOKEN}{key}");
-            txt_with_env = txt_with_env.replace(&full_name, value);
-        }
-
-        for (key, value) in self.pipeline.environment.iter() {
-            let full_name = format!("{ENV_TOKEN}{}", &key);
-            txt_with_env = txt_with_env.replace(&full_name, value);
-        }
-
-        txt_with_env
-    }
-
-    fn apply_variables(&self, txt: &str) -> String {
-        let mut txt_with_vars = String::from(txt);
-        for (key, value) in self.vars.iter() {
-            let full_name = format!("{VAR_TOKEN}{key}");
-            txt_with_vars = txt_with_vars.replace(&full_name, value);
-        }
-
-        for (key, value) in self.pipeline.variables.iter() {
-            let full_name = format!("{VAR_TOKEN}{}", &key);
-            txt_with_vars = txt_with_vars.replace(&full_name, value);
-        }
-
-        txt_with_vars
-    }
-
-    fn apply_context(&self, txt: &str) -> String {
-        let txt = self.apply_run_properties(txt);
-        let txt = self.apply_environment(&txt);
-        self.apply_variables(&txt)
     }
 
     async fn artifacts(&self, name: &Option<String>) -> Result<()> {
         debug!("executing artifact operation related to step {:?}", name);
 
+        let Some(platform) = self.platform.as_ref() else {bail!("no platform instance for runner");};
+
         for artifact in self.pipeline.artifacts.iter().filter(|a| &a.after == name) {
             let can_continue = artifact.method == *PUSH || artifact.method == *GET;
 
             if can_continue {
-                debug!("applying context for artifact");
-
-                let method = self.apply_context(&artifact.method);
-                let from = self.apply_context(&artifact.from);
-                let to = self.apply_context(&artifact.to);
                 self.logger
                     .write_line(format!(
-                        "Copying artifacts from: {from} into container to: {to}",
+                        "Copying artifacts from: {} into container to: {}",
+                        artifact.from, artifact.to
                     ))
                     .await?;
 
-                let result = match &method[..] {
+                let result = match &artifact.method[..] {
                     PUSH => {
                         debug!("executing {PUSH} artifact operation");
-                        self.platform.push(&from, &to).await
+                        platform.push(&artifact.from, &artifact.to).await
                     }
                     GET => {
                         debug!("executing {GET} artifact operation");
-                        self.platform.get(&from, &to).await
+                        platform.get(&artifact.from, &artifact.to).await
                     }
                     _ => unreachable!(),
                 };
@@ -206,7 +214,7 @@ impl RunnerV1 {
         Ok(())
     }
 
-    async fn step(&self, step: &BuildStepV1) -> Result<()> {
+    async fn step(&self, step: &BuildStep) -> Result<()> {
         if let Some(name) = &step.name {
             let mut message = String::new();
             writeln!(message, "{:<10}: {name}", "Step")?;
@@ -215,8 +223,8 @@ impl RunnerV1 {
 
         for exec in &step.exec {
             match exec {
-                BuildStepExecV1::Shell(cmd) => self.shell(step, cmd).await?,
-                BuildStepExecV1::External { value } => self.external(value.as_ref()).await?,
+                BuildStepExec::Shell(cmd) => self.shell(step, cmd).await?,
+                BuildStepExec::External { value } => self.external(value.as_ref()).await?,
             }
         }
 
@@ -231,7 +239,7 @@ impl RunnerV1 {
             .external
             .iter()
             .find(|i| i.is(value)) else {
-                self.local_external(&ExternalV1::local(value)).await?;
+                self.local_external(&External::local(value)).await?;
                 return Ok(());
             };
 
@@ -243,20 +251,11 @@ impl RunnerV1 {
         Ok(())
     }
 
-    async fn local_external(&self, details: &ExternalV1) -> Result<()> {
+    async fn local_external(&self, details: &External) -> Result<()> {
         debug!("building runner for child pipeline");
 
-        let variables: HashMap<String, String> = details
-            .variables
-            .iter()
-            .map(|(key, value)| (key.to_owned(), self.apply_context(value)))
-            .collect();
-
-        let environment: HashMap<String, String> = details
-            .environment
-            .iter()
-            .map(|(key, value)| (key.to_owned(), self.apply_context(value)))
-            .collect();
+        let variables = details.variables.clone();
+        let environment = details.environment.clone();
 
         let runner = RunnerBuilder::default()
             .run_id(&self.run_id)
@@ -279,21 +278,12 @@ impl RunnerV1 {
         Ok(())
     }
 
-    async fn server_external(&self, server: &str, details: &ExternalV1) -> Result<()> {
+    async fn server_external(&self, server: &str, details: &External) -> Result<()> {
         let server_name = server.to_owned();
         let server = self.config.server(server)?;
         let server_auth = self.config.same_auth_as(server)?;
-        let variables = details
-            .variables
-            .iter()
-            .map(|(key, value)| (key.to_owned(), self.apply_context(value)))
-            .collect();
-
-        let environment = details
-            .environment
-            .iter()
-            .map(|(key, value)| (key.to_owned(), self.apply_context(value)))
-            .collect();
+        let variables = details.variables.clone();
+        let environment = details.environment.clone();
 
         let url = format!("{}/ws-exec/", server.base_url_ws());
 
@@ -337,18 +327,19 @@ impl RunnerV1 {
         Ok(())
     }
 
-    async fn shell(&self, step: &BuildStepV1, command: &str) -> Result<()> {
+    async fn shell(&self, step: &BuildStep, command: &str) -> Result<()> {
         debug!("start execution of exec section for step");
-        let working_dir = step.working_dir.as_ref().map(|wd| self.apply_context(wd));
-        let command = self.apply_context(command);
+        let Some(platform) = self.platform.as_ref() else {bail!("no platform instance for runner");};
 
         debug!("executing shell command {}", command);
-        self.platform.shell(&working_dir, &command).await?;
+        platform.shell(&step.working_dir, command).await?;
 
         Ok(())
     }
 
-    async fn start(&self) -> Result<()> {
+    async fn start(&mut self) -> Result<()> {
+        self.apply_context().await?;
+        self.create_platform().await?;
         self.register_start().await?;
         self.info().await?;
         Ok(())

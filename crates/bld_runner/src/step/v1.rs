@@ -5,20 +5,20 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
-pub struct BuildStepV1 {
+pub struct BuildStep {
     pub name: Option<String>,
     pub working_dir: Option<String>,
 
     #[serde(default)]
-    pub exec: Vec<BuildStepExecV1>,
+    pub exec: Vec<BuildStepExec>,
 }
 
-impl BuildStepV1 {
+impl BuildStep {
     pub fn local_dependencies(&self) -> Vec<String> {
         self.exec
             .iter()
             .flat_map(|e| match e {
-                BuildStepExecV1::External { value } if path![TOOL_DIR, value].is_yaml() => {
+                BuildStepExec::External { value } if path![TOOL_DIR, value].is_yaml() => {
                     Some(value.to_owned())
                 }
                 _ => None,
@@ -29,7 +29,7 @@ impl BuildStepV1 {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum BuildStepExecV1 {
+pub enum BuildStepExec {
     Shell(String),
 
     External {
