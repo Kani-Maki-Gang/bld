@@ -19,7 +19,7 @@ use bld_sock::{
     messages::{ExecClientMessage, WorkerMessages},
 };
 use bld_utils::{request::WebSocket, sync::IntoArc};
-use futures::{Future, StreamExt};
+use futures::{future::join_all, Future, StreamExt};
 use tokio::sync::mpsc::Sender;
 use tracing::debug;
 
@@ -28,145 +28,61 @@ use crate::{
     pipeline::v2::Pipeline,
     platform::{builder::TargetPlatformBuilder, v2::Platform},
     step::v2::{BuildStep, BuildStepExec},
-    token_context::v2::PipelineContextBuilder,
     RunnerBuilder,
 };
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 
-pub struct Runner {
+struct Job {
+    pub job_name: String,
     pub run_id: String,
     pub run_start_time: String,
     pub config: Arc<BldConfig>,
-    pub signals: Option<UnixSignalsReceiver>,
     pub logger: Arc<LoggerSender>,
-    pub regex_cache: Arc<RegexCache>,
     pub proxy: Arc<PipelineFileSystemProxy>,
-    pub pipeline: Pipeline,
-    pub ipc: Arc<Option<Sender<WorkerMessages>>>,
-    pub env: Arc<HashMap<String, String>>,
-    pub vars: Arc<HashMap<String, String>>,
+    pub pipeline: Arc<Pipeline>,
     pub context: Arc<ContextSender>,
     pub platform: Option<Arc<TargetPlatform>>,
-    pub is_child: bool,
-    pub has_faulted: bool,
 }
 
-impl Runner {
-    async fn register_start(&self) -> Result<()> {
-        if !self.is_child {
-            debug!("setting the pipeline as running in the execution context");
-            self.context
-                .set_pipeline_as_running(self.run_id.to_owned())
-                .await?;
+impl Job {
+    pub async fn run(self) -> Result<Self> {
+        self.artifacts(&None).await?;
+        let (_, steps) = self
+            .pipeline
+            .jobs
+            .iter()
+            .find(|(name, _)| **name == self.job_name)
+            .ok_or_else(|| anyhow!("unable to find job with name {}", self.job_name))?;
+
+        debug!("starting execution of pipeline steps");
+        for step in steps.iter() {
+            self.step(step).await?;
+            self.artifacts(&step.name).await?;
         }
-        Ok(())
+
+        Ok(self)
     }
 
-    async fn register_completion(&self) -> Result<()> {
-        if !self.is_child {
-            debug!("setting state of root pipeline");
-            if self.has_faulted {
-                self.context
-                    .set_pipeline_as_faulted(self.run_id.to_owned())
-                    .await?;
-            } else {
-                self.context
-                    .set_pipeline_as_finished(self.run_id.to_owned())
-                    .await?;
+    async fn step(&self, step: &BuildStep) -> Result<()> {
+        if let Some(name) = &step.name {
+            let mut message = String::new();
+            writeln!(message, "{:<15}: {name}", "Step")?;
+            self.logger.write_line(message).await?;
+        }
+
+        for exec in &step.exec {
+            match exec {
+                BuildStepExec::Shell(cmd) => self.shell(step, cmd).await?,
+                BuildStepExec::External { value } => self.external(value.as_ref()).await?,
             }
         }
+
         Ok(())
-    }
-
-    async fn apply_context(&mut self) -> Result<()> {
-        let context = PipelineContextBuilder::default()
-            .bld_directory(&self.config.path)
-            .add_variables(&self.pipeline.variables)
-            .add_variables(&self.vars)
-            .add_environment(&self.pipeline.environment)
-            .add_environment(&self.env)
-            .run_id(&self.run_id)
-            .run_start_time(&self.run_start_time)
-            .regex_cache(self.regex_cache.clone())
-            .build()?;
-
-        self.pipeline.apply_tokens(&context).await?;
-        Ok(())
-    }
-
-    async fn create_platform(&mut self) -> Result<()> {
-        let image = match &self.pipeline.runs_on {
-            Platform::ContainerOrMachine(image) if image == "machine" => None,
-            Platform::ContainerOrMachine(image) | Platform::Pull { image, pull: false } => {
-                Some(Image::Use(image.to_owned()))
-            }
-            Platform::Pull { image, pull: true } => Some(Image::Pull(image.to_owned())),
-            Platform::Build {
-                name,
-                tag,
-                dockerfile,
-            } => Some(Image::Build {
-                name: name.to_owned(),
-                dockerfile: dockerfile.to_owned(),
-                tag: tag.to_owned(),
-            }),
-        };
-
-        let platform = TargetPlatformBuilder::default()
-            .run_id(&self.run_id)
-            .config(self.config.clone())
-            .image(image)
-            .environment(self.env.clone())
-            .logger(self.logger.clone())
-            .context(self.context.clone())
-            .build()
-            .await?;
-
-        self.context.add_platform(platform.clone()).await?;
-        self.platform = Some(platform);
-        Ok(())
-    }
-
-    async fn dispose_platform(&self) -> Result<()> {
-        let Some(platform) = self.platform.as_ref() else {bail!("no platform instance for runner");};
-        if self.pipeline.dispose {
-            debug!("executing dispose operations for platform");
-            platform.dispose(self.is_child).await?;
-        } else {
-            debug!("keeping platform alive");
-            platform.keep_alive().await?;
-        }
-
-        self.context.remove_platform(platform.id()).await
-    }
-
-    async fn ipc_send_completed(&self) -> Result<()> {
-        if !self.is_child {
-            if let Some(ipc) = Option::as_ref(&self.ipc) {
-                debug!("sending message to supervisor for a completed run");
-                ipc.send(WorkerMessages::Completed).await?;
-            }
-        }
-        Ok(())
-    }
-
-    async fn info(&self) -> Result<()> {
-        debug!("printing pipeline informantion");
-
-        let mut message = String::new();
-
-        if let Some(name) = &self.pipeline.name {
-            writeln!(message, "{:<10}: {name}", "Name")?;
-        }
-        writeln!(message, "{:<10}: {}", "Runs on", &self.pipeline.runs_on)?;
-        writeln!(message, "{:<10}: 2", "Version")?;
-
-        self.logger.write_line(message).await
     }
 
     async fn artifacts(&self, name: &Option<String>) -> Result<()> {
-        debug!("executing artifact operation related to step {:?}", name);
+        debug!("executing artifact operation related for {:?}", name);
 
         let Some(platform) = self.platform.as_ref() else {bail!("no platform instance for runner");};
 
@@ -196,35 +112,6 @@ impl Runner {
                 if !artifact.ignore_errors.unwrap_or_default() {
                     result?;
                 }
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn steps(&mut self) -> Result<()> {
-        self.artifacts(&None).await?;
-
-        debug!("starting execution of pipeline steps");
-        for step in &self.pipeline.steps {
-            self.step(step).await?;
-            self.artifacts(&step.name).await?;
-        }
-
-        Ok(())
-    }
-
-    async fn step(&self, step: &BuildStep) -> Result<()> {
-        if let Some(name) = &step.name {
-            let mut message = String::new();
-            writeln!(message, "{:<10}: {name}", "Step")?;
-            self.logger.write_line(message).await?;
-        }
-
-        for exec in &step.exec {
-            match exec {
-                BuildStepExec::Shell(cmd) => self.shell(step, cmd).await?,
-                BuildStepExec::External { value } => self.external(value.as_ref()).await?,
             }
         }
 
@@ -266,7 +153,6 @@ impl Runner {
             .logger(self.logger.clone())
             .environment(environment.into_arc())
             .variables(variables.into_arc())
-            .ipc(self.ipc.clone())
             .context(self.context.clone())
             .is_child(true)
             .build()
@@ -332,13 +218,129 @@ impl Runner {
         let Some(platform) = self.platform.as_ref() else {bail!("no platform instance for runner");};
 
         debug!("executing shell command {}", command);
-        platform.shell(&step.working_dir, command).await?;
+        platform
+            .shell(self.logger.clone(), &step.working_dir, command)
+            .await?;
 
         Ok(())
     }
+}
+
+pub struct Runner {
+    pub run_id: String,
+    pub run_start_time: String,
+    pub config: Arc<BldConfig>,
+    pub signals: Option<UnixSignalsReceiver>,
+    pub logger: Arc<LoggerSender>,
+    pub regex_cache: Arc<RegexCache>,
+    pub proxy: Arc<PipelineFileSystemProxy>,
+    pub pipeline: Arc<Pipeline>,
+    pub ipc: Arc<Option<Sender<WorkerMessages>>>,
+    pub env: Arc<HashMap<String, String>>,
+    pub context: Arc<ContextSender>,
+    pub platform: Option<Arc<TargetPlatform>>,
+    pub is_child: bool,
+    pub has_faulted: bool,
+}
+
+impl Runner {
+    async fn register_start(&self) -> Result<()> {
+        if !self.is_child {
+            debug!("setting the pipeline as running in the execution context");
+            self.context
+                .set_pipeline_as_running(self.run_id.to_owned())
+                .await?;
+        }
+        Ok(())
+    }
+
+    async fn register_completion(&self) -> Result<()> {
+        if !self.is_child {
+            debug!("setting state of root pipeline");
+            if self.has_faulted {
+                self.context
+                    .set_pipeline_as_faulted(self.run_id.to_owned())
+                    .await?;
+            } else {
+                self.context
+                    .set_pipeline_as_finished(self.run_id.to_owned())
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn create_platform(&mut self) -> Result<()> {
+        let image = match &self.pipeline.runs_on {
+            Platform::ContainerOrMachine(image) if image == "machine" => None,
+            Platform::ContainerOrMachine(image) | Platform::Pull { image, pull: false } => {
+                Some(Image::Use(image.to_owned()))
+            }
+            Platform::Pull { image, pull: true } => Some(Image::Pull(image.to_owned())),
+            Platform::Build {
+                name,
+                tag,
+                dockerfile,
+            } => Some(Image::Build {
+                name: name.to_owned(),
+                dockerfile: dockerfile.to_owned(),
+                tag: tag.to_owned(),
+            }),
+        };
+
+        let platform = TargetPlatformBuilder::default()
+            .run_id(&self.run_id)
+            .config(self.config.clone())
+            .image(image)
+            .environment(self.env.clone())
+            .logger(self.logger.clone())
+            .context(self.context.clone())
+            .build()
+            .await?;
+
+        self.context.add_platform(platform.clone()).await?;
+        self.platform = Some(platform);
+        Ok(())
+    }
+
+    async fn dispose_platform(&self) -> Result<()> {
+        let Some(platform) = self.platform.as_ref() else {bail!("no platform instance for runner");};
+        if self.pipeline.dispose {
+            debug!("executing dispose operations for platform");
+            platform.dispose(self.is_child).await?;
+        } else {
+            debug!("keeping platform alive");
+            platform.keep_alive().await?;
+        }
+
+        self.context.remove_platform(platform.id()).await
+    }
+
+    async fn ipc_send_completed(&self) -> Result<()> {
+        if !self.is_child {
+            if let Some(ipc) = Option::as_ref(&self.ipc) {
+                debug!("sending message to supervisor for a completed run");
+                ipc.send(WorkerMessages::Completed).await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn info(&self) -> Result<()> {
+        debug!("printing pipeline informantion");
+
+        let mut message = String::new();
+
+        if let Some(name) = &self.pipeline.name {
+            writeln!(message, "{:<15}: {name}", "Name")?;
+        }
+        writeln!(message, "{:<15}: {}", "Runs on", &self.pipeline.runs_on)?;
+        writeln!(message, "{:<15}: 2", "Version")?;
+
+        self.logger.write_line(message).await
+    }
 
     async fn start(&mut self) -> Result<()> {
-        self.apply_context().await?;
         self.create_platform().await?;
         self.register_start().await?;
         self.info().await?;
@@ -353,23 +355,80 @@ impl Runner {
         Ok(())
     }
 
+    fn create_job(&self, name: &str, logger: Arc<LoggerSender>) -> Job {
+        Job {
+            pipeline: self.pipeline.clone(),
+            job_name: name.to_owned(),
+            proxy: self.proxy.clone(),
+            run_id: self.run_id.clone(),
+            run_start_time: self.run_start_time.clone(),
+            config: self.config.clone(),
+            logger,
+            context: self.context.clone(),
+            platform: self.platform.clone(),
+        }
+    }
+
+    async fn jobs(&self) -> Result<()> {
+        if self.pipeline.jobs.len() == 1 {
+            let Some(name) = self.pipeline.jobs.keys().next() else {
+                bail!("unable to retrieve job");
+            };
+            debug!("found only one job so running it in the current context");
+            return self
+                .create_job(name, self.logger.clone())
+                .run()
+                .await
+                .map(|_| ());
+        }
+
+        debug!("found multiple jobs so they will run in parallel");
+        let mut jobs = Vec::new();
+        let mut loggers = Vec::new();
+        for name in self.pipeline.jobs.keys() {
+            self.logger
+                .write_line(format!("{:<15}: {}", "Running job", name))
+                .await?;
+            let logger = LoggerSender::in_memory().into_arc();
+            let job = self.create_job(name, logger.clone());
+            let job_handle = spawn(job.run());
+            jobs.push(job_handle);
+            loggers.push((name, logger));
+        }
+
+        let results = join_all(jobs).await;
+
+        for (name, logger) in loggers.iter() {
+            self.logger
+                .write_line(format!("{:<15}: {}", "Completed job", name))
+                .await?;
+            self.logger
+                .write_line(logger.try_retrieve_output().await?)
+                .await?;
+        }
+
+        if results.iter().any(|x| x.is_err()) {
+            bail!("one or more jobs failed")
+        } else {
+            Ok(())
+        }
+    }
+
     async fn execute(mut self) -> Result<()> {
         self.start().await?;
 
         // using let expression to log the errors and let an empty string be used
         // by the final print_error of main.
 
-        let result = if let Err(e) = self.steps().await {
-            self.logger.write(e.to_string()).await?;
-            self.has_faulted = true;
-            Err(anyhow!(""))
-        } else {
-            Ok(())
+        let Err(e) = self.jobs().await else {
+            self.stop().await?;
+            return Ok(());
         };
 
+        self.logger.write(e.to_string()).await?;
+        self.has_faulted = true;
         self.stop().await?;
-
-        result
+        Err(anyhow!(""))
     }
 
     pub async fn run(mut self) -> RecursiveFuture {

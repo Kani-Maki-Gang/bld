@@ -19,7 +19,6 @@ pub struct Container {
     pub config: Option<Arc<BldConfig>>,
     pub image: String,
     pub client: Option<Docker>,
-    pub logger: Arc<LoggerSender>,
     pub context: Arc<ContextSender>,
     pub entity: Option<PipelineRunContainers>,
 }
@@ -67,7 +66,6 @@ impl Container {
             image: image.to_string(),
             client: Some(client),
             id: Some(id),
-            logger,
             context,
             entity,
         })
@@ -90,7 +88,12 @@ impl Container {
         Ok(())
     }
 
-    pub async fn sh(&self, working_dir: &Option<String>, input: &str) -> Result<()> {
+    pub async fn sh(
+        &self,
+        logger: Arc<LoggerSender>,
+        working_dir: &Option<String>,
+        input: &str,
+    ) -> Result<()> {
         let client = self.get_client()?;
         let id = self.get_id()?;
         let input = working_dir
@@ -116,7 +119,7 @@ impl Container {
                 Err(e) => bail!(e),
             };
 
-            self.logger.write(chunk).await?;
+            logger.write(chunk).await?;
         }
 
         let inspect = exec.inspect().await?;

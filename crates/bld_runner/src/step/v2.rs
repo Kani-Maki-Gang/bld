@@ -30,10 +30,6 @@ impl BuildStep {
     }
 
     pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
-        if let Some(name) = self.name.as_mut() {
-            self.name = Some(context.transform(name.to_owned()).await?);
-        }
-
         if let Some(working_dir) = self.working_dir.as_mut() {
             self.working_dir = Some(context.transform(working_dir.to_owned()).await?);
         }

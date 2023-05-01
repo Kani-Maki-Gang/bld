@@ -1,4 +1,4 @@
-use std::{fs::File, io::Write, path::PathBuf, sync::Arc};
+use std::{fmt::Write as FormatWrite, fs::File, io::Read, io::Write, path::PathBuf, sync::Arc};
 
 use actix_web::rt::spawn;
 use anyhow::{anyhow, Result};
@@ -36,11 +36,15 @@ enum LoggerMessage {
         text: String,
         resp_tx: oneshot::Sender<()>,
     },
+    TryRetrieveOutput {
+        resp_tx: oneshot::Sender<String>,
+    },
 }
 
 enum LoggerReceiver {
     Shell,
     File { handle: File },
+    InMemory { output: String },
 }
 
 impl LoggerReceiver {
@@ -59,6 +63,12 @@ impl LoggerReceiver {
         })
     }
 
+    pub fn in_memory() -> Self {
+        Self::InMemory {
+            output: String::new(),
+        }
+    }
+
     async fn receive(mut self, mut rx: Receiver<LoggerMessage>) -> Result<()> {
         while let Some(msg) = rx.recv().await {
             match msg {
@@ -68,6 +78,9 @@ impl LoggerReceiver {
                 LoggerMessage::InfoLine { text, resp_tx } => self.info_line(&text, resp_tx)?,
                 LoggerMessage::Error { text, resp_tx } => self.error(&text, resp_tx)?,
                 LoggerMessage::ErrorLine { text, resp_tx } => self.error_line(&text, resp_tx)?,
+                LoggerMessage::TryRetrieveOutput { resp_tx } => {
+                    self.try_retrieve_output(resp_tx)?
+                }
             }
         }
         Ok(())
@@ -81,6 +94,11 @@ impl LoggerReceiver {
             Self::File { handle } => {
                 if let Err(e) = write!(handle, "{text}") {
                     eprintln!("Couldn't write to file: {e}");
+                }
+            }
+            Self::InMemory { output } => {
+                if let Err(e) = write!(output, "{text}") {
+                    eprintln!("Couldn't write to in memory logger, {e}");
                 }
             }
         }
@@ -98,6 +116,11 @@ impl LoggerReceiver {
             Self::File { handle } => {
                 if let Err(e) = writeln!(handle, "{text}") {
                     eprintln!("Couldn't write to file: {e}");
+                }
+            }
+            Self::InMemory { output } => {
+                if let Err(e) = writeln!(output, "{text}") {
+                    eprintln!("Couldn't write to in memory logger, {e}");
                 }
             }
         }
@@ -120,6 +143,11 @@ impl LoggerReceiver {
                     eprintln!("Couldn't write to file: {e}");
                 }
             }
+            Self::InMemory { output } => {
+                if let Err(e) = write!(output, "{text}") {
+                    eprintln!("Couldn't write to in memory logger, {e}");
+                }
+            }
         }
 
         resp_tx
@@ -138,6 +166,11 @@ impl LoggerReceiver {
             Self::File { handle } => {
                 if let Err(e) = writeln!(handle, "{text}") {
                     eprintln!("Couldn't write to file: {e}");
+                }
+            }
+            Self::InMemory { output } => {
+                if let Err(e) = writeln!(output, "{text}") {
+                    eprintln!("Coudln't write to in memory logger, {e}");
                 }
             }
         }
@@ -160,6 +193,11 @@ impl LoggerReceiver {
                     eprintln!("Couldn't write to file: {e}");
                 }
             }
+            Self::InMemory { output } => {
+                if let Err(e) = write!(output, "{text}") {
+                    eprintln!("Couldn't write to in memory logger, {e}");
+                }
+            }
         }
 
         resp_tx
@@ -180,10 +218,31 @@ impl LoggerReceiver {
                     eprintln!("Couldn't write to file: {e}");
                 }
             }
+            Self::InMemory { output } => {
+                if let Err(e) = writeln!(output, "{text}") {
+                    eprintln!("Couldn't write to in memory logger, {e}");
+                }
+            }
         }
 
         resp_tx
             .send(())
+            .map_err(|_| anyhow!("oneshot response sender dropped"))
+    }
+
+    fn try_retrieve_output(&mut self, resp_tx: oneshot::Sender<String>) -> Result<()> {
+        let output = match self {
+            Self::Shell => String::new(),
+            Self::File { handle } => {
+                let mut output = String::new();
+                handle.read_to_string(&mut output)?;
+                output
+            }
+            Self::InMemory { output } => output.clone(),
+        };
+
+        resp_tx
+            .send(output)
             .map_err(|_| anyhow!("oneshot response sender dropped"))
     }
 }
@@ -219,6 +278,15 @@ impl LoggerSender {
         spawn(async move { logger.receive(rx).await });
 
         Ok(Self { tx })
+    }
+
+    pub fn in_memory() -> Self {
+        let (tx, rx) = channel(4096);
+        let logger = LoggerReceiver::in_memory();
+
+        spawn(async move { logger.receive(rx).await });
+
+        Self { tx }
     }
 
     pub async fn write(&self, text: String) -> Result<()> {
@@ -283,6 +351,16 @@ impl LoggerSender {
 
         self.tx
             .send(LoggerMessage::ErrorLine { text, resp_tx })
+            .await?;
+
+        resp_rx.await.map_err(|e| anyhow!(e))
+    }
+
+    pub async fn try_retrieve_output(&self) -> Result<String> {
+        let (resp_tx, resp_rx) = oneshot::channel();
+
+        self.tx
+            .send(LoggerMessage::TryRetrieveOutput { resp_tx })
             .await?;
 
         resp_rx.await.map_err(|e| anyhow!(e))

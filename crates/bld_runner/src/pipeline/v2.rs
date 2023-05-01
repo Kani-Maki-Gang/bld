@@ -28,7 +28,7 @@ pub struct Pipeline {
     pub external: Vec<External>,
 
     #[serde(default)]
-    pub steps: Vec<BuildStep>,
+    pub jobs: HashMap<String, Vec<BuildStep>>,
 }
 
 impl Pipeline {
@@ -37,7 +37,11 @@ impl Pipeline {
     }
 
     pub fn local_dependencies(&self) -> Vec<String> {
-        let from_steps = self.steps.iter().flat_map(|s| s.local_dependencies());
+        let from_steps = self
+            .jobs
+            .iter()
+            .flat_map(|(_, steps)| steps)
+            .flat_map(|s| s.local_dependencies());
 
         let from_external = self
             .external
@@ -72,8 +76,8 @@ impl Pipeline {
             entry.apply_tokens(context).await?;
         }
 
-        for entry in self.steps.iter_mut() {
-            entry.apply_tokens(context).await?;
+        for step in self.jobs.iter_mut().flat_map(|(_, steps)| steps) {
+            step.apply_tokens(context).await?;
         }
 
         Ok(())

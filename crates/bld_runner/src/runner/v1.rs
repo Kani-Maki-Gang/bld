@@ -345,7 +345,9 @@ impl Runner {
         let command = self.apply_context(command);
 
         debug!("executing shell command {}", command);
-        self.platform.shell(&working_dir, &command).await?;
+        self.platform
+            .shell(self.logger.clone(), &working_dir, &command)
+            .await?;
 
         Ok(())
     }

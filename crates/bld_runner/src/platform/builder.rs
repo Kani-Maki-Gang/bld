@@ -77,7 +77,7 @@ impl<'a> TargetPlatformBuilder<'a> {
                 TargetPlatform::container(Box::new(container))
             }
             None => {
-                let machine = Machine::new(run_id, environment, logger)?;
+                let machine = Machine::new(run_id, environment)?;
                 TargetPlatform::machine(Box::new(machine))
             }
         }

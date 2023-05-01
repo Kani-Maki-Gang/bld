@@ -13,25 +13,16 @@ use std::sync::Arc;
 pub struct Machine {
     tmp_dir: String,
     env: Arc<HashMap<String, String>>,
-    logger: Arc<LoggerSender>,
 }
 
 impl Machine {
-    pub fn new(
-        id: &str,
-        env: Arc<HashMap<String, String>>,
-        logger: Arc<LoggerSender>,
-    ) -> Result<Self> {
+    pub fn new(id: &str, env: Arc<HashMap<String, String>>) -> Result<Self> {
         let tmp_path = path![current_dir()?, LOCAL_MACHINE_TMP_DIR, id];
         let tmp_dir = tmp_path.display().to_string();
         if !tmp_path.is_dir() {
             create_dir_all(tmp_path)?;
         }
-        Ok(Self {
-            tmp_dir,
-            env,
-            logger,
-        })
+        Ok(Self { tmp_dir, env })
     }
 
     fn copy(&self, from: &str, to: &str) -> Result<()> {
@@ -47,7 +38,12 @@ impl Machine {
         self.copy(from, to)
     }
 
-    pub async fn sh(&self, working_dir: &Option<String>, input: &str) -> Result<()> {
+    pub async fn sh(
+        &self,
+        logger: Arc<LoggerSender>,
+        working_dir: &Option<String>,
+        input: &str,
+    ) -> Result<()> {
         let os_name = os_name();
         let current_dir = working_dir.as_ref().unwrap_or(&self.tmp_dir).to_string();
         let current_dir = if Path::new(&current_dir).is_relative() {
@@ -80,7 +76,7 @@ impl Machine {
             writeln!(output, "{}", String::from_utf8_lossy(&process.stdout))?;
         }
 
-        self.logger.write(output).await?;
+        logger.write(output).await?;
 
         if !ExitStatus::success(&process.status) {
             bail!("command finished with {}", process.status);
