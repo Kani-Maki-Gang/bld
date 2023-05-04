@@ -19,8 +19,8 @@ use bld_sock::{
     messages::{ExecClientMessage, WorkerMessages},
 };
 use bld_utils::{request::WebSocket, sync::IntoArc};
-use futures::{future::join_all, Future, StreamExt};
-use tokio::sync::mpsc::Sender;
+use futures::{Future, StreamExt};
+use tokio::{sync::mpsc::Sender, task::JoinHandle};
 use tracing::debug;
 
 use crate::{
@@ -226,6 +226,22 @@ impl Job {
     }
 }
 
+struct RunningJob {
+    name: String,
+    handle: JoinHandle<Result<Job>>,
+    logger: Arc<LoggerSender>,
+}
+
+impl RunningJob {
+    pub fn new(name: &str, handle: JoinHandle<Result<Job>>, logger: Arc<LoggerSender>) -> Self {
+        Self {
+            name: name.to_owned(),
+            handle,
+            logger,
+        }
+    }
+}
+
 pub struct Runner {
     pub run_id: String,
     pub run_start_time: String,
@@ -369,48 +385,78 @@ impl Runner {
         }
     }
 
-    async fn jobs(&self) -> Result<()> {
-        if self.pipeline.jobs.len() == 1 {
-            let Some(name) = self.pipeline.jobs.keys().next() else {
-                bail!("unable to retrieve job");
-            };
-            debug!("found only one job so running it in the current context");
-            return self
-                .create_job(name, self.logger.clone())
-                .run()
-                .await
-                .map(|_| ());
-        }
-
-        debug!("found multiple jobs so they will run in parallel");
+    async fn prepare_jobs(&self) -> Result<Vec<Option<RunningJob>>> {
         let mut jobs = Vec::new();
-        let mut loggers = Vec::new();
         for name in self.pipeline.jobs.keys() {
             self.logger
                 .write_line(format!("{:<15}: {}", "Running job", name))
                 .await?;
             let logger = LoggerSender::in_memory().into_arc();
             let job = self.create_job(name, logger.clone());
-            let job_handle = spawn(job.run());
-            jobs.push(job_handle);
-            loggers.push((name, logger));
+            let handle = spawn(job.run());
+            jobs.push(Some(RunningJob::new(name, handle, logger)));
+        }
+        Ok(jobs)
+    }
+
+    async fn run_first_job(&self) -> Result<()> {
+        let Some(name) = self.pipeline.jobs.keys().next() else {
+            bail!("unable to retrieve job");
+        };
+        debug!("found only one job so running it in the current context");
+        self.create_job(name, self.logger.clone())
+            .run()
+            .await
+            .map(|_| ())
+    }
+
+    async fn run_all_jobs(&self) -> Result<()> {
+        let mut result = Ok(());
+        let mut running_jobs = self.prepare_jobs().await?;
+
+        while running_jobs.iter().any(|x| x.is_some()) {
+            for job in running_jobs.iter_mut() {
+
+                let is_finished = job
+                    .as_ref()
+                    .map(|x| x.handle.is_finished())
+                    .unwrap_or_default();
+
+                if is_finished {
+                    let Some(running_job) = job.take() else {continue};
+
+                    let handle_result = running_job
+                        .handle
+                        .await
+                        .map_err(|e| anyhow!(e))?;
+
+                    let message = if handle_result.is_ok() {
+                        format!("{:<15}: {}", "Completed job", running_job.name)
+                    } else {
+                        format!("{:<15}: {}", "Erroneous job", running_job.name)
+                    };
+
+                    self.logger.write_line(message).await?;
+
+                    self.logger
+                        .write_line(running_job.logger.try_retrieve_output().await?)
+                        .await?;
+
+                    result = result.and(handle_result.map(|_| ()));
+                }
+            }
+
+            sleep(Duration::from_millis(200)).await;
         }
 
-        let results = join_all(jobs).await;
+        result.map_err(|_| anyhow!("One or more jobs completed with errors"))
+    }
 
-        for (name, logger) in loggers.iter() {
-            self.logger
-                .write_line(format!("{:<15}: {}", "Completed job", name))
-                .await?;
-            self.logger
-                .write_line(logger.try_retrieve_output().await?)
-                .await?;
-        }
-
-        if results.iter().any(|x| x.is_err()) {
-            bail!("one or more jobs failed")
+    async fn jobs(&self) -> Result<()> {
+        if self.pipeline.jobs.len() == 1 {
+            self.run_first_job().await
         } else {
-            Ok(())
+            self.run_all_jobs().await
         }
     }
 
