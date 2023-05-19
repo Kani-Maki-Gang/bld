@@ -1,5 +1,5 @@
 use crate::pipeline::v2::Pipeline;
-use crate::step::v2::BuildStepExec;
+use crate::step::v2::{BuildStep, BuildStepExec};
 use anyhow::{bail, Result};
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
@@ -97,9 +97,18 @@ impl<'a> PipelineValidator<'a> {
         let mut errors = String::new();
 
         for step in self.pipeline.jobs.iter().flat_map(|(_, steps)| steps) {
-            for exec in &step.exec {
-                if let Err(e) = self.validate_exec(exec) {
-                    writeln!(errors, "{e}")?;
+            match step {
+                BuildStep::One(exec) => {
+                    if let Err(e) = self.validate_exec(exec) {
+                        writeln!(errors, "{e}")?;
+                    }
+                }
+                BuildStep::Many { exec, .. } => {
+                    for exec in exec.iter() {
+                        if let Err(e) = self.validate_exec(exec) {
+                            writeln!(errors, "{e}")?;
+                        }
+                    }
                 }
             }
         }
@@ -156,12 +165,12 @@ impl<'a> PipelineValidator<'a> {
             return Ok(());
         };
 
-        if !self.pipeline.jobs.iter().any(|(name, steps)| {
-            name == after
-                || steps
-                    .iter()
-                    .any(|s| s.name.as_ref().map(|n| n == after).unwrap_or_default())
-        }) {
+        if !self
+            .pipeline
+            .jobs
+            .iter()
+            .any(|(name, steps)| name == after || steps.iter().any(|s| s.is(after)))
+        {
             bail!("[artifacts > after: {after}] Not a declared job or step name");
         }
 

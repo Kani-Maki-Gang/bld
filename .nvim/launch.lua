@@ -5,12 +5,15 @@ return {
       type = 'lldb',
       request = 'launch',
       program = function()
-        return vim.fn.input('Path to executable: ', vim.fn.getcwd() .. '/', 'file')
+        return vim.fn.getcwd() .. '/target/debug/bld'
       end,
       cwd = '${workspaceFolder}',
       stopOnEntry = false,
-      args = {'check', '-p', 'sample.yaml'},
-      prelaunchTask = "cargo build"
+      args = {'check', '-p', 'build-musl.yaml'},
+      prelaunchTask = function()
+        print("Building project...")
+        return "cargo build"
+      end
     },
     {
       name = 'Run pipeline',

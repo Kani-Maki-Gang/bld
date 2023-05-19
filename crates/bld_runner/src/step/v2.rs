@@ -7,37 +7,53 @@ use std::path::PathBuf;
 
 use crate::token_context::v2::PipelineContext;
 
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct BuildStep {
-    pub name: Option<String>,
-    pub working_dir: Option<String>,
-
-    #[serde(default)]
-    pub exec: Vec<BuildStepExec>,
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum BuildStep {
+    One(BuildStepExec),
+    Many {
+        name: Option<String>,
+        working_dir: Option<String>,
+        #[serde(default)]
+        exec: Vec<BuildStepExec>,
+    },
 }
 
 impl BuildStep {
     pub fn local_dependencies(&self) -> Vec<String> {
-        self.exec
-            .iter()
-            .flat_map(|e| match e {
-                BuildStepExec::External { value } if path![TOOL_DIR, value].is_yaml() => {
-                    Some(value.to_owned())
-                }
-                _ => None,
-            })
-            .collect()
+        match self {
+            Self::One(exec) => exec
+                .local_dependencies()
+                .map(|x| vec![x])
+                .unwrap_or_default(),
+            Self::Many { exec, .. } => exec.iter().flat_map(|e| e.local_dependencies()).collect(),
+        }
     }
 
     pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
-        if let Some(working_dir) = self.working_dir.as_mut() {
-            self.working_dir = Some(context.transform(working_dir.to_owned()).await?);
-        }
-
-        for exec in self.exec.iter_mut() {
-            exec.apply_tokens(context).await?;
+        match self {
+            Self::One(exec) => {
+                exec.apply_tokens(context).await?;
+            }
+            Self::Many {
+                working_dir, exec, ..
+            } => {
+                if let Some(wd) = working_dir.as_mut() {
+                    *working_dir = Some(context.transform(wd.to_owned()).await?);
+                }
+                for exec in exec.iter_mut() {
+                    exec.apply_tokens(context).await?;
+                }
+            }
         }
         Ok(())
+    }
+
+    pub fn is(&self, name: &str) -> bool {
+        let Self::Many { name: n, .. } = self else {
+            return false;
+        };
+        n.as_ref().map(|x| x == name).unwrap_or_default()
     }
 }
 
@@ -53,6 +69,15 @@ pub enum BuildStepExec {
 }
 
 impl BuildStepExec {
+    pub fn local_dependencies(&self) -> Option<String> {
+        match self {
+            BuildStepExec::External { value } if path![TOOL_DIR, value].is_yaml() => {
+                Some(value.to_owned())
+            }
+            _ => None,
+        }
+    }
+
     pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
         match self {
             Self::Shell(cmd) => {

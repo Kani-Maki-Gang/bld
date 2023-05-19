@@ -21,6 +21,7 @@ pub struct Container {
     pub client: Option<Docker>,
     pub context: Arc<ContextSender>,
     pub entity: Option<PipelineRunContainers>,
+    pub environment: Vec<String>,
 }
 
 impl Container {
@@ -68,6 +69,7 @@ impl Container {
             id: Some(id),
             context,
             entity,
+            environment: env,
         })
     }
 
@@ -102,8 +104,13 @@ impl Container {
             .or_else(|| Some(input.to_string()))
             .unwrap();
 
+        let env = self.environment.iter().map(String::as_str).collect();
+
+        dbg!(&env);
+
         let options = ExecContainerOptions::builder()
             .cmd(vec!["bash", "-c", &input])
+            .env(env)
             .attach_stdout(true)
             .attach_stderr(true)
             .build();

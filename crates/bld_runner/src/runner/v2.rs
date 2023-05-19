@@ -47,7 +47,6 @@ struct Job {
 
 impl Job {
     pub async fn run(self) -> Result<Self> {
-        self.artifacts(&None).await?;
         let (_, steps) = self
             .pipeline
             .jobs
@@ -55,38 +54,58 @@ impl Job {
             .find(|(name, _)| **name == self.job_name)
             .ok_or_else(|| anyhow!("unable to find job with name {}", self.job_name))?;
 
+        self.artifacts(None).await?;
+
         debug!("starting execution of pipeline steps");
         for step in steps.iter() {
             self.step(step).await?;
-            self.artifacts(&step.name).await?;
         }
+
+        self.artifacts(Some(&self.job_name)).await?;
 
         Ok(self)
     }
 
-    async fn step(&self, step: &BuildStep) -> Result<()> {
-        if let Some(name) = &step.name {
-            let mut message = String::new();
-            writeln!(message, "{:<15}: {name}", "Step")?;
-            self.logger.write_line(message).await?;
+    async fn exec(&self, exec: &BuildStepExec, working_dir: &Option<String>) -> Result<()> {
+        match exec {
+            BuildStepExec::Shell(cmd) => self.shell(working_dir, &cmd).await,
+            BuildStepExec::External { value } => self.external(&value).await,
         }
+    }
 
-        for exec in &step.exec {
-            match exec {
-                BuildStepExec::Shell(cmd) => self.shell(step, cmd).await?,
-                BuildStepExec::External { value } => self.external(value.as_ref()).await?,
+    async fn step(&self, step: &BuildStep) -> Result<()> {
+        match step {
+            BuildStep::One(exec) => self.exec(exec, &None).await?,
+            BuildStep::Many {
+                name,
+                working_dir,
+                exec,
+            } => {
+                if let Some(name) = name {
+                    let mut message = String::new();
+                    writeln!(message, "{:<15}: {name}", "Step")?;
+                    self.logger.write_line(message).await?;
+                }
+                for exec in exec.iter() {
+                    self.exec(exec, working_dir).await?
+                }
+                self.artifacts(name.as_ref().map(|x| x.as_str())).await?;
             }
         }
-
         Ok(())
     }
 
-    async fn artifacts(&self, name: &Option<String>) -> Result<()> {
+    async fn artifacts(&self, name: Option<&str>) -> Result<()> {
         debug!("executing artifact operation related for {:?}", name);
 
         let Some(platform) = self.platform.as_ref() else {bail!("no platform instance for runner");};
 
-        for artifact in self.pipeline.artifacts.iter().filter(|a| &a.after == name) {
+        for artifact in self
+            .pipeline
+            .artifacts
+            .iter()
+            .filter(|a| a.after.as_ref().map(|x| x.as_str()) == name)
+        {
             let can_continue = artifact.method == *PUSH || artifact.method == *GET;
 
             if can_continue {
@@ -213,13 +232,13 @@ impl Job {
         Ok(())
     }
 
-    async fn shell(&self, step: &BuildStep, command: &str) -> Result<()> {
+    async fn shell(&self, working_dir: &Option<String>, command: &str) -> Result<()> {
         debug!("start execution of exec section for step");
         let Some(platform) = self.platform.as_ref() else {bail!("no platform instance for runner");};
 
         debug!("executing shell command {}", command);
         platform
-            .shell(self.logger.clone(), &step.working_dir, command)
+            .shell(self.logger.clone(), working_dir, command)
             .await?;
 
         Ok(())
@@ -416,7 +435,6 @@ impl Runner {
 
         while running_jobs.iter().any(|x| x.is_some()) {
             for job in running_jobs.iter_mut() {
-
                 let is_finished = job
                     .as_ref()
                     .map(|x| x.handle.is_finished())
@@ -425,10 +443,7 @@ impl Runner {
                 if is_finished {
                     let Some(running_job) = job.take() else {continue};
 
-                    let handle_result = running_job
-                        .handle
-                        .await
-                        .map_err(|e| anyhow!(e))?;
+                    let handle_result = running_job.handle.await.map_err(|e| anyhow!(e))?;
 
                     let message = if handle_result.is_ok() {
                         format!("{:<15}: {}", "Completed job", running_job.name)
