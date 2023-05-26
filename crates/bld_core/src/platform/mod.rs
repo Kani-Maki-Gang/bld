@@ -2,12 +2,16 @@ mod container;
 mod image;
 mod machine;
 
+use std::sync::Arc;
+
 pub use container::*;
 pub use image::*;
 pub use machine::*;
 use uuid::Uuid;
 
 use anyhow::Result;
+
+use crate::logger::LoggerSender;
 
 pub enum TargetPlatform {
     Machine {
@@ -57,10 +61,15 @@ impl TargetPlatform {
         }
     }
 
-    pub async fn shell(&self, working_dir: &Option<String>, command: &str) -> Result<()> {
+    pub async fn shell(
+        &self,
+        logger: Arc<LoggerSender>,
+        working_dir: &Option<String>,
+        command: &str,
+    ) -> Result<()> {
         match self {
-            Self::Machine { machine, .. } => machine.sh(working_dir, command).await,
-            Self::Container { container, .. } => container.sh(working_dir, command).await,
+            Self::Machine { machine, .. } => machine.sh(logger, working_dir, command).await,
+            Self::Container { container, .. } => container.sh(logger, working_dir, command).await,
         }
     }
 

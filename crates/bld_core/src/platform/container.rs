@@ -19,9 +19,9 @@ pub struct Container {
     pub config: Option<Arc<BldConfig>>,
     pub image: String,
     pub client: Option<Docker>,
-    pub logger: Arc<LoggerSender>,
     pub context: Arc<ContextSender>,
     pub entity: Option<PipelineRunContainers>,
+    pub environment: Vec<String>,
 }
 
 impl Container {
@@ -50,15 +50,33 @@ impl Container {
         Ok(info.id)
     }
 
+    fn create_environment(
+        pipeline_env: &HashMap<String, String>,
+        env: Arc<HashMap<String, String>>,
+    ) -> Vec<String> {
+        let mut map = HashMap::new();
+
+        for (k, v) in pipeline_env.iter() {
+            map.insert(k.to_owned(), v.to_owned());
+        }
+
+        for (k, v) in env.iter() {
+            map.insert(k.to_owned(), v.to_owned());
+        }
+
+        map.iter().map(|(k, v)| format!("{k}={v}")).collect()
+    }
+
     pub async fn new(
         image: Image,
         config: Arc<BldConfig>,
+        pipeline_env: &HashMap<String, String>,
         env: Arc<HashMap<String, String>>,
         logger: Arc<LoggerSender>,
         context: Arc<ContextSender>,
     ) -> Result<Self> {
         let client = Container::docker(&config)?;
-        let env: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
+        let env = Self::create_environment(pipeline_env, env);
         let image = image.create(&client, logger.clone()).await?;
         let id = Container::create(&client, &image, &env).await?;
         let entity = context.add_container(id.clone()).await?;
@@ -67,9 +85,9 @@ impl Container {
             image: image.to_string(),
             client: Some(client),
             id: Some(id),
-            logger,
             context,
             entity,
+            environment: env,
         })
     }
 
@@ -90,7 +108,12 @@ impl Container {
         Ok(())
     }
 
-    pub async fn sh(&self, working_dir: &Option<String>, input: &str) -> Result<()> {
+    pub async fn sh(
+        &self,
+        logger: Arc<LoggerSender>,
+        working_dir: &Option<String>,
+        input: &str,
+    ) -> Result<()> {
         let client = self.get_client()?;
         let id = self.get_id()?;
         let input = working_dir
@@ -99,8 +122,10 @@ impl Container {
             .or_else(|| Some(input.to_string()))
             .unwrap();
 
+        let env = self.environment.iter().map(String::as_str).collect();
         let options = ExecContainerOptions::builder()
             .cmd(vec!["bash", "-c", &input])
+            .env(env)
             .attach_stdout(true)
             .attach_stderr(true)
             .build();
@@ -116,7 +141,7 @@ impl Container {
                 Err(e) => bail!(e),
             };
 
-            self.logger.write(chunk).await?;
+            logger.write(chunk).await?;
         }
 
         let inspect = exec.inspect().await?;

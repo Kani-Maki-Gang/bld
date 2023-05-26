@@ -14,6 +14,7 @@ pub struct TargetPlatformBuilder<'a> {
     run_id: Option<&'a str>,
     image: Option<Image>,
     config: Option<Arc<BldConfig>>,
+    pipeline_environment: Option<&'a HashMap<String, String>>,
     environment: Option<Arc<HashMap<String, String>>>,
     logger: Option<Arc<LoggerSender>>,
     context: Option<Arc<ContextSender>>,
@@ -32,6 +33,11 @@ impl<'a> TargetPlatformBuilder<'a> {
 
     pub fn config(mut self, config: Arc<BldConfig>) -> Self {
         self.config = Some(config);
+        self
+    }
+
+    pub fn pipeline_environment(mut self, environment: &'a HashMap<String, String>) -> Self {
+        self.pipeline_environment = Some(environment);
         self
     }
 
@@ -59,6 +65,10 @@ impl<'a> TargetPlatformBuilder<'a> {
             .config
             .ok_or_else(|| anyhow!("no config provided for target platform builder"))?;
 
+        let pipeline_environment = self.pipeline_environment.ok_or_else(|| {
+            anyhow!("no pipeline environment provided for target platform builder")
+        })?;
+
         let environment = self
             .environment
             .ok_or_else(|| anyhow!("no environment provided for target platform builder"))?;
@@ -73,11 +83,19 @@ impl<'a> TargetPlatformBuilder<'a> {
 
         let platform = match self.image {
             Some(image) => {
-                let container = Container::new(image, config, environment, logger, context).await?;
+                let container = Container::new(
+                    image,
+                    config,
+                    pipeline_environment,
+                    environment,
+                    logger,
+                    context,
+                )
+                .await?;
                 TargetPlatform::container(Box::new(container))
             }
             None => {
-                let machine = Machine::new(run_id, environment, logger)?;
+                let machine = Machine::new(run_id, pipeline_environment, environment)?;
                 TargetPlatform::machine(Box::new(machine))
             }
         }

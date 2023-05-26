@@ -4,6 +4,7 @@ use crate::pipeline::versioned::{VersionedPipeline, Yaml};
 use crate::platform::builder::TargetPlatformBuilder;
 use crate::runner::v1;
 use crate::runner::v2;
+use crate::token_context::v2::PipelineContextBuilder;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::context::ContextSender;
@@ -157,6 +158,7 @@ impl RunnerBuilder {
                     .run_id(&self.run_id)
                     .image(image)
                     .config(config.clone())
+                    .pipeline_environment(&pipeline.environment)
                     .environment(env.clone())
                     .logger(self.logger.clone())
                     .context(context.clone())
@@ -183,23 +185,37 @@ impl RunnerBuilder {
                 })
             }
 
-            VersionedPipeline::Version2(pipeline) => VersionedRunner::V2(v2::Runner {
-                run_id: self.run_id,
-                run_start_time: self.run_start_time,
-                config,
-                signals: self.signals,
-                logger: self.logger,
-                regex_cache: self.regex_cache,
-                proxy: self.proxy,
-                pipeline,
-                ipc: self.ipc,
-                env,
-                vars,
-                context,
-                platform: None,
-                is_child: self.is_child,
-                has_faulted: false,
-            }),
+            VersionedPipeline::Version2(mut pipeline) => {
+                let pipeline_context = PipelineContextBuilder::default()
+                    .bld_directory(&config.path)
+                    .add_variables(&pipeline.variables)
+                    .add_variables(&vars)
+                    .add_environment(&pipeline.environment)
+                    .add_environment(&env)
+                    .run_id(&self.run_id)
+                    .run_start_time(&self.run_start_time)
+                    .regex_cache(self.regex_cache.clone())
+                    .build()?;
+
+                pipeline.apply_tokens(&pipeline_context).await?;
+
+                VersionedRunner::V2(v2::Runner {
+                    run_id: self.run_id,
+                    run_start_time: self.run_start_time,
+                    config,
+                    signals: self.signals,
+                    logger: self.logger,
+                    regex_cache: self.regex_cache,
+                    proxy: self.proxy,
+                    pipeline: pipeline.into_arc(),
+                    ipc: self.ipc,
+                    env,
+                    context,
+                    platform: None,
+                    is_child: self.is_child,
+                    has_faulted: false,
+                })
+            }
         };
 
         Ok(runner)

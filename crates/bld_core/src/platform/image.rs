@@ -44,7 +44,7 @@ pub enum Image {
 impl Image {
     async fn pull(client: &Docker, image: &str, logger: Arc<LoggerSender>) -> Result<String> {
         logger
-            .write_line(format!("{:<10}: {image}", "Pull"))
+            .write_line(format!("{:<15}: {image}", "Pull"))
             .await?;
 
         let pull_opts = PullOptionsBuilder::default().image(image).build();
@@ -73,7 +73,7 @@ impl Image {
         logger: Arc<LoggerSender>,
     ) -> Result<String> {
         logger
-            .write_line(format!("{:<10}: {dockerfile} to {tag}", "Build"))
+            .write_line(format!("{:<15}: {dockerfile} to {tag}", "Build"))
             .await?;
 
         let image = format!("{name}:{tag}");
