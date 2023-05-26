@@ -27,3 +27,4 @@ tracing = "0.1.36"
 uuid = { version = "0.8.2", features = ["v4"] }
 nix = { version = "0.26.1", features = ["process"] }
 regex = "1.8.1"
+walkdir = "2.3.3"

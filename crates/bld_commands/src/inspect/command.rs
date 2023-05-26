@@ -54,7 +54,7 @@ impl InspectCommand {
 impl BldCommand for InspectCommand {
     fn exec(self) -> Result<()> {
         match &self.server {
-            Some(srv) => self.server_exec(&srv),
+            Some(srv) => self.server_exec(srv),
             None => self.local_exec(),
         }
     }
