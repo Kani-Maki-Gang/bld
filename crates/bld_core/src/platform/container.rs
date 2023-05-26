@@ -50,15 +50,33 @@ impl Container {
         Ok(info.id)
     }
 
+    fn create_environment(
+        pipeline_env: &HashMap<String, String>,
+        env: Arc<HashMap<String, String>>,
+    ) -> Vec<String> {
+        let mut map = HashMap::new();
+
+        for (k, v) in pipeline_env.iter() {
+            map.insert(k.to_owned(), v.to_owned());
+        }
+
+        for (k, v) in env.iter() {
+            map.insert(k.to_owned(), v.to_owned());
+        }
+
+        map.iter().map(|(k, v)| format!("{k}={v}")).collect()
+    }
+
     pub async fn new(
         image: Image,
         config: Arc<BldConfig>,
+        pipeline_env: &HashMap<String, String>,
         env: Arc<HashMap<String, String>>,
         logger: Arc<LoggerSender>,
         context: Arc<ContextSender>,
     ) -> Result<Self> {
         let client = Container::docker(&config)?;
-        let env: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
+        let env = Self::create_environment(pipeline_env, env);
         let image = image.create(&client, logger.clone()).await?;
         let id = Container::create(&client, &image, &env).await?;
         let entity = context.add_container(id.clone()).await?;
@@ -105,9 +123,6 @@ impl Container {
             .unwrap();
 
         let env = self.environment.iter().map(String::as_str).collect();
-
-        dbg!(&env);
-
         let options = ExecContainerOptions::builder()
             .cmd(vec!["bash", "-c", &input])
             .env(env)

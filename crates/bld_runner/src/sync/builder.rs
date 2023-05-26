@@ -158,6 +158,7 @@ impl RunnerBuilder {
                     .run_id(&self.run_id)
                     .image(image)
                     .config(config.clone())
+                    .pipeline_environment(&pipeline.environment)
                     .environment(env.clone())
                     .logger(self.logger.clone())
                     .context(context.clone())

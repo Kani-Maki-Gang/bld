@@ -12,17 +12,41 @@ use std::sync::Arc;
 
 pub struct Machine {
     tmp_dir: String,
-    env: Arc<HashMap<String, String>>,
+    env: HashMap<String, String>,
 }
 
 impl Machine {
-    pub fn new(id: &str, env: Arc<HashMap<String, String>>) -> Result<Self> {
+    pub fn new(
+        id: &str,
+        pipeline_env: &HashMap<String, String>,
+        env: Arc<HashMap<String, String>>,
+    ) -> Result<Self> {
         let tmp_path = path![current_dir()?, LOCAL_MACHINE_TMP_DIR, id];
         let tmp_dir = tmp_path.display().to_string();
         if !tmp_path.is_dir() {
             create_dir_all(tmp_path)?;
         }
-        Ok(Self { tmp_dir, env })
+        Ok(Self {
+            tmp_dir,
+            env: Self::create_environment(pipeline_env, env),
+        })
+    }
+
+    fn create_environment(
+        pipeline_env: &HashMap<String, String>,
+        env: Arc<HashMap<String, String>>,
+    ) -> HashMap<String, String> {
+        let mut map = HashMap::new();
+
+        for (k, v) in pipeline_env.iter() {
+            map.insert(k.to_owned(), v.to_owned());
+        }
+
+        for (k, v) in env.iter() {
+            map.insert(k.to_owned(), v.to_owned());
+        }
+
+        map
     }
 
     fn copy(&self, from: &str, to: &str) -> Result<()> {
@@ -61,7 +85,7 @@ impl Machine {
         args.push(input);
 
         let mut command = Command::new(shell);
-        command.envs(&*self.env);
+        command.envs(&self.env);
         command.args(&args);
         command.current_dir(current_dir);
 

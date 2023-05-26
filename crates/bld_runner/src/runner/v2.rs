@@ -68,8 +68,8 @@ impl Job {
 
     async fn exec(&self, exec: &BuildStepExec, working_dir: &Option<String>) -> Result<()> {
         match exec {
-            BuildStepExec::Shell(cmd) => self.shell(working_dir, &cmd).await,
-            BuildStepExec::External { value } => self.external(&value).await,
+            BuildStepExec::Shell(cmd) => self.shell(working_dir, cmd).await,
+            BuildStepExec::External { value } => self.external(value).await,
         }
     }
 
@@ -104,7 +104,7 @@ impl Job {
             .pipeline
             .artifacts
             .iter()
-            .filter(|a| a.after.as_ref().map(|x| x.as_str()) == name)
+            .filter(|a| a.after.as_deref() == name)
         {
             let can_continue = artifact.method == *PUSH || artifact.method == *GET;
 
@@ -327,6 +327,7 @@ impl Runner {
             .run_id(&self.run_id)
             .config(self.config.clone())
             .image(image)
+            .pipeline_environment(&self.pipeline.environment)
             .environment(self.env.clone())
             .logger(self.logger.clone())
             .context(self.context.clone())
