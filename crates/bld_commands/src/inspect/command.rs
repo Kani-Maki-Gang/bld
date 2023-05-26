@@ -2,6 +2,7 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
+use bld_core::proxies::PipelineFileSystemProxy;
 use bld_utils::request::Request;
 use clap::Args;
 use tracing::debug;
@@ -25,10 +26,17 @@ pub struct InspectCommand {
     server: Option<String>,
 }
 
-impl BldCommand for InspectCommand {
-    fn exec(self) -> Result<()> {
+impl InspectCommand {
+    fn local_exec(&self) -> Result<()> {
+        let proxy = PipelineFileSystemProxy::Local;
+        let pipeline = proxy.read(&self.pipeline)?;
+        println!("{pipeline}");
+        Ok(())
+    }
+
+    fn server_exec(&self, server: &str) -> Result<()> {
         let config = BldConfig::load()?;
-        let server = config.server_or_first(self.server.as_ref())?;
+        let server = config.server(server)?;
         let server_auth = config.same_auth_as(server)?;
         let url = format!("{}/inspect", server.base_url_http());
         let request = Request::post(&url).auth(server_auth);
@@ -40,5 +48,14 @@ impl BldCommand for InspectCommand {
                 println!("{r}");
             })
         })
+    }
+}
+
+impl BldCommand for InspectCommand {
+    fn exec(self) -> Result<()> {
+        match &self.server {
+            Some(srv) => self.server_exec(&srv),
+            None => self.local_exec(),
+        }
     }
 }
