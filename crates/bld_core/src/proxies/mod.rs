@@ -1,5 +1,5 @@
 use crate::database::pipeline;
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, Result};
 use bld_config::{definitions::TOOL_DIR, path, BldConfig};
 use bld_utils::fs::IsYaml;
 use diesel::r2d2::{ConnectionManager, Pool};
@@ -9,6 +9,7 @@ use std::fs::{create_dir_all, read_to_string, remove_file, File};
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
+use walkdir::WalkDir;
 
 pub enum PipelineFileSystemProxy {
     Local,
@@ -25,7 +26,7 @@ impl Default for PipelineFileSystemProxy {
 }
 
 impl PipelineFileSystemProxy {
-    pub fn path(&self, name: &str) -> anyhow::Result<PathBuf> {
+    pub fn path(&self, name: &str) -> Result<PathBuf> {
         match self {
             Self::Local => Ok(path![current_dir()?, TOOL_DIR, name]),
             Self::Server { config, pool } => {
@@ -39,7 +40,7 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    pub fn read(&self, name: &str) -> anyhow::Result<String> {
+    pub fn read(&self, name: &str) -> Result<String> {
         let path = self.path(name)?;
 
         match self {
@@ -50,7 +51,7 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    pub fn create(&self, name: &str, content: &str) -> anyhow::Result<()> {
+    pub fn create(&self, name: &str, content: &str) -> Result<()> {
         match self {
             Self::Local => {
                 let path = self.path(name)?;
@@ -77,14 +78,16 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    pub fn remove(&self, name: &str) -> anyhow::Result<()> {
+    pub fn remove(&self, name: &str) -> Result<()> {
         match self {
             Self::Local => {
                 let path = self.path(name)?;
                 if path.is_yaml() {
                     remove_file(&path)?;
+                    Ok(())
+                } else {
+                    bail!("pipeline not found")
                 }
-                Ok(())
             }
             Self::Server { config: _, pool } => {
                 let path = self.path(name)?;
@@ -96,6 +99,36 @@ impl PipelineFileSystemProxy {
                 } else {
                     bail!("pipeline not found")
                 }
+            }
+        }
+    }
+
+    pub fn list(&self) -> Result<Vec<String>> {
+        match self {
+            Self::Local => {
+                let root = path![current_dir()?, TOOL_DIR];
+                let root_str = format!("{}/", root.display());
+                let entries = WalkDir::new(root)
+                    .into_iter()
+                    .filter_map(|e| e.ok())
+                    .filter(|e| e.path().is_yaml())
+                    .map(|e| {
+                        let mut entry = e.path().display().to_string();
+                        entry = entry.replace(&root_str, "");
+                        entry
+                    })
+                    .collect();
+                Ok(entries)
+            }
+            Self::Server { pool, .. } => {
+                let mut conn = pool.get()?;
+                let pips = pipeline::select_all(&mut conn)?
+                    .iter()
+                    .map(|p| (p, self.path(&p.name)))
+                    .filter(|(_, p)| p.as_ref().map(|p| p.is_yaml()).unwrap_or_default())
+                    .map(|(p, _)| p.name.clone())
+                    .collect();
+                Ok(pips)
             }
         }
     }

@@ -2,6 +2,7 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
+use bld_core::proxies::PipelineFileSystemProxy;
 use bld_utils::request::Request;
 use clap::Args;
 use tracing::debug;
@@ -17,10 +18,16 @@ pub struct ListCommand {
     server: Option<String>,
 }
 
-impl BldCommand for ListCommand {
-    fn exec(self) -> Result<()> {
+impl ListCommand {
+    fn local_exec(&self) -> Result<()> {
+        let content = PipelineFileSystemProxy::Local.list()?.join("\n");
+        println!("{content}");
+        Ok(())
+    }
+
+    fn server_exec(&self, server: &str) -> Result<()> {
         let config = BldConfig::load()?;
-        let server = config.server_or_first(self.server.as_ref())?;
+        let server = config.server(server)?;
         let server_auth = config.same_auth_as(server)?;
         let url = format!("{}/list", server.base_url_http());
         let request = Request::get(&url).auth(server_auth);
@@ -28,5 +35,14 @@ impl BldCommand for ListCommand {
         debug!("sending request to {}", url);
 
         System::new().block_on(async move { request.send().await.map(|r: String| println!("{r}")) })
+    }
+}
+
+impl BldCommand for ListCommand {
+    fn exec(self) -> Result<()> {
+        match &self.server {
+            Some(srv) => self.server_exec(srv),
+            None => self.local_exec(),
+        }
     }
 }
