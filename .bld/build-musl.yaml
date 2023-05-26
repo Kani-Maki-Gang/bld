@@ -6,21 +6,19 @@ runs_on:
   tag: latest
 
 variables:
-  branch: master
+    branch: master
 
-steps:
-- name: Clone repository
-  working_dir: /usr/src
-  exec:
-    - git clone -b bld:var:branch https://github.com/kostas-vl/bld.git
-
-- name: Build project
-  working_dir: /usr/src/bld
-  exec:
-  - cargo build --release --target x86_64-unknown-linux-musl
+jobs:
+  main:
+  - working_dir: /usr/src
+    exec:
+    - git clone -b ${{branch}} https://github.com/kostas-vl/bld.git
+  - working_dir: /usr/src/bld
+    exec:
+    - cargo build --release --target x86_64-unknown-linux-musl
 
 artifacts:
-- method: get
-  from: /usr/src/bld/target/x86_64-unknown-linux-musl/release/bld
-  to: ./dist
-  after: Build project
+  - method: get
+    from: /usr/src/bld/target/x86_64-unknown-linux-musl/release/bld
+    to: ./dist
+    after: main
