@@ -2,6 +2,7 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
+use bld_core::proxies::PipelineFileSystemProxy;
 use bld_utils::request::Request;
 use clap::Args;
 use tracing::debug;
@@ -16,10 +17,14 @@ pub struct RemoveCommand {
     pipeline: String,
 }
 
-impl BldCommand for RemoveCommand {
-    fn exec(self) -> Result<()> {
+impl RemoveCommand {
+    fn local_exec(&self) -> Result<()> {
+        PipelineFileSystemProxy::Local.remove(&self.pipeline)
+    }
+
+    fn server_exec(&self, server: &str) -> Result<()> {
         let config = BldConfig::load()?;
-        let server = config.server_or_first(self.server.as_ref())?;
+        let server = config.server(server)?;
 
         debug!(
             "running remove subcommand with --server: {} and --pipeline: {}",
@@ -36,5 +41,14 @@ impl BldCommand for RemoveCommand {
                 println!("{r}");
             })
         })
+    }
+}
+
+impl BldCommand for RemoveCommand {
+    fn exec(self) -> Result<()> {
+        match &self.server {
+            Some(srv) => self.server_exec(&srv),
+            None => self.local_exec(),
+        }
     }
 }

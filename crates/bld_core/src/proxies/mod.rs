@@ -1,5 +1,5 @@
 use crate::database::pipeline;
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, Result};
 use bld_config::{definitions::TOOL_DIR, path, BldConfig};
 use bld_utils::fs::IsYaml;
 use diesel::r2d2::{ConnectionManager, Pool};
@@ -25,7 +25,7 @@ impl Default for PipelineFileSystemProxy {
 }
 
 impl PipelineFileSystemProxy {
-    pub fn path(&self, name: &str) -> anyhow::Result<PathBuf> {
+    pub fn path(&self, name: &str) -> Result<PathBuf> {
         match self {
             Self::Local => Ok(path![current_dir()?, TOOL_DIR, name]),
             Self::Server { config, pool } => {
@@ -39,7 +39,7 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    pub fn read(&self, name: &str) -> anyhow::Result<String> {
+    pub fn read(&self, name: &str) -> Result<String> {
         let path = self.path(name)?;
 
         match self {
@@ -50,7 +50,7 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    pub fn create(&self, name: &str, content: &str) -> anyhow::Result<()> {
+    pub fn create(&self, name: &str, content: &str) -> Result<()> {
         match self {
             Self::Local => {
                 let path = self.path(name)?;
@@ -77,14 +77,16 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    pub fn remove(&self, name: &str) -> anyhow::Result<()> {
+    pub fn remove(&self, name: &str) -> Result<()> {
         match self {
             Self::Local => {
                 let path = self.path(name)?;
                 if path.is_yaml() {
                     remove_file(&path)?;
+                    Ok(())
+                } else {
+                    bail!("pipeline not found")
                 }
-                Ok(())
             }
             Self::Server { config: _, pool } => {
                 let path = self.path(name)?;
