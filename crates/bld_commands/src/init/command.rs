@@ -1,6 +1,9 @@
 use crate::command::BldCommand;
 use anyhow::{bail, Result};
-use bld_config::definitions;
+use bld_config::definitions::{
+    default_client_config, default_server_config, DEFAULT_V2_PIPELINE_CONTENT, LOCAL_DB,
+    LOCAL_LOGS, LOCAL_SERVER_PIPELINES, TOOL_DEFAULT_CONFIG_FILE, TOOL_DEFAULT_PIPELINE, TOOL_DIR,
+};
 use bld_config::path;
 use bld_utils::term::print_info;
 use clap::Args;
@@ -33,10 +36,7 @@ impl BldCommand for InitCommand {
                 .and_then(|_| create_default_yaml())
                 .and_then(|_| create_config_yaml(self.is_server));
         }
-        let message = format!(
-            "{} dir already exists in the current directory",
-            definitions::TOOL_DIR
-        );
+        let message = format!("{} dir already exists in the current directory", TOOL_DIR);
         bail!(message)
     }
 }
@@ -53,7 +53,7 @@ fn build_dir_exists() -> Result<bool> {
         if path.is_dir() {
             let component = path.components().last();
             if let Some(Normal(name)) = component {
-                if name == definitions::TOOL_DIR {
+                if name == TOOL_DIR {
                     return Ok(true);
                 }
             }
@@ -63,57 +63,51 @@ fn build_dir_exists() -> Result<bool> {
 }
 
 fn create_build_dir() -> Result<()> {
-    let path = Path::new(definitions::TOOL_DIR);
+    let path = Path::new(TOOL_DIR);
     create_dir(path)?;
-    print_dir_created(definitions::TOOL_DIR)?;
+    print_dir_created(TOOL_DIR)?;
     Ok(())
 }
 
 fn create_logs_dir(is_server: bool) -> Result<()> {
     if is_server {
-        let path = Path::new(definitions::LOCAL_LOGS);
+        let path = Path::new(LOCAL_LOGS);
         create_dir(path)?;
-        print_dir_created(definitions::LOCAL_LOGS)?;
+        print_dir_created(LOCAL_LOGS)?;
     }
     Ok(())
 }
 
 fn create_db_dir(is_server: bool) -> Result<()> {
     if is_server {
-        let path = Path::new(definitions::LOCAL_DB);
+        let path = Path::new(LOCAL_DB);
         create_dir(path)?;
-        print_dir_created(definitions::LOCAL_DB)?;
+        print_dir_created(LOCAL_DB)?;
     }
     Ok(())
 }
 
 fn create_server_pipelines_dir(is_server: bool) -> Result<()> {
     if is_server {
-        let path = Path::new(definitions::LOCAL_SERVER_PIPELINES);
+        let path = Path::new(LOCAL_SERVER_PIPELINES);
         create_dir(path)?;
-        print_dir_created(definitions::LOCAL_SERVER_PIPELINES)?;
+        print_dir_created(LOCAL_SERVER_PIPELINES)?;
     }
     Ok(())
 }
 
 fn create_default_yaml() -> Result<()> {
-    let path = path![
-        definitions::TOOL_DIR,
-        definitions::TOOL_DEFAULT_PIPELINE_FILE
-    ];
-    write(path, definitions::DEFAULT_PIPELINE_CONTENT)?;
-    print_info(&format!(
-        "{} yaml file created",
-        definitions::TOOL_DEFAULT_PIPELINE
-    ))?;
+    let path = path![TOOL_DIR, TOOL_DEFAULT_PIPELINE];
+    write(path, DEFAULT_V2_PIPELINE_CONTENT)?;
+    print_info(&format!("{} yaml file created", TOOL_DEFAULT_PIPELINE))?;
     Ok(())
 }
 
 fn create_config_yaml(is_server: bool) -> Result<()> {
-    let path = path![definitions::TOOL_DIR, definitions::TOOL_DEFAULT_CONFIG_FILE];
+    let path = path![TOOL_DIR, TOOL_DEFAULT_CONFIG_FILE];
     let content = match is_server {
-        true => definitions::default_server_config(),
-        false => definitions::default_client_config(),
+        true => default_server_config(),
+        false => default_client_config(),
     };
     write(path, content)?;
     print_info("config file created")?;
