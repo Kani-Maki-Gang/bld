@@ -6,9 +6,11 @@ use bld_core::proxies::PipelineFileSystemProxy;
 use bld_server::responses::PullResponse;
 use bld_utils::fs::IsYaml;
 use bld_utils::request::Request;
+use bld_utils::sync::IntoArc;
 use clap::Args;
 use std::fs::{create_dir_all, remove_file, File};
 use std::io::Write;
+use std::sync::Arc;
 use tracing::debug;
 
 #[derive(Args)]
@@ -34,7 +36,7 @@ pub struct PullCommand {
 
 impl PullCommand {
     async fn request(self) -> Result<()> {
-        let config = BldConfig::load()?;
+        let config = BldConfig::load()?.into_arc();
         let server = config.server_or_first(self.server.as_ref())?;
         let server_auth = config.same_auth_as(server)?;
 
@@ -75,7 +77,7 @@ impl PullCommand {
                 .auth(server_auth)
                 .send_json(pipeline)
                 .await
-                .and_then(Self::save)
+                .and_then(|r| Self::save(config.clone(), r))
                 .map(|_| {
                     println!("Done.");
                 })
@@ -88,8 +90,9 @@ impl PullCommand {
         Ok(())
     }
 
-    fn save(data: PullResponse) -> Result<()> {
-        let path = PipelineFileSystemProxy::Local.path(&data.name)?;
+    fn save(config: Arc<BldConfig>, data: PullResponse) -> Result<()> {
+        let proxy = PipelineFileSystemProxy::local(config);
+        let path = proxy.path(&data.name)?;
 
         if path.is_yaml() {
             remove_file(&path)?;

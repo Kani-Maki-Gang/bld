@@ -3,7 +3,7 @@ use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_utils::request::Request;
+use bld_utils::{request::Request, sync::IntoArc};
 use clap::Args;
 use tracing::debug;
 
@@ -28,7 +28,8 @@ pub struct InspectCommand {
 
 impl InspectCommand {
     fn local_exec(&self) -> Result<()> {
-        let proxy = PipelineFileSystemProxy::Local;
+        let config = BldConfig::load()?.into_arc();
+        let proxy = PipelineFileSystemProxy::local(config);
         let pipeline = proxy.read(&self.pipeline)?;
         println!("{pipeline}");
         Ok(())

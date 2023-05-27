@@ -1,4 +1,5 @@
 use crate::add::AddCommand;
+use crate::edit::EditCommand;
 use crate::auth::AuthCommand;
 use crate::check::CheckCommand;
 use crate::command::BldCommand;
@@ -26,6 +27,7 @@ enum Commands {
     Login(AuthCommand),
     Check(CheckCommand),
     Config(ConfigCommand),
+    Edit(EditCommand),
     Hist(HistCommand),
     Init(InitCommand),
     Add(AddCommand),
@@ -77,6 +79,7 @@ impl BldCommand for Cli {
             Commands::Login(auth) => auth.exec(),
             Commands::Check(check) => check.exec(),
             Commands::Config(config) => config.exec(),
+            Commands::Edit(edit) => edit.exec(),
             Commands::Hist(hist) => hist.exec(),
             Commands::Init(init) => init.exec(),
             Commands::Add(add) => add.exec(),

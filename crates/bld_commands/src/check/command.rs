@@ -26,7 +26,7 @@ pub struct CheckCommand {
 impl CheckCommand {
     fn exec_local(&self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
-        let proxy = PipelineFileSystemProxy::Local.into_arc();
+        let proxy = PipelineFileSystemProxy::local(config.clone()).into_arc();
         let content = proxy.read(&self.pipeline)?;
         let pipeline = Yaml::load_with_verbose_errors(&content)?;
         pipeline.validate_with_verbose_errors(config, proxy)

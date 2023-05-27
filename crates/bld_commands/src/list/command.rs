@@ -3,7 +3,7 @@ use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_utils::request::Request;
+use bld_utils::{request::Request, sync::IntoArc};
 use clap::Args;
 use tracing::debug;
 
@@ -20,7 +20,9 @@ pub struct ListCommand {
 
 impl ListCommand {
     fn local_exec(&self) -> Result<()> {
-        let content = PipelineFileSystemProxy::Local.list()?.join("\n");
+        let config = BldConfig::load()?.into_arc();
+        let proxy = PipelineFileSystemProxy::local(config);
+        let content = proxy.list()?.join("\n");
         println!("{content}");
         Ok(())
     }

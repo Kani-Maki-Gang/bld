@@ -3,7 +3,7 @@ use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_utils::request::Request;
+use bld_utils::{request::Request, sync::IntoArc};
 use clap::Args;
 use tracing::debug;
 
@@ -19,7 +19,9 @@ pub struct RemoveCommand {
 
 impl RemoveCommand {
     fn local_exec(&self) -> Result<()> {
-        PipelineFileSystemProxy::Local.remove(&self.pipeline)
+        let config = BldConfig::load()?.into_arc();
+        let proxy = PipelineFileSystemProxy::local(config);
+        proxy.remove(&self.pipeline)
     }
 
     fn server_exec(&self, server: &str) -> Result<()> {

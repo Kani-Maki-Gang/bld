@@ -2,17 +2,22 @@ use crate::database::pipeline;
 use anyhow::{anyhow, bail, Result};
 use bld_config::{definitions::TOOL_DIR, path, BldConfig};
 use bld_utils::fs::IsYaml;
+use bld_utils::sync::IntoArc;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::env::current_dir;
 use std::fs::{create_dir_all, read_to_string, remove_file, File};
+use std::fmt::Write as FmtWrite;
 use std::io::Write;
 use std::path::PathBuf;
+use std::process::{ExitStatus, Command};
 use std::sync::Arc;
 use walkdir::WalkDir;
 
 pub enum PipelineFileSystemProxy {
-    Local,
+    Local {
+        config: Arc<BldConfig>,
+    },
     Server {
         config: Arc<BldConfig>,
         pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
@@ -21,14 +26,27 @@ pub enum PipelineFileSystemProxy {
 
 impl Default for PipelineFileSystemProxy {
     fn default() -> Self {
-        Self::Local
+        Self::Local {
+            config: BldConfig::default().into_arc(),
+        }
     }
 }
 
 impl PipelineFileSystemProxy {
+    pub fn local(config: Arc<BldConfig>) -> Self {
+        Self::Local { config }
+    }
+
+    pub fn server(
+        config: Arc<BldConfig>,
+        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
+    ) -> Self {
+        Self::Server { config, pool }
+    }
+
     pub fn path(&self, name: &str) -> Result<PathBuf> {
         match self {
-            Self::Local => Ok(path![current_dir()?, TOOL_DIR, name]),
+            Self::Local { .. } => Ok(path![current_dir()?, TOOL_DIR, name]),
             Self::Server { config, pool } => {
                 let mut conn = pool.get()?;
                 let pip = pipeline::select_by_name(&mut conn, name)?;
@@ -43,45 +61,34 @@ impl PipelineFileSystemProxy {
     pub fn read(&self, name: &str) -> Result<String> {
         let path = self.path(name)?;
 
-        match self {
-            Self::Local | Self::Server { config: _, pool: _ } if path.is_yaml() => {
-                read_to_string(path).map_err(|e| anyhow!(e))
-            }
-            _ => bail!("pipeline not found"),
+        if path.is_yaml() {
+            read_to_string(path).map_err(|e| anyhow!(e))
+        } else {
+            bail!("pipeline not found")
         }
     }
 
     pub fn create(&self, name: &str, content: &str) -> Result<()> {
-        match self {
-            Self::Local => {
-                let path = self.path(name)?;
-                if path.is_yaml() {
-                    remove_file(&path)?;
-                } else if let Some(parent) = path.parent() {
-                    create_dir_all(parent)?;
-                }
-                let mut handle = File::create(&path)?;
-                handle.write_all(content.as_bytes())?;
-                Ok(())
-            }
-            Self::Server { config: _, pool: _ } => {
-                let path = self.path(name)?;
-                if path.is_yaml() {
-                    remove_file(&path)?;
-                } else if let Some(parent) = path.parent() {
-                    create_dir_all(parent)?;
-                }
-                let mut handle = File::create(&path)?;
-                handle.write_all(content.as_bytes())?;
-                Ok(())
-            }
+        let path = self.path(name)?;
+
+        if path.is_yaml() {
+            bail!("pipeline already exists");
         }
+
+        if let Some(parent) = path.parent() {
+            create_dir_all(parent)?;
+        }
+
+        let mut handle = File::create(&path)?;
+        handle.write_all(content.as_bytes())?;
+
+        Ok(())
     }
 
     pub fn remove(&self, name: &str) -> Result<()> {
+        let path = self.path(name)?;
         match self {
-            Self::Local => {
-                let path = self.path(name)?;
+            Self::Local { .. } => {
                 if path.is_yaml() {
                     remove_file(&path)?;
                     Ok(())
@@ -89,8 +96,7 @@ impl PipelineFileSystemProxy {
                     bail!("pipeline not found")
                 }
             }
-            Self::Server { config: _, pool } => {
-                let path = self.path(name)?;
+            Self::Server { pool, .. } => {
                 if path.is_yaml() {
                     let mut conn = pool.get()?;
                     pipeline::delete_by_name(&mut conn, name)
@@ -105,7 +111,7 @@ impl PipelineFileSystemProxy {
 
     pub fn list(&self) -> Result<Vec<String>> {
         match self {
-            Self::Local => {
+            Self::Local { .. } => {
                 let root = path![current_dir()?, TOOL_DIR];
                 let root_str = format!("{}/", root.display());
                 let entries = WalkDir::new(root)
@@ -131,5 +137,30 @@ impl PipelineFileSystemProxy {
                 Ok(pips)
             }
         }
+    }
+
+    pub fn edit(&self, name: &str) -> Result<()> {
+        let Self::Local {config} = self else {
+            bail!("server pipelines dont support direct editing");
+        };
+
+        let path = self.path(name)?;
+
+        if !path.is_yaml() {
+            bail!("pipeline not found");
+        }
+
+        let mut editor = Command::new("/bin/bash");
+        editor.args(["-c", &format!("{} {}", config.local.editor, path.display())]);
+
+        let status = editor.status()?;
+        if !ExitStatus::success(&status) {
+            let mut error = String::new();
+            let output = editor.output()?;
+            writeln!(error, "editor process finished with {}", status)?;
+            write!(error, "{}", String::from_utf8_lossy(&output.stderr))?;
+            bail!(error);
+        }
+        Ok(())
     }
 }
