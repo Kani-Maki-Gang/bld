@@ -10,7 +10,11 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Removes a pipeline from a bld server")]
 pub struct RemoveCommand {
-    #[arg(short = 's', long = "server", help = "The name of the bld server")]
+    #[arg(
+        short = 's',
+        long = "server",
+        help = "The name of the server to remove from"
+    )]
     server: Option<String>,
 
     #[arg(short = 'p', long = "pipeline", help = "The name of the pipeline")]

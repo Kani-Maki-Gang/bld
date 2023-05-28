@@ -20,7 +20,11 @@ pub struct PullCommand {
     )]
     pipeline: String,
 
-    #[arg(short = 's', long = "server", help = "The name of the bld server")]
+    #[arg(
+        short = 's',
+        long = "server",
+        help = "The name of the server to pull the pipeline from"
+    )]
     server: Option<String>,
 
     #[arg(

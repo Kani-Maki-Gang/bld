@@ -16,7 +16,11 @@ pub struct EditCommand {
     #[arg(short = 'p', long = "pipline", help = "The name of the pipeline file")]
     pipeline: String,
 
-    #[arg(short = 's', long = "server", help = "The name of the bld server")]
+    #[arg(
+        short = 's',
+        long = "server",
+        help = "The name of the server to edit the pipeline from"
+    )]
     server: Option<String>,
 }
 
@@ -27,7 +31,7 @@ impl EditCommand {
         proxy.edit(&self.pipeline)
     }
 
-    fn server_edit(self) -> Result<()> {
+    fn remove_edit(self) -> Result<()> {
         System::new().block_on(async move {
             let config = BldConfig::load()?.into_arc();
             let proxy = PipelineFileSystemProxy::local(config.clone());
@@ -35,11 +39,6 @@ impl EditCommand {
             let server = config.server(&server_name)?;
             let server_auth = config.same_auth_as(server)?;
             let pull_url = format!("{}/pull", server.base_url_http());
-
-            debug!(
-                "running edit subcommand with --server: {} and --pipeline: {}",
-                server_name, self.pipeline
-            );
 
             println!("Pulling pipline {}", self.pipeline);
 
@@ -85,8 +84,13 @@ impl EditCommand {
 
 impl BldCommand for EditCommand {
     fn exec(self) -> Result<()> {
+        debug!(
+            "running edit subcommand with --server: {:?} and --pipeline: {}",
+            self.server, self.pipeline
+        );
+
         match &self.server {
-            Some(_) => self.server_edit(),
+            Some(_) => self.remove_edit(),
             None => self.local_edit(),
         }
     }

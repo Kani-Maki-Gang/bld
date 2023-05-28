@@ -13,7 +13,7 @@ pub struct ListCommand {
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server from which to fetch pipeline information"
+        help = "The name of the server to list pipelines from"
     )]
     server: Option<String>,
 }

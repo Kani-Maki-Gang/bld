@@ -18,7 +18,7 @@ pub struct CheckCommand {
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server to run the pipeline"
+        help = "The name of the server to check the pipeline from"
     )]
     server: Option<String>,
 }

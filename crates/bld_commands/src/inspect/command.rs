@@ -21,7 +21,7 @@ pub struct InspectCommand {
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server from which to inspect the pipeline"
+        help = "The name of the server to inspect the pipeline from"
     )]
     server: Option<String>,
 }

@@ -15,7 +15,7 @@ pub struct HistCommand {
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server from which to fetch execution history"
+        help = "The name of the server to fetch history from"
     )]
     server: Option<String>,
 
