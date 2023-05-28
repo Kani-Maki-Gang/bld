@@ -24,7 +24,7 @@ pub struct CheckCommand {
 }
 
 impl CheckCommand {
-    fn exec_local(&self) -> Result<()> {
+    fn local_check(&self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config.clone()).into_arc();
         let content = proxy.read(&self.pipeline)?;
@@ -32,7 +32,7 @@ impl CheckCommand {
         pipeline.validate_with_verbose_errors(config, proxy)
     }
 
-    fn exec_server(&self, server: &str) -> Result<()> {
+    fn remote_check(&self, server: &str) -> Result<()> {
         let config = BldConfig::load()?;
         let server = config.server(server)?;
         let server_auth = config.same_auth_as(server)?;
@@ -51,8 +51,8 @@ impl CheckCommand {
 impl BldCommand for CheckCommand {
     fn exec(self) -> Result<()> {
         match &self.server {
-            Some(server) => self.exec_server(server),
-            None => self.exec_local(),
+            Some(server) => self.remote_check(server),
+            None => self.local_check(),
         }
     }
 }

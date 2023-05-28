@@ -22,13 +22,13 @@ pub struct RemoveCommand {
 }
 
 impl RemoveCommand {
-    fn local_exec(&self) -> Result<()> {
+    fn local_remove(&self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config);
         proxy.remove(&self.pipeline)
     }
 
-    fn server_exec(&self, server: &str) -> Result<()> {
+    fn remote_remove(&self, server: &str) -> Result<()> {
         let config = BldConfig::load()?;
         let server = config.server(server)?;
 
@@ -53,8 +53,8 @@ impl RemoveCommand {
 impl BldCommand for RemoveCommand {
     fn exec(self) -> Result<()> {
         match &self.server {
-            Some(srv) => self.server_exec(srv),
-            None => self.local_exec(),
+            Some(srv) => self.remote_remove(srv),
+            None => self.local_remove(),
         }
     }
 }

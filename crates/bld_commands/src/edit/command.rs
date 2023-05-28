@@ -31,7 +31,7 @@ impl EditCommand {
         proxy.edit(&self.pipeline)
     }
 
-    fn remove_edit(self) -> Result<()> {
+    fn remote_edit(self) -> Result<()> {
         System::new().block_on(async move {
             let config = BldConfig::load()?.into_arc();
             let proxy = PipelineFileSystemProxy::local(config.clone());
@@ -90,7 +90,7 @@ impl BldCommand for EditCommand {
         );
 
         match &self.server {
-            Some(_) => self.remove_edit(),
+            Some(_) => self.remote_edit(),
             None => self.local_edit(),
         }
     }

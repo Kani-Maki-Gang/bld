@@ -51,7 +51,7 @@ impl AddCommand {
         Ok(())
     }
 
-    fn remove_add(self) -> Result<()> {
+    fn remote_add(self) -> Result<()> {
         System::new().block_on(async move {
             let config = BldConfig::load()?.into_arc();
             let proxy = PipelineFileSystemProxy::local(config.clone());
@@ -102,7 +102,7 @@ impl BldCommand for AddCommand {
         );
 
         match &self.server {
-            Some(_) => self.remove_add(),
+            Some(_) => self.remote_add(),
             None => self.local_add(),
         }
     }

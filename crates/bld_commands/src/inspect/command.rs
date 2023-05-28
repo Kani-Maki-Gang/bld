@@ -27,7 +27,7 @@ pub struct InspectCommand {
 }
 
 impl InspectCommand {
-    fn local_exec(&self) -> Result<()> {
+    fn local_inspect(&self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config);
         let pipeline = proxy.read(&self.pipeline)?;
@@ -35,7 +35,7 @@ impl InspectCommand {
         Ok(())
     }
 
-    fn server_exec(&self, server: &str) -> Result<()> {
+    fn remote_inspect(&self, server: &str) -> Result<()> {
         let config = BldConfig::load()?;
         let server = config.server(server)?;
         let server_auth = config.same_auth_as(server)?;
@@ -55,8 +55,8 @@ impl InspectCommand {
 impl BldCommand for InspectCommand {
     fn exec(self) -> Result<()> {
         match &self.server {
-            Some(srv) => self.server_exec(srv),
-            None => self.local_exec(),
+            Some(srv) => self.remote_inspect(srv),
+            None => self.local_inspect(),
         }
     }
 }
