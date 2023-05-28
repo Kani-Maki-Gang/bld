@@ -1,16 +1,17 @@
 use crate::database::pipeline;
 use anyhow::{anyhow, bail, Result};
+use bld_config::definitions::LOCAL_MACHINE_TMP_DIR;
 use bld_config::{definitions::TOOL_DIR, path, BldConfig};
 use bld_utils::fs::IsYaml;
 use bld_utils::sync::IntoArc;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::env::current_dir;
-use std::fs::{create_dir_all, read_to_string, remove_file, File};
 use std::fmt::Write as FmtWrite;
+use std::fs::{create_dir_all, read_to_string, remove_file, File};
 use std::io::Write;
 use std::path::PathBuf;
-use std::process::{ExitStatus, Command};
+use std::process::{Command, ExitStatus};
 use std::sync::Arc;
 use walkdir::WalkDir;
 
@@ -58,9 +59,11 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    pub fn read(&self, name: &str) -> Result<String> {
-        let path = self.path(name)?;
+    pub fn tmp_path(&self, name: &str) -> Result<PathBuf> {
+        Ok(path![current_dir()?, LOCAL_MACHINE_TMP_DIR, name])
+    }
 
+    fn read_internal(&self, path: &PathBuf) -> Result<String> {
         if path.is_yaml() {
             read_to_string(path).map_err(|e| anyhow!(e))
         } else {
@@ -68,21 +71,42 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    pub fn create(&self, name: &str, content: &str) -> Result<()> {
+    pub fn read(&self, name: &str) -> Result<String> {
         let path = self.path(name)?;
+        self.read_internal(&path)
+    }
 
-        if path.is_yaml() {
+    pub fn read_tmp(&self, name: &str) -> Result<String> {
+        let path = self.tmp_path(name)?;
+        self.read_internal(&path)
+    }
+
+    fn create_internal(&self, path: &PathBuf, content: &str, overwrite: bool) -> Result<()> {
+        if path.is_yaml() && !overwrite {
             bail!("pipeline already exists");
+        } else if path.is_yaml() && overwrite {
+            remove_file(path)?;
         }
 
         if let Some(parent) = path.parent() {
             create_dir_all(parent)?;
         }
 
-        let mut handle = File::create(&path)?;
+        let mut handle = File::create(path)?;
         handle.write_all(content.as_bytes())?;
 
         Ok(())
+    }
+
+    pub fn create(&self, name: &str, content: &str, overwrite: bool) -> Result<()> {
+        let path = self.path(name)?;
+        self.create_internal(&path, content, overwrite)
+    }
+
+    pub fn create_tmp(&self, name: &str, content: &str, overwrite: bool) -> Result<String> {
+        let path = self.tmp_path(name)?;
+        self.create_internal(&path, content, overwrite)?;
+        Ok(path.display().to_string())
     }
 
     pub fn remove(&self, name: &str) -> Result<()> {
@@ -106,6 +130,16 @@ impl PipelineFileSystemProxy {
                     bail!("pipeline not found")
                 }
             }
+        }
+    }
+
+    pub fn remove_tmp(&self, name: &str) -> Result<()> {
+        let path = self.tmp_path(name)?;
+        if path.is_yaml() {
+            remove_file(path)?;
+            Ok(())
+        } else {
+            bail!("pipeline not found");
         }
     }
 
@@ -139,12 +173,10 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    pub fn edit(&self, name: &str) -> Result<()> {
+    fn edit_internal(&self, path: &PathBuf) -> Result<()> {
         let Self::Local {config} = self else {
             bail!("server pipelines dont support direct editing");
         };
-
-        let path = self.path(name)?;
 
         if !path.is_yaml() {
             bail!("pipeline not found");
@@ -162,5 +194,15 @@ impl PipelineFileSystemProxy {
             bail!(error);
         }
         Ok(())
+    }
+
+    pub fn edit(&self, name: &str) -> Result<()> {
+        let path = self.path(name)?;
+        self.edit_internal(&path)
+    }
+
+    pub fn edit_tmp(&self, name: &str) -> Result<()> {
+        let path = self.tmp_path(name)?;
+        self.edit_internal(&path)
     }
 }

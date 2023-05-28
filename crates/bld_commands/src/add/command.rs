@@ -28,9 +28,9 @@ pub struct AddCommand {
 impl BldCommand for AddCommand {
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
-        let proxy = PipelineFileSystemProxy::local(config.clone());
+        let proxy = PipelineFileSystemProxy::local(config);
 
-        proxy.create(&self.pipeline, DEFAULT_V2_PIPELINE_CONTENT)?;
+        proxy.create(&self.pipeline, DEFAULT_V2_PIPELINE_CONTENT, false)?;
 
         if self.edit {
             proxy.edit(&self.pipeline)?;

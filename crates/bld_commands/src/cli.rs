@@ -1,9 +1,9 @@
 use crate::add::AddCommand;
-use crate::edit::EditCommand;
 use crate::auth::AuthCommand;
 use crate::check::CheckCommand;
 use crate::command::BldCommand;
 use crate::config::ConfigCommand;
+use crate::edit::EditCommand;
 use crate::hist::HistCommand;
 use crate::init::InitCommand;
 use crate::inspect::InspectCommand;

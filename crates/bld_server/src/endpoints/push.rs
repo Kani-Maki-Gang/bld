@@ -34,5 +34,5 @@ fn do_push(
         let id = Uuid::new_v4().to_string();
         pipeline::insert(&mut conn, &id, &info.name)?;
     }
-    prx.create(&info.name, &info.content)
+    prx.create(&info.name, &info.content, true)
 }
