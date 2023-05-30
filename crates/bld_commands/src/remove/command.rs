@@ -3,14 +3,18 @@ use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_utils::request::Request;
+use bld_utils::{request::Request, sync::IntoArc};
 use clap::Args;
 use tracing::debug;
 
 #[derive(Args)]
 #[command(about = "Removes a pipeline from a bld server")]
 pub struct RemoveCommand {
-    #[arg(short = 's', long = "server", help = "The name of the bld server")]
+    #[arg(
+        short = 's',
+        long = "server",
+        help = "The name of the server to remove from"
+    )]
     server: Option<String>,
 
     #[arg(short = 'p', long = "pipeline", help = "The name of the pipeline")]
@@ -18,11 +22,13 @@ pub struct RemoveCommand {
 }
 
 impl RemoveCommand {
-    fn local_exec(&self) -> Result<()> {
-        PipelineFileSystemProxy::Local.remove(&self.pipeline)
+    fn local_remove(&self) -> Result<()> {
+        let config = BldConfig::load()?.into_arc();
+        let proxy = PipelineFileSystemProxy::local(config);
+        proxy.remove(&self.pipeline)
     }
 
-    fn server_exec(&self, server: &str) -> Result<()> {
+    fn remote_remove(&self, server: &str) -> Result<()> {
         let config = BldConfig::load()?;
         let server = config.server(server)?;
 
@@ -47,8 +53,8 @@ impl RemoveCommand {
 impl BldCommand for RemoveCommand {
     fn exec(self) -> Result<()> {
         match &self.server {
-            Some(srv) => self.server_exec(srv),
-            None => self.local_exec(),
+            Some(srv) => self.remote_remove(srv),
+            None => self.local_remove(),
         }
     }
 }

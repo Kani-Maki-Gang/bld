@@ -3,7 +3,7 @@ use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_utils::request::Request;
+use bld_utils::{request::Request, sync::IntoArc};
 use clap::Args;
 use tracing::debug;
 
@@ -13,19 +13,21 @@ pub struct ListCommand {
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server from which to fetch pipeline information"
+        help = "The name of the server to list pipelines from"
     )]
     server: Option<String>,
 }
 
 impl ListCommand {
-    fn local_exec(&self) -> Result<()> {
-        let content = PipelineFileSystemProxy::Local.list()?.join("\n");
+    fn local_list(&self) -> Result<()> {
+        let config = BldConfig::load()?.into_arc();
+        let proxy = PipelineFileSystemProxy::local(config);
+        let content = proxy.list()?.join("\n");
         println!("{content}");
         Ok(())
     }
 
-    fn server_exec(&self, server: &str) -> Result<()> {
+    fn remote_list(&self, server: &str) -> Result<()> {
         let config = BldConfig::load()?;
         let server = config.server(server)?;
         let server_auth = config.same_auth_as(server)?;
@@ -41,8 +43,8 @@ impl ListCommand {
 impl BldCommand for ListCommand {
     fn exec(self) -> Result<()> {
         match &self.server {
-            Some(srv) => self.server_exec(srv),
-            None => self.local_exec(),
+            Some(srv) => self.remote_list(srv),
+            None => self.local_list(),
         }
     }
 }

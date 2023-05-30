@@ -8,7 +8,11 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Initiates the login process for a bld server")]
 pub struct AuthCommand {
-    #[arg(short = 's', long = "server", help = "The target bld server")]
+    #[arg(
+        short = 's',
+        long = "server",
+        help = "The name of the server to login into"
+    )]
     server: Option<String>,
 }
 

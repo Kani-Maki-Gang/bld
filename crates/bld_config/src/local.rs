@@ -18,6 +18,9 @@ pub struct BldLocalConfig {
 
     #[serde(default = "BldLocalConfig::default_docker_url")]
     pub docker_url: String,
+
+    #[serde(default = "BldLocalConfig::default_editor")]
+    pub editor: String,
 }
 
 impl BldLocalConfig {
@@ -31,6 +34,10 @@ impl BldLocalConfig {
 
     fn default_docker_url() -> String {
         definitions::LOCAL_DOCKER_URL.to_owned()
+    }
+
+    fn default_editor() -> String {
+        definitions::DEFAULT_EDITOR.to_owned()
     }
 
     pub fn debug_info(&self) {
@@ -67,6 +74,7 @@ impl Default for BldLocalConfig {
             logs: Self::default_logs(),
             db: Self::default_db(),
             docker_url: Self::default_docker_url(),
+            editor: Self::default_editor(),
         }
     }
 }

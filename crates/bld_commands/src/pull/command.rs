@@ -4,11 +4,9 @@ use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_server::responses::PullResponse;
-use bld_utils::fs::IsYaml;
 use bld_utils::request::Request;
+use bld_utils::sync::IntoArc;
 use clap::Args;
-use std::fs::{create_dir_all, remove_file, File};
-use std::io::Write;
 use tracing::debug;
 
 #[derive(Args)]
@@ -22,7 +20,11 @@ pub struct PullCommand {
     )]
     pipeline: String,
 
-    #[arg(short = 's', long = "server", help = "The name of the bld server")]
+    #[arg(
+        short = 's',
+        long = "server",
+        help = "The name of the server to pull the pipeline from"
+    )]
     server: Option<String>,
 
     #[arg(
@@ -34,7 +36,8 @@ pub struct PullCommand {
 
 impl PullCommand {
     async fn request(self) -> Result<()> {
-        let config = BldConfig::load()?;
+        let config = BldConfig::load()?.into_arc();
+        let proxy = PipelineFileSystemProxy::local(config.clone());
         let server = config.server_or_first(self.server.as_ref())?;
         let server_auth = config.same_auth_as(server)?;
 
@@ -71,34 +74,21 @@ impl PullCommand {
             debug!("sending http request to {}", url);
             print!("Pulling pipeline {pipeline}...");
 
-            Request::post(&url)
+            let data: PullResponse = Request::post(&url)
                 .auth(server_auth)
                 .send_json(pipeline)
                 .await
-                .and_then(Self::save)
-                .map(|_| {
+                .map(|data| {
                     println!("Done.");
+                    data
                 })
-                .map_err(|e| {
-                    println!("Error. {e}");
-                    e
+                .map_err(|err| {
+                    println!("Error. {err}");
+                    err
                 })?;
+
+            proxy.create(&data.name, &data.content, true)?;
         }
-
-        Ok(())
-    }
-
-    fn save(data: PullResponse) -> Result<()> {
-        let path = PipelineFileSystemProxy::Local.path(&data.name)?;
-
-        if path.is_yaml() {
-            remove_file(&path)?;
-        } else if let Some(parent) = path.parent() {
-            create_dir_all(parent)?;
-        }
-
-        let mut handle = File::create(&path)?;
-        handle.write_all(data.content.as_bytes())?;
 
         Ok(())
     }

@@ -5,7 +5,7 @@ use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_runner::VersionedPipeline;
 use bld_server::requests::PushInfo;
-use bld_utils::request::Request;
+use bld_utils::{request::Request, sync::IntoArc};
 use clap::Args;
 use tracing::debug;
 
@@ -36,7 +36,7 @@ pub struct PushCommand {
 
 impl PushCommand {
     async fn push(self) -> Result<()> {
-        let config = BldConfig::load()?;
+        let config = BldConfig::load()?.into_arc();
         let server = config.server_or_first(self.server.as_ref())?;
 
         debug!(
@@ -47,24 +47,22 @@ impl PushCommand {
         let server_auth = config.same_auth_as(server)?;
         let url = format!("{}/push", server.base_url_http());
 
-        let mut pipelines = vec![PushInfo::new(
-            &self.pipeline,
-            &PipelineFileSystemProxy::Local.read(&self.pipeline)?,
-        )];
+        let proxy = PipelineFileSystemProxy::local(config.clone());
+
+        let mut pipelines = vec![PushInfo::new(&self.pipeline, &proxy.read(&self.pipeline)?)];
 
         if !self.ignore_deps {
             print!("Resolving dependecies...");
 
-            let mut deps =
-                VersionedPipeline::dependencies(&PipelineFileSystemProxy::Local, &self.pipeline)
-                    .map(|pips| {
-                        println!("Done.");
-                        pips.iter().map(|(n, s)| PushInfo::new(n, s)).collect()
-                    })
-                    .map_err(|e| {
-                        println!("Error. {e}");
-                        anyhow!("")
-                    })?;
+            let mut deps = VersionedPipeline::dependencies(&proxy, &self.pipeline)
+                .map(|pips| {
+                    println!("Done.");
+                    pips.iter().map(|(n, s)| PushInfo::new(n, s)).collect()
+                })
+                .map_err(|e| {
+                    println!("Error. {e}");
+                    anyhow!("")
+                })?;
 
             pipelines.append(&mut deps);
         }

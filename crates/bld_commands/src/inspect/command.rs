@@ -3,7 +3,7 @@ use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_utils::request::Request;
+use bld_utils::{request::Request, sync::IntoArc};
 use clap::Args;
 use tracing::debug;
 
@@ -21,20 +21,21 @@ pub struct InspectCommand {
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server from which to inspect the pipeline"
+        help = "The name of the server to inspect the pipeline from"
     )]
     server: Option<String>,
 }
 
 impl InspectCommand {
-    fn local_exec(&self) -> Result<()> {
-        let proxy = PipelineFileSystemProxy::Local;
+    fn local_inspect(&self) -> Result<()> {
+        let config = BldConfig::load()?.into_arc();
+        let proxy = PipelineFileSystemProxy::local(config);
         let pipeline = proxy.read(&self.pipeline)?;
         println!("{pipeline}");
         Ok(())
     }
 
-    fn server_exec(&self, server: &str) -> Result<()> {
+    fn remote_inspect(&self, server: &str) -> Result<()> {
         let config = BldConfig::load()?;
         let server = config.server(server)?;
         let server_auth = config.same_auth_as(server)?;
@@ -54,8 +55,8 @@ impl InspectCommand {
 impl BldCommand for InspectCommand {
     fn exec(self) -> Result<()> {
         match &self.server {
-            Some(srv) => self.server_exec(srv),
-            None => self.local_exec(),
+            Some(srv) => self.remote_inspect(srv),
+            None => self.local_inspect(),
         }
     }
 }

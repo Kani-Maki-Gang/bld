@@ -30,7 +30,7 @@ pub struct MonitCommand {
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server to monitor"
+        help = "The name of the server to monitor the pipeline from"
     )]
     server: Option<String>,
 
