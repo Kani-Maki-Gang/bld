@@ -28,5 +28,8 @@ pub enum AuthValidation {
     Ldap,
 
     #[serde(rename(serialize = "oauth2", deserialize = "oauth2"))]
-    OAuth2 { validation_url: String },
+    OAuth2 {
+        user_info_url: String,
+        user_info_property: String,
+    },
 }

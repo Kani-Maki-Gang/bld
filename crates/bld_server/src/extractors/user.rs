@@ -32,10 +32,11 @@ impl FromRequest for User {
         let config = req.app_data::<Data<BldConfig>>().unwrap().clone();
         let bearer = get_bearer(req);
         async move {
-            if let Some(AuthValidation::OAuth2 { validation_url }) =
+            if let Some(AuthValidation::OAuth2 { user_info_url, user_info_property }) =
                 &config.get_ref().local.server.auth
             {
-                return match oauth2_validate(validation_url.to_string(), bearer).await {
+                let validation = oauth2_validate(user_info_url.to_string(), user_info_property.to_string(), bearer);
+                return match validation.await {
                     Ok(user) => Ok(user),
                     Err(_) => Err(ErrorUnauthorized("")),
                 };
@@ -56,7 +57,7 @@ fn get_bearer(request: &HttpRequest) -> String {
         .to_string()
 }
 
-async fn oauth2_validate(url: String, bearer: String) -> Result<User> {
+async fn oauth2_validate(url: String, property: String, bearer: String) -> Result<User> {
     let response: serde_json::Value = Request::get(&url)
         .header("Authorization", &bearer)
         .send()
@@ -65,5 +66,5 @@ async fn oauth2_validate(url: String, bearer: String) -> Result<User> {
             error!("authorization check failed to remote server with: {}", e);
             anyhow!("could not authenticate user")
         })?;
-    Ok(User::new(&response["login"].to_string()))
+    Ok(User::new(&response[property].to_string()))
 }
