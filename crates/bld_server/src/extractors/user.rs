@@ -32,14 +32,14 @@ impl FromRequest for User {
         let config = req.app_data::<Data<BldConfig>>().unwrap().clone();
         let bearer = get_bearer(req);
         async move {
-            if let Some(AuthValidation::OAuth2 { user_info_url, user_info_property }) =
-                &config.get_ref().local.server.auth
+            if let Some(AuthValidation::OAuth2 {
+                user_info_url,
+                user_info_property,
+            }) = &config.get_ref().local.server.auth
             {
-                let validation = oauth2_validate(user_info_url.to_string(), user_info_property.to_string(), bearer);
-                return match validation.await {
-                    Ok(user) => Ok(user),
-                    Err(_) => Err(ErrorUnauthorized("")),
-                };
+                return oauth2_validate(user_info_url, user_info_property, bearer)
+                    .await
+                    .map_err(|e| ErrorUnauthorized(e.to_string()));
             }
             Ok(User::new(""))
         }
@@ -57,8 +57,8 @@ fn get_bearer(request: &HttpRequest) -> String {
         .to_string()
 }
 
-async fn oauth2_validate(url: String, property: String, bearer: String) -> Result<User> {
-    let response: serde_json::Value = Request::get(&url)
+async fn oauth2_validate(url: &str, pointer: &str, bearer: String) -> Result<User> {
+    let response: serde_json::Value = Request::get(url)
         .header("Authorization", &bearer)
         .send()
         .await
@@ -66,5 +66,8 @@ async fn oauth2_validate(url: String, property: String, bearer: String) -> Resul
             error!("authorization check failed to remote server with: {}", e);
             anyhow!("could not authenticate user")
         })?;
-    Ok(User::new(&response[property].to_string()))
+    let user_id = response
+        .pointer(pointer)
+        .ok_or_else(|| anyhow!("user property not found"))?;
+    Ok(User::new(&user_id.to_string()))
 }

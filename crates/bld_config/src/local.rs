@@ -45,7 +45,11 @@ impl BldLocalConfig {
         debug!("server > host: {}", self.server.host);
         debug!("server > port: {}", self.server.port);
         debug!("server > pipelines: {}", self.server.pipelines);
-        if let Some(AuthValidation::OAuth2 { user_info_url, user_info_property }) = &self.server.auth {
+        if let Some(AuthValidation::OAuth2 {
+            user_info_url,
+            user_info_property,
+        }) = &self.server.auth
+        {
             debug!("auth > method: oauth2");
             debug!("auth > user_info_url: {}", user_info_url);
             debug!("auth > user_info_property: {}", user_info_property);
