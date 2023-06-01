@@ -12,7 +12,7 @@ use clap::Args;
 #[derive(Args)]
 #[command(about = "Checks a pipeline file for errors")]
 pub struct CheckCommand {
-    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
     #[arg(short = 'p', long = "pipeline", default_value = TOOL_DEFAULT_PIPELINE_FILE, help = "Path to pipeline script")]

@@ -7,7 +7,7 @@ use clap::Args;
 #[derive(Args)]
 #[command(about = "Start bld in server mode, listening to incoming build requests")]
 pub struct ServerCommand {
-    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
     #[arg(short = 'H', long = "host", help = "The server's host address")]

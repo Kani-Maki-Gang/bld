@@ -7,7 +7,7 @@ use clap::Args;
 #[derive(Args)]
 #[command(about = "Lists bld's configuration")]
 pub struct ConfigCommand {
-    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 }
 

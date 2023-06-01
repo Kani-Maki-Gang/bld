@@ -10,7 +10,7 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Removes a pipeline from a bld server")]
 pub struct RemoveCommand {
-    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
     #[arg(

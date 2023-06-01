@@ -10,7 +10,7 @@ use std::collections::HashMap;
 #[derive(Args)]
 #[command(about = "Executes a build pipeline")]
 pub struct RunCommand {
-    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
     #[arg(short = 'p', long = "pipeline", default_value = TOOL_DEFAULT_PIPELINE_FILE, help = "Path to pipeline script")]

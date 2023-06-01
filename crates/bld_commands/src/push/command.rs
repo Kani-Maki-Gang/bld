@@ -12,7 +12,7 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Pushes the contents of a pipeline to a bld server")]
 pub struct PushCommand {
-    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
     #[arg(

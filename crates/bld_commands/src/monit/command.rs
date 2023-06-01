@@ -13,7 +13,7 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Connects to a bld server to monitor the execution of a pipeline")]
 pub struct MonitCommand {
-    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
     #[arg(

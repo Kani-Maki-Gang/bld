@@ -12,7 +12,7 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Fetches execution history of pipelines on a bld server")]
 pub struct HistCommand {
-    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
     #[arg(

@@ -13,7 +13,7 @@ use crate::command::BldCommand;
 #[derive(Args)]
 #[command(about = "Edit a pipeline file")]
 pub struct EditCommand {
-    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
     #[arg(short = 'p', long = "pipline", help = "The name of the pipeline file")]

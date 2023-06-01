@@ -11,7 +11,7 @@ use tracing::{debug, error};
     about = "Starts a bld supervisor that manages the pipeline worker queue. should be only invoked by the server"
 )]
 pub struct SupervisorCommand {
-    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 }
 

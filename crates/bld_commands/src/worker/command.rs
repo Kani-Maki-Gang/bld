@@ -27,7 +27,7 @@ use tracing::{debug, error};
     about = "A sub command that creates a worker process for a bld server in order to run a pipeline."
 )]
 pub struct WorkerCommand {
-    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
     #[arg(

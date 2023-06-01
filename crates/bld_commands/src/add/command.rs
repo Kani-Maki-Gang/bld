@@ -15,7 +15,7 @@ use crate::command::BldCommand;
 #[derive(Args)]
 #[command(about = "Creates a new pipeline")]
 pub struct AddCommand {
-    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
     #[arg(

@@ -8,7 +8,7 @@ use clap::Args;
 #[derive(Args)]
 #[command(about = "Stops a running pipeline on a server")]
 pub struct StopCommand {
-    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
     #[arg(
