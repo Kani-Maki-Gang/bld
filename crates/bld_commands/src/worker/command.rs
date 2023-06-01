@@ -27,6 +27,9 @@ use tracing::{debug, error};
     about = "A sub command that creates a worker process for a bld server in order to run a pipeline."
 )]
 pub struct WorkerCommand {
+    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(
         short = 'p',
         long = "pipeline",
@@ -59,6 +62,10 @@ pub struct WorkerCommand {
 }
 
 impl BldCommand for WorkerCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let socket_cfg = config.clone();

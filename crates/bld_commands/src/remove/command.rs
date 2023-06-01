@@ -10,6 +10,9 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Removes a pipeline from a bld server")]
 pub struct RemoveCommand {
+    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(
         short = 's',
         long = "server",
@@ -51,6 +54,10 @@ impl RemoveCommand {
 }
 
 impl BldCommand for RemoveCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         match &self.server {
             Some(srv) => self.remote_remove(srv),

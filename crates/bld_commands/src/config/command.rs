@@ -6,7 +6,10 @@ use clap::Args;
 
 #[derive(Args)]
 #[command(about = "Lists bld's configuration")]
-pub struct ConfigCommand;
+pub struct ConfigCommand {
+    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+}
 
 impl ConfigCommand {
     fn list_locals(local: &BldLocalConfig) -> Result<()> {
@@ -30,6 +33,10 @@ impl ConfigCommand {
 }
 
 impl BldCommand for ConfigCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?;
         Self::list_all(&config)

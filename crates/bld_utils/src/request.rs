@@ -83,7 +83,7 @@ impl Request {
             st => {
                 debug!("response from server status: {status}");
                 Err(anyhow!(
-                    "request returned failed with status code: {}",
+                    "request failed with status code: {}",
                     st.to_string()
                 ))
             }

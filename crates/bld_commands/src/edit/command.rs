@@ -13,6 +13,9 @@ use crate::command::BldCommand;
 #[derive(Args)]
 #[command(about = "Edit a pipeline file")]
 pub struct EditCommand {
+    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(short = 'p', long = "pipline", help = "The name of the pipeline file")]
     pipeline: String,
 
@@ -83,6 +86,10 @@ impl EditCommand {
 }
 
 impl BldCommand for EditCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         debug!(
             "running edit subcommand with --server: {:?} and --pipeline: {}",

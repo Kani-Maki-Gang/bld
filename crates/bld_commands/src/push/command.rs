@@ -12,6 +12,9 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Pushes the contents of a pipeline to a bld server")]
 pub struct PushCommand {
+    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(
         short = 'p',
         long = "pipeline",
@@ -89,6 +92,10 @@ impl PushCommand {
 }
 
 impl BldCommand for PushCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         System::new().block_on(self.push())
     }

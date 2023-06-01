@@ -12,6 +12,9 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Pull a pipeline from a bld server and stores it localy")]
 pub struct PullCommand {
+    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(
         short = 'p',
         long = "pipeline",
@@ -95,6 +98,10 @@ impl PullCommand {
 }
 
 impl BldCommand for PullCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         System::new().block_on(self.request())
     }

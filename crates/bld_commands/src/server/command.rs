@@ -7,6 +7,9 @@ use clap::Args;
 #[derive(Args)]
 #[command(about = "Start bld in server mode, listening to incoming build requests")]
 pub struct ServerCommand {
+    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(short = 'H', long = "host", help = "The server's host address")]
     host: Option<String>,
 
@@ -15,6 +18,10 @@ pub struct ServerCommand {
 }
 
 impl BldCommand for ServerCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?;
         let host = self

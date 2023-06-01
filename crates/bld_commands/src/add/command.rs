@@ -15,6 +15,9 @@ use crate::command::BldCommand;
 #[derive(Args)]
 #[command(about = "Creates a new pipeline")]
 pub struct AddCommand {
+    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(
         short = 'p',
         long = "pipeline",
@@ -95,6 +98,10 @@ impl AddCommand {
 }
 
 impl BldCommand for AddCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         debug!(
             "running add subcommand with --server: {:?}, --pipeline: {} and --edit: {}",

@@ -480,6 +480,7 @@ dependencies = [
  "clap",
  "futures",
  "oauth2",
+ "rustls",
  "serde",
  "serde_derive",
  "serde_json",

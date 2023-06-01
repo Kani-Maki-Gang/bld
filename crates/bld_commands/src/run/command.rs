@@ -10,6 +10,9 @@ use std::collections::HashMap;
 #[derive(Args)]
 #[command(about = "Executes a build pipeline")]
 pub struct RunCommand {
+    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(short = 'p', long = "pipeline", default_value = TOOL_DEFAULT_PIPELINE_FILE, help = "Path to pipeline script")]
     pipeline: String,
 
@@ -42,6 +45,10 @@ pub struct RunCommand {
 }
 
 impl BldCommand for RunCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let variables = parse_variables(&self.variables);

@@ -12,6 +12,9 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Fetches execution history of pipelines on a bld server")]
 pub struct HistCommand {
+    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(
         short = 's',
         long = "server",
@@ -44,6 +47,10 @@ pub struct HistCommand {
 }
 
 impl BldCommand for HistCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?;
         let server = config.server_or_first(self.server.as_ref())?;

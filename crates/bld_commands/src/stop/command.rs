@@ -8,6 +8,9 @@ use clap::Args;
 #[derive(Args)]
 #[command(about = "Stops a running pipeline on a server")]
 pub struct StopCommand {
+    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(
         short = 'i',
         long = "id",
@@ -25,6 +28,10 @@ pub struct StopCommand {
 }
 
 impl BldCommand for StopCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?;
 

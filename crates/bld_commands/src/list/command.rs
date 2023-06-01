@@ -10,6 +10,9 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Lists information of pipelines in a bld server")]
 pub struct ListCommand {
+    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(
         short = 's',
         long = "server",
@@ -41,6 +44,10 @@ impl ListCommand {
 }
 
 impl BldCommand for ListCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         match &self.server {
             Some(srv) => self.remote_list(srv),

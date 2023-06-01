@@ -13,6 +13,9 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Connects to a bld server to monitor the execution of a pipeline")]
 pub struct MonitCommand {
+    #[arg(short = 'v', long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(
         short = 'i',
         long = "pipeline-id",
@@ -75,6 +78,10 @@ impl MonitCommand {
 }
 
 impl BldCommand for MonitCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         let system = System::new();
         let result = system.block_on(self.request());
