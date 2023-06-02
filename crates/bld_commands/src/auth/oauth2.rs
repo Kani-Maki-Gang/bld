@@ -24,14 +24,22 @@ use bld_utils::{
 };
 use oauth2::{
     basic::BasicClient, reqwest::async_http_client, AuthorizationCode, CsrfToken,
-    PkceCodeChallenge, TokenResponse,
+    PkceCodeChallenge, PkceCodeVerifier, TokenResponse,
 };
 use rustls::ServerConfig;
 use tokio::{
     process::Command,
-    sync::mpsc::{channel, Sender},
+    sync::{
+        mpsc::{channel, Sender},
+        Mutex,
+    },
     time::sleep,
 };
+use tracing::debug;
+
+const AUTH_REDIRECT_SUCCESS: &str =
+    "Login completed, you can close this browser tab and go back to your terminal.";
+const AUTH_REDIRECT_FAILED: &str = "An error occured while completing the login process.";
 
 fn persist_access_token(server: &str, token: &str) -> Result<()> {
     let mut path = path![REMOTE_SERVER_OAUTH2];
@@ -62,6 +70,7 @@ async fn do_auth_redirect(
     info: Query<AuthRedirectInfo>,
     config: Data<BldConfig>,
     server: Data<String>,
+    verifier: Data<Mutex<Option<PkceCodeVerifier>>>,
 ) -> Result<()> {
     let server = config.server(&server)?;
     let Some(Auth::OAuth2(oauth2)) = &server.auth else {
@@ -71,11 +80,24 @@ async fn do_auth_redirect(
     let client = create_basic_client(oauth2);
     let code = AuthorizationCode::new(info.code.to_owned());
 
+    debug!("finishing login process by verifying the code and state received");
+
+    let verifier = {
+        let mut value = verifier.lock().await;
+        value
+            .take()
+            .ok_or_else(|| anyhow!("pkce verifier wasn't provided"))
+    }?;
+
     let token_res = client
         .exchange_code(code)
+        .set_pkce_verifier(verifier)
         .request_async(async_http_client)
         .await
-        .map_err(|e| anyhow!(e))?;
+        .map_err(|e| {
+            dbg!(&e);
+            anyhow!(e)
+        })?;
 
     persist_access_token(&server.name, token_res.access_token().secret())?;
 
@@ -88,22 +110,29 @@ async fn auth_redirect(
     completion_tx: Data<Sender<Result<()>>>,
     config: Data<BldConfig>,
     server: Data<String>,
+    verifier: Data<Mutex<Option<PkceCodeVerifier>>>,
 ) -> impl Responder {
-    let result = do_auth_redirect(info, config, server).await;
+    let result = do_auth_redirect(info, config, server, verifier).await;
+
+    let response = if result.is_ok() {
+        AUTH_REDIRECT_SUCCESS
+    } else {
+        AUTH_REDIRECT_FAILED
+    };
 
     spawn(async move {
         sleep(Duration::from_millis(100)).await;
         let _ = completion_tx.send(result).await;
     });
 
-    HttpResponse::Ok()
-        .body("Login completed, you can close this browser tab and go back to your terminal.")
+    HttpResponse::Ok().body(response)
 }
 
 async fn oauth2_server(
     completion_tx: Data<Sender<Result<()>>>,
     config: Data<BldConfig>,
     server: Data<String>,
+    verifier: Data<Mutex<Option<PkceCodeVerifier>>>,
 ) -> Result<()> {
     let host = &config.local.server.host;
     let port = &config.local.server.port;
@@ -116,6 +145,7 @@ async fn oauth2_server(
             .app_data(completion_tx.clone())
             .app_data(config_clone.clone())
             .app_data(server.clone())
+            .app_data(verifier.clone())
             .service(auth_redirect)
     });
 
@@ -137,17 +167,20 @@ async fn oauth2_server(
     Ok(())
 }
 
-async fn oauth2_prompt(config: Data<BldConfig>, server: Data<String>) -> Result<()> {
+async fn oauth2_prompt(
+    config: Data<BldConfig>,
+    server: Data<String>,
+    challenge: PkceCodeChallenge,
+) -> Result<()> {
     let Some(Auth::OAuth2(oauth2)) = &config.server(&server)?.auth else {
         bail!("server isn't configured for oauth2 authentication");
     };
 
     let client = create_basic_client(oauth2);
-    let (pkce_challenge, _pkce_verifier) = PkceCodeChallenge::new_random_sha256();
 
     let mut auth_url = client
         .authorize_url(CsrfToken::new_random)
-        .set_pkce_challenge(pkce_challenge);
+        .set_pkce_challenge(challenge);
 
     for scope in &oauth2.scopes {
         auth_url = auth_url.add_scope(scope.clone());
@@ -157,6 +190,7 @@ async fn oauth2_prompt(config: Data<BldConfig>, server: Data<String>) -> Result<
 
     let mut command = match os_name() {
         OSname::Linux => {
+            debug!("creating xdg-open command for the url {auth_url}");
             let mut cmd = Command::new("xdg-open");
             cmd.arg(auth_url.to_string());
             cmd.stdout(Stdio::null());
@@ -168,11 +202,16 @@ async fn oauth2_prompt(config: Data<BldConfig>, server: Data<String>) -> Result<
 
     println!("A new browser tab will open in order to complete the login process.");
 
+    debug!("launching browser and wating for status");
     let status = command.status().await?;
 
     let mut message = String::new();
     if !ExitStatus::success(&status) {
-        writeln!(message, "Couldn't open the browser, please use the below url in order to login:")?;
+        debug!("browser launch failed with status code {status}");
+        writeln!(
+            message,
+            "Couldn't open the browser, please use the below url in order to login:"
+        )?;
         write!(message, "{auth_url}")?;
         println!("{message}");
     }
@@ -187,10 +226,17 @@ pub fn oauth2_login(config: Data<BldConfig>, server: Data<String>) -> Result<()>
         let config_clone = config.clone();
         let server_clone = server.clone();
 
-        spawn(async move { oauth2_server(compl_tx, config_clone, server_clone).await });
+        let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
+        let pkce_verifier = Mutex::new(Some(pkce_verifier)).into_data();
 
+        debug!("spawing server task for authentication");
+        spawn(
+            async move { oauth2_server(compl_tx, config_clone, server_clone, pkce_verifier).await },
+        );
+
+        debug!("spawing prompt task for launching login page in the browser");
         spawn(async move {
-            let _ = oauth2_prompt(config, server).await;
+            let _ = oauth2_prompt(config, server, pkce_challenge).await;
         });
 
         compl_rx

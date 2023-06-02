@@ -3,13 +3,11 @@ use anyhow::Result;
 use bld_config::{BldConfig, BldLocalConfig, BldRemoteServerConfig};
 use bld_utils::term;
 use clap::Args;
+use tracing::metadata::LevelFilter;
 
 #[derive(Args)]
 #[command(about = "Lists bld's configuration")]
-pub struct ConfigCommand {
-    #[arg(long = "verbose", help = "Sets the level of verbosity")]
-    verbose: bool,
-}
+pub struct ConfigCommand;
 
 impl ConfigCommand {
     fn list_locals(local: &BldLocalConfig) -> Result<()> {
@@ -34,7 +32,11 @@ impl ConfigCommand {
 
 impl BldCommand for ConfigCommand {
     fn verbose(&self) -> bool {
-        self.verbose
+        false
+    }
+
+    fn tracing_level(&self) -> LevelFilter {
+        LevelFilter::OFF
     }
 
     fn exec(self) -> Result<()> {
