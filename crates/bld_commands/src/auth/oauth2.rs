@@ -3,7 +3,7 @@ use std::{
     fs::{create_dir_all, remove_file, File},
     io::Write,
     path::PathBuf,
-    process::ExitStatus,
+    process::{ExitStatus, Stdio},
     time::Duration,
 };
 
@@ -14,7 +14,9 @@ use actix_web::{
     App, HttpResponse, HttpServer, Responder,
 };
 use anyhow::{anyhow, bail, Result};
-use bld_config::{definitions::REMOTE_SERVER_OAUTH2, path, Auth, BldConfig};
+use bld_config::{
+    definitions::REMOTE_SERVER_OAUTH2, os_name, path, Auth, BldConfig, OAuth2Info, OSname,
+};
 use bld_server::requests::AuthRedirectInfo;
 use bld_utils::{
     sync::IntoData,
@@ -46,6 +48,16 @@ fn persist_access_token(server: &str, token: &str) -> Result<()> {
     Ok(())
 }
 
+fn create_basic_client(oauth2: &OAuth2Info) -> BasicClient {
+    BasicClient::new(
+        oauth2.client_id.clone(),
+        Some(oauth2.client_secret.clone()),
+        oauth2.auth_url.clone(),
+        Some(oauth2.token_url.clone()),
+    )
+    .set_redirect_uri(oauth2.redirect_url.clone())
+}
+
 async fn do_auth_redirect(
     info: Query<AuthRedirectInfo>,
     config: Data<BldConfig>,
@@ -56,14 +68,7 @@ async fn do_auth_redirect(
         bail!("server not configured for oauth2 authentication");
     };
 
-    let client = BasicClient::new(
-        oauth2.client_id.clone(),
-        Some(oauth2.client_secret.clone()),
-        oauth2.auth_url.clone(),
-        Some(oauth2.token_url.clone()),
-    )
-    .set_redirect_uri(oauth2.redirect_url.clone());
-
+    let client = create_basic_client(oauth2);
     let code = AuthorizationCode::new(info.code.to_owned());
 
     let token_res = client
@@ -137,14 +142,7 @@ async fn oauth2_prompt(config: Data<BldConfig>, server: Data<String>) -> Result<
         bail!("server isn't configured for oauth2 authentication");
     };
 
-    let client = BasicClient::new(
-        oauth2.client_id.clone(),
-        Some(oauth2.client_secret.clone()),
-        oauth2.auth_url.clone(),
-        Some(oauth2.token_url.clone()),
-    )
-    .set_redirect_uri(oauth2.redirect_url.clone());
-
+    let client = create_basic_client(oauth2);
     let (pkce_challenge, _pkce_verifier) = PkceCodeChallenge::new_random_sha256();
 
     let mut auth_url = client
@@ -157,41 +155,46 @@ async fn oauth2_prompt(config: Data<BldConfig>, server: Data<String>) -> Result<
 
     let (auth_url, _) = auth_url.url();
 
-    let mut cmd = Command::new("xdg-open");
-    cmd.arg(auth_url.to_string());
+    let mut command = match os_name() {
+        OSname::Linux => {
+            let mut cmd = Command::new("xdg-open");
+            cmd.arg(auth_url.to_string());
+            cmd.stdout(Stdio::null());
+            cmd.stderr(Stdio::null());
+            cmd
+        }
+        _ => unimplemented!(),
+    };
 
-    let status = cmd.status().await?;
+    println!("A new browser tab will open in order to complete the login process.");
+
+    let status = command.status().await?;
 
     let mut message = String::new();
     if !ExitStatus::success(&status) {
-        writeln!(message, "Use the below url in order to login:")?;
-        writeln!(message)?;
-        writeln!(message)?;
-        writeln!(message, "{auth_url}")?;
-    } else {
-        writeln!(
-            message,
-            "A new browser tab has opened in order to complete the login process."
-        )?;
+        writeln!(message, "Couldn't open the browser, please use the below url in order to login:")?;
+        write!(message, "{auth_url}")?;
+        println!("{message}");
     }
-
-    println!("{message}");
 
     Ok(())
 }
 
 pub fn oauth2_login(config: Data<BldConfig>, server: Data<String>) -> Result<()> {
     System::new().block_on(async move {
-        let (tx, mut rx) = channel(4096);
-        let tx = tx.into_data();
+        let (compl_tx, mut compl_rx) = channel(4096);
+        let compl_tx = compl_tx.into_data();
         let config_clone = config.clone();
         let server_clone = server.clone();
 
-        spawn(async move { oauth2_server(tx, config_clone, server_clone).await });
+        spawn(async move { oauth2_server(compl_tx, config_clone, server_clone).await });
 
-        oauth2_prompt(config, server).await?;
+        spawn(async move {
+            let _ = oauth2_prompt(config, server).await;
+        });
 
-        rx.recv()
+        compl_rx
+            .recv()
             .await
             .ok_or_else(|| anyhow!("Unable to retrieve login result."))
             .map(|x| {
