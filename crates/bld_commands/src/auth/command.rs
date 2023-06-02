@@ -3,7 +3,7 @@ use anyhow::Result;
 use bld_config::{Auth, BldConfig};
 use bld_utils::sync::IntoData;
 use clap::Args;
-use tracing::{debug, level_filters::LevelFilter};
+use tracing::debug;
 
 #[derive(Args)]
 #[command(about = "Initiates the login process for a bld server")]
@@ -22,14 +22,6 @@ pub struct AuthCommand {
 impl BldCommand for AuthCommand {
     fn verbose(&self) -> bool {
         self.verbose
-    }
-
-    fn tracing_level(&self) -> LevelFilter {
-        if self.verbose() {
-            LevelFilter::DEBUG
-        } else {
-            LevelFilter::OFF
-        }
     }
 
     fn exec(self) -> Result<()> {

@@ -10,7 +10,7 @@ pub trait BldCommand {
         if self.verbose() {
             LevelFilter::DEBUG
         } else {
-            LevelFilter::INFO
+            LevelFilter::OFF
         }
     }
 
