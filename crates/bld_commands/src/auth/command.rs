@@ -33,7 +33,7 @@ impl BldCommand for AuthCommand {
         debug!("running login subcommand with --server: {}", server.name);
 
         match &server_auth.auth {
-            Some(Auth::OAuth2(_)) => {
+            Some(Auth::OpenId(_)) => {
                 debug!(
                     "starting login process for server: {} with oauth2 method",
                     server.name

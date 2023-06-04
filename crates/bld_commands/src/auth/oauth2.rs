@@ -15,16 +15,17 @@ use actix_web::{
 };
 use anyhow::{anyhow, bail, Result};
 use bld_config::{
-    definitions::REMOTE_SERVER_OAUTH2, os_name, path, Auth, BldConfig, OAuth2Info, OSname,
+    definitions::REMOTE_SERVER_OAUTH2, os_name, path, Auth, BldConfig, OSname, OpenIdInfo,
 };
 use bld_server::requests::AuthRedirectInfo;
 use bld_utils::{
     sync::IntoData,
     tls::{load_server_certificate, load_server_private_key},
 };
-use oauth2::{
-    basic::BasicClient, reqwest::async_http_client, AuthorizationCode, CsrfToken,
-    PkceCodeChallenge, PkceCodeVerifier, TokenResponse,
+use openidconnect::{
+    core::{CoreAuthenticationFlow, CoreClient, CoreProviderMetadata},
+    reqwest::async_http_client,
+    AuthorizationCode, CsrfToken, Nonce, OAuth2TokenResponse, PkceCodeChallenge, PkceCodeVerifier,
 };
 use rustls::ServerConfig;
 use tokio::{
@@ -41,7 +42,7 @@ const AUTH_REDIRECT_SUCCESS: &str =
     "Login completed, you can close this browser tab and go back to your terminal.";
 const AUTH_REDIRECT_FAILED: &str = "An error occured while completing the login process.";
 
-fn persist_access_token(server: &str, token: &str) -> Result<()> {
+fn persist_token_response(server: &str, token: &str) -> Result<()> {
     let mut path = path![REMOTE_SERVER_OAUTH2];
 
     create_dir_all(&path)?;
@@ -56,14 +57,18 @@ fn persist_access_token(server: &str, token: &str) -> Result<()> {
     Ok(())
 }
 
-fn create_basic_client(oauth2: &OAuth2Info) -> BasicClient {
-    BasicClient::new(
-        oauth2.client_id.clone(),
-        Some(oauth2.client_secret.clone()),
-        oauth2.auth_url.clone(),
-        Some(oauth2.token_url.clone()),
+async fn create_core_client(openid: &OpenIdInfo) -> Result<CoreClient> {
+    let provider_metadata =
+        CoreProviderMetadata::discover_async(openid.issuer_url.clone(), async_http_client).await?;
+
+    let client = CoreClient::from_provider_metadata(
+        provider_metadata,
+        openid.client_id.clone(),
+        Some(openid.client_secret.clone()),
     )
-    .set_redirect_uri(oauth2.redirect_url.clone())
+    .set_redirect_uri(openid.redirect_url.clone());
+
+    Ok(client)
 }
 
 async fn do_auth_redirect(
@@ -73,11 +78,11 @@ async fn do_auth_redirect(
     verifier: Data<Mutex<Option<PkceCodeVerifier>>>,
 ) -> Result<()> {
     let server = config.server(&server)?;
-    let Some(Auth::OAuth2(oauth2)) = &server.auth else {
+    let Some(Auth::OpenId(openid)) = &server.auth else {
         bail!("server not configured for oauth2 authentication");
     };
 
-    let client = create_basic_client(oauth2);
+    let client = create_core_client(openid).await?;
     let code = AuthorizationCode::new(info.code.to_owned());
 
     debug!("finishing login process by verifying the code and state received");
@@ -99,7 +104,7 @@ async fn do_auth_redirect(
             anyhow!(e)
         })?;
 
-    persist_access_token(&server.name, token_res.access_token().secret())?;
+    persist_token_response(&server.name, token_res.access_token().secret())?;
 
     Ok(())
 }
@@ -172,21 +177,25 @@ async fn oauth2_prompt(
     server: Data<String>,
     challenge: PkceCodeChallenge,
 ) -> Result<()> {
-    let Some(Auth::OAuth2(oauth2)) = &config.server(&server)?.auth else {
+    let Some(Auth::OpenId(openid)) = &config.server(&server)?.auth else {
         bail!("server isn't configured for oauth2 authentication");
     };
 
-    let client = create_basic_client(oauth2);
+    let client = create_core_client(openid).await?;
 
     let mut auth_url = client
-        .authorize_url(CsrfToken::new_random)
+        .authorize_url(
+            CoreAuthenticationFlow::AuthorizationCode,
+            CsrfToken::new_random,
+            Nonce::new_random,
+        )
         .set_pkce_challenge(challenge);
 
-    for scope in &oauth2.scopes {
+    for scope in &openid.scopes {
         auth_url = auth_url.add_scope(scope.clone());
     }
 
-    let (auth_url, _) = auth_url.url();
+    let (auth_url, _, _) = auth_url.url();
 
     let mut command = match os_name() {
         OSname::Linux => {

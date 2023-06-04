@@ -20,6 +20,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
     info!("starting bld server at {}:{}", host, port);
 
     let config = config.into_data();
+    let client = config.openid_core_client().await?.into_data();
     let config_clone = config.clone();
     let pool = new_connection_pool(&config.local.db)?;
     let supervisor_sender = SupervisorMessageSender::new(Arc::clone(&config)).into_data();
@@ -34,6 +35,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
     let mut server = HttpServer::new(move || {
         App::new()
             .app_data(config_clone.clone())
+            .app_data(client.clone())
             .app_data(supervisor_sender.clone())
             .app_data(pool.clone())
             .app_data(prx.clone())

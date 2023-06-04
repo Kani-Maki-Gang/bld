@@ -41,7 +41,7 @@ impl Request {
     }
 
     pub fn auth(mut self, server: &BldRemoteServerConfig) -> Self {
-        if let Some(Auth::OAuth2(_info)) = &server.auth {
+        if let Some(Auth::OpenId(_info)) = &server.auth {
             let path = path![REMOTE_SERVER_OAUTH2, &server.name];
             if let Ok(token) = fs::read_to_string(path) {
                 let bearer = format!("Bearer {}", token.trim());
@@ -112,7 +112,7 @@ impl WebSocket {
     }
 
     pub fn auth(mut self, server: &BldRemoteServerConfig) -> Self {
-        if let Some(Auth::OAuth2(_)) = &server.auth {
+        if let Some(Auth::OpenId(_)) = &server.auth {
             if let Ok(token) = server.bearer() {
                 self.request = self
                     .request

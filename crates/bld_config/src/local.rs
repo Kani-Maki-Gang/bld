@@ -1,4 +1,4 @@
-use crate::{definitions, AuthValidation, BldLocalServerConfig, BldLocalSupervisorConfig};
+use crate::{definitions, Auth, BldLocalServerConfig, BldLocalSupervisorConfig};
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
@@ -45,14 +45,21 @@ impl BldLocalConfig {
         debug!("server > host: {}", self.server.host);
         debug!("server > port: {}", self.server.port);
         debug!("server > pipelines: {}", self.server.pipelines);
-        if let Some(AuthValidation::OAuth2 {
-            user_info_url,
-            user_info_property,
-        }) = &self.server.auth
-        {
-            debug!("auth > method: oauth2");
-            debug!("auth > user_info_url: {}", user_info_url);
-            debug!("auth > user_info_property: {}", user_info_property);
+        if let Some(Auth::OpenId(openid)) = &self.server.auth {
+            debug!("auth > method: openid");
+            debug!("auth > issuer_url: {:?}", openid.issuer_url);
+            debug!("auth > redirect_url: {:?}", openid.redirect_url);
+            debug!("auth > client_id: {:?}", openid.client_id);
+            debug!("auth > client_secret: ********");
+
+            let scopes = openid
+                .scopes
+                .iter()
+                .map(|x| x.to_string())
+                .reduce(|acc, n| acc + "," + &n)
+                .unwrap_or_default();
+            debug!("auth > scopes: {}", scopes);
+            debug!("auth > user_property: {}", openid.user_property);
         }
         if let Some(tls) = &self.server.tls {
             debug!("server > tls > cert-chain: {}", tls.cert_chain);

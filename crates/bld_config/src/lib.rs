@@ -8,6 +8,7 @@ mod tls;
 
 pub use auth::*;
 pub use local::*;
+use openidconnect::core::CoreClient;
 pub use path::*;
 pub use server::*;
 pub use supervisor::*;
@@ -95,5 +96,13 @@ impl BldConfig {
             };
         }
         Ok(server)
+    }
+
+    pub async fn openid_core_client(&self) -> Result<Option<CoreClient>> {
+        if let Some(auth) = &self.local.server.auth {
+            auth.core_client().await.map(Some)
+        } else {
+            Ok(None)
+        }
     }
 }

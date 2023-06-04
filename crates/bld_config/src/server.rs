@@ -1,6 +1,7 @@
-use crate::definitions::REMOTE_SERVER_OAUTH2;
-use crate::{definitions, path, AuthValidation};
-use crate::{Auth, BldTlsConfig};
+use crate::{
+    definitions::{self, REMOTE_SERVER_OAUTH2},
+    path, Auth, BldTlsConfig,
+};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::fs::read_to_string;
@@ -14,7 +15,7 @@ pub struct BldLocalServerConfig {
     #[serde(default = "BldLocalServerConfig::default_port")]
     pub port: i64,
 
-    pub auth: Option<AuthValidation>,
+    pub auth: Option<Auth>,
 
     pub tls: Option<BldTlsConfig>,
 
