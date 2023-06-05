@@ -5,12 +5,9 @@ use awc::http::StatusCode;
 use awc::ws::WebsocketsRequest;
 use awc::{Client, ClientRequest, Connector, SendClientRequest};
 use bld_config::BldRemoteServerConfig;
-use bld_config::{definitions::REMOTE_SERVER_OAUTH2, path, Auth};
 use rustls::ClientConfig;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::fs;
-use std::path::PathBuf;
 use tracing::debug;
 
 pub struct Request {
@@ -41,12 +38,10 @@ impl Request {
     }
 
     pub fn auth(mut self, server: &BldRemoteServerConfig) -> Self {
-        if let Some(Auth::OpenId(_info)) = &server.auth {
-            let path = path![REMOTE_SERVER_OAUTH2, &server.name];
-            if let Ok(token) = fs::read_to_string(path) {
-                let bearer = format!("Bearer {}", token.trim());
-                self.request = self.request.insert_header(("Authorization", bearer));
-            }
+        if let Ok(bearer) = server.bearer() {
+            self.request = self
+                .request
+                .insert_header(("Authorization", format!("Bearer {bearer}")));
         }
         self
     }
@@ -112,12 +107,10 @@ impl WebSocket {
     }
 
     pub fn auth(mut self, server: &BldRemoteServerConfig) -> Self {
-        if let Some(Auth::OpenId(_)) = &server.auth {
-            if let Ok(token) = server.bearer() {
-                self.request = self
-                    .request
-                    .header("Authorization", format!("Bearer {token}"));
-            }
+        if let Ok(token) = server.bearer() {
+            self.request = self
+                .request
+                .header("Authorization", format!("Bearer {token}"));
         }
         self
     }

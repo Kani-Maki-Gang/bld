@@ -34,7 +34,7 @@ pub const LOCAL_MACHINE_TMP_DIR: &str = ".bld/tmp";
 pub const REMOTE_SERVER_NAME: &str = "demo_server";
 pub const REMOTE_SERVER_HOST: &str = "127.0.0.1";
 pub const REMOTE_SERVER_PORT: i64 = 6080;
-pub const REMOTE_SERVER_OAUTH2: &str = ".bld/oauth2";
+pub const REMOTE_SERVER_AUTH: &str = ".bld/auth";
 
 pub const DEFAULT_EDITOR: &str = "vi";
 

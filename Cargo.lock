@@ -533,6 +533,7 @@ dependencies = [
  "futures-util",
  "libsqlite3-sys",
  "nix",
+ "openidconnect",
  "regex",
  "serde",
  "serde_derive",

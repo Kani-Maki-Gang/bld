@@ -1,6 +1,6 @@
 use crate::{
-    definitions::{self, REMOTE_SERVER_OAUTH2},
-    path, Auth, BldTlsConfig,
+    definitions::{self, REMOTE_SERVER_AUTH},
+    path, BldTlsConfig, Auth,
 };
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -61,9 +61,6 @@ pub struct BldRemoteServerConfig {
     pub tls: bool,
 
     #[serde(default)]
-    pub auth: Option<Auth>,
-
-    #[serde(default)]
     pub same_auth_as: Option<String>,
 }
 
@@ -101,7 +98,7 @@ impl BldRemoteServerConfig {
     }
 
     pub fn bearer(&self) -> Result<String> {
-        let path = path![REMOTE_SERVER_OAUTH2, &self.name];
+        let path = path![REMOTE_SERVER_AUTH, &self.name];
         read_to_string(path).map_err(|e| anyhow!(e))
     }
 }

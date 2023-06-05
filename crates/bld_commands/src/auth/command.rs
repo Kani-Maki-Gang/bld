@@ -1,9 +1,13 @@
-use crate::{auth::oauth2::oauth2_login, command::BldCommand};
-use anyhow::Result;
-use bld_config::{Auth, BldConfig};
-use bld_utils::sync::IntoData;
+use actix::{io::SinkWrite, Actor, StreamHandler, System};
+use anyhow::{anyhow, Result};
+use bld_config::BldConfig;
+use bld_sock::{clients::LoginClient, messages::LoginClientMessage};
+use bld_utils::request::WebSocket;
 use clap::Args;
+use futures::stream::StreamExt;
 use tracing::debug;
+
+use crate::command::BldCommand;
 
 #[derive(Args)]
 #[command(about = "Initiates the login process for a bld server")]
@@ -16,7 +20,34 @@ pub struct AuthCommand {
         long = "server",
         help = "The name of the server to login into"
     )]
-    server: Option<String>,
+    server: String,
+}
+
+impl AuthCommand {
+    async fn login(config: BldConfig, server: String) -> Result<()> {
+        let server = config.server(&server)?;
+        let server_auth = config.same_auth_as(server)?.to_owned();
+        let url = format!("{}/ws-login/", server.base_url_ws());
+
+        debug!("establishing web socket connection on {}", url);
+
+        let (_, framed) = WebSocket::new(&url)?
+            .auth(&server_auth)
+            .request()
+            .connect()
+            .await
+            .map_err(|e| anyhow!(e.to_string()))?;
+
+        let (sink, stream) = framed.split();
+        let addr = LoginClient::create(|ctx| {
+            LoginClient::add_stream(stream, ctx);
+            LoginClient::new(server.name.to_owned(), SinkWrite::new(sink, ctx))
+        });
+
+        addr.send(LoginClientMessage::Init)
+            .await
+            .map_err(|e| anyhow!(e))
+    }
 }
 
 impl BldCommand for AuthCommand {
@@ -25,23 +56,15 @@ impl BldCommand for AuthCommand {
     }
 
     fn exec(self) -> Result<()> {
-        let config = BldConfig::load()?.into_data();
-        let server = config.server_or_first(self.server.as_ref())?;
-        let server_auth = config.same_auth_as(server)?;
-        let server_name = server.name.to_owned().into_data();
+        let config = BldConfig::load()?;
+        let server = self.server.to_owned();
 
-        debug!("running login subcommand with --server: {}", server.name);
+        debug!("running login subcommand with --server: {}", self.server);
 
-        match &server_auth.auth {
-            Some(Auth::OpenId(_)) => {
-                debug!(
-                    "starting login process for server: {} with oauth2 method",
-                    server.name
-                );
-                let config_clone = config.clone();
-                oauth2_login(config_clone, server_name)
-            }
-            _ => unimplemented!(),
-        }
+        let system = System::new();
+        let res = system.block_on(async move { Self::login(config, server).await });
+
+        let _ = system.run();
+        res
     }
 }
