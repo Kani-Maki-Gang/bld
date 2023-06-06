@@ -47,7 +47,7 @@ pub struct OAuth2Info {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "method")]
 pub enum Auth {
-    #[serde(rename(serialize = "openid", deserialize = "openid"))]
+    #[serde(rename(serialize = "oidc", deserialize = "oidc"))]
     OpenId(Box<OpenIdInfo>),
 }
 
