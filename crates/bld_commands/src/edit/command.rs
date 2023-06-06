@@ -52,7 +52,7 @@ impl EditCommand {
                 .send_json(&self.pipeline)
                 .await?;
 
-            let tmp_name = format!("{}{}", Uuid::new_v4(), data.name);
+            let tmp_name = format!("{}.yaml", Uuid::new_v4());
 
             println!("Editing temporary local pipeline {}", tmp_name);
 

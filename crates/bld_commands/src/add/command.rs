@@ -62,7 +62,7 @@ impl AddCommand {
             let server = config.server(&server_name)?;
             let server_auth = config.same_auth_as(server)?;
 
-            let tmp_name = format!("{}{}", Uuid::new_v4(), self.pipeline);
+            let tmp_name = format!("{}.yaml", Uuid::new_v4());
 
             println!("Creating temporary local pipeline {}", tmp_name);
             debug!("creating temporary pipeline file: {tmp_name}");
