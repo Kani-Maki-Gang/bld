@@ -3,12 +3,13 @@ use std::{
     fs::{create_dir_all, remove_file, File},
     io::Write,
     path::PathBuf,
-    process::{Command, ExitStatus, Stdio},
+    process::{ExitStatus, Stdio},
 };
 
 use actix::{
+    fut::{ready, WrapFuture},
     io::{SinkWrite, WriteHandler},
-    Actor, ActorContext, Context, Handler, StreamHandler, System,
+    Actor, ActorContext, ActorFutureExt, AsyncContext, Context, Handler, StreamHandler, System,
 };
 use actix_codec::Framed;
 use anyhow::Result;
@@ -19,6 +20,7 @@ use awc::{
 };
 use bld_config::{definitions::REMOTE_SERVER_AUTH, os_name, path, OSname};
 use futures::stream::SplitSink;
+use tokio::process::Command;
 use tracing::error;
 
 use crate::messages::{LoginClientMessage, LoginServerMessage};
@@ -54,16 +56,25 @@ impl LoginClient {
                 command.stdout(Stdio::null());
                 command.stderr(Stdio::null());
 
-                let status = command.status()?;
-                if !ExitStatus::success(&status) {
-                    let mut message = String::new();
-                    writeln!(
-                        message,
-                        "Couldn't open the browser, please use the below url in order to login:"
-                    )?;
-                    write!(message, "{url}")?;
-                    println!("{message}");
-                }
+                let status_fut = command
+                    .status()
+                    .into_actor(self)
+                    .then(move |res, _, _| {
+                        let success = res
+                            .map(|x| ExitStatus::success(&x))
+                            .unwrap_or_default();
+                        if !success {
+                            let mut message = String::new();
+                            let _ = writeln!(
+                                message,
+                                "Couldn't open the browser, please use the below url in order to login:"
+                            );
+                            let _ = write!(message, "{url}");
+                            println!("{message}");
+                        }
+                        ready(())
+                    });
+                ctx.spawn(status_fut);
             }
 
             LoginServerMessage::Completed { access_token } => {
@@ -78,6 +89,7 @@ impl LoginClient {
 
                 File::create(path)?.write_all(access_token.as_bytes())?;
                 println!("Login completed successfully");
+                ctx.stop();
             }
 
             LoginServerMessage::Failed { reason } => {

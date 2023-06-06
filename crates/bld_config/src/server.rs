@@ -1,6 +1,6 @@
 use crate::{
     definitions::{self, REMOTE_SERVER_AUTH},
-    path, BldTlsConfig, Auth,
+    path, Auth, BldTlsConfig,
 };
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};

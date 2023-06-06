@@ -88,12 +88,17 @@ impl LoginSocket {
 
         let csrf_token = self.csrf_token.clone();
         let logins = self.logins.clone();
-        spawn(async move {
-            let logins_handle = logins.add(csrf_token.secret().to_owned(), code_tx);
-            if let Err(e) = logins_handle.await {
-                error!("{e}");
-            }
-        });
+        let login_add_fut =
+            async move { logins.add(csrf_token.secret().to_owned(), code_tx).await }
+                .into_actor(self)
+                .then(|res, _, ctx| {
+                    if let Err(e) = res {
+                        error!("{e}");
+                        ctx.stop();
+                    }
+                    ready(())
+                });
+        ctx.wait(login_add_fut);
 
         let message = LoginServerMessage::AuthorizationUrl(url.to_string());
         ctx.text(serde_json::to_string(&message)?);
