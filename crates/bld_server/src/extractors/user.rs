@@ -71,11 +71,7 @@ async fn openid_validate(
     let res: CoreUserInfoClaims = client
         .user_info(access_token, None)?
         .request_async(async_http_client)
-        .await
-        .map_err(|e| {
-            dbg!(&e);
-            e
-        })?;
+        .await?;
 
     let user = match user_prop {
         UserInfoProperty::Name => res.name().and_then(|x| x.get(None).map(|n| n.as_str())),

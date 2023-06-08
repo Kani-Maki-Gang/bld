@@ -2,7 +2,7 @@ use actix::{io::SinkWrite, Actor, StreamHandler, System};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_sock::{clients::LoginClient, messages::LoginClientMessage};
-use bld_utils::request::WebSocket;
+use bld_core::request::WebSocket;
 use clap::Args;
 use futures::stream::StreamExt;
 use tracing::debug;
@@ -26,13 +26,12 @@ pub struct AuthCommand {
 impl AuthCommand {
     async fn login(config: BldConfig, server: String) -> Result<()> {
         let server = config.server(&server)?;
-        let server_auth = config.same_auth_as(server)?.to_owned();
         let url = format!("{}/ws-login/", server.base_url_ws());
 
         debug!("establishing web socket connection on {}", url);
 
         let (_, framed) = WebSocket::new(&url)?
-            .auth(&server_auth)
+            .auth(server)
             .request()
             .connect()
             .await

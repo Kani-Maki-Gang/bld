@@ -4,10 +4,10 @@ use crate::database::pipeline_run_containers::{
 };
 use crate::database::pipeline_runs::{self, PR_STATE_FINISHED, PR_STATE_RUNNING};
 use crate::platform::TargetPlatform;
+use crate::request::Request;
 use actix_web::rt::spawn;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_utils::request::Request;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::sync::Arc;
@@ -284,11 +284,10 @@ impl Context {
 
     async fn cleanup_remote_run(config: Arc<BldConfig>, run: &RemoteRun) -> Result<()> {
         let server = config.server(&run.server)?;
-        let server_auth = config.same_auth_as(server)?;
         let url = format!("{}/stop", server.base_url_http());
 
         let _: String = Request::post(&url)
-            .auth(server_auth)
+            .auth(server)
             .send_json(&run.run_id)
             .await?;
 

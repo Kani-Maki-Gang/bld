@@ -12,13 +12,14 @@ use bld_core::{
     platform::{Image, TargetPlatform},
     proxies::PipelineFileSystemProxy,
     regex::RegexCache,
-    signals::{UnixSignalMessage, UnixSignalsReceiver},
+    request::WebSocket,
+    signals::{UnixSignalMessage, UnixSignalsReceiver}
 };
 use bld_sock::{
     clients::ExecClient,
     messages::{ExecClientMessage, WorkerMessages},
 };
-use bld_utils::{request::WebSocket, sync::IntoArc};
+use bld_utils::sync::IntoArc;
 use futures::{Future, StreamExt};
 use tokio::{sync::mpsc::Sender, task::JoinHandle};
 use tracing::debug;
@@ -186,7 +187,6 @@ impl Job {
     async fn server_external(&self, server: &str, details: &External) -> Result<()> {
         let server_name = server.to_owned();
         let server = self.config.server(server)?;
-        let server_auth = self.config.same_auth_as(server)?;
         let variables = details.variables.clone();
         let environment = details.environment.clone();
 
@@ -198,7 +198,7 @@ impl Job {
         );
 
         let (_, framed) = WebSocket::new(&url)?
-            .auth(server_auth)
+            .auth(server)
             .request()
             .connect()
             .await

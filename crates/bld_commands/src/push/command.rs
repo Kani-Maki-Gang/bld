@@ -2,10 +2,10 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::{proxies::PipelineFileSystemProxy, request::Request};
 use bld_runner::VersionedPipeline;
 use bld_server::requests::PushInfo;
-use bld_utils::{request::Request, sync::IntoArc};
+use bld_utils::sync::IntoArc;
 use clap::Args;
 use tracing::debug;
 
@@ -28,7 +28,7 @@ pub struct PushCommand {
         long = "server",
         help = "The name of the server to push changes to"
     )]
-    server: Option<String>,
+    server: String,
 
     #[arg(
         long = "ignore-deps",
@@ -40,14 +40,13 @@ pub struct PushCommand {
 impl PushCommand {
     async fn push(self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
-        let server = config.server_or_first(self.server.as_ref())?;
+        let server = config.server(&self.server)?;
 
         debug!(
             "running push subcommand with --server: {} and --pipeline: {}",
             server.name, self.pipeline
         );
 
-        let server_auth = config.same_auth_as(server)?;
         let url = format!("{}/push", server.base_url_http());
 
         let proxy = PipelineFileSystemProxy::local(config.clone());
@@ -76,7 +75,7 @@ impl PushCommand {
             debug!("sending request to {url}");
 
             let _ = Request::post(&url)
-                .auth(server_auth)
+                .auth(server)
                 .send_json(&info)
                 .await
                 .map(|_: String| {

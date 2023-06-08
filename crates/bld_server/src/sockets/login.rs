@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use actix::{
     fut::{future::ActorFutureExt, ready},
-    spawn, Actor, ActorContext, AsyncContext, StreamHandler, WrapFuture,
+    Actor, ActorContext, AsyncContext, StreamHandler, WrapFuture,
 };
 use actix_web::{
     web::{Data, Payload},
@@ -11,7 +11,7 @@ use actix_web::{
 use actix_web_actors::ws::{start, Message, ProtocolError, WebsocketContext};
 use anyhow::{anyhow, bail, Result};
 use bld_config::{Auth, BldConfig};
-use bld_core::logins::LoginProcess;
+use bld_core::auth::{AuthTokens, LoginProcess};
 use bld_sock::messages::{LoginClientMessage, LoginServerMessage};
 use openidconnect::{
     core::{CoreAuthenticationFlow, CoreClient},
@@ -111,7 +111,7 @@ impl LoginSocket {
         pkce_verifier: PkceCodeVerifier,
         nonce: Nonce,
         code: String,
-    ) -> Result<String> {
+    ) -> Result<AuthTokens> {
         let Some(client) = client.get_ref() else {
             bail!("openid core client hasn't been registered for the server");
         };
@@ -144,7 +144,13 @@ impl LoginSocket {
             }
         }
 
-        Ok(token_response.access_token().secret().to_string())
+        let access_token = token_response.access_token().secret().to_owned();
+
+        let refresh_token = token_response
+            .refresh_token()
+            .map(|x| x.secret().to_owned());
+
+        Ok(AuthTokens::new(access_token, refresh_token))
     }
 
     fn code_recv_interval(&mut self, ctx: &mut <Self as Actor>::Context) -> Result<()> {
@@ -165,8 +171,8 @@ impl LoginSocket {
                         .into_actor(self)
                         .then(|res, _, ctx| {
                             let res = res
-                                .and_then(|a| {
-                                    let message = LoginServerMessage::Completed { access_token: a };
+                                .and_then(|r| {
+                                    let message = LoginServerMessage::Completed(r);
                                     serde_json::to_string(&message).map_err(|e| anyhow!(e))
                                 })
                                 .or_else(|e| {
@@ -220,6 +226,15 @@ impl Actor for LoginSocket {
     type Context = WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
+        ctx.run_later(Duration::from_secs(600), |_, ctx| {
+            let message = LoginServerMessage::Failed {
+                reason: "Operation timeout".to_string(),
+            };
+            if let Ok(text) = serde_json::to_string(&message) {
+                ctx.text(text)
+            }
+            ctx.stop();
+        });
         ctx.run_interval(Duration::from_millis(100), |act, ctx| {
             if let Err(e) = act.code_recv_interval(ctx) {
                 error!("{e}");
@@ -227,12 +242,18 @@ impl Actor for LoginSocket {
         });
     }
 
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
+    fn stopped(&mut self, ctx: &mut Self::Context) {
         let token = self.csrf_token.secret().to_owned();
         let logins = self.logins.clone();
-        spawn(async move {
-            let _ = logins.remove(token).await;
-        });
+        let logins_remove_fut = async move { logins.remove(token).await }
+            .into_actor(self)
+            .then(|res, _, _| {
+                if let Err(e) = res {
+                    error!("{e}");
+                }
+                ready(())
+            });
+        ctx.wait(logins_remove_fut);
     }
 }
 

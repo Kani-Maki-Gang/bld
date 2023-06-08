@@ -2,7 +2,7 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_utils::request::Request;
+use bld_core::request::Request;
 use clap::Args;
 
 #[derive(Args)]
@@ -24,7 +24,7 @@ pub struct StopCommand {
         long = "server",
         help = "The name of the server that the pipeline is running"
     )]
-    server: Option<String>,
+    server: String,
 }
 
 impl BldCommand for StopCommand {
@@ -34,15 +34,11 @@ impl BldCommand for StopCommand {
 
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?;
-
-        let server = config.server_or_first(self.server.as_ref())?;
-
-        let server_auth = config.same_auth_as(server)?;
+        let server = config.server(&self.server)?;
         let url = format!("{}/stop", server.base_url_http());
-
         System::new().block_on(async move {
             Request::post(&url)
-                .auth(server_auth)
+                .auth(server)
                 .send_json(&self.pipeline_id)
                 .await
                 .map(|r: String| {

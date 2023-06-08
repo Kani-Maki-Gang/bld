@@ -1,9 +1,9 @@
-mod auth_query_params;
-mod check_query_params;
-mod hist_query_params;
+mod auth;
+mod check;
+mod hist;
 mod push;
 
-pub use auth_query_params::*;
-pub use check_query_params::*;
-pub use hist_query_params::*;
+pub use auth::*;
+pub use check::*;
+pub use hist::*;
 pub use push::*;

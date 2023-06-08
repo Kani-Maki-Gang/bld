@@ -5,7 +5,7 @@ use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_sock::clients::EnqueueClient;
 use bld_sock::messages::ServerMessages;
-use bld_utils::request::WebSocket;
+use bld_core::request::WebSocket;
 use futures::stream::StreamExt;
 use std::env::current_exe;
 use std::sync::Arc;

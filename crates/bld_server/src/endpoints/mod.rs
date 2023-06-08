@@ -1,4 +1,4 @@
-mod auth_redirect;
+mod auth;
 mod check;
 mod deps;
 mod hist;
@@ -11,7 +11,7 @@ mod remove;
 mod run;
 mod stop;
 
-pub use auth_redirect::*;
+pub use auth::*;
 pub use check::*;
 pub use deps::*;
 pub use hist::*;

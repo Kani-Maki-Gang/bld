@@ -1,9 +1,9 @@
 use actix::System;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::{proxies::PipelineFileSystemProxy, request::Request};
 use bld_server::{requests::PushInfo, responses::PullResponse};
-use bld_utils::{request::Request, sync::IntoArc};
+use bld_utils::sync::IntoArc;
 use clap::Args;
 use tracing::debug;
 use uuid::Uuid;
@@ -40,7 +40,6 @@ impl EditCommand {
             let proxy = PipelineFileSystemProxy::local(config.clone());
             let server_name = self.server.ok_or_else(|| anyhow!("server not found"))?;
             let server = config.server(&server_name)?;
-            let server_auth = config.same_auth_as(server)?;
             let pull_url = format!("{}/pull", server.base_url_http());
 
             println!("Pulling pipline {}", self.pipeline);
@@ -48,7 +47,7 @@ impl EditCommand {
             debug!("sending request to {pull_url}");
 
             let data: PullResponse = Request::post(&pull_url)
-                .auth(server_auth)
+                .auth(server)
                 .send_json(&self.pipeline)
                 .await?;
 
@@ -73,7 +72,7 @@ impl EditCommand {
             debug!("sending request to {push_url}");
 
             let _: String = Request::post(&push_url)
-                .auth(server_auth)
+                .auth(server)
                 .send_json(&push_info)
                 .await?;
 

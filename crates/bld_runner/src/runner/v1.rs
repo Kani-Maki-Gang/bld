@@ -18,7 +18,7 @@ use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::signals::{UnixSignalMessage, UnixSignalsReceiver};
 use bld_sock::clients::ExecClient;
 use bld_sock::messages::{ExecClientMessage, WorkerMessages};
-use bld_utils::request::WebSocket;
+use bld_core::request::WebSocket;
 use bld_utils::sync::IntoArc;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
@@ -284,7 +284,6 @@ impl Runner {
     async fn server_external(&self, server: &str, details: &External) -> Result<()> {
         let server_name = server.to_owned();
         let server = self.config.server(server)?;
-        let server_auth = self.config.same_auth_as(server)?;
         let variables = details
             .variables
             .iter()
@@ -305,7 +304,7 @@ impl Runner {
         );
 
         let (_, framed) = WebSocket::new(&url)?
-            .auth(server_auth)
+            .auth(server)
             .request()
             .connect()
             .await

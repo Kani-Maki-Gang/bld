@@ -2,9 +2,9 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
+use bld_core::request::Request;
 use bld_server::requests::HistQueryParams;
 use bld_server::responses::HistoryEntry;
-use bld_utils::request::Request;
 use clap::Args;
 use tabled::{Style, Table};
 use tracing::debug;
@@ -20,7 +20,7 @@ pub struct HistCommand {
         long = "server",
         help = "The name of the server to fetch history from"
     )]
-    server: Option<String>,
+    server: String,
 
     #[arg(
         short = 'x',
@@ -53,8 +53,7 @@ impl BldCommand for HistCommand {
 
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?;
-        let server = config.server_or_first(self.server.as_ref())?;
-        let server_auth = config.same_auth_as(server)?.to_owned();
+        let server = config.server(&self.server)?;
         let url = format!("{}/hist?", server.base_url_http());
         let params = HistQueryParams {
             state: if self.state != "all" {
@@ -70,7 +69,7 @@ impl BldCommand for HistCommand {
             server.name, params.limit,
         );
 
-        let request = Request::get(&url).query(&params)?.auth(&server_auth);
+        let request = Request::get(&url).query(&params)?.auth(server);
 
         debug!("sending http request to {}", url);
 

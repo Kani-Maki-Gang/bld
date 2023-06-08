@@ -2,8 +2,8 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::proxies::PipelineFileSystemProxy;
-use bld_utils::{request::Request, sync::IntoArc};
+use bld_core::{proxies::PipelineFileSystemProxy, request::Request};
+use bld_utils::sync::IntoArc;
 use clap::Args;
 use tracing::debug;
 
@@ -40,9 +40,8 @@ impl RemoveCommand {
             server.name, self.pipeline
         );
 
-        let server_auth = config.same_auth_as(server)?;
         let url = format!("{}/remove", server.base_url_http());
-        let request = Request::post(&url).auth(server_auth);
+        let request = Request::post(&url).auth(server);
 
         System::new().block_on(async move {
             debug!("sending request to {}", url);

@@ -1,8 +1,5 @@
 use std::{
-    fmt::Write as FmtWrite,
-    fs::{create_dir_all, remove_file, File},
-    io::Write,
-    path::PathBuf,
+    fmt::Write,
     process::{ExitStatus, Stdio},
 };
 
@@ -18,7 +15,8 @@ use awc::{
     ws::{Codec, Frame, Message},
     BoxedSocket,
 };
-use bld_config::{definitions::REMOTE_SERVER_AUTH, os_name, path, OSname};
+use bld_config::{os_name, OSname};
+use bld_core::auth::write_tokens;
 use futures::stream::SplitSink;
 use tokio::process::Command;
 use tracing::error;
@@ -77,18 +75,12 @@ impl LoginClient {
                 ctx.spawn(status_fut);
             }
 
-            LoginServerMessage::Completed { access_token } => {
-                let mut path = path![REMOTE_SERVER_AUTH];
-
-                create_dir_all(&path)?;
-
-                path.push(&self.server);
-                if path.is_file() {
-                    remove_file(&path)?;
+            LoginServerMessage::Completed(tokens) => {
+                if let Err(e) = write_tokens(&self.server, tokens) {
+                    println!("Login failed, {e}");
+                } else {
+                    println!("Login completed successfully!");
                 }
-
-                File::create(path)?.write_all(access_token.as_bytes())?;
-                println!("Login completed successfully");
                 ctx.stop();
             }
 

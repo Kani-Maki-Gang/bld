@@ -5,7 +5,7 @@ use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_sock::clients::MonitClient;
 use bld_sock::messages::MonitInfo;
-use bld_utils::request::WebSocket;
+use bld_core::request::WebSocket;
 use clap::Args;
 use futures::stream::StreamExt;
 use tracing::debug;
@@ -35,7 +35,7 @@ pub struct MonitCommand {
         long = "server",
         help = "The name of the server to monitor the pipeline from"
     )]
-    server: Option<String>,
+    server: String,
 
     #[arg(
         long = "last",
@@ -47,14 +47,13 @@ pub struct MonitCommand {
 impl MonitCommand {
     async fn request(self) -> Result<()> {
         let config = BldConfig::load()?;
-        let server = config.server_or_first(self.server.as_ref())?;
-        let server_auth = config.same_auth_as(server)?.to_owned();
+        let server = config.server(&self.server)?;
         let url = format!("{}/ws-monit/", server.base_url_ws());
 
         debug!("establishing web socket connection on {}", url);
 
         let (_, framed) = WebSocket::new(&url)?
-            .auth(&server_auth)
+            .auth(server)
             .request()
             .connect()
             .await

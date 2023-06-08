@@ -1,7 +1,14 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    fs::{create_dir_all, remove_file, File},
+    io::{Read, Write},
+    path::PathBuf,
+};
 
 use actix_web::rt::spawn;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
+use bld_config::{definitions::REMOTE_SERVER_AUTH, path};
+use serde_derive::{Deserialize, Serialize};
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
     oneshot,
@@ -90,4 +97,47 @@ impl LoginProcess {
             .await
             .map_err(|e| anyhow!(e.to_string()))
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthTokens {
+    pub access_token: String,
+    pub refresh_token: Option<String>,
+}
+
+impl AuthTokens {
+    pub fn new(access_token: String, refresh_token: Option<String>) -> Self {
+        Self {
+            access_token,
+            refresh_token,
+        }
+    }
+}
+
+pub fn read_tokens(server: &str) -> Result<AuthTokens> {
+    let mut path = path![REMOTE_SERVER_AUTH];
+    path.push(server);
+
+    if !path.is_file() {
+        bail!("file not found");
+    }
+
+    let mut buf = Vec::new();
+    File::open(&path)?.read_to_end(&mut buf)?;
+    serde_json::from_slice(&buf).map_err(|e| anyhow!(e))
+}
+
+pub fn write_tokens(server: &str, tokens: AuthTokens) -> Result<()> {
+    let mut path = path![REMOTE_SERVER_AUTH];
+
+    create_dir_all(&path)?;
+
+    path.push(server);
+    if path.is_file() {
+        remove_file(&path)?;
+    }
+
+    let data = serde_json::to_vec(&tokens)?;
+    File::create(path)?.write_all(&data)?;
+    Ok(())
 }

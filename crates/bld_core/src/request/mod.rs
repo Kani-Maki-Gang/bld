@@ -1,10 +1,11 @@
-use crate::sync::IntoArc;
-use crate::tls::load_root_certificates;
+use crate::auth::read_tokens;
 use anyhow::{anyhow, Result};
 use awc::http::StatusCode;
 use awc::ws::WebsocketsRequest;
 use awc::{Client, ClientRequest, Connector, SendClientRequest};
 use bld_config::BldRemoteServerConfig;
+use bld_utils::sync::IntoArc;
+use bld_utils::tls::load_root_certificates;
 use rustls::ClientConfig;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -38,10 +39,10 @@ impl Request {
     }
 
     pub fn auth(mut self, server: &BldRemoteServerConfig) -> Self {
-        if let Ok(bearer) = server.bearer() {
+        if let Ok(tokens) = read_tokens(&server.name) {
             self.request = self
                 .request
-                .insert_header(("Authorization", format!("Bearer {bearer}")));
+                .insert_header(("Authorization", format!("Bearer {}", tokens.access_token)));
         }
         self
     }
@@ -107,10 +108,10 @@ impl WebSocket {
     }
 
     pub fn auth(mut self, server: &BldRemoteServerConfig) -> Self {
-        if let Ok(token) = server.bearer() {
+        if let Ok(tokens) = read_tokens(&server.name) {
             self.request = self
                 .request
-                .header("Authorization", format!("Bearer {token}"));
+                .header("Authorization", format!("Bearer {}", tokens.access_token));
         }
         self
     }

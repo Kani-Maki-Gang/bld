@@ -525,6 +525,7 @@ dependencies = [
  "actix-web",
  "anyhow",
  "async-trait",
+ "awc",
  "bld_config",
  "bld_utils",
  "diesel",
@@ -535,6 +536,7 @@ dependencies = [
  "nix",
  "openidconnect",
  "regex",
+ "rustls",
  "serde",
  "serde_derive",
  "serde_json",
@@ -661,7 +663,6 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "anyhow",
- "awc",
  "bld_config",
  "rustls",
  "rustls-native-certs",

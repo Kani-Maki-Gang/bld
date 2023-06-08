@@ -1,5 +1,6 @@
 use crate::endpoints::{
-    auth_redirect, check, deps, hist, home, inspect, list, pull, push, remove, run, stop,
+    auth_redirect, auth_refresh, check, deps, hist, home, inspect, list, pull, push, remove, run,
+    stop,
 };
 use crate::sockets::{ws_exec, ws_login, ws_monit};
 use crate::supervisor::channel::SupervisorMessageSender;
@@ -7,8 +8,8 @@ use actix_web::web::{get, resource};
 use actix_web::{middleware, App, HttpServer};
 use anyhow::Result;
 use bld_config::BldConfig;
+use bld_core::auth::LoginProcess;
 use bld_core::database::new_connection_pool;
-use bld_core::logins::LoginProcess;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_utils::sync::IntoData;
 use bld_utils::tls::{load_server_certificate, load_server_private_key};
@@ -45,6 +46,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .wrap(middleware::Logger::default())
             .service(home)
             .service(auth_redirect)
+            .service(auth_refresh)
             .service(check)
             .service(hist)
             .service(list)

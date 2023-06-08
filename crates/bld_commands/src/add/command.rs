@@ -3,8 +3,8 @@ use anyhow::{anyhow, Result};
 use bld_config::definitions::DEFAULT_V2_PIPELINE_CONTENT;
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::request::Request;
 use bld_server::requests::PushInfo;
-use bld_utils::request::Request;
 use bld_utils::sync::IntoArc;
 use clap::Args;
 use tracing::debug;
@@ -60,8 +60,6 @@ impl AddCommand {
             let proxy = PipelineFileSystemProxy::local(config.clone());
             let server_name = self.server.ok_or_else(|| anyhow!("server not found"))?;
             let server = config.server(&server_name)?;
-            let server_auth = config.same_auth_as(server)?;
-
             let tmp_name = format!("{}.yaml", Uuid::new_v4());
 
             println!("Creating temporary local pipeline {}", tmp_name);
@@ -85,7 +83,7 @@ impl AddCommand {
             debug!("sending request to {push_url}");
 
             let _: String = Request::post(&push_url)
-                .auth(server_auth)
+                .auth(server)
                 .send_json(&push_info)
                 .await?;
 

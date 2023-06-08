@@ -2,8 +2,8 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::proxies::PipelineFileSystemProxy;
-use bld_utils::{request::Request, sync::IntoArc};
+use bld_core::{proxies::PipelineFileSystemProxy, request::Request};
+use bld_utils::sync::IntoArc;
 use clap::Args;
 use tracing::debug;
 
@@ -33,9 +33,8 @@ impl ListCommand {
     fn remote_list(&self, server: &str) -> Result<()> {
         let config = BldConfig::load()?;
         let server = config.server(server)?;
-        let server_auth = config.same_auth_as(server)?;
         let url = format!("{}/list", server.base_url_http());
-        let request = Request::get(&url).auth(server_auth);
+        let request = Request::get(&url).auth(server);
 
         debug!("sending request to {}", url);
 
