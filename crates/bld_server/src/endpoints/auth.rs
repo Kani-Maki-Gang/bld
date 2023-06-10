@@ -1,11 +1,11 @@
-use crate::requests::{AuthRedirectParams, RefreshTokenParams};
+use crate::requests::AuthRedirectParams;
 use actix_web::{
     get,
     web::{Data, Query},
     HttpResponse, Responder,
 };
 use anyhow::{bail, Result};
-use bld_core::auth::{AuthTokens, LoginProcess};
+use bld_core::auth::{AuthTokens, LoginProcess, RefreshTokenParams};
 use openidconnect::{
     core::CoreClient, reqwest::async_http_client, OAuth2TokenResponse, RefreshToken,
 };

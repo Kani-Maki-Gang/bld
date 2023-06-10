@@ -114,6 +114,19 @@ impl AuthTokens {
     }
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct RefreshTokenParams {
+    pub refresh_token: String,
+}
+
+impl RefreshTokenParams {
+    pub fn new(refresh_token: &str) -> Self {
+        Self {
+            refresh_token: refresh_token.to_owned(),
+        }
+    }
+}
+
 pub fn read_tokens(server: &str) -> Result<AuthTokens> {
     let mut path = path![REMOTE_SERVER_AUTH];
     path.push(server);
