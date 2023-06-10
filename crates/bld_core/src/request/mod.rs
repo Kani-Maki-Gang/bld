@@ -1,15 +1,46 @@
-use crate::auth::read_tokens;
-use anyhow::{anyhow, Result};
+use std::collections::HashMap;
+use std::error::Error;
+use std::fmt::{Display, Formatter};
+use std::sync::Arc;
+
+use crate::auth::{read_tokens, write_tokens, AuthTokens, RefreshTokenParams};
+use crate::messages::ExecClientMessage;
+use crate::requests::{CheckQueryParams, HistQueryParams, PushInfo};
+use crate::responses::{HistoryEntry, PullResponse};
+use anyhow::{anyhow, bail, Result};
 use awc::http::StatusCode;
 use awc::ws::WebsocketsRequest;
 use awc::{Client, ClientRequest, Connector, SendClientRequest};
-use bld_config::BldRemoteServerConfig;
+use bld_config::{BldConfig, BldRemoteServerConfig};
 use bld_utils::sync::IntoArc;
 use bld_utils::tls::load_root_certificates;
 use rustls::ClientConfig;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use tracing::debug;
+
+#[derive(Debug)]
+struct RequestError {
+    text: String,
+    status: StatusCode,
+}
+
+impl RequestError {
+    pub fn new(text: &str, status: StatusCode) -> Self {
+        Self {
+            text: text.to_owned(),
+            status,
+        }
+    }
+}
+
+impl Display for RequestError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "response {}: {}", self.status, self.text)
+    }
+}
+
+impl Error for RequestError {}
 
 pub struct Request {
     request: ClientRequest,
@@ -63,25 +94,23 @@ impl Request {
 
     async fn do_send<T: DeserializeOwned>(send_request: SendClientRequest) -> Result<T> {
         let mut response = send_request.await.map_err(|e| anyhow!(e.to_string()))?;
-        let status = response.status();
-        let body = response.body().await.map_err(|e| anyhow!(e))?;
-        let text = format!("{}", String::from_utf8_lossy(&body));
+        let status = response.status().clone();
 
         match status {
             StatusCode::OK => {
                 debug!("response from server status: {status}");
-                serde_json::from_str::<T>(&text).map_err(|e| anyhow!(e))
+                response.json::<T>().await.map_err(|e| anyhow!(e))
             }
             StatusCode::BAD_REQUEST => {
+                let body = response.body().await.map_err(|e| anyhow!(e))?;
+                let text = format!("{}", String::from_utf8_lossy(&body));
                 debug!("response from server status: {status}");
-                Err(anyhow!(text))
+                Err(RequestError::new(&text, StatusCode::BAD_REQUEST).into())
             }
             st => {
                 debug!("response from server status: {status}");
-                Err(anyhow!(
-                    "request failed with status code: {}",
-                    st.to_string()
-                ))
+                let message = format!("request failed with status code: {st}");
+                Err(RequestError::new(&message, StatusCode::UNAUTHORIZED).into())
             }
         }
     }
@@ -118,5 +147,262 @@ impl WebSocket {
 
     pub fn request(self) -> WebsocketsRequest {
         self.request
+    }
+}
+
+pub struct HttpClient {
+    config: Arc<BldConfig>,
+    server: String,
+}
+
+impl HttpClient {
+    pub fn new(config: Arc<BldConfig>, server: &str) -> Self {
+        Self {
+            config,
+            server: server.to_owned(),
+        }
+    }
+
+    async fn refresh(&self) -> Result<()> {
+        let server = self.config.server(&self.server)?;
+        let url = format!("{}/refresh", server.base_url_http());
+        let tokens = read_tokens(&self.server)?;
+        let Some(refresh_token) = tokens.refresh_token else {
+            bail!("no refresh token found");
+        };
+        let params = RefreshTokenParams::new(&refresh_token);
+        let tokens: AuthTokens = Request::get(&url).query(&params)?.send().await?;
+        write_tokens(&self.server, tokens)
+    }
+
+    fn unauthorized<T>(response: &Result<T>) -> bool {
+        if let Err(Some(RequestError {
+            status: StatusCode::UNAUTHORIZED,
+            ..
+        })) = response.as_ref().map_err(|e| e.downcast_ref())
+        {
+            true
+        } else {
+            false
+        }
+    }
+
+    async fn check_inner(&self, pipeline: &str) -> Result<()> {
+        let server = self.config.server(&self.server)?;
+        let url = format!("{}/check", server.base_url_http());
+        let params = CheckQueryParams {
+            pipeline: pipeline.to_owned(),
+        };
+        Request::get(&url)
+            .query(&params)?
+            .auth(server)
+            .send()
+            .await
+            .map(|_: String| ())
+    }
+
+    pub async fn check(&self, pipeline: &str) -> Result<()> {
+        let response = self.check_inner(pipeline).await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.check_inner(pipeline).await
+        } else {
+            response
+        }
+    }
+
+    async fn deps_inner(&self, pipeline: &String) -> Result<Vec<String>> {
+        let server = self.config.server(&self.server)?;
+        let url = format!("{}/deps", server.base_url_http());
+        Request::post(&url).auth(server).send_json(pipeline).await
+    }
+
+    pub async fn deps(&self, pipeline: &str) -> Result<Vec<String>> {
+        let pipeline = pipeline.to_owned();
+        let response = self.deps_inner(&pipeline).await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.deps_inner(&pipeline).await
+        } else {
+            response
+        }
+    }
+
+    async fn hist_inner(&self, params: &HistQueryParams) -> Result<Vec<HistoryEntry>> {
+        let server = self.config.server(&self.server)?;
+        let url = format!("{}/hist", server.base_url_http());
+        Request::get(&url).query(params)?.auth(server).send().await
+    }
+
+    pub async fn hist(
+        &self,
+        state: Option<String>,
+        name: Option<String>,
+        limit: i64,
+    ) -> Result<Vec<HistoryEntry>> {
+        let params = HistQueryParams { state, name, limit };
+        let response = self.hist_inner(&params).await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.hist_inner(&params).await
+        } else {
+            response
+        }
+    }
+
+    async fn inspect_inner(&self, pipeline: &String) -> Result<String> {
+        let server = self.config.server(&self.server)?;
+        let url = format!("{}/inspect", server.base_url_http());
+        Request::post(&url).auth(server).send_json(pipeline).await
+    }
+
+    pub async fn inspect(&self, pipeline: &str) -> Result<String> {
+        let pipeline = pipeline.to_owned();
+        let response = self.inspect_inner(&pipeline).await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.inspect_inner(&pipeline).await
+        } else {
+            response
+        }
+    }
+
+    async fn list_inner(&self) -> Result<String> {
+        let server = self.config.server(&self.server)?;
+        let url = format!("{}/list", server.base_url_http());
+        Request::get(&url).auth(server).send().await
+    }
+
+    pub async fn list(&self) -> Result<String> {
+        let response = self.list_inner().await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.list_inner().await
+        } else {
+            response
+        }
+    }
+
+    async fn pull_inner(&self, pipeline: &String) -> Result<PullResponse> {
+        let server = self.config.server(&self.server)?;
+        let url = format!("{}/pull", server.base_url_http());
+        Request::post(&url).auth(server).send_json(pipeline).await
+    }
+
+    pub async fn pull(&self, pipeline: &str) -> Result<PullResponse> {
+        let pipeline = pipeline.to_owned();
+        let response = self.pull_inner(&pipeline).await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.pull_inner(&pipeline).await
+        } else {
+            response
+        }
+    }
+
+    async fn push_inner(&self, json: &PushInfo) -> Result<()> {
+        let server = self.config.server(&self.server)?;
+        let url = format!("{}/push", server.base_url_http());
+        Request::post(&url)
+            .auth(server)
+            .send_json(json)
+            .await
+            .map(|_: String| ())
+    }
+
+    pub async fn push(&self, name: &str, content: &str) -> Result<()> {
+        let json = PushInfo {
+            name: name.to_owned(),
+            content: content.to_owned(),
+        };
+        let response = self.push_inner(&json).await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.push_inner(&json).await
+        } else {
+            response
+        }
+    }
+
+    async fn remove_inner(&self, json: &String) -> Result<()> {
+        let server = self.config.server(&self.server)?;
+        let url = format!("{}/remove", server.base_url_http());
+        Request::post(&url)
+            .auth(server)
+            .send_json(json)
+            .await
+            .map(|_: String| ())
+    }
+
+    pub async fn remove(&self, pipeline: &str) -> Result<()> {
+        let pipeline = pipeline.to_owned();
+        let response = self.remove_inner(&pipeline).await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.remove_inner(&pipeline).await
+        } else {
+            response
+        }
+    }
+
+    async fn run_inner(&self, json: &ExecClientMessage) -> Result<()> {
+        let server = self.config.server(&self.server)?;
+        let url = format!("{}/run", server.base_url_http());
+        Request::post(&url)
+            .auth(server)
+            .send_json(json)
+            .await
+            .map(|_: String| ())
+    }
+
+    pub async fn run(
+        &self,
+        pipeline: &str,
+        env: Option<HashMap<String, String>>,
+        vars: Option<HashMap<String, String>>,
+    ) -> Result<()> {
+        let json = ExecClientMessage::EnqueueRun {
+            name: pipeline.to_owned(),
+            environment: env,
+            variables: vars,
+        };
+        let response = self.run_inner(&json).await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.run_inner(&json).await
+        } else {
+            response
+        }
+    }
+
+    async fn stop_inner(&self, json: &String) -> Result<()> {
+        let server = self.config.server(&self.server)?;
+        let url = format!("{}/stop", server.base_url_http());
+        Request::post(&url)
+            .auth(server)
+            .send_json(json)
+            .await
+            .map(|_: String| ())
+    }
+
+    pub async fn stop(&self, pipeline_id: &str) -> Result<()> {
+        let id = pipeline_id.to_owned();
+        let response = self.stop_inner(&id).await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.stop_inner(&id).await
+        } else {
+            response
+        }
     }
 }

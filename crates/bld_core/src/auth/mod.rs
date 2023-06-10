@@ -114,7 +114,7 @@ impl AuthTokens {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RefreshTokenParams {
     pub refresh_token: String,
 }

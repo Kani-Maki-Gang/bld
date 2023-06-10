@@ -3,7 +3,7 @@ use actix::{io::SinkWrite, Actor, StreamHandler};
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::{request::WebSocket, messages::MonitInfo};
+use bld_core::{messages::MonitInfo, request::WebSocket};
 use bld_sock::clients::MonitClient;
 use clap::Args;
 use futures::stream::StreamExt;

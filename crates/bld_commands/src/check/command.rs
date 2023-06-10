@@ -38,7 +38,7 @@ impl CheckCommand {
         let config = BldConfig::load()?;
         let server = config.server(server)?;
         let url = format!("{}/check", server.base_url_http());
-        let request = Request::get(&url).auth(server).query(&CheckQueryParams{
+        let request = Request::get(&url).auth(server).query(&CheckQueryParams {
             pipeline: self.pipeline.to_owned(),
         })?;
         System::new().block_on(async move { request.send::<String>().await.map(|_| ()) })

@@ -1,7 +1,9 @@
 use actix::System;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::{proxies::PipelineFileSystemProxy, request::Request, responses::PullResponse, requests::PushInfo};
+use bld_core::{
+    proxies::PipelineFileSystemProxy, request::Request, requests::PushInfo, responses::PullResponse,
+};
 use bld_utils::sync::IntoArc;
 use clap::Args;
 use tracing::debug;
