@@ -1,8 +1,8 @@
 use actix::{io::SinkWrite, Actor, StreamHandler, System};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_sock::{clients::LoginClient, messages::LoginClientMessage};
-use bld_core::request::WebSocket;
+use bld_core::{messages::LoginClientMessage, request::WebSocket};
+use bld_sock::clients::LoginClient;
 use clap::Args;
 use futures::stream::StreamExt;
 use tracing::debug;

@@ -3,9 +3,8 @@ use actix::System;
 use anyhow::Result;
 use bld_config::definitions::TOOL_DEFAULT_PIPELINE_FILE;
 use bld_config::BldConfig;
-use bld_core::{proxies::PipelineFileSystemProxy, request::Request};
+use bld_core::{proxies::PipelineFileSystemProxy, request::Request, requests::CheckQueryParams};
 use bld_runner::{Load, Yaml};
-use bld_server::requests::CheckQueryParams;
 use bld_utils::sync::IntoArc;
 use clap::Args;
 
@@ -39,11 +38,9 @@ impl CheckCommand {
         let config = BldConfig::load()?;
         let server = config.server(server)?;
         let url = format!("{}/check", server.base_url_http());
-        let request = Request::get(&url)
-            .auth(server)
-            .query(&CheckQueryParams {
-                pipeline: self.pipeline.to_owned(),
-            })?;
+        let request = Request::get(&url).auth(server).query(&CheckQueryParams{
+            pipeline: self.pipeline.to_owned(),
+        })?;
         System::new().block_on(async move { request.send::<String>().await.map(|_| ()) })
     }
 }

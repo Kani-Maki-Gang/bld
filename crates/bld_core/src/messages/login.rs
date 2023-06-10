@@ -1,6 +1,7 @@
 use actix::Message;
-use bld_core::auth::AuthTokens;
 use serde_derive::{Deserialize, Serialize};
+
+use crate::auth::AuthTokens;
 
 #[derive(Debug, Serialize, Deserialize, Message)]
 #[rtype(result = "()")]

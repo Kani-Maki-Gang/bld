@@ -1,10 +1,10 @@
 use crate::extractors::User;
-use crate::requests::PushInfo;
 use actix_web::web::{Data, Json};
 use actix_web::{post, HttpResponse, Responder};
 use anyhow::Result;
 use bld_core::database::pipeline;
 use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::requests::PushInfo;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use tracing::info;

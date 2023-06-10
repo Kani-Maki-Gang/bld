@@ -11,8 +11,10 @@ use actix_web::{
 use actix_web_actors::ws::{start, Message, ProtocolError, WebsocketContext};
 use anyhow::{anyhow, bail, Result};
 use bld_config::{Auth, BldConfig};
-use bld_core::auth::{AuthTokens, LoginProcess};
-use bld_sock::messages::{LoginClientMessage, LoginServerMessage};
+use bld_core::{
+    auth::{AuthTokens, LoginProcess},
+    messages::{LoginClientMessage, LoginServerMessage},
+};
 use openidconnect::{
     core::{CoreAuthenticationFlow, CoreClient},
     reqwest::async_http_client,

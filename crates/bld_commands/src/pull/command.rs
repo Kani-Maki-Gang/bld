@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::request::Request;
-use bld_server::responses::PullResponse;
+use bld_core::responses::PullResponse;
 use bld_utils::sync::IntoArc;
 use clap::Args;
 use tracing::debug;

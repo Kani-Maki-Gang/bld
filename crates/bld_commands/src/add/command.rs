@@ -4,7 +4,7 @@ use bld_config::definitions::DEFAULT_V2_PIPELINE_CONTENT;
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::request::Request;
-use bld_server::requests::PushInfo;
+use bld_core::requests::PushInfo;
 use bld_utils::sync::IntoArc;
 use clap::Args;
 use tracing::debug;

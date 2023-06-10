@@ -522,6 +522,7 @@ dependencies = [
 name = "bld_core"
 version = "0.1.0"
 dependencies = [
+ "actix",
  "actix-web",
  "anyhow",
  "async-trait",
@@ -541,6 +542,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "shiplift",
+ "tabled",
  "tar",
  "termcolor",
  "tokio",
@@ -602,7 +604,6 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "tabled",
  "tokio",
  "tracing",
  "uuid",

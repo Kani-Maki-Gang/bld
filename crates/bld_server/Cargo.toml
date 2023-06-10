@@ -28,5 +28,4 @@ tokio = { version = "1.24.2", features = ["full"] }
 tracing = "0.1.36"
 uuid = { version = "0.8.2", features = ["v4"] }
 rustls = "0.20.7"
-tabled = "0.9.0"
 openidconnect = "3.1.1"

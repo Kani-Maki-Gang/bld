@@ -9,16 +9,14 @@ use bld_config::{
 use bld_core::{
     context::ContextSender,
     logger::LoggerSender,
+    messages::{ExecClientMessage, WorkerMessages},
     platform::{Image, TargetPlatform},
     proxies::PipelineFileSystemProxy,
     regex::RegexCache,
     request::WebSocket,
-    signals::{UnixSignalMessage, UnixSignalsReceiver}
+    signals::{UnixSignalMessage, UnixSignalsReceiver},
 };
-use bld_sock::{
-    clients::ExecClient,
-    messages::{ExecClientMessage, WorkerMessages},
-};
+use bld_sock::clients::ExecClient;
 use bld_utils::sync::IntoArc;
 use futures::{Future, StreamExt};
 use tokio::{sync::mpsc::Sender, task::JoinHandle};

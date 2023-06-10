@@ -1,4 +1,3 @@
-use crate::messages::{ExecClientMessage, ExecServerMessage};
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, Context, Handler, StreamHandler};
 use actix_codec::Framed;
@@ -9,6 +8,7 @@ use awc::ws::{Codec, Frame, Message};
 use awc::BoxedSocket;
 use bld_core::context::ContextSender;
 use bld_core::logger::LoggerSender;
+use bld_core::messages::{ExecClientMessage, ExecServerMessage};
 use futures::stream::SplitSink;
 use std::sync::Arc;
 use tracing::{debug, error};
