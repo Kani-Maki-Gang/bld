@@ -2,7 +2,7 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::{proxies::PipelineFileSystemProxy, request::Request};
+use bld_core::{proxies::PipelineFileSystemProxy, request::HttpClient};
 use bld_utils::sync::IntoArc;
 use clap::Args;
 use tracing::debug;
@@ -32,23 +32,15 @@ impl RemoveCommand {
     }
 
     fn remote_remove(&self, server: &str) -> Result<()> {
-        let config = BldConfig::load()?;
-        let server = config.server(server)?;
+        let config = BldConfig::load()?.into_arc();
+        let client = HttpClient::new(config, server);
 
         debug!(
-            "running remove subcommand with --server: {} and --pipeline: {}",
-            server.name, self.pipeline
+            "running remove subcommand with --server: {:?} and --pipeline: {}",
+            self.server, self.pipeline
         );
 
-        let url = format!("{}/remove", server.base_url_http());
-        let request = Request::post(&url).auth(server);
-
-        System::new().block_on(async move {
-            debug!("sending request to {}", url);
-            request.send_json(&self.pipeline).await.map(|r: String| {
-                println!("{r}");
-            })
-        })
+        System::new().block_on(async move { client.remove(&self.pipeline).await })
     }
 }
 

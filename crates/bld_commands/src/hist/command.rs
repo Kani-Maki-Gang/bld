@@ -2,7 +2,8 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::{request::Request, requests::HistQueryParams, responses::HistoryEntry};
+use bld_core::request::HttpClient;
+use bld_utils::sync::IntoArc;
 use clap::Args;
 use tabled::{Style, Table};
 use tracing::debug;
@@ -50,31 +51,27 @@ impl BldCommand for HistCommand {
     }
 
     fn exec(self) -> Result<()> {
-        let config = BldConfig::load()?;
-        let server = config.server(&self.server)?;
-        let url = format!("{}/hist?", server.base_url_http());
-        let params = HistQueryParams {
-            state: if self.state != "all" {
+        System::new().block_on(async move {
+            let config = BldConfig::load()?.into_arc();
+
+            let state = if self.state != "all" {
                 Some(self.state.to_string())
             } else {
                 None
-            },
-            name: self.pipeline,
-            limit: self.limit,
-        };
-        debug!(
-            "running hist subcommand with --server: {} --limit {}",
-            server.name, params.limit,
-        );
+            };
 
-        let request = Request::get(&url).query(&params)?.auth(server);
+            debug!(
+                "running hist subcommand with --server: {:?} --limit {}",
+                self.server, self.limit,
+            );
 
-        debug!("sending http request to {}", url);
+            let history = HttpClient::new(config, &self.server)
+                .hist(state, self.pipeline, self.limit)
+                .await?;
 
-        System::new().block_on(async move {
-            let history: Vec<HistoryEntry> = request.send().await?;
             let table = Table::new(history).with(Style::modern()).to_string();
             println!("{table}");
+
             Ok(())
         })
     }

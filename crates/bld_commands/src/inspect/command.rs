@@ -2,10 +2,9 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::{proxies::PipelineFileSystemProxy, request::Request};
+use bld_core::{proxies::PipelineFileSystemProxy, request::HttpClient};
 use bld_utils::sync::IntoArc;
 use clap::Args;
-use tracing::debug;
 
 #[derive(Args)]
 #[command(about = "Inspects the contents of a pipeline on a bld server")]
@@ -39,17 +38,12 @@ impl InspectCommand {
     }
 
     fn remote_inspect(&self, server: &str) -> Result<()> {
-        let config = BldConfig::load()?;
-        let server = config.server(server)?;
-        let url = format!("{}/inspect", server.base_url_http());
-        let request = Request::post(&url).auth(server);
-
-        debug!("sending http request to {}", url);
-
         System::new().block_on(async move {
-            request.send_json(&self.pipeline).await.map(|r: String| {
-                println!("{r}");
-            })
+            let config = BldConfig::load()?.into_arc();
+            HttpClient::new(config, server)
+                .inspect(&self.pipeline)
+                .await
+                .map(|r| println!("{r}"))
         })
     }
 }

@@ -2,7 +2,7 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::{proxies::PipelineFileSystemProxy, request::Request, requests::PushInfo};
+use bld_core::{proxies::PipelineFileSystemProxy, request::HttpClient};
 use bld_runner::VersionedPipeline;
 use bld_utils::sync::IntoArc;
 use clap::Args;
@@ -39,18 +39,15 @@ pub struct PushCommand {
 impl PushCommand {
     async fn push(self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
-        let server = config.server(&self.server)?;
+        let client = HttpClient::new(config.clone(), &self.server);
+        let proxy = PipelineFileSystemProxy::local(config);
 
         debug!(
             "running push subcommand with --server: {} and --pipeline: {}",
-            server.name, self.pipeline
+            self.server, self.pipeline
         );
 
-        let url = format!("{}/push", server.base_url_http());
-
-        let proxy = PipelineFileSystemProxy::local(config.clone());
-
-        let mut pipelines = vec![PushInfo::new(&self.pipeline, &proxy.read(&self.pipeline)?)];
+        let mut pipelines = vec![(self.pipeline.to_owned(), proxy.read(&self.pipeline)?)];
 
         if !self.ignore_deps {
             print!("Resolving dependecies...");
@@ -58,32 +55,30 @@ impl PushCommand {
             let mut deps = VersionedPipeline::dependencies(&proxy, &self.pipeline)
                 .map(|pips| {
                     println!("Done.");
-                    pips.iter().map(|(n, s)| PushInfo::new(n, s)).collect()
+                    pips
                 })
                 .map_err(|e| {
                     println!("Error. {e}");
                     anyhow!("")
-                })?;
+                })?
+                .into_iter()
+                .map(|(n, s)| (n, s))
+                .collect();
 
             pipelines.append(&mut deps);
         }
 
-        for info in pipelines.into_iter() {
-            print!("Pushing {}...", info.name);
+        for (name, content) in pipelines.into_iter() {
+            print!("Pushing {}...", name);
 
-            debug!("sending request to {url}");
-
-            let _ = Request::post(&url)
-                .auth(server)
-                .send_json(&info)
+            client
+                .push(&name, &content)
                 .await
-                .map(|_: String| {
-                    println!("Done.");
-                })
+                .map(|_| println!("Done."))
                 .map_err(|e| {
                     println!("Error. {e}");
-                    e
-                });
+                    anyhow!("")
+                })?;
         }
         Ok(())
     }

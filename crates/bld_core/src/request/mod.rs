@@ -94,7 +94,7 @@ impl Request {
 
     async fn do_send<T: DeserializeOwned>(send_request: SendClientRequest) -> Result<T> {
         let mut response = send_request.await.map_err(|e| anyhow!(e.to_string()))?;
-        let status = response.status().clone();
+        let status = response.status();
 
         match status {
             StatusCode::OK => {
@@ -176,15 +176,13 @@ impl HttpClient {
     }
 
     fn unauthorized<T>(response: &Result<T>) -> bool {
-        if let Err(Some(RequestError {
-            status: StatusCode::UNAUTHORIZED,
-            ..
-        })) = response.as_ref().map_err(|e| e.downcast_ref())
-        {
-            true
-        } else {
-            false
-        }
+        matches!(
+            response.as_ref().map_err(|e| e.downcast_ref()),
+            Err(Some(RequestError {
+                status: StatusCode::UNAUTHORIZED,
+                ..
+            }))
+        )
     }
 
     async fn check_inner(&self, pipeline: &str) -> Result<()> {

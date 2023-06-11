@@ -3,8 +3,7 @@ use actix_web::rt::System;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_core::request::Request;
-use bld_core::responses::PullResponse;
+use bld_core::request::HttpClient;
 use bld_utils::sync::IntoArc;
 use clap::Args;
 use tracing::debug;
@@ -40,44 +39,32 @@ pub struct PullCommand {
 impl PullCommand {
     async fn request(self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
-        let proxy = PipelineFileSystemProxy::local(config.clone());
-        let server = config.server(&self.server)?;
-        let base_url = server.base_url_http();
-        let metadata_url = format!("{}/deps", base_url);
-        let url = format!("{}/pull", base_url);
+        let client = HttpClient::new(config.clone(), &self.server);
+        let proxy = PipelineFileSystemProxy::local(config);
 
         debug!(
             "running pull subcommand with --server: {}, --pipeline: {} and --ignore-deps: {}",
-            server.name, self.pipeline, self.ignore_deps
+            self.server, self.pipeline, self.ignore_deps
         );
 
         let mut pipelines = vec![self.pipeline.to_string()];
 
         if !self.ignore_deps {
-            debug!("sending http request to {}", metadata_url);
             print!("Fetching metadata for dependecies...");
 
-            Request::post(&metadata_url)
-                .auth(server)
-                .send_json(&self.pipeline)
-                .await
-                .map(|mut deps: Vec<String>| {
-                    println!("Done.");
-                    pipelines.append(&mut deps);
-                })
-                .map_err(|e| {
-                    println!("Error. {e}");
-                    anyhow!(String::new())
-                })?;
+            let mut deps = client.deps(&self.pipeline).await.map_err(|e| {
+                println!("Error. {e}");
+                anyhow!(String::new())
+            })?;
+
+            pipelines.append(&mut deps);
         }
 
         for pipeline in pipelines.iter() {
-            debug!("sending http request to {}", url);
             print!("Pulling pipeline {pipeline}...");
 
-            let data: PullResponse = Request::post(&url)
-                .auth(server)
-                .send_json(pipeline)
+            let data = client
+                .pull(pipeline)
                 .await
                 .map(|data| {
                     println!("Done.");

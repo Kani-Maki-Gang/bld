@@ -2,7 +2,8 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::request::Request;
+use bld_core::request::HttpClient;
+use bld_utils::sync::IntoArc;
 use clap::Args;
 
 #[derive(Args)]
@@ -33,17 +34,8 @@ impl BldCommand for StopCommand {
     }
 
     fn exec(self) -> Result<()> {
-        let config = BldConfig::load()?;
-        let server = config.server(&self.server)?;
-        let url = format!("{}/stop", server.base_url_http());
-        System::new().block_on(async move {
-            Request::post(&url)
-                .auth(server)
-                .send_json(&self.pipeline_id)
-                .await
-                .map(|r: String| {
-                    println!("{r}");
-                })
-        })
+        let config = BldConfig::load()?.into_arc();
+        let client = HttpClient::new(config, &self.server);
+        System::new().block_on(async move { client.stop(&self.pipeline_id).await })
     }
 }
