@@ -2,14 +2,17 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::proxies::PipelineFileSystemProxy;
-use bld_utils::{request::Request, sync::IntoArc};
+use bld_core::{proxies::PipelineFileSystemProxy, request::HttpClient};
+use bld_utils::sync::IntoArc;
 use clap::Args;
 use tracing::debug;
 
 #[derive(Args)]
 #[command(about = "Removes a pipeline from a bld server")]
 pub struct RemoveCommand {
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(
         short = 's',
         long = "server",
@@ -29,28 +32,23 @@ impl RemoveCommand {
     }
 
     fn remote_remove(&self, server: &str) -> Result<()> {
-        let config = BldConfig::load()?;
-        let server = config.server(server)?;
+        let config = BldConfig::load()?.into_arc();
+        let client = HttpClient::new(config, server);
 
         debug!(
-            "running remove subcommand with --server: {} and --pipeline: {}",
-            server.name, self.pipeline
+            "running remove subcommand with --server: {:?} and --pipeline: {}",
+            self.server, self.pipeline
         );
 
-        let server_auth = config.same_auth_as(server)?;
-        let url = format!("{}/remove", server.base_url_http());
-        let request = Request::post(&url).auth(server_auth);
-
-        System::new().block_on(async move {
-            debug!("sending request to {}", url);
-            request.send_json(&self.pipeline).await.map(|r: String| {
-                println!("{r}");
-            })
-        })
+        System::new().block_on(async move { client.remove(&self.pipeline).await })
     }
 }
 
 impl BldCommand for RemoveCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         match &self.server {
             Some(srv) => self.remote_remove(srv),

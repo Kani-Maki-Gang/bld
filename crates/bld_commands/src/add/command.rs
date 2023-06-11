@@ -1,10 +1,9 @@
 use actix::System;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use bld_config::definitions::DEFAULT_V2_PIPELINE_CONTENT;
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_server::requests::PushInfo;
-use bld_utils::request::Request;
+use bld_core::request::HttpClient;
 use bld_utils::sync::IntoArc;
 use clap::Args;
 use tracing::debug;
@@ -15,6 +14,9 @@ use crate::command::BldCommand;
 #[derive(Args)]
 #[command(about = "Creates a new pipeline")]
 pub struct AddCommand {
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(
         short = 'p',
         long = "pipeline",
@@ -51,15 +53,12 @@ impl AddCommand {
         Ok(())
     }
 
-    fn remote_add(self) -> Result<()> {
+    fn remote_add(&self, server: &str) -> Result<()> {
         System::new().block_on(async move {
             let config = BldConfig::load()?.into_arc();
             let proxy = PipelineFileSystemProxy::local(config.clone());
-            let server_name = self.server.ok_or_else(|| anyhow!("server not found"))?;
-            let server = config.server(&server_name)?;
-            let server_auth = config.same_auth_as(server)?;
-
-            let tmp_name = format!("{}{}", Uuid::new_v4(), self.pipeline);
+            let client = HttpClient::new(config, server);
+            let tmp_name = format!("{}.yaml", Uuid::new_v4());
 
             println!("Creating temporary local pipeline {}", tmp_name);
             debug!("creating temporary pipeline file: {tmp_name}");
@@ -74,17 +73,9 @@ impl AddCommand {
             debug!("reading content of temporary pipeline file: {tmp_name}");
             let tmp_content = proxy.read_tmp(&tmp_name)?;
 
-            let push_url = format!("{}/push", server.base_url_http());
-            let push_info = PushInfo::new(&self.pipeline, &tmp_content);
-
             println!("Pushing updated content for {}", self.pipeline);
 
-            debug!("sending request to {push_url}");
-
-            let _: String = Request::post(&push_url)
-                .auth(server_auth)
-                .send_json(&push_info)
-                .await?;
+            client.push(&self.pipeline, &tmp_content).await?;
 
             debug!("deleting temporary pipeline file: {tmp_name}");
             proxy.remove_tmp(&tmp_name)?;
@@ -95,6 +86,10 @@ impl AddCommand {
 }
 
 impl BldCommand for AddCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         debug!(
             "running add subcommand with --server: {:?}, --pipeline: {} and --edit: {}",
@@ -102,7 +97,7 @@ impl BldCommand for AddCommand {
         );
 
         match &self.server {
-            Some(_) => self.remote_add(),
+            Some(srv) => self.remote_add(srv),
             None => self.local_add(),
         }
     }

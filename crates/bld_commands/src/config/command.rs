@@ -3,6 +3,7 @@ use anyhow::Result;
 use bld_config::{BldConfig, BldLocalConfig, BldRemoteServerConfig};
 use bld_utils::term;
 use clap::Args;
+use tracing::metadata::LevelFilter;
 
 #[derive(Args)]
 #[command(about = "Lists bld's configuration")]
@@ -30,6 +31,14 @@ impl ConfigCommand {
 }
 
 impl BldCommand for ConfigCommand {
+    fn verbose(&self) -> bool {
+        false
+    }
+
+    fn tracing_level(&self) -> LevelFilter {
+        LevelFilter::OFF
+    }
+
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?;
         Self::list_all(&config)

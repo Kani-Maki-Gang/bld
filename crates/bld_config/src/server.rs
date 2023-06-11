@@ -1,10 +1,5 @@
-use crate::definitions::REMOTE_SERVER_OAUTH2;
-use crate::{definitions, path, AuthValidation};
-use crate::{Auth, BldTlsConfig};
-use anyhow::{anyhow, Result};
+use crate::{definitions, Auth, BldTlsConfig};
 use serde::{Deserialize, Serialize};
-use std::fs::read_to_string;
-use std::path::PathBuf;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BldLocalServerConfig {
@@ -14,7 +9,7 @@ pub struct BldLocalServerConfig {
     #[serde(default = "BldLocalServerConfig::default_port")]
     pub port: i64,
 
-    pub auth: Option<AuthValidation>,
+    pub auth: Option<Auth>,
 
     pub tls: Option<BldTlsConfig>,
 
@@ -58,12 +53,6 @@ pub struct BldRemoteServerConfig {
 
     #[serde(default)]
     pub tls: bool,
-
-    #[serde(default)]
-    pub auth: Option<Auth>,
-
-    #[serde(default)]
-    pub same_auth_as: Option<String>,
 }
 
 impl BldRemoteServerConfig {
@@ -97,10 +86,5 @@ impl BldRemoteServerConfig {
     // depending on the server's tls options.
     pub fn base_url_ws(&self) -> String {
         format!("{}://{}:{}", self.ws_protocol(), self.host, self.port)
-    }
-
-    pub fn bearer(&self) -> Result<String> {
-        let path = path![REMOTE_SERVER_OAUTH2, &self.name];
-        read_to_string(path).map_err(|e| anyhow!(e))
     }
 }

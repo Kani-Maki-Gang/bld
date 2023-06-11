@@ -10,9 +10,16 @@ use tracing::{debug, error};
 #[command(
     about = "Starts a bld supervisor that manages the pipeline worker queue. should be only invoked by the server"
 )]
-pub struct SupervisorCommand;
+pub struct SupervisorCommand {
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+}
 
 impl BldCommand for SupervisorCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?;
 

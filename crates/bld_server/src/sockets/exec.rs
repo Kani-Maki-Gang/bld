@@ -11,9 +11,9 @@ use bld_config::BldConfig;
 use bld_core::database::pipeline_runs::{
     self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED,
 };
+use bld_core::messages::{ExecClientMessage, ExecServerMessage};
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::scanner::FileScanner;
-use bld_sock::messages::{ExecClientMessage, ExecServerMessage};
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::sync::Arc;

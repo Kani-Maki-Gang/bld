@@ -9,11 +9,11 @@ use bld_config::BldConfig;
 use bld_core::context::ContextSender;
 use bld_core::database::{new_connection_pool, pipeline_runs};
 use bld_core::logger::LoggerSender;
+use bld_core::messages::WorkerMessages;
 use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::request::WebSocket;
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::WorkerClient;
-use bld_sock::messages::WorkerMessages;
-use bld_utils::request::WebSocket;
 use bld_utils::sync::IntoArc;
 use clap::Args;
 use futures::join;
@@ -27,6 +27,9 @@ use tracing::{debug, error};
     about = "A sub command that creates a worker process for a bld server in order to run a pipeline."
 )]
 pub struct WorkerCommand {
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(
         short = 'p',
         long = "pipeline",
@@ -59,6 +62,10 @@ pub struct WorkerCommand {
 }
 
 impl BldCommand for WorkerCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let socket_cfg = config.clone();

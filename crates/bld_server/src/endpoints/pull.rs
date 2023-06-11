@@ -1,8 +1,8 @@
 use crate::extractors::User;
-use crate::responses::PullResponse;
 use actix_web::web::{Data, Json};
 use actix_web::{post, HttpResponse, Responder};
 use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::responses::PullResponse;
 use tracing::info;
 
 #[post("/pull")]

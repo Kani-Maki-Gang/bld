@@ -1,12 +1,14 @@
 use crate::endpoints::{
-    auth_redirect, check, deps, hist, home, inspect, list, pull, push, remove, run, stop,
+    auth_redirect, auth_refresh, check, deps, hist, home, inspect, list, pull, push, remove, run,
+    stop,
 };
-use crate::sockets::{ws_exec, ws_monit};
+use crate::sockets::{ws_exec, ws_login, ws_monit};
 use crate::supervisor::channel::SupervisorMessageSender;
 use actix_web::web::{get, resource};
 use actix_web::{middleware, App, HttpServer};
 use anyhow::Result;
 use bld_config::BldConfig;
+use bld_core::auth::LoginProcess;
 use bld_core::database::new_connection_pool;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_utils::sync::IntoData;
@@ -20,9 +22,11 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
     info!("starting bld server at {}:{}", host, port);
 
     let config = config.into_data();
+    let client = config.openid_core_client().await?.into_data();
     let config_clone = config.clone();
     let pool = new_connection_pool(&config.local.db)?;
     let supervisor_sender = SupervisorMessageSender::new(Arc::clone(&config)).into_data();
+    let logins = LoginProcess::new().into_data();
     let pool = pool.into_data();
     let prx = PipelineFileSystemProxy::Server {
         config: Arc::clone(&config),
@@ -34,12 +38,15 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
     let mut server = HttpServer::new(move || {
         App::new()
             .app_data(config_clone.clone())
+            .app_data(client.clone())
             .app_data(supervisor_sender.clone())
+            .app_data(logins.clone())
             .app_data(pool.clone())
             .app_data(prx.clone())
             .wrap(middleware::Logger::default())
             .service(home)
             .service(auth_redirect)
+            .service(auth_refresh)
             .service(check)
             .service(hist)
             .service(list)
@@ -52,6 +59,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .service(inspect)
             .service(resource("/ws-exec/").route(get().to(ws_exec)))
             .service(resource("/ws-monit/").route(get().to(ws_monit)))
+            .service(resource("/ws-login/").route(get().to(ws_login)))
     });
 
     let address = format!("{host}:{port}");

@@ -1,9 +1,9 @@
 use crate::extractors::User;
-use crate::requests::HistQueryParams;
-use crate::responses::HistoryEntry;
 use actix_web::{get, web::Data, web::Query, HttpResponse, Responder};
 use anyhow::Result;
 use bld_core::database::pipeline_runs;
+use bld_core::requests::HistQueryParams;
+use bld_core::responses::HistoryEntry;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use tracing::info;

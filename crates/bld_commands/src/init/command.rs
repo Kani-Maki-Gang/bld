@@ -16,6 +16,9 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Initializes the build configuration")]
 pub struct InitCommand {
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(
         short = 's',
         long = "server",
@@ -25,6 +28,10 @@ pub struct InitCommand {
 }
 
 impl BldCommand for InitCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         let build_dir_exists = build_dir_exists()?;
         if !build_dir_exists {

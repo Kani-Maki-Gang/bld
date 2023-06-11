@@ -3,15 +3,17 @@ use actix::System;
 use anyhow::Result;
 use bld_config::definitions::TOOL_DEFAULT_PIPELINE_FILE;
 use bld_config::BldConfig;
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::{proxies::PipelineFileSystemProxy, request::HttpClient};
 use bld_runner::{Load, Yaml};
-use bld_server::requests::CheckQueryParams;
-use bld_utils::{request::Request, sync::IntoArc};
+use bld_utils::sync::IntoArc;
 use clap::Args;
 
 #[derive(Args)]
 #[command(about = "Checks a pipeline file for errors")]
 pub struct CheckCommand {
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(short = 'p', long = "pipeline", default_value = TOOL_DEFAULT_PIPELINE_FILE, help = "Path to pipeline script")]
     pipeline: String,
 
@@ -33,22 +35,18 @@ impl CheckCommand {
     }
 
     fn remote_check(&self, server: &str) -> Result<()> {
-        let config = BldConfig::load()?;
-        let server = config.server(server)?;
-        let server_auth = config.same_auth_as(server)?;
-
-        let url = format!("{}/check", server.base_url_http());
-        let request = Request::get(&url)
-            .auth(server_auth)
-            .query(&CheckQueryParams {
-                pipeline: self.pipeline.to_owned(),
-            })?;
-
-        System::new().block_on(async move { request.send::<String>().await.map(|_| ()) })
+        System::new().block_on(async move {
+            let config = BldConfig::load()?.into_arc();
+            HttpClient::new(config, server).check(&self.pipeline).await
+        })
     }
 }
 
 impl BldCommand for CheckCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         match &self.server {
             Some(server) => self.remote_check(server),

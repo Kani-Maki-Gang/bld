@@ -3,9 +3,8 @@ use actix::{io::SinkWrite, Actor, StreamHandler};
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
+use bld_core::{messages::MonitInfo, request::WebSocket};
 use bld_sock::clients::MonitClient;
-use bld_sock::messages::MonitInfo;
-use bld_utils::request::WebSocket;
 use clap::Args;
 use futures::stream::StreamExt;
 use tracing::debug;
@@ -13,6 +12,9 @@ use tracing::debug;
 #[derive(Args)]
 #[command(about = "Connects to a bld server to monitor the execution of a pipeline")]
 pub struct MonitCommand {
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(
         short = 'i',
         long = "pipeline-id",
@@ -32,7 +34,7 @@ pub struct MonitCommand {
         long = "server",
         help = "The name of the server to monitor the pipeline from"
     )]
-    server: Option<String>,
+    server: String,
 
     #[arg(
         long = "last",
@@ -44,14 +46,13 @@ pub struct MonitCommand {
 impl MonitCommand {
     async fn request(self) -> Result<()> {
         let config = BldConfig::load()?;
-        let server = config.server_or_first(self.server.as_ref())?;
-        let server_auth = config.same_auth_as(server)?.to_owned();
+        let server = config.server(&self.server)?;
         let url = format!("{}/ws-monit/", server.base_url_ws());
 
         debug!("establishing web socket connection on {}", url);
 
         let (_, framed) = WebSocket::new(&url)?
-            .auth(&server_auth)
+            .auth(server)
             .request()
             .connect()
             .await
@@ -75,6 +76,10 @@ impl MonitCommand {
 }
 
 impl BldCommand for MonitCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         let system = System::new();
         let result = system.block_on(self.request());

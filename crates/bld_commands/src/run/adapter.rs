@@ -4,10 +4,10 @@ use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::context::ContextSender;
 use bld_core::logger::LoggerSender;
+use bld_core::messages::ExecClientMessage;
+use bld_core::request::{HttpClient, WebSocket};
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::ExecClient;
-use bld_sock::messages::ExecClientMessage;
-use bld_utils::request::{Request, WebSocket};
 use bld_utils::sync::IntoArc;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
@@ -219,17 +219,14 @@ impl RunAdapter {
 
     async fn run_web_socket(mode: WebSocketRequest) -> Result<()> {
         let server = mode.config.server(&mode.server)?;
-        let server_auth = mode.config.same_auth_as(server)?;
-
         let url = format!("{}/ws-exec/", server.base_url_ws());
-
         let data = ExecClientMessage::EnqueueRun {
             name: mode.pipeline,
             environment: Some(mode.environment),
             variables: Some(mode.variables),
         };
 
-        let web_socket = WebSocket::new(&url)?.auth(server_auth);
+        let web_socket = WebSocket::new(&url)?.auth(server);
 
         let (_, framed) = web_socket
             .request()
@@ -260,24 +257,10 @@ impl RunAdapter {
     }
 
     async fn run_http(mode: HttpRequest) -> Result<()> {
-        let server = mode.config.server(&mode.server)?;
-        let server_auth = mode.config.same_auth_as(server)?;
-
-        let url = format!("{}/run", server.base_url_http());
-
-        let data = ExecClientMessage::EnqueueRun {
-            name: mode.pipeline,
-            environment: Some(mode.environment.clone()),
-            variables: Some(mode.variables.clone()),
-        };
-
-        Request::post(&url)
-            .auth(server_auth)
-            .send_json(&data)
+        HttpClient::new(mode.config, &mode.server)
+            .run(&mode.pipeline, Some(mode.environment), Some(mode.variables))
             .await
-            .map(|_: String| {
-                println!("pipeline has been scheduled to run");
-            })
+            .map(|_| println!("pipeline has been scheduled to run"))
     }
 
     pub fn run(self) -> Result<()> {

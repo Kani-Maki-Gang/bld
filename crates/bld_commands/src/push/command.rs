@@ -2,16 +2,18 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::{proxies::PipelineFileSystemProxy, request::HttpClient};
 use bld_runner::VersionedPipeline;
-use bld_server::requests::PushInfo;
-use bld_utils::{request::Request, sync::IntoArc};
+use bld_utils::sync::IntoArc;
 use clap::Args;
 use tracing::debug;
 
 #[derive(Args)]
 #[command(about = "Pushes the contents of a pipeline to a bld server")]
 pub struct PushCommand {
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(
         short = 'p',
         long = "pipeline",
@@ -25,7 +27,7 @@ pub struct PushCommand {
         long = "server",
         help = "The name of the server to push changes to"
     )]
-    server: Option<String>,
+    server: String,
 
     #[arg(
         long = "ignore-deps",
@@ -37,19 +39,15 @@ pub struct PushCommand {
 impl PushCommand {
     async fn push(self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
-        let server = config.server_or_first(self.server.as_ref())?;
+        let client = HttpClient::new(config.clone(), &self.server);
+        let proxy = PipelineFileSystemProxy::local(config);
 
         debug!(
             "running push subcommand with --server: {} and --pipeline: {}",
-            server.name, self.pipeline
+            self.server, self.pipeline
         );
 
-        let server_auth = config.same_auth_as(server)?;
-        let url = format!("{}/push", server.base_url_http());
-
-        let proxy = PipelineFileSystemProxy::local(config.clone());
-
-        let mut pipelines = vec![PushInfo::new(&self.pipeline, &proxy.read(&self.pipeline)?)];
+        let mut pipelines = vec![(self.pipeline.to_owned(), proxy.read(&self.pipeline)?)];
 
         if !self.ignore_deps {
             print!("Resolving dependecies...");
@@ -57,38 +55,40 @@ impl PushCommand {
             let mut deps = VersionedPipeline::dependencies(&proxy, &self.pipeline)
                 .map(|pips| {
                     println!("Done.");
-                    pips.iter().map(|(n, s)| PushInfo::new(n, s)).collect()
+                    pips
                 })
                 .map_err(|e| {
                     println!("Error. {e}");
                     anyhow!("")
-                })?;
+                })?
+                .into_iter()
+                .map(|(n, s)| (n, s))
+                .collect();
 
             pipelines.append(&mut deps);
         }
 
-        for info in pipelines.into_iter() {
-            print!("Pushing {}...", info.name);
+        for (name, content) in pipelines.into_iter() {
+            print!("Pushing {}...", name);
 
-            debug!("sending request to {url}");
-
-            let _ = Request::post(&url)
-                .auth(server_auth)
-                .send_json(&info)
+            client
+                .push(&name, &content)
                 .await
-                .map(|_: String| {
-                    println!("Done.");
-                })
+                .map(|_| println!("Done."))
                 .map_err(|e| {
                     println!("Error. {e}");
-                    e
-                });
+                    anyhow!("")
+                })?;
         }
         Ok(())
     }
 }
 
 impl BldCommand for PushCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
     fn exec(self) -> Result<()> {
         System::new().block_on(self.push())
     }

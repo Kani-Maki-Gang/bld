@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 #[derive(Deserialize)]
-pub struct AuthRedirectInfo {
+pub struct AuthRedirectParams {
     pub code: String,
     pub state: String,
 }

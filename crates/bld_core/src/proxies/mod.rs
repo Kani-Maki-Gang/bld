@@ -1,4 +1,4 @@
-use crate::database::pipeline;
+use crate::database::pipeline::{self, Pipeline};
 use anyhow::{anyhow, bail, Result};
 use bld_config::definitions::LOCAL_MACHINE_TMP_DIR;
 use bld_config::{definitions::TOOL_DIR, path, BldConfig};
@@ -57,6 +57,16 @@ impl PipelineFileSystemProxy {
                 ])
             }
         }
+    }
+
+    fn pipeline_path(&self, pipeline: &Pipeline) -> Result<PathBuf> {
+        let Self::Server { config, .. } = self else {
+            bail!("pipeline path isn't supported for a local proxy");
+        };
+        Ok(path![
+            &config.local.server.pipelines,
+            format!("{}.yaml", pipeline.id)
+        ])
     }
 
     pub fn tmp_path(&self, name: &str) -> Result<PathBuf> {
@@ -164,9 +174,13 @@ impl PipelineFileSystemProxy {
                 let mut conn = pool.get()?;
                 let pips = pipeline::select_all(&mut conn)?
                     .iter()
-                    .map(|p| (p, self.path(&p.name)))
-                    .filter(|(_, p)| p.as_ref().map(|p| p.is_yaml()).unwrap_or_default())
-                    .map(|(p, _)| p.name.clone())
+                    .filter(|p| {
+                        self.pipeline_path(p)
+                            .as_ref()
+                            .map(|p| p.is_yaml())
+                            .unwrap_or_default()
+                    })
+                    .map(|p| p.name.clone())
                     .collect();
                 Ok(pips)
             }

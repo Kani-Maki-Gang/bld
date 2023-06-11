@@ -8,12 +8,13 @@ mod tls;
 
 pub use auth::*;
 pub use local::*;
+use openidconnect::core::CoreClient;
 pub use path::*;
 pub use server::*;
 pub use supervisor::*;
 pub use tls::*;
 
-use anyhow::{anyhow, bail, Error, Result};
+use anyhow::{anyhow, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::env::current_dir;
 use std::fs::read_to_string;
@@ -77,23 +78,11 @@ impl BldConfig {
         self.remote.get(i).ok_or_else(err_no_server_in_config)
     }
 
-    pub fn server_or_first(&self, name: Option<&String>) -> Result<&BldRemoteServerConfig> {
-        match name {
-            Some(name) => self.server(name),
-            None => self.nth_server(0),
+    pub async fn openid_core_client(&self) -> Result<Option<CoreClient>> {
+        if let Some(auth) = &self.local.server.auth {
+            auth.core_client().await.map(Some)
+        } else {
+            Ok(None)
         }
-    }
-
-    pub fn same_auth_as<'a>(
-        &'a self,
-        server: &'a BldRemoteServerConfig,
-    ) -> Result<&'a BldRemoteServerConfig> {
-        if let Some(name) = &server.same_auth_as {
-            return match self.remote.iter().find(|s| &s.name == name) {
-                Some(srv) => Ok(srv),
-                None => bail!("could not parse auth settings for server"),
-            };
-        }
-        Ok(server)
     }
 }

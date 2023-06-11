@@ -1,10 +1,10 @@
-use crate::messages::WorkerMessages;
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, Context, Handler, StreamHandler, System};
 use actix_codec::Framed;
 use awc::error::WsProtocolError;
 use awc::ws::{Codec, Frame, Message};
 use awc::BoxedSocket;
+use bld_core::messages::WorkerMessages;
 use futures::stream::SplitSink;
 use tracing::debug;
 

@@ -3,10 +3,14 @@ use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
 use clap::Args;
+use tracing::metadata::LevelFilter;
 
 #[derive(Args)]
 #[command(about = "Start bld in server mode, listening to incoming build requests")]
 pub struct ServerCommand {
+    #[arg(long = "verbose", help = "Sets the level of verbosity")]
+    verbose: bool,
+
     #[arg(short = 'H', long = "host", help = "The server's host address")]
     host: Option<String>,
 
@@ -15,6 +19,18 @@ pub struct ServerCommand {
 }
 
 impl BldCommand for ServerCommand {
+    fn verbose(&self) -> bool {
+        self.verbose
+    }
+
+    fn tracing_level(&self) -> LevelFilter {
+        if self.verbose() {
+            LevelFilter::DEBUG
+        } else {
+            LevelFilter::INFO
+        }
+    }
+
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?;
         let host = self
