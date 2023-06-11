@@ -52,10 +52,17 @@ impl PullCommand {
         if !self.ignore_deps {
             print!("Fetching metadata for dependecies...");
 
-            let mut deps = client.deps(&self.pipeline).await.map_err(|e| {
-                println!("Error. {e}");
-                anyhow!(String::new())
-            })?;
+            let mut deps = client
+                .deps(&self.pipeline)
+                .await
+                .map(|deps| {
+                    println!("Done.");
+                    deps
+                })
+                .map_err(|e| {
+                    println!("Error. {e}");
+                    anyhow!(String::new())
+                })?;
 
             pipelines.append(&mut deps);
         }
