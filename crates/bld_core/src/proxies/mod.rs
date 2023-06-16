@@ -1,6 +1,6 @@
 use crate::database::pipeline::{self, Pipeline};
 use anyhow::{anyhow, bail, Result};
-use bld_config::definitions::LOCAL_MACHINE_TMP_DIR;
+use bld_config::definitions::{LOCAL_MACHINE_TMP_DIR, TOOL_DEFAULT_CONFIG_FILE};
 use bld_config::{definitions::TOOL_DIR, path, BldConfig};
 use bld_utils::fs::IsYaml;
 use bld_utils::sync::IntoArc;
@@ -187,12 +187,12 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    fn edit_internal(&self, path: &PathBuf) -> Result<()> {
+    fn edit_internal(&self, path: &PathBuf, check_path: bool) -> Result<()> {
         let Self::Local {config} = self else {
             bail!("server pipelines dont support direct editing");
         };
 
-        if !path.is_yaml() {
+        if check_path && !path.is_yaml() {
             bail!("pipeline not found");
         }
 
@@ -212,11 +212,16 @@ impl PipelineFileSystemProxy {
 
     pub fn edit(&self, name: &str) -> Result<()> {
         let path = self.path(name)?;
-        self.edit_internal(&path)
+        self.edit_internal(&path, true)
     }
 
     pub fn edit_tmp(&self, name: &str) -> Result<()> {
         let path = self.tmp_path(name)?;
-        self.edit_internal(&path)
+        self.edit_internal(&path, true)
+    }
+
+    pub fn edit_config(&self) -> Result<()> {
+        let config_path = path![current_dir()?, TOOL_DIR, TOOL_DEFAULT_CONFIG_FILE];
+        self.edit_internal(&config_path, false)
     }
 }
