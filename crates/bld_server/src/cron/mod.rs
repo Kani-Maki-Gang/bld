@@ -18,13 +18,93 @@ use diesel::{
 };
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
-    Mutex,
+    oneshot,
 };
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tracing::error;
 use uuid::Uuid;
 
 use crate::supervisor::{channel::SupervisorMessageSender, helpers::enqueue_worker};
+
+#[derive(Debug)]
+enum CronMapMessage {
+    Set(Uuid, Uuid),
+    Get(Uuid, oneshot::Sender<Option<Uuid>>)
+}
+
+struct CronMapReceiver {
+    inner: HashMap<Uuid, Uuid>,
+    rx: Receiver<CronMapMessage>,
+}
+
+impl CronMapReceiver {
+    pub fn new(rx: Receiver<CronMapMessage>) -> Self {
+        Self {
+            inner: HashMap::new(),
+            rx
+        }
+    }
+
+    pub async fn receive(mut self) {
+        while let Some(message) = self.rx.recv().await {
+            let result = match message {
+                CronMapMessage::Set(key, value) => self.set(key, value),
+                CronMapMessage::Get(key, resp_tx) => self.get(key, resp_tx),
+            };
+            if let Err(e) = result {
+                error!("{e}");
+            }
+        }
+    }
+
+    fn set(&mut self, key: Uuid, value: Uuid) -> Result<()> {
+        let _ = self.inner.insert(key, value);
+        Ok(())
+    }
+
+    fn get(&mut self, key: Uuid, resp_tx: oneshot::Sender<Option<Uuid>>) -> Result<()> {
+        resp_tx
+            .send(self.inner.get(&key).copied())
+            .map_err(|_| anyhow!("response oneshot channel closed"))
+    }
+}
+
+struct CronMap {
+    tx: Sender<CronMapMessage>,
+}
+
+impl CronMap {
+    pub fn new() -> Self {
+        let (tx, rx) = channel(4096);
+
+        spawn(async move {
+            let receiver = CronMapReceiver::new(rx);
+            receiver.receive().await;
+        });
+
+        Self { tx }
+    }
+
+    pub async fn set(&self, key: Uuid, value: Uuid) {
+        let _ = self.tx
+            .send(CronMapMessage::Set(key, value))
+            .await
+            .map_err(|e| {
+                error!("{e}");
+                e
+            });
+    }
+
+    pub async fn get(&self, key: Uuid) -> Result<Option<Uuid>> {
+        let (resp_tx, resp_rx) = oneshot::channel();
+
+        self.tx
+            .send(CronMapMessage::Get(key, resp_tx))
+            .await?;
+
+        resp_rx.await.map_err(|e| anyhow!(e))
+    }
+}
 
 #[derive(Debug)]
 enum CronSchedulerMessage {
@@ -45,7 +125,7 @@ struct CronSchedulerReceiver {
     supervisor: Arc<SupervisorMessageSender>,
     rx: Receiver<CronSchedulerMessage>,
     scheduler: JobScheduler,
-    map: Arc<Mutex<HashMap<Uuid, Uuid>>>,
+    map: CronMap,
 }
 
 impl CronSchedulerReceiver {
@@ -62,7 +142,7 @@ impl CronSchedulerReceiver {
             supervisor,
             rx,
             scheduler,
-            map: Arc::new(Mutex::new(HashMap::new())),
+            map: CronMap::new(),
         })
     }
 
@@ -148,9 +228,7 @@ impl CronSchedulerReceiver {
                 .map_err(|e| error!("{e}"));
         })?;
 
-        let mut map = self.map.lock().await;
-        map.insert(job_id, scheduled_job.guid());
-
+        self.map.set(job_id, scheduled_job.guid()).await;
         self.scheduler.add(scheduled_job).await?;
 
         Ok(())
@@ -162,10 +240,9 @@ impl CronSchedulerReceiver {
         let job = cron_jobs::select_by_pipeline(&mut conn, &pipeline.id)?;
         cron_jobs::delete_by_cron_job_id(&mut conn, &job.id)?;
 
-        let map = self.map.lock().await;
         let job_id = Uuid::from_str(&job.id)?;
-        if let Some(scheduled_job_id) = map.get(&job_id) {
-            self.scheduler.remove(scheduled_job_id).await?;
+        if let Some(scheduled_job_id) = self.map.get(job_id).await? {
+            self.scheduler.remove(&scheduled_job_id).await?;
         }
 
         Ok(())
