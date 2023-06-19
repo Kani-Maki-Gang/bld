@@ -29,7 +29,7 @@ use crate::supervisor::{channel::SupervisorMessageSender, helpers::enqueue_worke
 #[derive(Debug)]
 enum CronMapMessage {
     Set(Uuid, Uuid),
-    Get(Uuid, oneshot::Sender<Option<Uuid>>)
+    Get(Uuid, oneshot::Sender<Option<Uuid>>),
 }
 
 struct CronMapReceiver {
@@ -41,7 +41,7 @@ impl CronMapReceiver {
     pub fn new(rx: Receiver<CronMapMessage>) -> Self {
         Self {
             inner: HashMap::new(),
-            rx
+            rx,
         }
     }
 
@@ -86,7 +86,8 @@ impl CronMap {
     }
 
     pub async fn set(&self, key: Uuid, value: Uuid) {
-        let _ = self.tx
+        let _ = self
+            .tx
             .send(CronMapMessage::Set(key, value))
             .await
             .map_err(|e| {
@@ -98,9 +99,7 @@ impl CronMap {
     pub async fn get(&self, key: Uuid) -> Result<Option<Uuid>> {
         let (resp_tx, resp_rx) = oneshot::channel();
 
-        self.tx
-            .send(CronMapMessage::Get(key, resp_tx))
-            .await?;
+        self.tx.send(CronMapMessage::Get(key, resp_tx)).await?;
 
         resp_rx.await.map_err(|e| anyhow!(e))
     }
@@ -113,9 +112,11 @@ enum CronSchedulerMessage {
         pipeline: String,
         variables: Option<HashMap<String, String>>,
         environment: Option<HashMap<String, String>>,
+        resp_tx: oneshot::Sender<Result<()>>,
     },
     Remove {
         pipeline: String,
+        resp_tx: oneshot::Sender<Result<()>>,
     },
 }
 
@@ -156,9 +157,20 @@ impl CronSchedulerReceiver {
                     pipeline,
                     variables,
                     environment,
-                } => self.add(schedule, pipeline, variables, environment).await,
+                    resp_tx,
+                } => {
+                    let result = self.add(schedule, pipeline, variables, environment).await;
+                    resp_tx
+                        .send(result)
+                        .map_err(|_| anyhow!("oneshot channel closed"))
+                }
 
-                CronSchedulerMessage::Remove { pipeline } => self.remove(&pipeline).await,
+                CronSchedulerMessage::Remove { pipeline, resp_tx } => {
+                    let result = self.remove(&pipeline).await;
+                    resp_tx
+                        .send(result)
+                        .map_err(|_| anyhow!("oneshot channel closed"))
+                }
             };
             if let Err(e) = result {
                 error!("{e}");
@@ -281,21 +293,30 @@ impl CronScheduler {
         variables: Option<HashMap<String, String>>,
         environment: Option<HashMap<String, String>>,
     ) -> Result<()> {
+        let (resp_tx, resp_rx) = oneshot::channel();
+
         self.tx
             .send(CronSchedulerMessage::Add {
                 schedule,
                 pipeline,
                 variables,
                 environment,
+                resp_tx,
             })
             .await
-            .map_err(|e| anyhow!(e))
+            .map_err(|e| anyhow!(e))?;
+
+        resp_rx.await?
     }
 
     pub async fn remove(&self, pipeline: String) -> Result<()> {
+        let (resp_tx, resp_rx) = oneshot::channel();
+
         self.tx
-            .send(CronSchedulerMessage::Remove { pipeline })
+            .send(CronSchedulerMessage::Remove { pipeline, resp_tx })
             .await
-            .map_err(|e| anyhow!(e))
+            .map_err(|e| anyhow!(e))?;
+
+        resp_rx.await?
     }
 }

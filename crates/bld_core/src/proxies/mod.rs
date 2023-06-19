@@ -13,6 +13,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, ExitStatus};
 use std::sync::Arc;
+use uuid::Uuid;
 use walkdir::WalkDir;
 
 pub enum PipelineFileSystemProxy {
@@ -110,6 +111,15 @@ impl PipelineFileSystemProxy {
 
     pub fn create(&self, name: &str, content: &str, overwrite: bool) -> Result<()> {
         let path = self.path(name)?;
+
+        if let Self::Server { pool, .. } = self {
+            let mut conn = pool.get()?;
+            if pipeline::select_by_name(&mut conn, name).is_err() {
+                let id = Uuid::new_v4().to_string();
+                pipeline::insert(&mut conn, &id, name)?;
+            }
+        }
+
         self.create_internal(&path, content, overwrite)
     }
 

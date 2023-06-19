@@ -12,6 +12,8 @@ pub struct Pipeline {
     pub name: Option<String>,
     pub runs_on: Platform,
 
+    pub cron: Option<String>,
+
     #[serde(default = "Pipeline::default_dispose")]
     pub dispose: bool,
 
