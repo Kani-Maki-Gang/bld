@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use actix::Message;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, Message)]
+#[derive(Debug, Clone, Serialize, Deserialize, Message)]
 #[rtype(result = "()")]
 pub enum ExecClientMessage {
     EnqueueRun {

@@ -1,7 +1,5 @@
-use crate::extractors::User;
 use crate::supervisor::channel::SupervisorMessageSender;
 use actix_web::rt::spawn;
-use actix_web::web::Data;
 use anyhow::{bail, Result};
 use bld_core::database::pipeline_runs;
 use bld_core::messages::ExecClientMessage;
@@ -10,14 +8,15 @@ use bld_utils::fs::IsYaml;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::SqliteConnection;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tracing::{debug, error};
 use uuid::Uuid;
 
 pub fn enqueue_worker(
-    user: &User,
-    proxy: Data<PipelineFileSystemProxy>,
-    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
-    supervisor_sender: Data<SupervisorMessageSender>,
+    user_name: &str,
+    proxy: Arc<PipelineFileSystemProxy>,
+    pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
+    supervisor_sender: Arc<SupervisorMessageSender>,
     data: ExecClientMessage,
 ) -> Result<String> {
     let ExecClientMessage::EnqueueRun {
@@ -33,7 +32,7 @@ pub fn enqueue_worker(
 
     let run_id = Uuid::new_v4().to_string();
     let mut conn = pool.get()?;
-    let run = pipeline_runs::insert(&mut conn, &run_id, &name, &user.name)?;
+    let run = pipeline_runs::insert(&mut conn, &run_id, &name, user_name)?;
 
     let variables = variables.map(hash_map_to_var_string);
     let environment = environment.map(hash_map_to_var_string);

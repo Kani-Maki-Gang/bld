@@ -91,10 +91,10 @@ impl ExecutePipelineSocket {
 
         debug!("enqueueing run");
         enqueue_worker(
-            &self.user,
-            self.proxy.clone(),
-            self.pool.clone(),
-            self.supervisor_sender.clone(),
+            &self.user.name,
+            Arc::clone(&self.proxy),
+            Arc::clone(&self.pool),
+            Arc::clone(&self.supervisor_sender),
             message,
         )
         .map(|run_id| {

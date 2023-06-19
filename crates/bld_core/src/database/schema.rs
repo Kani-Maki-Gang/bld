@@ -2,25 +2,25 @@
 
 diesel::table! {
     cron_job_environment_variables (id) {
-        id -> Integer,
+        id -> Text,
         name -> Text,
         value -> Text,
-        cron_job_id -> Integer,
+        cron_job_id -> Text,
     }
 }
 
 diesel::table! {
     cron_job_variables (id) {
-        id -> Integer,
+        id -> Text,
         name -> Text,
         value -> Text,
-        cron_job_id -> Integer,
+        cron_job_id -> Text,
     }
 }
 
 diesel::table! {
     cron_jobs (id) {
-        id -> Integer,
+        id -> Text,
         pipeline_id -> Text,
         schedule -> Text,
     }
