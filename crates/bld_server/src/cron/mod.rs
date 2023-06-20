@@ -230,14 +230,14 @@ impl CronSchedulerReceiver {
             environment,
             variables,
         };
-        let scheduled_job = Job::new_cron_job(schedule.as_str(), move |_uuid, _l| {
+        let scheduled_job = Job::new_cron_job_async(schedule.as_str(), move |_uuid, _l| {
             let proxy = proxy.clone();
             let pool = pool.clone();
             let supervisor = supervisor.clone();
             let data = data.clone();
-            let _ = enqueue_worker("Cron", proxy, pool, supervisor, data)
-                .map(|_| ())
-                .map_err(|e| error!("{e}"));
+            Box::pin(async move {
+                let _ = enqueue_worker("Cron", proxy, pool, supervisor, data).await;
+            })
         })?;
 
         self.map.set(job_id, scheduled_job.guid()).await;

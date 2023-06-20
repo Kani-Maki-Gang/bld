@@ -20,13 +20,17 @@ pub async fn run(
     data: Json<ExecClientMessage>,
 ) -> impl Responder {
     info!("reached handler for /run route");
-    match enqueue_worker(
+
+    let result = enqueue_worker(
         &user.name,
         Arc::clone(&proxy),
         Arc::clone(&pool),
         Arc::clone(&supervisor),
         data.into_inner(),
-    ) {
+    )
+    .await;
+
+    match result {
         Ok(_) => HttpResponse::Ok().json(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
