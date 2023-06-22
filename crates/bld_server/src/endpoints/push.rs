@@ -1,4 +1,4 @@
-use crate::cron::CronScheduler;
+use crate::cron::{CronScheduler, UpsertJob};
 use crate::extractors::User;
 use actix_web::web::{Data, Json};
 use actix_web::{post, HttpResponse, Responder};
@@ -31,12 +31,11 @@ async fn do_push(
 
     let pipeline: VersionedPipeline = Yaml::load(&info.content)?;
     if let Some(schedule) = pipeline.cron() {
-        cron.add(schedule.to_owned(), info.name.to_owned(), None, None)
-            .await
-            .map_err(|e| {
-                error!("{e}");
-                e
-            })?;
+        let upsert_job = UpsertJob::new(schedule.to_owned(), info.name.to_owned(), None, None);
+        cron.upsert(&upsert_job).await.map_err(|e| {
+            error!("{e}");
+            e
+        })?;
     }
 
     Ok(())

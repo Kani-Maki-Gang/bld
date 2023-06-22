@@ -35,6 +35,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
         Arc::clone(&pool),
         Arc::clone(&supervisor_sender),
     )
+    .await?
     .into_data();
 
     set_var("RUST_LOG", "actix_server=info,actix_web=debug");

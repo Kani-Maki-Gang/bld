@@ -88,21 +88,59 @@ pub fn insert(
                 anyhow!(e)
             })
             .and_then(|_| {
-                if let Some(models) = cv_models {
-                    cron_job_variables::insert_many(conn, models)
-                } else {
-                    Ok(())
-                }
+                cv_models
+                    .as_ref()
+                    .map(|models| cron_job_variables::insert_many(conn, models))
+                    .unwrap_or(Ok(()))
             })
             .and_then(|_| {
-                if let Some(models) = cve_models {
-                    cron_job_environment_variables::insert_many(conn, models)
-                } else {
-                    Ok(())
-                }
+                cve_models
+                    .as_ref()
+                    .map(|models| cron_job_environment_variables::insert_many(conn, models))
+                    .unwrap_or(Ok(()))
             })
             .and_then(|_| {
                 debug!("created cron job successfully");
+                select_by_id(conn, cj_model.id)
+            })
+    })
+}
+
+pub fn update(
+    conn: &mut SqliteConnection,
+    cj_model: &InsertCronJob,
+    cv_models: &Option<Vec<InsertCronJobVariable>>,
+    cve_models: &Option<Vec<InsertCronJobEnvironmentVariable>>,
+) -> Result<CronJob> {
+    debug!("updating cron job entry with id: {}", cj_model.id);
+    conn.transaction(|conn| {
+        diesel::update(cron_jobs::table)
+            .set(schedule.eq(cj_model.schedule))
+            .execute(conn)
+            .map_err(|e| {
+                error!("couldn't update cron job due to {e}");
+                anyhow!(e)
+            })
+            .and_then(|_| {
+                cron_job_variables::delete_by_cron_job_id(conn, cj_model.id).and_then(|_| {
+                    cv_models
+                        .as_ref()
+                        .map(|models| cron_job_variables::insert_many(conn, models))
+                        .unwrap_or(Ok(()))
+                })
+            })
+            .and_then(|_| {
+                cron_job_environment_variables::delete_by_cron_job_id(conn, cj_model.id).and_then(
+                    |_| {
+                        cve_models
+                            .as_ref()
+                            .map(|models| cron_job_environment_variables::insert_many(conn, models))
+                            .unwrap_or(Ok(()))
+                    },
+                )
+            })
+            .and_then(|_| {
+                debug!("updated cron job successfully");
                 select_by_id(conn, cj_model.id)
             })
     })

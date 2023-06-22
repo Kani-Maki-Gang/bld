@@ -28,10 +28,11 @@ pub struct InsertCronJobVariable<'a> {
 
 pub fn select_by_cron_job_id(
     conn: &mut SqliteConnection,
-    cev_cron_job_id: i32,
+    cv_cron_job_id: &str,
 ) -> Result<Vec<CronJobVariable>> {
-    debug!("loading all variables for cron job with id: {cev_cron_job_id}");
+    debug!("loading all variables for cron job with id: {cv_cron_job_id}");
     cron_job_variables
+        .filter(cron_job_id.eq(cv_cron_job_id))
         .load(conn)
         .map(|cev| {
             debug!("loaded cron job variables successfully");
