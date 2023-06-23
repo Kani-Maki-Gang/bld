@@ -59,6 +59,18 @@ impl Request {
         }
     }
 
+    pub fn patch(url: &str) -> Self {
+        Self {
+            request: Client::new().patch(url).insert_header(("User-Agent", "bld")),
+        }
+    }
+
+    pub fn delete(url: &str) -> Self {
+        Self {
+            request: Client::new().delete(url).insert_header(("User-Agent", "bld")),
+        }
+    }
+
     pub fn query<T: Serialize>(mut self, value: &T) -> Result<Self> {
         self.request = self.request.query(&value)?;
         Ok(self)
@@ -332,7 +344,7 @@ impl HttpClient {
     async fn remove_inner(&self, json: &String) -> Result<()> {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/remove", server.base_url_http());
-        Request::post(&url)
+        Request::delete(&url)
             .auth(server)
             .send_json(json)
             .await

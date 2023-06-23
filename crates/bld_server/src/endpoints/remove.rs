@@ -1,12 +1,12 @@
 use crate::cron::{CronScheduler, RemoveJob};
 use crate::extractors::User;
 use actix_web::web::{Data, Json};
-use actix_web::{post, HttpResponse};
+use actix_web::{delete, HttpResponse};
 use anyhow::Result;
 use bld_core::proxies::PipelineFileSystemProxy;
-use tracing::{error, info};
+use tracing::info;
 
-#[post("/remove")]
+#[delete("/remove")]
 pub async fn remove(
     _: User,
     prx: Data<PipelineFileSystemProxy>,
@@ -21,10 +21,8 @@ pub async fn remove(
 }
 
 async fn do_remove(prx: &PipelineFileSystemProxy, cron: &CronScheduler, name: &str) -> Result<()> {
-    prx.remove(name)?;
-
     let remove_job = RemoveJob::new(name.to_owned());
-    let _ = cron.remove(&remove_job).await.map_err(|e| error!("{e}"));
-
+    cron.remove(&remove_job).await?;
+    prx.remove(name)?;
     Ok(())
 }
