@@ -1,7 +1,7 @@
 use crate::cron::CronScheduler;
 use crate::endpoints::{
-    auth_redirect, auth_refresh, check, deps, hist, home, inspect, list, pull, push, remove, run,
-    stop,
+    auth_redirect, auth_refresh, check, cron, deps, hist, home, inspect, list, pull, push,
+    remove, run, stop,
 };
 use crate::sockets::{ws_exec, ws_login, ws_monit};
 use crate::supervisor::channel::SupervisorMessageSender;
@@ -62,6 +62,9 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .service(pull)
             .service(stop)
             .service(inspect)
+            .service(cron::get)
+            .service(cron::post)
+            .service(cron::patch)
             .service(resource("/ws-exec/").route(get().to(ws_exec)))
             .service(resource("/ws-monit/").route(get().to(ws_monit)))
             .service(resource("/ws-login/").route(get().to(ws_login)))

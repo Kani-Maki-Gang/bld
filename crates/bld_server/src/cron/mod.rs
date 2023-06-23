@@ -3,8 +3,10 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 use anyhow::{anyhow, bail, Result};
 use bld_core::{
     database::{
-        cron_job_environment_variables::{self, InsertCronJobEnvironmentVariable},
-        cron_job_variables::{self, InsertCronJobVariable},
+        cron_job_environment_variables::{
+            self, CronJobEnvironmentVariable, InsertCronJobEnvironmentVariable,
+        },
+        cron_job_variables::{self, CronJobVariable, InsertCronJobVariable},
         cron_jobs::{self, CronJob, InsertCronJob},
         pipeline::{self, Pipeline},
     },
@@ -55,6 +57,14 @@ impl RemoveJob {
     }
 }
 
+#[derive(Debug)]
+pub struct JobInfo {
+    pub schedule: String,
+    pub pipeline: String,
+    pub variables: Option<HashMap<String, String>>,
+    pub environment: Option<HashMap<String, String>>,
+}
+
 pub struct CronScheduler {
     proxy: Arc<PipelineFileSystemProxy>,
     pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
@@ -80,6 +90,30 @@ impl CronScheduler {
         Ok(instance)
     }
 
+    fn variables_into_hash_map(variables: Vec<CronJobVariable>) -> Option<HashMap<String, String>> {
+        let variables: HashMap<String, String> =
+            variables.into_iter().map(|v| (v.name, v.value)).collect();
+
+        if !variables.is_empty() {
+            Some(variables)
+        } else {
+            None
+        }
+    }
+
+    fn environment_into_hash_map(
+        environment: Vec<CronJobEnvironmentVariable>,
+    ) -> Option<HashMap<String, String>> {
+        let environment: HashMap<String, String> =
+            environment.into_iter().map(|e| (e.name, e.value)).collect();
+
+        if !environment.is_empty() {
+            Some(environment)
+        } else {
+            None
+        }
+    }
+
     async fn load_jobs(&self) -> Result<()> {
         let mut conn = self.pool.get()?;
         let jobs = cron_jobs::select_all(&mut conn)?;
@@ -88,32 +122,12 @@ impl CronScheduler {
             let pipeline = pipeline::select_by_id(&mut conn, &job.pipeline_id)?;
 
             let variables = cron_job_variables::select_by_cron_job_id(&mut conn, &job.id)
-                .map(|variables| {
-                    let variables = variables
-                        .into_iter()
-                        .map(|v| (v.name, v.value))
-                        .collect::<HashMap<String, String>>();
-                    if !variables.is_empty() {
-                        Some(variables)
-                    } else {
-                        None
-                    }
-                })
+                .map(Self::variables_into_hash_map)
                 .unwrap_or(None);
 
             let environment =
                 cron_job_environment_variables::select_by_cron_job_id(&mut conn, &job.id)
-                    .map(|environment| {
-                        let environment = environment
-                            .into_iter()
-                            .map(|e| (e.name, e.value))
-                            .collect::<HashMap<String, String>>();
-                        if !environment.is_empty() {
-                            Some(environment)
-                        } else {
-                            None
-                        }
-                    })
+                    .map(Self::environment_into_hash_map)
                     .unwrap_or(None);
 
             let job_id = Uuid::from_str(&job.id)?;
@@ -299,7 +313,10 @@ impl CronScheduler {
         let job = cron_jobs::select_by_pipeline(&mut conn, &pipeline.id);
 
         match job {
-            Ok(job) => self.update_inner(&mut conn, upsert_job, &job, &pipeline).await,
+            Ok(job) => {
+                self.update_inner(&mut conn, upsert_job, &job, &pipeline)
+                    .await
+            }
             Err(_) => self.add_inner(&mut conn, upsert_job, &pipeline).await,
         }
     }
@@ -314,5 +331,34 @@ impl CronScheduler {
         self.scheduler.remove(&job_id).await?;
 
         Ok(())
+    }
+
+    pub fn get(&self) -> Result<Vec<JobInfo>> {
+        let mut conn = self.pool.get()?;
+
+        let cron_jobs = cron_jobs::select_all(&mut conn)?;
+        let mut response = Vec::with_capacity(cron_jobs.len());
+
+        for job in cron_jobs {
+            let pipeline = pipeline::select_by_id(&mut conn, &job.pipeline_id)?;
+
+            let variables = cron_job_variables::select_by_cron_job_id(&mut conn, &job.id)
+                .map(Self::variables_into_hash_map)
+                .unwrap_or(None);
+
+            let environment =
+                cron_job_environment_variables::select_by_cron_job_id(&mut conn, &job.id)
+                    .map(Self::environment_into_hash_map)
+                    .unwrap_or(None);
+
+            response.push(JobInfo {
+                schedule: job.schedule,
+                pipeline: pipeline.name.to_owned(),
+                variables,
+                environment,
+            });
+        }
+
+        Ok(response)
     }
 }

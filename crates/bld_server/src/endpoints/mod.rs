@@ -1,5 +1,6 @@
 mod auth;
 mod check;
+pub mod cron;
 mod deps;
 mod hist;
 mod home;
