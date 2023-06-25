@@ -1,4 +1,4 @@
-use crate::add::AddCommand;
+use crate::{add::AddCommand, cron::command::CronCommand};
 use crate::auth::AuthCommand;
 use crate::check::CheckCommand;
 use crate::command::BldCommand;
@@ -26,6 +26,7 @@ enum Commands {
     Login(AuthCommand),
     Check(CheckCommand),
     Config(ConfigCommand),
+    Cron(CronCommand),
     Edit(EditCommand),
     Hist(HistCommand),
     Init(InitCommand),
@@ -57,6 +58,7 @@ impl Cli {
             Commands::Login(auth) => auth.invoke(),
             Commands::Check(check) => check.invoke(),
             Commands::Config(config) => config.invoke(),
+            Commands::Cron(cron) => cron.invoke(),
             Commands::Edit(edit) => edit.invoke(),
             Commands::Hist(hist) => hist.invoke(),
             Commands::Init(init) => init.invoke(),
