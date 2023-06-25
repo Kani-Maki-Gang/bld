@@ -7,9 +7,9 @@ use super::{list::CronListCommand, upsert::CronUpsertCommand, remove::CronRemove
 
 #[derive(Subcommand)]
 pub enum CronCommands {
-    List(CronListCommand),
+    Ls(CronListCommand),
     Upsert(CronUpsertCommand),
-    Remove(CronRemoveCommand)
+    Rm(CronRemoveCommand)
 }
 
 #[derive(Parser)]
@@ -20,12 +20,10 @@ pub struct CronCommand {
 
 impl CronCommand {
     pub fn invoke(self) -> Result<()> {
-        let cron = Self::parse();
-
-        match cron.command {
-            CronCommands::List(list) => list.invoke(),
+        match self.command {
+            CronCommands::Ls(list) => list.invoke(),
             CronCommands::Upsert(upsert) => upsert.invoke(),
-            CronCommands::Remove(remove) => remove.invoke(),
+            CronCommands::Rm(remove) => remove.invoke(),
         }
     }
 }

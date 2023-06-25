@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::auth::{read_tokens, write_tokens, AuthTokens, RefreshTokenParams};
 use crate::messages::ExecClientMessage;
 use crate::requests::{CheckQueryParams, HistQueryParams, PushInfo};
-use crate::responses::{HistoryEntry, PullResponse};
+use crate::responses::{HistoryEntry, PullResponse, CronJobResponse};
 use anyhow::{anyhow, bail, Result};
 use awc::http::StatusCode;
 use awc::ws::WebsocketsRequest;
@@ -411,6 +411,26 @@ impl HttpClient {
         if Self::unauthorized(&response) {
             self.refresh().await?;
             self.stop_inner(&id).await
+        } else {
+            response
+        }
+    }
+
+    async fn cron_list_inner(&self) -> Result<Vec<CronJobResponse>> {
+        let server = self.config.server(&self.server)?;
+        let url = format!("{}/cron", server.base_url_http());
+        Request::get(&url)
+            .auth(server)
+            .send()
+            .await
+    }
+
+    pub async fn cron_list(&self) -> Result<Vec<CronJobResponse>> {
+        let response = self.cron_list_inner().await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.cron_list_inner().await
         } else {
             response
         }
