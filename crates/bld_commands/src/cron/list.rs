@@ -5,6 +5,7 @@ use bld_config::BldConfig;
 use bld_core::request::HttpClient;
 use bld_utils::sync::IntoArc;
 use clap::Args;
+use tabled::{Table, Style};
 
 #[derive(Args)]
 #[command(about = "Lists all registered cron jobs in a server")]
@@ -28,13 +29,10 @@ impl BldCommand for CronListCommand {
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let client = HttpClient::new(config, &self.server);
-        let response = System::new().block_on(async move {
-            client.cron_list().await
-        })?;
+        let response = System::new().block_on(async move { client.cron_list().await })?;
 
-        for entry in response {
-            println!("{} {}", entry.schedule, entry.pipeline);
-        }
+        let table = Table::new(response).with(Style::modern()).to_string();
+        println!("{table}");
 
         Ok(())
     }

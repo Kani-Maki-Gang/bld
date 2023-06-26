@@ -48,17 +48,18 @@ impl UpsertJob {
 
 #[derive(Debug)]
 pub struct RemoveJob {
-    pipeline: String,
+    id: String,
 }
 
 impl RemoveJob {
-    pub fn new(pipeline: String) -> Self {
-        Self { pipeline }
+    pub fn new(id: String) -> Self {
+        Self { id }
     }
 }
 
 #[derive(Debug)]
 pub struct JobInfo {
+    pub id: String,
     pub schedule: String,
     pub pipeline: String,
     pub variables: Option<HashMap<String, String>>,
@@ -323,11 +324,9 @@ impl CronScheduler {
 
     pub async fn remove(&self, remove_job: &RemoveJob) -> Result<()> {
         let mut conn = self.pool.get()?;
-        let pipeline = pipeline::select_by_name(&mut conn, &remove_job.pipeline)?;
-        let job = cron_jobs::select_by_pipeline(&mut conn, &pipeline.id)?;
-        cron_jobs::delete_by_cron_job_id(&mut conn, &job.id)?;
+        cron_jobs::delete_by_cron_job_id(&mut conn, &remove_job.id)?;
 
-        let job_id = Uuid::from_str(&job.id)?;
+        let job_id = Uuid::from_str(&remove_job.id)?;
         self.scheduler.remove(&job_id).await?;
 
         Ok(())
@@ -352,6 +351,7 @@ impl CronScheduler {
                     .unwrap_or(None);
 
             response.push(JobInfo {
+                id: job.id,
                 schedule: job.schedule,
                 pipeline: pipeline.name.to_owned(),
                 variables,

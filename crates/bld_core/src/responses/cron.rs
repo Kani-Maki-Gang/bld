@@ -1,11 +1,9 @@
-use std::collections::HashMap;
-
 use serde_derive::{Deserialize, Serialize};
+use tabled::Tabled;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Tabled)]
 pub struct CronJobResponse {
+    pub id: String,
     pub schedule: String,
     pub pipeline: String,
-    pub variables: Option<HashMap<String, String>>,
-    pub environment: Option<HashMap<String, String>>,
 }

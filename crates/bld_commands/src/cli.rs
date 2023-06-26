@@ -1,4 +1,3 @@
-use crate::{add::AddCommand, cron::command::CronCommand};
 use crate::auth::AuthCommand;
 use crate::check::CheckCommand;
 use crate::command::BldCommand;
@@ -17,6 +16,7 @@ use crate::server::ServerCommand;
 use crate::stop::StopCommand;
 use crate::supervisor::SupervisorCommand;
 use crate::worker::WorkerCommand;
+use crate::{add::AddCommand, cron::command::CronCommand};
 use anyhow::Result;
 use bld_config::definitions::VERSION;
 use clap::{Parser, Subcommand};

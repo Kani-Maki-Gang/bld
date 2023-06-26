@@ -1,21 +1,20 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+use super::{list::CronListCommand, remove::CronRemoveCommand, upsert::CronUpsertCommand};
 use crate::command::BldCommand;
-use super::{list::CronListCommand, upsert::CronUpsertCommand, remove::CronRemoveCommand};
-
 
 #[derive(Subcommand)]
 pub enum CronCommands {
     Ls(CronListCommand),
     Upsert(CronUpsertCommand),
-    Rm(CronRemoveCommand)
+    Rm(CronRemoveCommand),
 }
 
 #[derive(Parser)]
 pub struct CronCommand {
     #[command(subcommand)]
-    command: CronCommands
+    command: CronCommands,
 }
 
 impl CronCommand {
