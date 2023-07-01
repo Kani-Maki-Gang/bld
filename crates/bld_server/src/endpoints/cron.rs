@@ -37,7 +37,7 @@ fn do_get(cron: &CronScheduler) -> Result<Vec<CronJobResponse>> {
 pub async fn post(_: User, cron: Data<CronScheduler>, body: Json<AddJobRequest>) -> impl Responder {
     info!("Reached handler for POST /cron route");
     match cron.add(&body).await {
-        Ok(_) => HttpResponse::Ok().body(""),
+        Ok(_) => HttpResponse::Ok().json(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
@@ -50,7 +50,7 @@ pub async fn patch(
 ) -> impl Responder {
     info!("Reached handler for PATCH /cron route");
     match cron.update(&body).await {
-        Ok(_) => HttpResponse::Ok().body(""),
+        Ok(_) => HttpResponse::Ok().json(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
@@ -60,7 +60,7 @@ pub async fn delete(_: User, cron: Data<CronScheduler>, path: Path<String>) -> i
     info!("Reached handler for DELETE /cron route");
     let cron_job_id = path.into_inner();
     match cron.remove(&cron_job_id).await {
-        Ok(_) => HttpResponse::Ok().body(""),
+        Ok(_) => HttpResponse::Ok().json(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }

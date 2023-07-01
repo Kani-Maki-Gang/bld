@@ -17,14 +17,14 @@ impl AddJobRequest {
         pipeline: String,
         variables: Option<HashMap<String, String>>,
         environment: Option<HashMap<String, String>>,
-        is_default: bool
+        is_default: bool,
     ) -> Self {
         Self {
             schedule,
             pipeline,
             variables,
             environment,
-            is_default
+            is_default,
         }
     }
 }
@@ -44,14 +44,14 @@ impl UpdateJobRequest {
         schedule: String,
         variables: Option<HashMap<String, String>>,
         environment: Option<HashMap<String, String>>,
-        is_default: bool
+        is_default: bool,
     ) -> Self {
         Self {
             id,
             schedule,
             variables,
             environment,
-            is_default
+            is_default,
         }
     }
 }

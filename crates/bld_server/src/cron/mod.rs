@@ -321,7 +321,8 @@ impl CronScheduler {
         };
         match job {
             Ok(job) => {
-                let update_job = UpdateJobRequest::new(job.id, schedule.to_owned(), None, None, true);
+                let update_job =
+                    UpdateJobRequest::new(job.id, schedule.to_owned(), None, None, true);
                 self.update(&update_job).await
             }
             Err(_) => {

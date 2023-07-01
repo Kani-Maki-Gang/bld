@@ -442,9 +442,9 @@ impl HttpClient {
         let url = format!("{}/cron/{id}", server.base_url_http());
         Request::delete(&url)
             .auth(server)
-            .send::<String>()
+            .send()
             .await
-            .map(|_| ())
+            .map(|_: String| ())
     }
 
     pub async fn cron_remove(&self, id: &str) -> Result<()> {
