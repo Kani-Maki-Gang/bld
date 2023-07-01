@@ -31,8 +31,10 @@ impl BldCommand for CronListCommand {
         let client = HttpClient::new(config, &self.server);
         let response = System::new().block_on(async move { client.cron_list().await })?;
 
-        let table = Table::new(response).with(Style::modern()).to_string();
-        println!("{table}");
+        if !response.is_empty() {
+            let table = Table::new(response).with(Style::modern()).to_string();
+            println!("{table}");
+        }
 
         Ok(())
     }

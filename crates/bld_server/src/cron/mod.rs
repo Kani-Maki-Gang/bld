@@ -124,6 +124,7 @@ impl CronScheduler {
             id: &job_id_string,
             pipeline_id,
             schedule: &add_job.schedule,
+            is_default: add_job.is_default,
         };
 
         let vars: Option<Vec<InsertCronJobVariable>> = add_job.variables.as_ref().map(|vars| {
@@ -164,6 +165,7 @@ impl CronScheduler {
             id: &job_id_string,
             pipeline_id,
             schedule: &update_job.schedule,
+            is_default: update_job.is_default,
         };
 
         let vars: Option<Vec<InsertCronJobVariable>> = update_job.variables.as_ref().map(|vars| {
@@ -294,9 +296,9 @@ impl CronScheduler {
     pub async fn add(&self, upsert_job: &AddJobRequest) -> Result<()> {
         let mut conn = self.pool.get()?;
         let pipeline = pipeline::select_by_name(&mut conn, &upsert_job.pipeline)?;
-        let job = cron_jobs::select_by_pipeline(&mut conn, &pipeline.id);
+        let jobs = cron_jobs::select_by_pipeline(&mut conn, &pipeline.id)?;
 
-        if job.is_ok() {
+        if !jobs.is_empty() {
             bail!("cron job already exists");
         }
 

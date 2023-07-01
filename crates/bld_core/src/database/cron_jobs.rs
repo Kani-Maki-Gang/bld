@@ -24,6 +24,7 @@ pub struct InsertCronJob<'a> {
     pub id: &'a str,
     pub pipeline_id: &'a str,
     pub schedule: &'a str,
+    pub is_default: bool,
 }
 
 pub fn select_all(conn: &mut SqliteConnection) -> Result<Vec<CronJob>> {
