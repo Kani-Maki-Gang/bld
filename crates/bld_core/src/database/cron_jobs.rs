@@ -15,6 +15,7 @@ pub struct CronJob {
     pub id: String,
     pub pipeline_id: String,
     pub schedule: String,
+    pub is_default: bool,
 }
 
 #[derive(Insertable)]
@@ -54,11 +55,32 @@ pub fn select_by_id(conn: &mut SqliteConnection, cj_id: &str) -> Result<CronJob>
         })
 }
 
-pub fn select_by_pipeline(conn: &mut SqliteConnection, cj_pipeline_id: &str) -> Result<CronJob> {
+pub fn select_default_by_pipeline(
+    conn: &mut SqliteConnection,
+    cj_pipeline_id: &str,
+) -> Result<CronJob> {
+    debug!("loading default cron job associated with pipeline: {cj_pipeline_id}");
+    cron_jobs
+        .filter(pipeline_id.eq(cj_pipeline_id).and(is_default.eq(true)))
+        .first(conn)
+        .map(|cj| {
+            debug!("loading cron job successfully");
+            cj
+        })
+        .map_err(|e| {
+            error!("couldn't load cron job due to {e}");
+            anyhow!(e)
+        })
+}
+
+pub fn select_by_pipeline(
+    conn: &mut SqliteConnection,
+    cj_pipeline_id: &str,
+) -> Result<Vec<CronJob>> {
     debug!("loading cron job associated with pipeline: {cj_pipeline_id}");
     cron_jobs
         .filter(pipeline_id.eq(cj_pipeline_id))
-        .first(conn)
+        .load(conn)
         .map(|cj| {
             debug!("loading cron job successfully");
             cj
@@ -163,5 +185,32 @@ pub fn delete_by_cron_job_id(conn: &mut SqliteConnection, cj_id: &str) -> Result
                         anyhow!(e)
                     })
             })
+    })
+}
+
+pub fn delete_by_pipeline(conn: &mut SqliteConnection, cj_pipeline_id: &str) -> Result<()> {
+    debug!("deleting cron jobs associated with pipeline id: {cj_pipeline_id}");
+    conn.transaction(|conn| {
+        select_by_pipeline(conn, cj_pipeline_id).and_then(|entries| {
+            for entry in entries {
+                let _ = cron_job_variables::delete_by_cron_job_id(conn, &entry.id)
+                    .and_then(|_| {
+                        cron_job_environment_variables::delete_by_cron_job_id(conn, &entry.id)
+                    })
+                    .and_then(|_| {
+                        diesel::delete(cron_jobs::table)
+                            .filter(id.eq(&entry.id))
+                            .execute(conn)
+                            .map(|_| {
+                                debug!("deleted cron job successfully");
+                            })
+                            .map_err(|e| {
+                                error!("couldn't delete cron job due to {e}");
+                                anyhow!(e)
+                            })
+                    });
+            }
+            Ok(())
+        })
     })
 }

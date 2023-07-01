@@ -12,6 +12,7 @@ use bld_core::{
     },
     messages::ExecClientMessage,
     proxies::PipelineFileSystemProxy,
+    requests::{AddJobRequest, UpdateJobRequest},
 };
 use diesel::{
     r2d2::{ConnectionManager, Pool},
@@ -21,41 +22,6 @@ use tokio_cron_scheduler::{Job, JobScheduler};
 use uuid::Uuid;
 
 use crate::supervisor::{channel::SupervisorMessageSender, helpers::enqueue_worker};
-
-#[derive(Debug)]
-pub struct UpsertJob {
-    schedule: String,
-    pipeline: String,
-    variables: Option<HashMap<String, String>>,
-    environment: Option<HashMap<String, String>>,
-}
-
-impl UpsertJob {
-    pub fn new(
-        schedule: String,
-        pipeline: String,
-        variables: Option<HashMap<String, String>>,
-        environment: Option<HashMap<String, String>>,
-    ) -> Self {
-        Self {
-            schedule,
-            pipeline,
-            variables,
-            environment,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct RemoveJob {
-    id: String,
-}
-
-impl RemoveJob {
-    pub fn new(id: String) -> Self {
-        Self { id }
-    }
-}
 
 #[derive(Debug)]
 pub struct JobInfo {
@@ -132,13 +98,14 @@ impl CronScheduler {
                     .unwrap_or(None);
 
             let job_id = Uuid::from_str(&job.id)?;
-            let upsert_job = UpsertJob::new(
-                job.schedule.to_owned(),
-                pipeline.name.to_owned(),
+            let scheduled_job = self.create_scheduled_job(
+                &job_id,
+                &job.schedule,
+                &pipeline.name,
                 variables,
                 environment,
-            );
-            let scheduled_job = self.create_scheduled_job(&job_id, &upsert_job)?;
+            )?;
+
             self.scheduler.add(scheduled_job).await?;
         }
 
@@ -149,17 +116,17 @@ impl CronScheduler {
         &self,
         conn: &mut SqliteConnection,
         job_id: &Uuid,
-        upsert_job: &UpsertJob,
+        add_job: &AddJobRequest,
         pipeline_id: &str,
     ) -> Result<CronJob> {
         let job_id_string = job_id.to_string();
         let job = InsertCronJob {
             id: &job_id_string,
             pipeline_id,
-            schedule: &upsert_job.schedule,
+            schedule: &add_job.schedule,
         };
 
-        let vars: Option<Vec<InsertCronJobVariable>> = upsert_job.variables.as_ref().map(|vars| {
+        let vars: Option<Vec<InsertCronJobVariable>> = add_job.variables.as_ref().map(|vars| {
             vars.iter()
                 .map(|(k, v)| InsertCronJobVariable {
                     id: Uuid::new_v4().to_string(),
@@ -171,7 +138,7 @@ impl CronScheduler {
         });
 
         let env: Option<Vec<InsertCronJobEnvironmentVariable>> =
-            upsert_job.environment.as_ref().map(|envs| {
+            add_job.environment.as_ref().map(|envs| {
                 envs.iter()
                     .map(|(k, v)| InsertCronJobEnvironmentVariable {
                         id: Uuid::new_v4().to_string(),
@@ -189,17 +156,17 @@ impl CronScheduler {
         &self,
         conn: &mut SqliteConnection,
         job_id: &Uuid,
-        upsert_job: &UpsertJob,
+        update_job: &UpdateJobRequest,
         pipeline_id: &str,
     ) -> Result<CronJob> {
         let job_id_string = job_id.to_string();
         let job = InsertCronJob {
             id: &job_id_string,
             pipeline_id,
-            schedule: &upsert_job.schedule,
+            schedule: &update_job.schedule,
         };
 
-        let vars: Option<Vec<InsertCronJobVariable>> = upsert_job.variables.as_ref().map(|vars| {
+        let vars: Option<Vec<InsertCronJobVariable>> = update_job.variables.as_ref().map(|vars| {
             vars.iter()
                 .map(|(k, v)| InsertCronJobVariable {
                     id: Uuid::new_v4().to_string(),
@@ -211,7 +178,7 @@ impl CronScheduler {
         });
 
         let env: Option<Vec<InsertCronJobEnvironmentVariable>> =
-            upsert_job.environment.as_ref().map(|envs| {
+            update_job.environment.as_ref().map(|envs| {
                 envs.iter()
                     .map(|(k, v)| InsertCronJobEnvironmentVariable {
                         id: Uuid::new_v4().to_string(),
@@ -225,19 +192,26 @@ impl CronScheduler {
         cron_jobs::update(conn, &job, &vars, &env)
     }
 
-    fn create_scheduled_job(&self, job_id: &Uuid, upsert_job: &UpsertJob) -> Result<Job> {
+    fn create_scheduled_job(
+        &self,
+        job_id: &Uuid,
+        schedule: &str,
+        pipeline: &str,
+        variables: Option<HashMap<String, String>>,
+        environment: Option<HashMap<String, String>>,
+    ) -> Result<Job> {
         // Compiler complaints about FnMut if parameters are directly used inside the closure
         // so this is the only workaround that works atm.
         let proxy = self.proxy.clone();
         let pool = self.pool.clone();
         let supervisor = self.supervisor.clone();
         let data = ExecClientMessage::EnqueueRun {
-            name: upsert_job.pipeline.to_owned(),
-            environment: None,
-            variables: None,
+            name: pipeline.to_owned(),
+            environment,
+            variables,
         };
 
-        let mut job = Job::new_cron_job_async(upsert_job.schedule.as_str(), move |_uuid, _l| {
+        let mut job = Job::new_cron_job_async(schedule, move |_uuid, _l| {
             let proxy = proxy.clone();
             let pool = pool.clone();
             let supervisor = supervisor.clone();
@@ -257,16 +231,25 @@ impl CronScheduler {
     async fn add_inner(
         &self,
         conn: &mut SqliteConnection,
-        upsert_job: &UpsertJob,
+        add_job: &AddJobRequest,
         pipeline: &Pipeline,
     ) -> Result<()> {
         let job_id = Uuid::new_v4();
-        let scheduled_job = self.create_scheduled_job(&job_id, upsert_job)?;
+
+        let variables = add_job.variables.as_ref().map(|x| x.clone());
+        let environment = add_job.environment.as_ref().map(|x| x.clone());
+
+        let scheduled_job = self.create_scheduled_job(
+            &job_id,
+            &add_job.schedule,
+            &pipeline.name,
+            variables,
+            environment,
+        )?;
         let scheduled_job_id = scheduled_job.guid();
         self.scheduler.add(scheduled_job).await?;
 
-        if let Err(e) = self.create_database_job(conn, &scheduled_job_id, upsert_job, &pipeline.id)
-        {
+        if let Err(e) = self.create_database_job(conn, &scheduled_job_id, add_job, &pipeline.id) {
             self.scheduler.remove(&scheduled_job_id).await?;
             bail!("{e}");
         }
@@ -277,15 +260,27 @@ impl CronScheduler {
     async fn update_inner(
         &self,
         conn: &mut SqliteConnection,
-        upsert_job: &UpsertJob,
+        update_job: &UpdateJobRequest,
         job: &CronJob,
         pipeline: &Pipeline,
     ) -> Result<()> {
         let job_id = Uuid::from_str(&job.id)?;
-        let job = self.update_database_job(conn, &job_id, upsert_job, &pipeline.id)?;
+        let job = self.update_database_job(conn, &job_id, update_job, &pipeline.id)?;
 
         self.scheduler.remove(&job_id).await?;
-        match self.create_scheduled_job(&job_id, upsert_job) {
+
+        let variables = update_job.variables.as_ref().map(|x| x.clone());
+        let environment = update_job.environment.as_ref().map(|x| x.clone());
+
+        let create_scheduled_job_result = self.create_scheduled_job(
+            &job_id,
+            &update_job.schedule,
+            &pipeline.name,
+            variables,
+            environment,
+        );
+
+        match create_scheduled_job_result {
             Ok(scheduled_job) => self.scheduler.add(scheduled_job).await.map(|_| ())?,
             Err(e) => {
                 cron_jobs::delete_by_cron_job_id(conn, &job.id)?;
@@ -296,7 +291,7 @@ impl CronScheduler {
         Ok(())
     }
 
-    pub async fn add(&self, upsert_job: &UpsertJob) -> Result<()> {
+    pub async fn add(&self, upsert_job: &AddJobRequest) -> Result<()> {
         let mut conn = self.pool.get()?;
         let pipeline = pipeline::select_by_name(&mut conn, &upsert_job.pipeline)?;
         let job = cron_jobs::select_by_pipeline(&mut conn, &pipeline.id);
@@ -308,47 +303,70 @@ impl CronScheduler {
         self.add_inner(&mut conn, upsert_job, &pipeline).await
     }
 
-    pub async fn upsert(&self, upsert_job: &UpsertJob) -> Result<()> {
+    pub async fn update(&self, update_job: &UpdateJobRequest) -> Result<()> {
         let mut conn = self.pool.get()?;
-        let pipeline = pipeline::select_by_name(&mut conn, &upsert_job.pipeline)?;
-        let job = cron_jobs::select_by_pipeline(&mut conn, &pipeline.id);
+        let job = cron_jobs::select_by_id(&mut conn, &update_job.id)?;
+        let pipeline = pipeline::select_by_id(&mut conn, &job.pipeline_id)?;
+        self.update_inner(&mut conn, update_job, &job, &pipeline)
+            .await
+    }
 
+    pub async fn upsert_default(&self, schedule: &str, pipeline: &str) -> Result<()> {
+        let job = {
+            let mut conn = self.pool.get()?;
+            let pipeline = pipeline::select_by_name(&mut conn, pipeline)?;
+            cron_jobs::select_default_by_pipeline(&mut conn, &pipeline.id)
+        };
         match job {
             Ok(job) => {
-                self.update_inner(&mut conn, upsert_job, &job, &pipeline)
-                    .await
+                let update_job = UpdateJobRequest::new(job.id, schedule.to_owned(), None, None, true);
+                self.update(&update_job).await
             }
-            Err(_) => self.add_inner(&mut conn, upsert_job, &pipeline).await,
+            Err(_) => {
+                let add_job =
+                    AddJobRequest::new(schedule.to_owned(), pipeline.to_owned(), None, None, true);
+                self.add(&add_job).await
+            }
         }
     }
 
-    pub async fn remove(&self, remove_job: &RemoveJob) -> Result<()> {
+    pub async fn remove(&self, job_id: &str) -> Result<()> {
         let mut conn = self.pool.get()?;
-        cron_jobs::delete_by_cron_job_id(&mut conn, &remove_job.id)?;
+        cron_jobs::delete_by_cron_job_id(&mut conn, &job_id)?;
 
-        let job_id = Uuid::from_str(&remove_job.id)?;
+        let job_id = Uuid::from_str(&job_id)?;
         self.scheduler.remove(&job_id).await?;
 
         Ok(())
     }
 
-    pub fn get(&self) -> Result<Vec<JobInfo>> {
+    pub async fn remove_by_pipeline(&self, pipeline: &str) -> Result<()> {
         let mut conn = self.pool.get()?;
+        let jobs = cron_jobs::select_by_pipeline(&mut conn, pipeline)?;
 
-        let cron_jobs = cron_jobs::select_all(&mut conn)?;
-        let mut response = Vec::with_capacity(cron_jobs.len());
+        for job in jobs {
+            let job_id = Uuid::from_str(&job.id)?;
+            self.scheduler.remove(&job_id).await?;
+        }
 
-        for job in cron_jobs {
-            let pipeline = pipeline::select_by_id(&mut conn, &job.pipeline_id)?;
+        cron_jobs::delete_by_pipeline(&mut conn, &pipeline)?;
 
-            let variables = cron_job_variables::select_by_cron_job_id(&mut conn, &job.id)
+        Ok(())
+    }
+
+    fn get_inner(&self, conn: &mut SqliteConnection, jobs: Vec<CronJob>) -> Result<Vec<JobInfo>> {
+        let mut response = Vec::with_capacity(jobs.len());
+
+        for job in jobs {
+            let pipeline = pipeline::select_by_id(conn, &job.pipeline_id)?;
+
+            let variables = cron_job_variables::select_by_cron_job_id(conn, &job.id)
                 .map(Self::variables_into_hash_map)
                 .unwrap_or(None);
 
-            let environment =
-                cron_job_environment_variables::select_by_cron_job_id(&mut conn, &job.id)
-                    .map(Self::environment_into_hash_map)
-                    .unwrap_or(None);
+            let environment = cron_job_environment_variables::select_by_cron_job_id(conn, &job.id)
+                .map(Self::environment_into_hash_map)
+                .unwrap_or(None);
 
             response.push(JobInfo {
                 id: job.id,
@@ -360,5 +378,12 @@ impl CronScheduler {
         }
 
         Ok(response)
+    }
+
+    pub fn get(&self) -> Result<Vec<JobInfo>> {
+        let mut conn = self.pool.get()?;
+
+        let cron_jobs = cron_jobs::select_all(&mut conn)?;
+        self.get_inner(&mut conn, cron_jobs)
     }
 }

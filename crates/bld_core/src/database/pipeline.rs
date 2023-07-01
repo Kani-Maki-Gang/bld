@@ -1,6 +1,6 @@
 #![allow(dead_code)]
-use crate::database::schema::pipeline;
 use crate::database::schema::pipeline::dsl::*;
+use crate::database::{cron_jobs, schema::pipeline};
 use anyhow::{anyhow, Result};
 use diesel::prelude::*;
 use diesel::query_dsl::RunQueryDsl;
@@ -105,14 +105,18 @@ pub fn delete(conn: &mut SqliteConnection, pip_id: &str) -> Result<()> {
 pub fn delete_by_name(conn: &mut SqliteConnection, pip_name: &str) -> Result<()> {
     debug!("deleting pipeline with name: {pip_name} from the database");
     conn.transaction(|conn| {
-        diesel::delete(pipeline.filter(name.eq(pip_name)))
-            .execute(conn)
-            .map_err(|e| {
-                error!("could not delete pipeline due to {e}");
-                anyhow!(e)
-            })
-            .map(|_| {
-                debug!("pipeline deleted successfully");
+        select_by_name(conn, pip_name)
+            .and_then(|pip| cron_jobs::delete_by_pipeline(conn, &pip.id))
+            .and_then(|_| {
+                diesel::delete(pipeline.filter(name.eq(pip_name)))
+                    .execute(conn)
+                    .map_err(|e| {
+                        error!("could not delete pipeline due to {e}");
+                        anyhow!(e)
+                    })
+                    .map(|_| {
+                        debug!("pipeline deleted successfully");
+                    })
             })
     })
 }

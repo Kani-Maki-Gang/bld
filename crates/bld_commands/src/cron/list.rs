@@ -5,7 +5,7 @@ use bld_config::BldConfig;
 use bld_core::request::HttpClient;
 use bld_utils::sync::IntoArc;
 use clap::Args;
-use tabled::{Table, Style};
+use tabled::{Style, Table};
 
 #[derive(Args)]
 #[command(about = "Lists all registered cron jobs in a server")]

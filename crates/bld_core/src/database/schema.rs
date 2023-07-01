@@ -23,6 +23,7 @@ diesel::table! {
         id -> Text,
         pipeline_id -> Text,
         schedule -> Text,
+        is_default -> Bool,
     }
 }
 

@@ -3,6 +3,7 @@ create table if not exists cron_jobs (
     id text primary key not null,
     pipeline_id text not null,
     schedule text not null,
+    is_default boolean not null,
     foreign key(pipeline_id) references pipeline(id)
 );
 
