@@ -104,6 +104,7 @@ pub fn select_with_filters(
     flt_pipeline: Option<&str>,
     flt_schedule: Option<&str>,
     flt_is_default: Option<bool>,
+    flt_limit: Option<i64>,
 ) -> Result<Vec<CronJob>> {
     debug!("loading cron jobs based on filters");
 
@@ -124,6 +125,10 @@ pub fn select_with_filters(
 
     if let Some(flt_is_default) = flt_is_default {
         select_statement = select_statement.filter(is_default.eq(flt_is_default));
+    }
+
+    if let Some(flt_limit) = flt_limit {
+        select_statement = select_statement.limit(flt_limit);
     }
 
     select_statement

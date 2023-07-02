@@ -43,6 +43,9 @@ pub struct CronListCommand {
         help = "Fetch only the default cron jobs"
     )]
     is_default: Option<bool>,
+
+    #[arg(short = 'l', long = "limit", help = "Limit the results")]
+    limit: Option<usize>,
 }
 
 impl BldCommand for CronListCommand {
@@ -53,7 +56,13 @@ impl BldCommand for CronListCommand {
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let client = HttpClient::new(config, &self.server);
-        let filters = JobFiltersParams::new(self.id, self.pipeline, self.schedule, self.is_default);
+        let filters = JobFiltersParams::new(
+            self.id,
+            self.pipeline,
+            self.schedule,
+            self.is_default,
+            self.limit.map(|x| x as i64),
+        );
         let response = System::new().block_on(async move { client.cron_list(&filters).await })?;
 
         if !response.is_empty() {

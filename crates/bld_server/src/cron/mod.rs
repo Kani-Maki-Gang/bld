@@ -393,6 +393,7 @@ impl CronScheduler {
             filters.pipeline.as_deref(),
             filters.schedule.as_deref(),
             filters.is_default,
+            filters.limit,
         )?;
         self.get_inner(&mut conn, cron_jobs)
     }
