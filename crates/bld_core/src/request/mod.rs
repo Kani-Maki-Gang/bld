@@ -5,7 +5,9 @@ use std::sync::Arc;
 
 use crate::auth::{read_tokens, write_tokens, AuthTokens, RefreshTokenParams};
 use crate::messages::ExecClientMessage;
-use crate::requests::{CheckQueryParams, HistQueryParams, PushInfo};
+use crate::requests::{
+    AddJobRequest, CheckQueryParams, HistQueryParams, PushInfo, UpdateJobRequest,
+};
 use crate::responses::{CronJobResponse, HistoryEntry, PullResponse};
 use anyhow::{anyhow, bail, Result};
 use awc::http::StatusCode;
@@ -432,6 +434,48 @@ impl HttpClient {
         if Self::unauthorized(&response) {
             self.refresh().await?;
             self.cron_list_inner().await
+        } else {
+            response
+        }
+    }
+
+    async fn cron_add_inner(&self, body: &AddJobRequest) -> Result<()> {
+        let server = self.config.server(&self.server)?;
+        let url = format!("{}/cron", server.base_url_http());
+        Request::post(&url)
+            .auth(server)
+            .send_json(body)
+            .await
+            .map(|_: String| ())
+    }
+
+    pub async fn cron_add(&self, body: &AddJobRequest) -> Result<()> {
+        let response = self.cron_add_inner(body).await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.cron_add_inner(body).await
+        } else {
+            response
+        }
+    }
+
+    async fn cron_update_inner(&self, body: &UpdateJobRequest) -> Result<()> {
+        let server = self.config.server(&self.server)?;
+        let url = format!("{}/cron", server.base_url_http());
+        Request::patch(&url)
+            .auth(server)
+            .send_json(body)
+            .await
+            .map(|_: String| ())
+    }
+
+    pub async fn cron_update(&self, body: &UpdateJobRequest) -> Result<()> {
+        let response = self.cron_update_inner(body).await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.cron_update_inner(body).await
         } else {
             response
         }

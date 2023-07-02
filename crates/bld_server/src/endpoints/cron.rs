@@ -28,6 +28,7 @@ fn do_get(cron: &CronScheduler) -> Result<Vec<CronJobResponse>> {
                 id: j.id,
                 schedule: j.schedule,
                 pipeline: j.pipeline,
+                is_default: j.is_default,
             })
             .collect()
     })

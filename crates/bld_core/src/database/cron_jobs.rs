@@ -27,6 +27,12 @@ pub struct InsertCronJob<'a> {
     pub is_default: bool,
 }
 
+pub struct UpdateCronJob<'a> {
+    pub id: &'a str,
+    pub pipeline_id: &'a str,
+    pub schedule: &'a str,
+}
+
 pub fn select_all(conn: &mut SqliteConnection) -> Result<Vec<CronJob>> {
     debug!("loading all cron jobs from the database");
     cron_jobs
@@ -131,7 +137,7 @@ pub fn insert(
 
 pub fn update(
     conn: &mut SqliteConnection,
-    cj_model: &InsertCronJob,
+    cj_model: &UpdateCronJob,
     cv_models: &Option<Vec<InsertCronJobVariable>>,
     cve_models: &Option<Vec<InsertCronJobEnvironmentVariable>>,
 ) -> Result<CronJob> {
@@ -139,6 +145,7 @@ pub fn update(
     conn.transaction(|conn| {
         diesel::update(cron_jobs::table)
             .set(schedule.eq(cj_model.schedule))
+            .filter(id.eq(cj_model.id))
             .execute(conn)
             .map_err(|e| {
                 error!("couldn't update cron job due to {e}");

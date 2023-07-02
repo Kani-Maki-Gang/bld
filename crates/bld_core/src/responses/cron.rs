@@ -6,4 +6,5 @@ pub struct CronJobResponse {
     pub id: String,
     pub schedule: String,
     pub pipeline: String,
+    pub is_default: bool,
 }

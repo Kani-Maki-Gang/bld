@@ -1,13 +1,17 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use super::{list::CronListCommand, remove::CronRemoveCommand, upsert::CronUpsertCommand};
+use super::{
+    add::CronAddCommand, list::CronListCommand, remove::CronRemoveCommand,
+    update::CronUpdateCommand,
+};
 use crate::command::BldCommand;
 
 #[derive(Subcommand)]
 pub enum CronCommands {
+    Add(CronAddCommand),
     Ls(CronListCommand),
-    Upsert(CronUpsertCommand),
+    Update(CronUpdateCommand),
     Rm(CronRemoveCommand),
 }
 
@@ -21,8 +25,9 @@ impl CronCommand {
     pub fn invoke(self) -> Result<()> {
         match self.command {
             CronCommands::Ls(list) => list.invoke(),
-            CronCommands::Upsert(upsert) => upsert.invoke(),
+            CronCommands::Update(update) => update.invoke(),
             CronCommands::Rm(remove) => remove.invoke(),
+            CronCommands::Add(add) => add.invoke(),
         }
     }
 }

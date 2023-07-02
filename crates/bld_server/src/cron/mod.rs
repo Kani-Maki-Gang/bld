@@ -7,7 +7,7 @@ use bld_core::{
             self, CronJobEnvironmentVariable, InsertCronJobEnvironmentVariable,
         },
         cron_job_variables::{self, CronJobVariable, InsertCronJobVariable},
-        cron_jobs::{self, CronJob, InsertCronJob},
+        cron_jobs::{self, CronJob, InsertCronJob, UpdateCronJob},
         pipeline::{self, Pipeline},
     },
     messages::ExecClientMessage,
@@ -30,6 +30,7 @@ pub struct JobInfo {
     pub pipeline: String,
     pub variables: Option<HashMap<String, String>>,
     pub environment: Option<HashMap<String, String>>,
+    pub is_default: bool,
 }
 
 pub struct CronScheduler {
@@ -161,11 +162,10 @@ impl CronScheduler {
         pipeline_id: &str,
     ) -> Result<CronJob> {
         let job_id_string = job_id.to_string();
-        let job = InsertCronJob {
+        let job = UpdateCronJob {
             id: &job_id_string,
             pipeline_id,
             schedule: &update_job.schedule,
-            is_default: update_job.is_default,
         };
 
         let vars: Option<Vec<InsertCronJobVariable>> = update_job.variables.as_ref().map(|vars| {
@@ -267,42 +267,43 @@ impl CronScheduler {
         pipeline: &Pipeline,
     ) -> Result<()> {
         let job_id = Uuid::from_str(&job.id)?;
-        let job = self.update_database_job(conn, &job_id, update_job, &pipeline.id)?;
-
         self.scheduler.remove(&job_id).await?;
 
         let variables = update_job.variables.as_ref().map(|x| x.clone());
         let environment = update_job.environment.as_ref().map(|x| x.clone());
 
-        let create_scheduled_job_result = self.create_scheduled_job(
-            &job_id,
-            &update_job.schedule,
-            &pipeline.name,
-            variables,
-            environment,
-        );
+        let create_scheduled_job_result = self
+            .create_scheduled_job(
+                &job_id,
+                &update_job.schedule,
+                &pipeline.name,
+                variables,
+                environment,
+            )
+            .and_then(|scheduled_job| {
+                self.update_database_job(conn, &job_id, update_job, &pipeline.id)
+                    .map(|_| scheduled_job)
+            });
 
         match create_scheduled_job_result {
             Ok(scheduled_job) => self.scheduler.add(scheduled_job).await.map(|_| ())?,
-            Err(e) => {
-                cron_jobs::delete_by_cron_job_id(conn, &job.id)?;
-                bail!("{e}");
-            }
+            Err(e) => bail!("{e}"),
         }
 
         Ok(())
     }
 
-    pub async fn add(&self, upsert_job: &AddJobRequest) -> Result<()> {
+    pub async fn add(&self, add_job: &AddJobRequest) -> Result<()> {
         let mut conn = self.pool.get()?;
-        let pipeline = pipeline::select_by_name(&mut conn, &upsert_job.pipeline)?;
-        let jobs = cron_jobs::select_by_pipeline(&mut conn, &pipeline.id)?;
+        let pipeline = pipeline::select_by_name(&mut conn, &add_job.pipeline)?;
+        let job_exists = add_job.is_default
+            && cron_jobs::select_default_by_pipeline(&mut conn, &pipeline.id).is_ok();
 
-        if !jobs.is_empty() {
+        if job_exists {
             bail!("cron job already exists");
         }
 
-        self.add_inner(&mut conn, upsert_job, &pipeline).await
+        self.add_inner(&mut conn, add_job, &pipeline).await
     }
 
     pub async fn update(&self, update_job: &UpdateJobRequest) -> Result<()> {
@@ -321,8 +322,7 @@ impl CronScheduler {
         };
         match job {
             Ok(job) => {
-                let update_job =
-                    UpdateJobRequest::new(job.id, schedule.to_owned(), None, None, true);
+                let update_job = UpdateJobRequest::new(job.id, schedule.to_owned(), None, None);
                 self.update(&update_job).await
             }
             Err(_) => {
@@ -377,6 +377,7 @@ impl CronScheduler {
                 pipeline: pipeline.name.to_owned(),
                 variables,
                 environment,
+                is_default: job.is_default,
             });
         }
 

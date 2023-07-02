@@ -4,8 +4,8 @@ use anyhow::Result;
 use bld_config::definitions::TOOL_DEFAULT_PIPELINE_FILE;
 use bld_config::BldConfig;
 use bld_utils::sync::IntoArc;
+use bld_utils::variables::parse_variables;
 use clap::Args;
-use std::collections::HashMap;
 
 #[derive(Args)]
 #[command(about = "Executes a build pipeline")]
@@ -60,16 +60,4 @@ impl BldCommand for RunCommand {
 
         adapter.run()
     }
-}
-
-pub fn parse_variables(variables: &[String]) -> HashMap<String, String> {
-    variables
-        .iter()
-        .flat_map(|v| {
-            let mut split = v.split('=');
-            let name = split.next()?.to_owned();
-            let value = split.next()?.to_owned();
-            Some((name, value))
-        })
-        .collect::<HashMap<String, String>>()
 }

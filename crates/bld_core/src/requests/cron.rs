@@ -35,7 +35,6 @@ pub struct UpdateJobRequest {
     pub schedule: String,
     pub variables: Option<HashMap<String, String>>,
     pub environment: Option<HashMap<String, String>>,
-    pub is_default: bool,
 }
 
 impl UpdateJobRequest {
@@ -44,14 +43,12 @@ impl UpdateJobRequest {
         schedule: String,
         variables: Option<HashMap<String, String>>,
         environment: Option<HashMap<String, String>>,
-        is_default: bool,
     ) -> Self {
         Self {
             id,
             schedule,
             variables,
             environment,
-            is_default,
         }
     }
 }

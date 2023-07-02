@@ -1,5 +1,4 @@
 use crate::command::BldCommand;
-use crate::run::parse_variables;
 use crate::signals::CommandSignals;
 use actix::io::SinkWrite;
 use actix::{Actor, StreamHandler};
@@ -15,6 +14,7 @@ use bld_core::request::WebSocket;
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::WorkerClient;
 use bld_utils::sync::IntoArc;
+use bld_utils::variables::parse_variables;
 use clap::Args;
 use futures::join;
 use futures::stream::StreamExt;
