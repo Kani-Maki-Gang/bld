@@ -52,3 +52,27 @@ impl UpdateJobRequest {
         }
     }
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct JobFiltersParams {
+    pub id: Option<String>,
+    pub pipeline: Option<String>,
+    pub schedule: Option<String>,
+    pub is_default: Option<bool>,
+}
+
+impl JobFiltersParams {
+    pub fn new(
+        id: Option<String>,
+        pipeline: Option<String>,
+        schedule: Option<String>,
+        is_default: Option<bool>,
+    ) -> Self {
+        Self {
+            id,
+            pipeline,
+            schedule,
+            is_default,
+        }
+    }
+}

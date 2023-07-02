@@ -12,7 +12,7 @@ use bld_core::{
     },
     messages::ExecClientMessage,
     proxies::PipelineFileSystemProxy,
-    requests::{AddJobRequest, UpdateJobRequest},
+    requests::{AddJobRequest, JobFiltersParams, UpdateJobRequest},
 };
 use diesel::{
     r2d2::{ConnectionManager, Pool},
@@ -238,8 +238,8 @@ impl CronScheduler {
     ) -> Result<()> {
         let job_id = Uuid::new_v4();
 
-        let variables = add_job.variables.as_ref().map(|x| x.clone());
-        let environment = add_job.environment.as_ref().map(|x| x.clone());
+        let variables = add_job.variables.as_ref().cloned();
+        let environment = add_job.environment.as_ref().cloned();
 
         let scheduled_job = self.create_scheduled_job(
             &job_id,
@@ -269,8 +269,8 @@ impl CronScheduler {
         let job_id = Uuid::from_str(&job.id)?;
         self.scheduler.remove(&job_id).await?;
 
-        let variables = update_job.variables.as_ref().map(|x| x.clone());
-        let environment = update_job.environment.as_ref().map(|x| x.clone());
+        let variables = update_job.variables.as_ref().cloned();
+        let environment = update_job.environment.as_ref().cloned();
 
         let create_scheduled_job_result = self
             .create_scheduled_job(
@@ -335,9 +335,9 @@ impl CronScheduler {
 
     pub async fn remove(&self, job_id: &str) -> Result<()> {
         let mut conn = self.pool.get()?;
-        cron_jobs::delete_by_cron_job_id(&mut conn, &job_id)?;
+        cron_jobs::delete_by_cron_job_id(&mut conn, job_id)?;
 
-        let job_id = Uuid::from_str(&job_id)?;
+        let job_id = Uuid::from_str(job_id)?;
         self.scheduler.remove(&job_id).await?;
 
         Ok(())
@@ -352,7 +352,7 @@ impl CronScheduler {
             self.scheduler.remove(&job_id).await?;
         }
 
-        cron_jobs::delete_by_pipeline(&mut conn, &pipeline)?;
+        cron_jobs::delete_by_pipeline(&mut conn, pipeline)?;
 
         Ok(())
     }
@@ -384,10 +384,16 @@ impl CronScheduler {
         Ok(response)
     }
 
-    pub fn get(&self) -> Result<Vec<JobInfo>> {
+    pub fn get(&self, filters: &JobFiltersParams) -> Result<Vec<JobInfo>> {
         let mut conn = self.pool.get()?;
 
-        let cron_jobs = cron_jobs::select_all(&mut conn)?;
+        let cron_jobs = cron_jobs::select_with_filters(
+            &mut conn,
+            filters.id.as_deref(),
+            filters.pipeline.as_deref(),
+            filters.schedule.as_deref(),
+            filters.is_default,
+        )?;
         self.get_inner(&mut conn, cron_jobs)
     }
 }

@@ -30,7 +30,7 @@ pub async fn do_push(
     prx.create(&info.name, &info.content, true)?;
     let pipeline: VersionedPipeline = Yaml::load(&info.content)?;
     if let Some(schedule) = pipeline.cron() {
-        cron.upsert_default(&schedule, &info.name)
+        cron.upsert_default(schedule, &info.name)
             .await
             .map_err(|e| {
                 error!("{e}");

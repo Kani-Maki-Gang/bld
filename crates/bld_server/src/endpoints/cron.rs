@@ -1,11 +1,11 @@
 use actix_web::{
     delete, get, patch, post,
-    web::{Data, Json, Path},
+    web::{Data, Json, Path, Query},
     HttpResponse, Responder,
 };
 use anyhow::Result;
 use bld_core::{
-    requests::{AddJobRequest, UpdateJobRequest},
+    requests::{AddJobRequest, JobFiltersParams, UpdateJobRequest},
     responses::CronJobResponse,
 };
 use tracing::info;
@@ -13,16 +13,20 @@ use tracing::info;
 use crate::{cron::CronScheduler, extractors::User};
 
 #[get("/cron")]
-pub async fn get(_: User, cron: Data<CronScheduler>) -> impl Responder {
+pub async fn get(
+    _: User,
+    cron: Data<CronScheduler>,
+    query: Query<JobFiltersParams>,
+) -> impl Responder {
     info!("Reached handler for GET /cron route");
-    match do_get(cron.get_ref()) {
+    match do_get(&cron, &query) {
         Ok(res) => HttpResponse::Ok().json(res),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
 
-fn do_get(cron: &CronScheduler) -> Result<Vec<CronJobResponse>> {
-    cron.get().map(|jobs| {
+fn do_get(cron: &CronScheduler, filters: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
+    cron.get(filters).map(|jobs| {
         jobs.into_iter()
             .map(|j| CronJobResponse {
                 id: j.id,

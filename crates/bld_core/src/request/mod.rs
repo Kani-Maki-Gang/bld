@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::auth::{read_tokens, write_tokens, AuthTokens, RefreshTokenParams};
 use crate::messages::ExecClientMessage;
 use crate::requests::{
-    AddJobRequest, CheckQueryParams, HistQueryParams, PushInfo, UpdateJobRequest,
+    AddJobRequest, CheckQueryParams, HistQueryParams, JobFiltersParams, PushInfo, UpdateJobRequest,
 };
 use crate::responses::{CronJobResponse, HistoryEntry, PullResponse};
 use anyhow::{anyhow, bail, Result};
@@ -422,18 +422,18 @@ impl HttpClient {
         }
     }
 
-    async fn cron_list_inner(&self) -> Result<Vec<CronJobResponse>> {
+    async fn cron_list_inner(&self, filters: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/cron", server.base_url_http());
-        Request::get(&url).auth(server).send().await
+        Request::get(&url).auth(server).query(filters)?.send().await
     }
 
-    pub async fn cron_list(&self) -> Result<Vec<CronJobResponse>> {
-        let response = self.cron_list_inner().await;
+    pub async fn cron_list(&self, filters: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
+        let response = self.cron_list_inner(filters).await;
 
         if Self::unauthorized(&response) {
             self.refresh().await?;
-            self.cron_list_inner().await
+            self.cron_list_inner(filters).await
         } else {
             response
         }

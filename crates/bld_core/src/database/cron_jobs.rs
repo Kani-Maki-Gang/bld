@@ -5,7 +5,7 @@ use tracing::{debug, error};
 
 use crate::database::schema::cron_jobs;
 use crate::database::schema::cron_jobs::dsl::*;
-use crate::database::{cron_job_environment_variables, cron_job_variables};
+use crate::database::{cron_job_environment_variables, cron_job_variables, pipeline};
 
 use super::cron_job_environment_variables::InsertCronJobEnvironmentVariable;
 use super::cron_job_variables::InsertCronJobVariable;
@@ -94,6 +94,46 @@ pub fn select_by_pipeline(
         })
         .map_err(|e| {
             error!("couldn't load cron job due to {e}");
+            anyhow!(e)
+        })
+}
+
+pub fn select_with_filters(
+    conn: &mut SqliteConnection,
+    flt_id: Option<&str>,
+    flt_pipeline: Option<&str>,
+    flt_schedule: Option<&str>,
+    flt_is_default: Option<bool>,
+) -> Result<Vec<CronJob>> {
+    debug!("loading cron jobs based on filters");
+
+    let mut select_statement = cron_jobs.into_boxed();
+
+    if let Some(flt_id) = flt_id {
+        select_statement = select_statement.filter(id.eq(flt_id));
+    }
+
+    if let Some(flt_pipeline) = flt_pipeline {
+        let pipeline = pipeline::select_by_name(conn, flt_pipeline)?;
+        select_statement = select_statement.filter(pipeline_id.eq(pipeline.id));
+    }
+
+    if let Some(flt_schedule) = flt_schedule {
+        select_statement = select_statement.filter(schedule.eq(flt_schedule));
+    }
+
+    if let Some(flt_is_default) = flt_is_default {
+        select_statement = select_statement.filter(is_default.eq(flt_is_default));
+    }
+
+    select_statement
+        .load(conn)
+        .map(|jobs| {
+            debug!("loaded cron jobs successfully!");
+            jobs
+        })
+        .map_err(|e| {
+            error!("unable to load cron jobs due to {e}");
             anyhow!(e)
         })
 }
@@ -199,7 +239,7 @@ pub fn delete_by_cron_job_id(conn: &mut SqliteConnection, cj_id: &str) -> Result
 pub fn delete_by_pipeline(conn: &mut SqliteConnection, cj_pipeline_id: &str) -> Result<()> {
     debug!("deleting cron jobs associated with pipeline id: {cj_pipeline_id}");
     conn.transaction(|conn| {
-        select_by_pipeline(conn, cj_pipeline_id).and_then(|entries| {
+        select_by_pipeline(conn, cj_pipeline_id).map(|entries| {
             for entry in entries {
                 let _ = cron_job_variables::delete_by_cron_job_id(conn, &entry.id)
                     .and_then(|_| {
@@ -218,7 +258,6 @@ pub fn delete_by_pipeline(conn: &mut SqliteConnection, cj_pipeline_id: &str) -> 
                             })
                     });
             }
-            Ok(())
         })
     })
 }
