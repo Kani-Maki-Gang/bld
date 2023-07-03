@@ -5,7 +5,15 @@ use bld_config::BldConfig;
 use bld_core::{request::HttpClient, requests::JobFiltersParams};
 use bld_utils::sync::IntoArc;
 use clap::Args;
-use tabled::{Style, Table};
+use tabled::{Style, Table, Tabled};
+
+#[derive(Tabled)]
+struct JobInfoRow<'a> {
+    pub id: &'a str,
+    pub schedule: &'a str,
+    pub pipeline: &'a str,
+    pub is_default: bool,
+}
 
 #[derive(Args)]
 #[command(about = "Lists all registered cron jobs in a server")]
@@ -66,7 +74,16 @@ impl BldCommand for CronListCommand {
         let response = System::new().block_on(async move { client.cron_list(&filters).await })?;
 
         if !response.is_empty() {
-            let table = Table::new(response).with(Style::modern()).to_string();
+            let data: Vec<JobInfoRow> = response
+                .iter()
+                .map(|j| JobInfoRow {
+                    id: &j.id,
+                    schedule: &j.schedule,
+                    pipeline: &j.pipeline,
+                    is_default: j.is_default,
+                })
+                .collect();
+            let table = Table::new(data).with(Style::modern()).to_string();
             println!("{table}");
         }
 

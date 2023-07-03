@@ -32,6 +32,8 @@ fn do_get(cron: &CronScheduler, filters: &JobFiltersParams) -> Result<Vec<CronJo
                 id: j.id,
                 schedule: j.schedule,
                 pipeline: j.pipeline,
+                variables: j.variables,
+                environment: j.environment,
                 is_default: j.is_default,
             })
             .collect()
