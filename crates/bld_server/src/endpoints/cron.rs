@@ -3,11 +3,7 @@ use actix_web::{
     web::{Data, Json, Path, Query},
     HttpResponse, Responder,
 };
-use anyhow::Result;
-use bld_core::{
-    requests::{AddJobRequest, JobFiltersParams, UpdateJobRequest},
-    responses::CronJobResponse,
-};
+use bld_core::requests::{AddJobRequest, JobFiltersParams, UpdateJobRequest};
 use tracing::info;
 
 use crate::{cron::CronScheduler, extractors::User};
@@ -19,27 +15,10 @@ pub async fn get(
     query: Query<JobFiltersParams>,
 ) -> impl Responder {
     info!("Reached handler for GET /cron route");
-    match do_get(&cron, &query) {
+    match cron.get(&query) {
         Ok(res) => HttpResponse::Ok().json(res),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
-}
-
-fn do_get(cron: &CronScheduler, filters: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
-    cron.get(filters).map(|jobs| {
-        jobs.into_iter()
-            .map(|j| CronJobResponse {
-                id: j.id,
-                schedule: j.schedule,
-                pipeline: j.pipeline,
-                variables: j.variables,
-                environment: j.environment,
-                is_default: j.is_default,
-                date_created: j.date_created,
-                date_updated: j.date_updated,
-            })
-            .collect()
-    })
 }
 
 #[post("/cron")]

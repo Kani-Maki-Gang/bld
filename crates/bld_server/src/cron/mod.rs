@@ -13,6 +13,7 @@ use bld_core::{
     messages::ExecClientMessage,
     proxies::PipelineFileSystemProxy,
     requests::{AddJobRequest, JobFiltersParams, UpdateJobRequest},
+    responses::CronJobResponse,
 };
 use diesel::{
     r2d2::{ConnectionManager, Pool},
@@ -22,18 +23,6 @@ use tokio_cron_scheduler::{Job, JobScheduler};
 use uuid::Uuid;
 
 use crate::supervisor::{channel::SupervisorMessageSender, helpers::enqueue_worker};
-
-#[derive(Debug)]
-pub struct JobInfo {
-    pub id: String,
-    pub schedule: String,
-    pub pipeline: String,
-    pub variables: Option<HashMap<String, String>>,
-    pub environment: Option<HashMap<String, String>>,
-    pub is_default: bool,
-    pub date_created: String,
-    pub date_updated: Option<String>,
-}
 
 pub struct CronScheduler {
     proxy: Arc<PipelineFileSystemProxy>,
@@ -359,7 +348,11 @@ impl CronScheduler {
         Ok(())
     }
 
-    fn get_inner(&self, conn: &mut SqliteConnection, jobs: Vec<CronJob>) -> Result<Vec<JobInfo>> {
+    fn get_inner(
+        &self,
+        conn: &mut SqliteConnection,
+        jobs: Vec<CronJob>,
+    ) -> Result<Vec<CronJobResponse>> {
         let mut response = Vec::with_capacity(jobs.len());
 
         for job in jobs {
@@ -373,7 +366,7 @@ impl CronScheduler {
                 .map(Self::environment_into_hash_map)
                 .unwrap_or(None);
 
-            response.push(JobInfo {
+            response.push(CronJobResponse {
                 id: job.id,
                 schedule: job.schedule,
                 pipeline: pipeline.name.to_owned(),
@@ -388,7 +381,7 @@ impl CronScheduler {
         Ok(response)
     }
 
-    pub fn get(&self, filters: &JobFiltersParams) -> Result<Vec<JobInfo>> {
+    pub fn get(&self, filters: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
         let mut conn = self.pool.get()?;
 
         let cron_jobs = cron_jobs::select_with_filters(
