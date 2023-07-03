@@ -4,8 +4,16 @@ create table if not exists cron_jobs (
     pipeline_id text not null,
     schedule text not null,
     is_default boolean not null,
+    date_created text default current_timestamp not null,
+    date_updated text,
     foreign key(pipeline_id) references pipeline(id)
 );
+
+create trigger cron_job_after_update
+    after update on cron_jobs
+begin
+    update cron_jobs set date_updated = current_timestamp where id = new.id;
+end;
 
 create table if not exists cron_job_variables (
     id text primary key not null,

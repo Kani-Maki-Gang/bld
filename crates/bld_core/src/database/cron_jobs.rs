@@ -16,6 +16,8 @@ pub struct CronJob {
     pub pipeline_id: String,
     pub schedule: String,
     pub is_default: bool,
+    pub date_created: String,
+    pub date_updated: Option<String>,
 }
 
 #[derive(Insertable)]

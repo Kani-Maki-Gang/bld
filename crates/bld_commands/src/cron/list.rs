@@ -13,6 +13,8 @@ struct JobInfoRow<'a> {
     pub schedule: &'a str,
     pub pipeline: &'a str,
     pub is_default: bool,
+    pub date_created: &'a str,
+    pub date_updated: &'a str,
 }
 
 #[derive(Args)]
@@ -81,6 +83,8 @@ impl BldCommand for CronListCommand {
                     schedule: &j.schedule,
                     pipeline: &j.pipeline,
                     is_default: j.is_default,
+                    date_created: &j.date_created,
+                    date_updated: j.date_updated.as_deref().unwrap_or(""),
                 })
                 .collect();
             let table = Table::new(data).with(Style::modern()).to_string();

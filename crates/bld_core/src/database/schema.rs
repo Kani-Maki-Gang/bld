@@ -24,6 +24,8 @@ diesel::table! {
         pipeline_id -> Text,
         schedule -> Text,
         is_default -> Bool,
+        date_created -> Text,
+        date_updated -> Nullable<Text>,
     }
 }
 

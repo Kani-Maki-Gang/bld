@@ -10,4 +10,6 @@ pub struct CronJobResponse {
     pub variables: Option<HashMap<String, String>>,
     pub environment: Option<HashMap<String, String>>,
     pub is_default: bool,
+    pub date_created: String,
+    pub date_updated: Option<String>,
 }

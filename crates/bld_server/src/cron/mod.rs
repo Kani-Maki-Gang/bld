@@ -31,6 +31,8 @@ pub struct JobInfo {
     pub variables: Option<HashMap<String, String>>,
     pub environment: Option<HashMap<String, String>>,
     pub is_default: bool,
+    pub date_created: String,
+    pub date_updated: Option<String>,
 }
 
 pub struct CronScheduler {
@@ -378,6 +380,8 @@ impl CronScheduler {
                 variables,
                 environment,
                 is_default: job.is_default,
+                date_created: job.date_created,
+                date_updated: job.date_updated,
             });
         }
 
