@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::auth::{read_tokens, write_tokens, AuthTokens, RefreshTokenParams};
 use crate::messages::ExecClientMessage;
 use crate::requests::{
-    AddJobRequest, CheckQueryParams, HistQueryParams, JobFiltersParams, PrintQueryParams, PushInfo,
+    AddJobRequest, HistQueryParams, JobFiltersParams, PipelineQueryParams, PushInfo,
     UpdateJobRequest,
 };
 use crate::responses::{CronJobResponse, HistoryEntry, PullResponse};
@@ -207,9 +207,7 @@ impl HttpClient {
     async fn check_inner(&self, pipeline: &str) -> Result<()> {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/check", server.base_url_http());
-        let params = CheckQueryParams {
-            pipeline: pipeline.to_owned(),
-        };
+        let params = PipelineQueryParams::new(pipeline);
         Request::get(&url)
             .query(&params)?
             .auth(server)
@@ -229,19 +227,19 @@ impl HttpClient {
         }
     }
 
-    async fn deps_inner(&self, pipeline: &String) -> Result<Vec<String>> {
+    async fn deps_inner(&self, params: &PipelineQueryParams) -> Result<Vec<String>> {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/deps", server.base_url_http());
-        Request::post(&url).auth(server).send_json(pipeline).await
+        Request::get(&url).auth(server).query(params)?.send().await
     }
 
     pub async fn deps(&self, pipeline: &str) -> Result<Vec<String>> {
-        let pipeline = pipeline.to_owned();
-        let response = self.deps_inner(&pipeline).await;
+        let params = PipelineQueryParams::new(pipeline);
+        let response = self.deps_inner(&params).await;
 
         if Self::unauthorized(&response) {
             self.refresh().await?;
-            self.deps_inner(&pipeline).await
+            self.deps_inner(&params).await
         } else {
             response
         }
@@ -270,14 +268,14 @@ impl HttpClient {
         }
     }
 
-    async fn print_inner(&self, params: &PrintQueryParams) -> Result<String> {
+    async fn print_inner(&self, params: &PipelineQueryParams) -> Result<String> {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/print", server.base_url_http());
         Request::get(&url).auth(server).query(params)?.send().await
     }
 
     pub async fn print(&self, pipeline: &str) -> Result<String> {
-        let params = PrintQueryParams::new(pipeline);
+        let params = PipelineQueryParams::new(pipeline);
         let response = self.print_inner(&params).await;
 
         if Self::unauthorized(&response) {
@@ -305,19 +303,19 @@ impl HttpClient {
         }
     }
 
-    async fn pull_inner(&self, pipeline: &String) -> Result<PullResponse> {
+    async fn pull_inner(&self, params: &PipelineQueryParams) -> Result<PullResponse> {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/pull", server.base_url_http());
-        Request::post(&url).auth(server).send_json(pipeline).await
+        Request::get(&url).auth(server).query(params)?.send().await
     }
 
     pub async fn pull(&self, pipeline: &str) -> Result<PullResponse> {
-        let pipeline = pipeline.to_owned();
-        let response = self.pull_inner(&pipeline).await;
+        let params = PipelineQueryParams::new(pipeline);
+        let response = self.pull_inner(&params).await;
 
         if Self::unauthorized(&response) {
             self.refresh().await?;
-            self.pull_inner(&pipeline).await
+            self.pull_inner(&params).await
         } else {
             response
         }
@@ -348,23 +346,24 @@ impl HttpClient {
         }
     }
 
-    async fn remove_inner(&self, json: &String) -> Result<()> {
+    async fn remove_inner(&self, params: &PipelineQueryParams) -> Result<()> {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/remove", server.base_url_http());
         Request::delete(&url)
             .auth(server)
-            .send_json(json)
+            .query(params)?
+            .send()
             .await
             .map(|_: String| ())
     }
 
     pub async fn remove(&self, pipeline: &str) -> Result<()> {
-        let pipeline = pipeline.to_owned();
-        let response = self.remove_inner(&pipeline).await;
+        let params = PipelineQueryParams::new(pipeline);
+        let response = self.remove_inner(&params).await;
 
         if Self::unauthorized(&response) {
             self.refresh().await?;
-            self.remove_inner(&pipeline).await
+            self.remove_inner(&params).await
         } else {
             response
         }

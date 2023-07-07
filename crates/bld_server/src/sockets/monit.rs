@@ -115,7 +115,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MonitorPipelineSo
     }
 }
 
-pub async fn ws_monit(
+pub async fn ws(
     user: Option<User>,
     req: HttpRequest,
     stream: Payload,

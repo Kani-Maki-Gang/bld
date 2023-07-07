@@ -5,7 +5,7 @@ use bld_core::proxies::PipelineFileSystemProxy;
 use tracing::info;
 
 #[get("/list")]
-pub async fn list(_: User, prx: Data<PipelineFileSystemProxy>) -> HttpResponse {
+pub async fn get(_: User, prx: Data<PipelineFileSystemProxy>) -> HttpResponse {
     info!("Reached handler for /list route");
     match find_pipelines(prx.get_ref()) {
         Ok(pips) => HttpResponse::Ok().json(pips),

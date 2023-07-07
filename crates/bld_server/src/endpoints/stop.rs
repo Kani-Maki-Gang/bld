@@ -5,14 +5,13 @@ use actix_web::{post, HttpResponse, Responder};
 use tracing::info;
 
 #[post("/stop")]
-pub async fn stop(
+pub async fn post(
     _: User,
     req: Json<String>,
     supervisor_sender: Data<SupervisorMessageSender>,
 ) -> impl Responder {
     info!("Reached handler for /stop route");
-    let id = req.into_inner();
-    match supervisor_sender.stop(&id).await {
+    match supervisor_sender.stop(&req).await {
         Ok(_) => HttpResponse::Ok().json(""),
         Err(_) => HttpResponse::BadRequest().body("pipeline not found"),
     }

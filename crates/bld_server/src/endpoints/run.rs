@@ -12,7 +12,7 @@ use diesel::SqliteConnection;
 use tracing::info;
 
 #[post("/run")]
-pub async fn run(
+pub async fn post(
     user: User,
     proxy: Data<PipelineFileSystemProxy>,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,

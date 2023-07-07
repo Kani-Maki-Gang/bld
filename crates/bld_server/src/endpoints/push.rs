@@ -9,7 +9,7 @@ use bld_runner::{Load, VersionedPipeline, Yaml};
 use tracing::{error, info};
 
 #[post("/push")]
-pub async fn push(
+pub async fn post(
     _: User,
     prx: Data<PipelineFileSystemProxy>,
     cron: Data<CronScheduler>,
@@ -22,7 +22,7 @@ pub async fn push(
     }
 }
 
-pub async fn do_push(
+async fn do_push(
     prx: &PipelineFileSystemProxy,
     cron: &CronScheduler,
     info: &PushInfo,

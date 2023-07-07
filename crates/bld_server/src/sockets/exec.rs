@@ -163,7 +163,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSo
     }
 }
 
-pub async fn ws_exec(
+pub async fn ws(
     user: Option<User>,
     req: HttpRequest,
     stream: Payload,

@@ -9,7 +9,7 @@ use diesel::sqlite::SqliteConnection;
 use tracing::info;
 
 #[get("/hist")]
-pub async fn hist(
+pub async fn get(
     _user: User,
     db_pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
     params: Query<HistQueryParams>,

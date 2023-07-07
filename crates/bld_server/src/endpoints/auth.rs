@@ -18,7 +18,7 @@ const AUTH_REDIRECT_SUCCESS: &str =
 const AUTH_REDIRECT_FAILED: &str = "An error occured while completing the login process.";
 
 #[get("/auth/redirect")]
-pub async fn auth_redirect(
+pub async fn redirect(
     info: Query<AuthRedirectParams>,
     logins: Data<LoginProcess>,
 ) -> impl Responder {
@@ -35,7 +35,7 @@ pub async fn auth_redirect(
 }
 
 #[get("/auth/refresh")]
-pub async fn auth_refresh(
+pub async fn refresh(
     info: Query<RefreshTokenParams>,
     client: Data<Option<CoreClient>>,
 ) -> impl Responder {

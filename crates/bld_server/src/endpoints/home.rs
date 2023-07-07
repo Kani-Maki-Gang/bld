@@ -30,7 +30,7 @@ const HOME_HTML: &str = r"
 ";
 
 #[get("/")]
-async fn home() -> impl Responder {
+async fn get() -> impl Responder {
     info!("Reached handler for / route");
     HttpResponse::Ok().body(HOME_HTML)
 }

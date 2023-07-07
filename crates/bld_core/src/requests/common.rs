@@ -1,13 +1,13 @@
 use serde_derive::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct PrintQueryParams {
+pub struct PipelineQueryParams {
     pub pipeline: String,
 }
 
-impl PrintQueryParams {
+impl PipelineQueryParams {
     pub fn new(pipeline: &str) -> Self {
-        PrintQueryParams {
+        Self {
             pipeline: pipeline.to_owned(),
         }
     }
