@@ -20,13 +20,29 @@ create table if not exists cron_job_variables (
     name text not null,
     value text not null,
     cron_job_id text not null,
+    date_created text default current_timestamp not null,
+    date_updated text,
     foreign key(cron_job_id) references cron_jobs(id)
 );
+
+create trigger cron_job_variables_after_update
+    after update on cron_job_variables
+begin
+    update cron_job_variables set date_updated = current_timestamp where id = new.id;
+end;
 
 create table if not exists cron_job_environment_variables (
     id text primary key not null,
     name text not null,
     value text not null,
     cron_job_id text not null,
+    date_created text not null,
+    date_updated text,
     foreign key(cron_job_id) references cron_jobs(id)
 );
+
+create trigger cron_job_environment_variables_after_update
+    after update on cron_job_environment_variables
+begin
+    update cron_job_environment_variables set date_updated = current_timestamp where id = new.id;
+end;

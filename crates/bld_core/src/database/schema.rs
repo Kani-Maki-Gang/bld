@@ -6,6 +6,8 @@ diesel::table! {
         name -> Text,
         value -> Text,
         cron_job_id -> Text,
+        date_created -> Text,
+        date_updated -> Nullable<Text>,
     }
 }
 
@@ -15,6 +17,8 @@ diesel::table! {
         name -> Text,
         value -> Text,
         cron_job_id -> Text,
+        date_created -> Text,
+        date_updated -> Nullable<Text>,
     }
 }
 

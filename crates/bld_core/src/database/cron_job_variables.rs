@@ -16,6 +16,8 @@ pub struct CronJobVariable {
     pub name: String,
     pub value: String,
     pub cron_job_id: String,
+    pub date_created: String,
+    pub date_updated: Option<String>,
 }
 
 #[derive(Insertable)]
