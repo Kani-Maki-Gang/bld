@@ -245,26 +245,24 @@ pub fn delete_by_cron_job_id(conn: &mut SqliteConnection, cj_id: &str) -> Result
 
 pub fn delete_by_pipeline(conn: &mut SqliteConnection, cj_pipeline_id: &str) -> Result<()> {
     debug!("deleting cron jobs associated with pipeline id: {cj_pipeline_id}");
-    conn.transaction(|conn| {
-        select_by_pipeline(conn, cj_pipeline_id).map(|entries| {
-            for entry in entries {
-                let _ = cron_job_variables::delete_by_cron_job_id(conn, &entry.id)
-                    .and_then(|_| {
-                        cron_job_environment_variables::delete_by_cron_job_id(conn, &entry.id)
-                    })
-                    .and_then(|_| {
-                        diesel::delete(cron_jobs::table)
-                            .filter(id.eq(&entry.id))
-                            .execute(conn)
-                            .map(|_| {
-                                debug!("deleted cron job successfully");
-                            })
-                            .map_err(|e| {
-                                error!("couldn't delete cron job due to {e}");
-                                anyhow!(e)
-                            })
-                    });
-            }
-        })
+    select_by_pipeline(conn, cj_pipeline_id).map(|entries| {
+        for entry in entries {
+            let _ = cron_job_variables::delete_by_cron_job_id(conn, &entry.id)
+                .and_then(|_| {
+                    cron_job_environment_variables::delete_by_cron_job_id(conn, &entry.id)
+                })
+                .and_then(|_| {
+                    diesel::delete(cron_jobs::table)
+                        .filter(id.eq(&entry.id))
+                        .execute(conn)
+                        .map(|_| {
+                            debug!("deleted cron job successfully");
+                        })
+                        .map_err(|e| {
+                            error!("couldn't delete cron job due to {e}");
+                            anyhow!(e)
+                        })
+                });
+        }
     })
 }

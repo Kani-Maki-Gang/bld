@@ -29,13 +29,12 @@ pub async fn do_push(
 ) -> Result<()> {
     prx.create(&info.name, &info.content, true)?;
     let pipeline: VersionedPipeline = Yaml::load(&info.content)?;
-    if let Some(schedule) = pipeline.cron() {
-        cron.upsert_default(schedule, &info.name)
-            .await
-            .map_err(|e| {
-                error!("{e}");
-                e
-            })?;
-    }
-    Ok(())
+    let remove_res = match pipeline.cron() {
+        Some(schedule) => cron.upsert_default(schedule, &info.name).await,
+        None => cron.remove_by_pipeline(&info.name).await,
+    };
+    remove_res.map_err(|e| {
+        error!("{e}");
+        e
+    })
 }
