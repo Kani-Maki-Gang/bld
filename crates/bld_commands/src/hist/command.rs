@@ -69,8 +69,10 @@ impl BldCommand for HistCommand {
                 .hist(state, self.pipeline, self.limit)
                 .await?;
 
-            let table = Table::new(history).with(Style::modern()).to_string();
-            println!("{table}");
+            if !history.is_empty() {
+                let table = Table::new(history).with(Style::modern()).to_string();
+                println!("{table}");
+            }
 
             Ok(())
         })

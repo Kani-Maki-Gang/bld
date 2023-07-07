@@ -1,6 +1,39 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    cron_job_environment_variables (id) {
+        id -> Text,
+        name -> Text,
+        value -> Text,
+        cron_job_id -> Text,
+        date_created -> Text,
+        date_updated -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    cron_job_variables (id) {
+        id -> Text,
+        name -> Text,
+        value -> Text,
+        cron_job_id -> Text,
+        date_created -> Text,
+        date_updated -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    cron_jobs (id) {
+        id -> Text,
+        pipeline_id -> Text,
+        schedule -> Text,
+        is_default -> Bool,
+        date_created -> Text,
+        date_updated -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
     ha_client_serial_responses (id) {
         id -> Integer,
         state_machine_id -> Integer,
@@ -108,6 +141,9 @@ diesel::table! {
     }
 }
 
+diesel::joinable!(cron_job_environment_variables -> cron_jobs (cron_job_id));
+diesel::joinable!(cron_job_variables -> cron_jobs (cron_job_id));
+diesel::joinable!(cron_jobs -> pipeline (pipeline_id));
 diesel::joinable!(ha_client_serial_responses -> ha_state_machine (state_machine_id));
 diesel::joinable!(ha_client_status -> ha_state_machine (state_machine_id));
 diesel::joinable!(ha_members -> ha_snapshot (snapshot_id));
@@ -115,6 +151,9 @@ diesel::joinable!(ha_members_after_consensus -> ha_snapshot (snapshot_id));
 diesel::joinable!(pipeline_run_containers -> pipeline_runs (run_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
+    cron_job_environment_variables,
+    cron_job_variables,
+    cron_jobs,
     ha_client_serial_responses,
     ha_client_status,
     ha_hard_state,

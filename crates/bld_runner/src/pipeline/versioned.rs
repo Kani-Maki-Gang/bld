@@ -96,6 +96,14 @@ impl VersionedPipeline {
         Ok(set)
     }
 
+    pub fn cron(&self) -> Option<&str> {
+        if let Self::Version2(pip) = self {
+            pip.cron.as_deref()
+        } else {
+            None
+        }
+    }
+
     pub fn validate_with_verbose_errors(
         &self,
         config: Arc<BldConfig>,

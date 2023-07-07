@@ -4,6 +4,7 @@ mod check;
 pub mod cli;
 pub mod command;
 mod config;
+mod cron;
 mod edit;
 mod hist;
 mod init;

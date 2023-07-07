@@ -6,7 +6,7 @@ use actix_web::error::ErrorUnauthorized;
 use actix_web::web::{Data, Payload};
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::database::pipeline_runs::{
     self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED,
@@ -16,13 +16,14 @@ use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::scanner::FileScanner;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
+use futures_util::future::ready;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, error};
 
 pub struct ExecutePipelineSocket {
     config: Data<BldConfig>,
-    supervisor_sender: Data<SupervisorMessageSender>,
+    supervisor: Data<SupervisorMessageSender>,
     pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
     proxy: Data<PipelineFileSystemProxy>,
     user: User,
@@ -40,7 +41,7 @@ impl ExecutePipelineSocket {
     ) -> Self {
         Self {
             config,
-            supervisor_sender,
+            supervisor: supervisor_sender,
             pool,
             proxy,
             user,
@@ -90,25 +91,36 @@ impl ExecutePipelineSocket {
         let message: ExecClientMessage = serde_json::from_str(message)?;
 
         debug!("enqueueing run");
-        enqueue_worker(
-            &self.user,
-            self.proxy.clone(),
-            self.pool.clone(),
-            self.supervisor_sender.clone(),
-            message,
-        )
-        .map(|run_id| {
-            self.scanner = Some(FileScanner::new(Arc::clone(&self.config), &run_id));
-            self.run_id = Some(run_id.to_owned());
-            let message = ExecServerMessage::QueuedRun { run_id };
-            if let Ok(data) = serde_json::to_string(&message) {
-                ctx.text(data);
-            }
-        })
-        .map_err(|e| {
-            error!("{e}");
-            anyhow!("Unable to run pipeline")
-        })
+
+        let username = self.user.name.to_owned();
+        let proxy = Arc::clone(&self.proxy);
+        let pool = Arc::clone(&self.pool);
+        let supervisor = Arc::clone(&self.supervisor);
+
+        let enqueue_fut =
+            async move { enqueue_worker(&username, proxy, pool, supervisor, message).await }
+                .into_actor(self)
+                .then(|res, act, ctx| match res {
+                    Ok(run_id) => {
+                        act.scanner = Some(FileScanner::new(Arc::clone(&act.config), &run_id));
+                        act.run_id = Some(run_id.to_owned());
+                        let message = ExecServerMessage::QueuedRun { run_id };
+                        if let Ok(data) = serde_json::to_string(&message) {
+                            ctx.text(data);
+                        }
+                        ready(())
+                    }
+                    Err(e) => {
+                        error!("{e}");
+                        ctx.text(e.to_string());
+                        ctx.stop();
+                        ready(())
+                    }
+                });
+
+        ctx.spawn(enqueue_fut);
+
+        Ok(())
     }
 }
 

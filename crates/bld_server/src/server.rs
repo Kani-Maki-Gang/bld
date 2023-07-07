@@ -1,6 +1,7 @@
+use crate::cron::CronScheduler;
 use crate::endpoints::{
-    auth_redirect, auth_refresh, check, deps, hist, home, inspect, list, pull, push, remove, run,
-    stop,
+    auth_redirect, auth_refresh, check, cron, deps, hist, home, inspect, list, pull, push, remove,
+    run, stop,
 };
 use crate::sockets::{ws_exec, ws_login, ws_monit};
 use crate::supervisor::channel::SupervisorMessageSender;
@@ -28,10 +29,13 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
     let supervisor_sender = SupervisorMessageSender::new(Arc::clone(&config)).into_data();
     let logins = LoginProcess::new().into_data();
     let pool = pool.into_data();
-    let prx = PipelineFileSystemProxy::Server {
-        config: Arc::clone(&config),
-        pool: Arc::clone(&pool),
-    }
+    let prx = PipelineFileSystemProxy::server(Arc::clone(&config), Arc::clone(&pool)).into_data();
+    let cron = CronScheduler::new(
+        Arc::clone(&prx),
+        Arc::clone(&pool),
+        Arc::clone(&supervisor_sender),
+    )
+    .await?
     .into_data();
 
     set_var("RUST_LOG", "actix_server=info,actix_web=debug");
@@ -43,6 +47,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .app_data(logins.clone())
             .app_data(pool.clone())
             .app_data(prx.clone())
+            .app_data(cron.clone())
             .wrap(middleware::Logger::default())
             .service(home)
             .service(auth_redirect)
@@ -57,6 +62,10 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .service(pull)
             .service(stop)
             .service(inspect)
+            .service(cron::get)
+            .service(cron::post)
+            .service(cron::patch)
+            .service(cron::delete)
             .service(resource("/ws-exec/").route(get().to(ws_exec)))
             .service(resource("/ws-monit/").route(get().to(ws_monit)))
             .service(resource("/ws-login/").route(get().to(ws_login)))

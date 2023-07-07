@@ -1,4 +1,3 @@
-use crate::add::AddCommand;
 use crate::auth::AuthCommand;
 use crate::check::CheckCommand;
 use crate::command::BldCommand;
@@ -17,6 +16,7 @@ use crate::server::ServerCommand;
 use crate::stop::StopCommand;
 use crate::supervisor::SupervisorCommand;
 use crate::worker::WorkerCommand;
+use crate::{add::AddCommand, cron::command::CronCommand};
 use anyhow::Result;
 use bld_config::definitions::VERSION;
 use clap::{Parser, Subcommand};
@@ -26,6 +26,7 @@ enum Commands {
     Login(AuthCommand),
     Check(CheckCommand),
     Config(ConfigCommand),
+    Cron(CronCommand),
     Edit(EditCommand),
     Hist(HistCommand),
     Init(InitCommand),
@@ -57,6 +58,7 @@ impl Cli {
             Commands::Login(auth) => auth.invoke(),
             Commands::Check(check) => check.invoke(),
             Commands::Config(config) => config.invoke(),
+            Commands::Cron(cron) => cron.invoke(),
             Commands::Edit(edit) => edit.invoke(),
             Commands::Hist(hist) => hist.invoke(),
             Commands::Init(init) => init.invoke(),

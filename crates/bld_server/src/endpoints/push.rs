@@ -1,38 +1,40 @@
+use crate::cron::CronScheduler;
 use crate::extractors::User;
 use actix_web::web::{Data, Json};
 use actix_web::{post, HttpResponse, Responder};
 use anyhow::Result;
-use bld_core::database::pipeline;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::requests::PushInfo;
-use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::sqlite::SqliteConnection;
-use tracing::info;
-use uuid::Uuid;
+use bld_runner::{Load, VersionedPipeline, Yaml};
+use tracing::{error, info};
 
 #[post("/push")]
 pub async fn push(
     _: User,
     prx: Data<PipelineFileSystemProxy>,
-    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    cron: Data<CronScheduler>,
     info: Json<PushInfo>,
 ) -> impl Responder {
     info!("Reached handler for /push route");
-    match do_push(prx.get_ref(), pool.get_ref(), &info.into_inner()) {
+    match do_push(&prx, &cron, &info).await {
         Ok(()) => HttpResponse::Ok().json(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
 
-fn do_push(
+pub async fn do_push(
     prx: &PipelineFileSystemProxy,
-    pool: &Pool<ConnectionManager<SqliteConnection>>,
+    cron: &CronScheduler,
     info: &PushInfo,
 ) -> Result<()> {
-    let mut conn = pool.get()?;
-    if pipeline::select_by_name(&mut conn, &info.name).is_err() {
-        let id = Uuid::new_v4().to_string();
-        pipeline::insert(&mut conn, &id, &info.name)?;
-    }
-    prx.create(&info.name, &info.content, true)
+    prx.create(&info.name, &info.content, true)?;
+    let pipeline: VersionedPipeline = Yaml::load(&info.content)?;
+    let remove_res = match pipeline.cron() {
+        Some(schedule) => cron.upsert_default(schedule, &info.name).await,
+        None => cron.remove_by_pipeline(&info.name).await,
+    };
+    remove_res.map_err(|e| {
+        error!("{e}");
+        e
+    })
 }

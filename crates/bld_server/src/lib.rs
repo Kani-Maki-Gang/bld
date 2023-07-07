@@ -1,3 +1,4 @@
+pub mod cron;
 pub mod endpoints;
 pub mod extractors;
 mod server;
