@@ -1,17 +1,18 @@
 use crate::extractors::User;
-use actix_web::web::{Data, Json};
-use actix_web::{post, HttpResponse, Responder};
+use actix_web::web::{Data, Query};
+use actix_web::{get, HttpResponse, Responder};
 use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::requests::PrintQueryParams;
 use tracing::info;
 
-#[post("/print")]
+#[get("/print")]
 pub async fn print(
     _: User,
     prx: Data<PipelineFileSystemProxy>,
-    body: Json<String>,
+    params: Query<PrintQueryParams>,
 ) -> impl Responder {
     info!("Reached handler for /print route");
-    match prx.read(&body.into_inner()) {
+    match prx.read(&params.pipeline) {
         Ok(content) => HttpResponse::Ok().json(content),
         Err(_) => HttpResponse::BadRequest().body("pipeline not found"),
     }

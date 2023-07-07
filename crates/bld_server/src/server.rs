@@ -1,6 +1,6 @@
 use crate::cron::CronScheduler;
 use crate::endpoints::{
-    auth_redirect, auth_refresh, check, cron, deps, hist, home, print, list, pull, push, remove,
+    auth_redirect, auth_refresh, check, cron, deps, hist, home, list, print, pull, push, remove,
     run, stop,
 };
 use crate::sockets::{ws_exec, ws_login, ws_monit};

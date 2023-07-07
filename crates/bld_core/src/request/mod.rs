@@ -6,7 +6,8 @@ use std::sync::Arc;
 use crate::auth::{read_tokens, write_tokens, AuthTokens, RefreshTokenParams};
 use crate::messages::ExecClientMessage;
 use crate::requests::{
-    AddJobRequest, CheckQueryParams, HistQueryParams, JobFiltersParams, PushInfo, UpdateJobRequest,
+    AddJobRequest, CheckQueryParams, HistQueryParams, JobFiltersParams, PrintQueryParams, PushInfo,
+    UpdateJobRequest,
 };
 use crate::responses::{CronJobResponse, HistoryEntry, PullResponse};
 use anyhow::{anyhow, bail, Result};
@@ -269,19 +270,19 @@ impl HttpClient {
         }
     }
 
-    async fn print_inner(&self, pipeline: &String) -> Result<String> {
+    async fn print_inner(&self, params: &PrintQueryParams) -> Result<String> {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/print", server.base_url_http());
-        Request::post(&url).auth(server).send_json(pipeline).await
+        Request::get(&url).auth(server).query(params)?.send().await
     }
 
     pub async fn print(&self, pipeline: &str) -> Result<String> {
-        let pipeline = pipeline.to_owned();
-        let response = self.print_inner(&pipeline).await;
+        let params = PrintQueryParams::new(pipeline);
+        let response = self.print_inner(&params).await;
 
         if Self::unauthorized(&response) {
             self.refresh().await?;
-            self.print_inner(&pipeline).await
+            self.print_inner(&params).await
         } else {
             response
         }
