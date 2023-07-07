@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use anyhow::{anyhow, Result};
 use diesel::{
     prelude::*, query_dsl::RunQueryDsl, sqlite::SqliteConnection, Connection, Insertable, Queryable,
