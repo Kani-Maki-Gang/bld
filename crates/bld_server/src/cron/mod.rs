@@ -17,7 +17,7 @@ use bld_core::{
 };
 use diesel::{
     r2d2::{ConnectionManager, Pool},
-    SqliteConnection, Connection,
+    Connection, SqliteConnection,
 };
 use tokio_cron_scheduler::{Job, JobScheduler};
 use uuid::Uuid;
@@ -304,7 +304,7 @@ impl CronScheduler {
 
     pub async fn remove(&self, job_id: &str) -> Result<()> {
         let mut conn = self.pool.get()?;
-        cron_jobs::select_by_id(&mut conn,job_id)?;
+        cron_jobs::select_by_id(&mut conn, job_id)?;
         let scheduled_job_id = Uuid::from_str(job_id)?;
         self.scheduler.remove(&scheduled_job_id).await?;
         cron_jobs::delete_by_cron_job_id(&mut conn, job_id)?;

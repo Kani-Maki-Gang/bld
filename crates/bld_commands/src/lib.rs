@@ -1,5 +1,6 @@
 mod add;
 mod auth;
+mod cat;
 mod check;
 pub mod cli;
 pub mod command;
@@ -8,7 +9,6 @@ mod cron;
 mod edit;
 mod hist;
 mod init;
-mod inspect;
 mod list;
 mod monit;
 mod pull;

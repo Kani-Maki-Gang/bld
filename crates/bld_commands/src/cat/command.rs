@@ -7,8 +7,8 @@ use bld_utils::sync::IntoArc;
 use clap::Args;
 
 #[derive(Args)]
-#[command(about = "Inspects the contents of a pipeline on a bld server")]
-pub struct InspectCommand {
+#[command(about = "Print the contents of a pipeline")]
+pub struct CatCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
@@ -16,20 +16,20 @@ pub struct InspectCommand {
         short = 'p',
         long = "pipeline",
         required = true,
-        help = "The name of the pipeline to inspect"
+        help = "The name of the pipeline to print"
     )]
     pipeline: String,
 
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server to inspect the pipeline from"
+        help = "The name of the server to print the pipeline from"
     )]
     server: Option<String>,
 }
 
-impl InspectCommand {
-    fn local_inspect(&self) -> Result<()> {
+impl CatCommand {
+    fn local_print(&self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config);
         let pipeline = proxy.read(&self.pipeline)?;
@@ -37,26 +37,26 @@ impl InspectCommand {
         Ok(())
     }
 
-    fn remote_inspect(&self, server: &str) -> Result<()> {
+    fn remote_print(&self, server: &str) -> Result<()> {
         System::new().block_on(async move {
             let config = BldConfig::load()?.into_arc();
             HttpClient::new(config, server)
-                .inspect(&self.pipeline)
+                .print(&self.pipeline)
                 .await
                 .map(|r| println!("{r}"))
         })
     }
 }
 
-impl BldCommand for InspectCommand {
+impl BldCommand for CatCommand {
     fn verbose(&self) -> bool {
         self.verbose
     }
 
     fn exec(self) -> Result<()> {
         match &self.server {
-            Some(srv) => self.remote_inspect(srv),
-            None => self.local_inspect(),
+            Some(srv) => self.remote_print(srv),
+            None => self.local_print(),
         }
     }
 }
