@@ -269,19 +269,19 @@ impl HttpClient {
         }
     }
 
-    async fn inspect_inner(&self, pipeline: &String) -> Result<String> {
+    async fn print_inner(&self, pipeline: &String) -> Result<String> {
         let server = self.config.server(&self.server)?;
-        let url = format!("{}/inspect", server.base_url_http());
+        let url = format!("{}/print", server.base_url_http());
         Request::post(&url).auth(server).send_json(pipeline).await
     }
 
-    pub async fn inspect(&self, pipeline: &str) -> Result<String> {
+    pub async fn print(&self, pipeline: &str) -> Result<String> {
         let pipeline = pipeline.to_owned();
-        let response = self.inspect_inner(&pipeline).await;
+        let response = self.print_inner(&pipeline).await;
 
         if Self::unauthorized(&response) {
             self.refresh().await?;
-            self.inspect_inner(&pipeline).await
+            self.print_inner(&pipeline).await
         } else {
             response
         }

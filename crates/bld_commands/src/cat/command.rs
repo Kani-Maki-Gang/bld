@@ -16,20 +16,20 @@ pub struct CatCommand {
         short = 'p',
         long = "pipeline",
         required = true,
-        help = "The name of the pipeline to inspect"
+        help = "The name of the pipeline to print"
     )]
     pipeline: String,
 
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server to inspect the pipeline from"
+        help = "The name of the server to print the pipeline from"
     )]
     server: Option<String>,
 }
 
 impl CatCommand {
-    fn local_inspect(&self) -> Result<()> {
+    fn local_print(&self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config);
         let pipeline = proxy.read(&self.pipeline)?;
@@ -37,11 +37,11 @@ impl CatCommand {
         Ok(())
     }
 
-    fn remote_inspect(&self, server: &str) -> Result<()> {
+    fn remote_print(&self, server: &str) -> Result<()> {
         System::new().block_on(async move {
             let config = BldConfig::load()?.into_arc();
             HttpClient::new(config, server)
-                .inspect(&self.pipeline)
+                .print(&self.pipeline)
                 .await
                 .map(|r| println!("{r}"))
         })
@@ -55,8 +55,8 @@ impl BldCommand for CatCommand {
 
     fn exec(self) -> Result<()> {
         match &self.server {
-            Some(srv) => self.remote_inspect(srv),
-            None => self.local_inspect(),
+            Some(srv) => self.remote_print(srv),
+            None => self.local_print(),
         }
     }
 }

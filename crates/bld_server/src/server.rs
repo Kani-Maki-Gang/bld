@@ -1,6 +1,6 @@
 use crate::cron::CronScheduler;
 use crate::endpoints::{
-    auth_redirect, auth_refresh, check, cron, deps, hist, home, inspect, list, pull, push, remove,
+    auth_redirect, auth_refresh, check, cron, deps, hist, home, print, list, pull, push, remove,
     run, stop,
 };
 use crate::sockets::{ws_exec, ws_login, ws_monit};
@@ -61,7 +61,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .service(deps)
             .service(pull)
             .service(stop)
-            .service(inspect)
+            .service(print)
             .service(cron::get)
             .service(cron::post)
             .service(cron::patch)
