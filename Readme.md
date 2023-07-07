@@ -1,5 +1,5 @@
 <p align="center">
-    <img style="text-align: center;" height="200" width="200" src="./assets/keycrab-logo.png">
+    <img style="text-align: center;" height="200" width="200" src="./assets/logo.png">
 </p>
 
 # BLD
