@@ -17,6 +17,7 @@ pub enum CronCommands {
 }
 
 #[derive(Parser)]
+#[command(about = "Configure cron jobs for a bld server")]
 pub struct CronCommand {
     #[command(subcommand)]
     command: CronCommands,
