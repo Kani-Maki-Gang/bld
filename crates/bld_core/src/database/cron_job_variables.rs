@@ -3,6 +3,7 @@ use diesel::{
     prelude::*, query_dsl::RunQueryDsl, sqlite::SqliteConnection, Connection, Insertable, Queryable,
 };
 use tracing::{debug, error};
+use uuid::Uuid;
 
 use crate::database::schema::cron_job_variables;
 use crate::database::schema::cron_job_variables::dsl::*;
@@ -24,6 +25,19 @@ pub struct InsertCronJobVariable<'a> {
     pub name: &'a str,
     pub value: &'a str,
     pub cron_job_id: &'a str,
+}
+
+impl<'a> InsertCronJobVariable<'a> {
+    pub fn new(kv: (&'a String, &'a String), job_id: &'a str) -> Self {
+        let cv_id = Uuid::new_v4().to_string();
+        let (cv_name, cv_value) = kv;
+        Self {
+            id: cv_id,
+            name: cv_name,
+            value: cv_value,
+            cron_job_id: job_id,
+        }
+    }
 }
 
 pub fn select_by_cron_job_id(

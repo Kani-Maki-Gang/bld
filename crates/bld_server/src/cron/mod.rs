@@ -111,36 +111,25 @@ impl CronScheduler {
         add_job: &AddJobRequest,
         pipeline_id: &str,
     ) -> Result<CronJob> {
-        let job_id_string = job_id.to_string();
+        let job_id_str = job_id.to_string();
         let job = InsertCronJob {
-            id: &job_id_string,
+            id: &job_id_str,
             pipeline_id,
             schedule: &add_job.schedule,
             is_default: add_job.is_default,
         };
 
-        let vars: Option<Vec<InsertCronJobVariable>> = add_job.variables.as_ref().map(|vars| {
+        let vars: Option<Vec<_>> = add_job.variables.as_ref().map(|vars| {
             vars.iter()
-                .map(|(k, v)| InsertCronJobVariable {
-                    id: Uuid::new_v4().to_string(),
-                    name: k,
-                    value: v,
-                    cron_job_id: &job_id_string,
-                })
+                .map(|kv| InsertCronJobVariable::new(kv, &job_id_str))
                 .collect()
         });
 
-        let env: Option<Vec<InsertCronJobEnvironmentVariable>> =
-            add_job.environment.as_ref().map(|envs| {
-                envs.iter()
-                    .map(|(k, v)| InsertCronJobEnvironmentVariable {
-                        id: Uuid::new_v4().to_string(),
-                        name: k,
-                        value: v,
-                        cron_job_id: &job_id_string,
-                    })
-                    .collect()
-            });
+        let env: Option<Vec<_>> = add_job.environment.as_ref().map(|envs| {
+            envs.iter()
+                .map(|kv| InsertCronJobEnvironmentVariable::new(kv, &job_id_str))
+                .collect()
+        });
 
         cron_jobs::insert(conn, &job, &vars, &env)
     }
@@ -152,35 +141,24 @@ impl CronScheduler {
         update_job: &UpdateJobRequest,
         pipeline_id: &str,
     ) -> Result<CronJob> {
-        let job_id_string = job_id.to_string();
+        let job_id_str = job_id.to_string();
         let job = UpdateCronJob {
-            id: &job_id_string,
+            id: &job_id_str,
             pipeline_id,
             schedule: &update_job.schedule,
         };
 
-        let vars: Option<Vec<InsertCronJobVariable>> = update_job.variables.as_ref().map(|vars| {
+        let vars: Option<Vec<_>> = update_job.variables.as_ref().map(|vars| {
             vars.iter()
-                .map(|(k, v)| InsertCronJobVariable {
-                    id: Uuid::new_v4().to_string(),
-                    name: k,
-                    value: v,
-                    cron_job_id: &job_id_string,
-                })
+                .map(|kv| InsertCronJobVariable::new(kv, &job_id_str))
                 .collect()
         });
 
-        let env: Option<Vec<InsertCronJobEnvironmentVariable>> =
-            update_job.environment.as_ref().map(|envs| {
-                envs.iter()
-                    .map(|(k, v)| InsertCronJobEnvironmentVariable {
-                        id: Uuid::new_v4().to_string(),
-                        name: k,
-                        value: v,
-                        cron_job_id: &job_id_string,
-                    })
-                    .collect()
-            });
+        let env: Option<Vec<_>> = update_job.environment.as_ref().map(|envs| {
+            envs.iter()
+                .map(|kv| InsertCronJobEnvironmentVariable::new(kv, &job_id_str))
+                .collect()
+        });
 
         cron_jobs::update(conn, &job, &vars, &env)
     }
@@ -326,11 +304,9 @@ impl CronScheduler {
 
     pub async fn remove(&self, job_id: &str) -> Result<()> {
         let mut conn = self.pool.get()?;
+        let scheduled_job_id = Uuid::from_str(job_id)?;
+        self.scheduler.remove(&scheduled_job_id).await?;
         cron_jobs::delete_by_cron_job_id(&mut conn, job_id)?;
-
-        let job_id = Uuid::from_str(job_id)?;
-        self.scheduler.remove(&job_id).await?;
-
         Ok(())
     }
 

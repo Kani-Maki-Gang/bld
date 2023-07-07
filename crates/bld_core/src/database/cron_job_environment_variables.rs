@@ -1,8 +1,11 @@
+use std::collections::HashMap;
+
 use anyhow::{anyhow, Result};
 use diesel::{
     prelude::*, query_dsl::RunQueryDsl, sqlite::SqliteConnection, Connection, Insertable, Queryable,
 };
 use tracing::{debug, error};
+use uuid::Uuid;
 
 use crate::database::schema::cron_job_environment_variables;
 use crate::database::schema::cron_job_environment_variables::dsl::*;
@@ -24,6 +27,19 @@ pub struct InsertCronJobEnvironmentVariable<'a> {
     pub name: &'a str,
     pub value: &'a str,
     pub cron_job_id: &'a str,
+}
+
+impl<'a> InsertCronJobEnvironmentVariable<'a> {
+    pub fn new(kv: (&'a String, &'a String), job_id: &'a str) -> Self {
+        let cve_id = Uuid::new_v4().to_string();
+        let (cve_name, cve_value) = kv;
+        Self {
+            id: cve_id,
+            name: cve_name,
+            value: cve_value,
+            cron_job_id: job_id,
+        }
+    }
 }
 
 pub fn select_by_cron_job_id(
