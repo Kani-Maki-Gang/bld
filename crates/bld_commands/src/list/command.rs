@@ -7,7 +7,7 @@ use bld_utils::sync::IntoArc;
 use clap::Args;
 
 #[derive(Args)]
-#[command(about = "Lists information of pipelines in a bld server")]
+#[command(about = "List pipelines")]
 pub struct ListCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,

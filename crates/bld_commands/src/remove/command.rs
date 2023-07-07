@@ -8,7 +8,7 @@ use clap::Args;
 use tracing::debug;
 
 #[derive(Args)]
-#[command(about = "Removes a pipeline from a bld server")]
+#[command(about = "Removes a pipeline")]
 pub struct RemoveCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,

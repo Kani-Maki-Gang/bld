@@ -1,11 +1,11 @@
 use crate::auth::AuthCommand;
+use crate::cat::CatCommand;
 use crate::check::CheckCommand;
 use crate::command::BldCommand;
 use crate::config::ConfigCommand;
 use crate::edit::EditCommand;
 use crate::hist::HistCommand;
 use crate::init::InitCommand;
-use crate::inspect::InspectCommand;
 use crate::list::ListCommand;
 use crate::monit::MonitCommand;
 use crate::pull::PullCommand;
@@ -24,6 +24,7 @@ use clap::{Parser, Subcommand};
 #[derive(Subcommand)]
 enum Commands {
     Login(AuthCommand),
+    Cat(CatCommand),
     Check(CheckCommand),
     Config(ConfigCommand),
     Cron(CronCommand),
@@ -31,7 +32,6 @@ enum Commands {
     Hist(HistCommand),
     Init(InitCommand),
     Add(AddCommand),
-    Inspect(InspectCommand),
     Ls(ListCommand),
     Monit(MonitCommand),
     Pull(PullCommand),
@@ -56,6 +56,7 @@ impl Cli {
     pub fn invoke(self) -> Result<()> {
         match self.command {
             Commands::Login(auth) => auth.invoke(),
+            Commands::Cat(cat) => cat.invoke(),
             Commands::Check(check) => check.invoke(),
             Commands::Config(config) => config.invoke(),
             Commands::Cron(cron) => cron.invoke(),
@@ -63,7 +64,6 @@ impl Cli {
             Commands::Hist(hist) => hist.invoke(),
             Commands::Init(init) => init.invoke(),
             Commands::Add(add) => add.invoke(),
-            Commands::Inspect(inspect) => inspect.invoke(),
             Commands::Ls(list) => list.invoke(),
             Commands::Monit(monit) => monit.invoke(),
             Commands::Pull(pull) => pull.invoke(),

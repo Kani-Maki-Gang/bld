@@ -7,8 +7,8 @@ use bld_utils::sync::IntoArc;
 use clap::Args;
 
 #[derive(Args)]
-#[command(about = "Inspects the contents of a pipeline on a bld server")]
-pub struct InspectCommand {
+#[command(about = "Print the contents of a pipeline")]
+pub struct CatCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
@@ -28,7 +28,7 @@ pub struct InspectCommand {
     server: Option<String>,
 }
 
-impl InspectCommand {
+impl CatCommand {
     fn local_inspect(&self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config);
@@ -48,7 +48,7 @@ impl InspectCommand {
     }
 }
 
-impl BldCommand for InspectCommand {
+impl BldCommand for CatCommand {
     fn verbose(&self) -> bool {
         self.verbose
     }
