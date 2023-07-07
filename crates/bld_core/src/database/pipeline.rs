@@ -87,21 +87,6 @@ pub fn insert(conn: &mut SqliteConnection, pip_id: &str, pip_name: &str) -> Resu
     })
 }
 
-pub fn delete(conn: &mut SqliteConnection, pip_id: &str) -> Result<()> {
-    debug!("deleting pipeline with id: {pip_id} from the database");
-    conn.transaction(|conn| {
-        diesel::delete(pipeline.filter(id.eq(pip_id)))
-            .execute(conn)
-            .map_err(|e| {
-                error!("could not delete pipeline due to {e}");
-                anyhow!(e)
-            })
-            .map(|_| {
-                debug!("pipeline deleted successfully");
-            })
-    })
-}
-
 pub fn delete_by_name(conn: &mut SqliteConnection, pip_name: &str) -> Result<()> {
     debug!("deleting pipeline with name: {pip_name} from the database");
     conn.transaction(|conn| {

@@ -13,7 +13,6 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, ExitStatus};
 use std::sync::Arc;
-use tracing::error;
 use uuid::Uuid;
 use walkdir::WalkDir;
 

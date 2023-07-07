@@ -21,7 +21,7 @@ pub async fn remove(
 }
 
 async fn do_remove(prx: &PipelineFileSystemProxy, cron: &CronScheduler, name: &str) -> Result<()> {
-    cron.remove_by_pipeline(name).await?;
+    cron.remove_scheduled_jobs(name).await?;
     prx.remove(name)?;
     Ok(())
 }

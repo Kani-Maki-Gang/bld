@@ -310,7 +310,7 @@ impl CronScheduler {
         Ok(())
     }
 
-    pub async fn remove_by_pipeline(&self, pipeline: &str) -> Result<()> {
+    pub async fn remove_scheduled_jobs(&self, pipeline: &str) -> Result<()> {
         let mut conn = self.pool.get()?;
         let jobs = cron_jobs::select_by_pipeline(&mut conn, pipeline)?;
 
@@ -318,8 +318,6 @@ impl CronScheduler {
             let job_id = Uuid::from_str(&job.id)?;
             self.scheduler.remove(&job_id).await?;
         }
-
-        cron_jobs::delete_by_pipeline(&mut conn, pipeline)?;
 
         Ok(())
     }
