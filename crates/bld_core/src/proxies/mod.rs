@@ -114,7 +114,6 @@ impl PipelineFileSystemProxy {
         if let Self::Server { pool, .. } = self {
             let mut conn = pool.get()?;
             let response = pipeline::select_by_name(&mut conn, name);
-            error!("{:?}", response);
             if response.is_err() {
                 let id = Uuid::new_v4().to_string();
                 pipeline::insert(&mut conn, &id, name)?;
