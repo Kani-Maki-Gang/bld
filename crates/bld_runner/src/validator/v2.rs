@@ -8,9 +8,11 @@ use bld_config::definitions::{
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_utils::fs::IsYaml;
+use cron::Schedule;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
+use std::str::FromStr;
 use std::sync::Arc;
 
 pub struct PipelineValidator<'a> {
@@ -60,6 +62,7 @@ impl<'a> PipelineValidator<'a> {
 
     pub fn validate(mut self) -> Result<()> {
         self.validate_runs_on();
+        self.validate_cron();
         self.validate_variables(None, &self.pipeline.variables);
         self.validate_environment(None, &self.pipeline.environment);
         self.validate_external();
@@ -101,6 +104,15 @@ impl<'a> PipelineValidator<'a> {
             }
             Platform::Pull { image, .. } => self.validate_symbols("runs_on > image", image),
             Platform::ContainerOrMachine(value) => self.validate_symbols("runs_on", value),
+        }
+    }
+
+    fn validate_cron(&mut self) {
+        let Some(cron) = self.pipeline.cron.as_ref() else {
+            return;
+        };
+        if let Err(e) = Schedule::from_str(cron) {
+            let _ = writeln!(self.errors, "[cron > {cron}] {e}");
         }
     }
 
