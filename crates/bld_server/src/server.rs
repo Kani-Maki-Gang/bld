@@ -1,6 +1,8 @@
 use crate::cron::CronScheduler;
-use crate::endpoints::{home, auth, check, hist, list, remove, run, push, deps, pull, stop, print, cron};
-use crate::sockets::{exec, monit, login};
+use crate::endpoints::{
+    auth, check, cron, deps, hist, home, list, print, pull, push, remove, run, stop,
+};
+use crate::sockets::{exec, login, monit};
 use crate::supervisor::channel::SupervisorMessageSender;
 use actix_web::web::{get, resource};
 use actix_web::{middleware, App, HttpServer};

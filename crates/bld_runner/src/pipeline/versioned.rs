@@ -114,7 +114,7 @@ impl VersionedPipeline {
                 validator_v1::PipelineValidator::new(pip, config, proxy).validate()
             }
             Self::Version2(pip) => {
-                validator_v2::PipelineValidator::new(pip, config, proxy).validate()
+                validator_v2::PipelineValidator::new(pip, config, proxy)?.validate()
             }
         }
         .map_err(|e| anyhow!("Expression errors\r\n\r\n{e}"))
