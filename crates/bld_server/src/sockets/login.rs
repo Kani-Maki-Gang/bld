@@ -283,7 +283,7 @@ impl StreamHandler<Result<Message, ProtocolError>> for LoginSocket {
     }
 }
 
-pub async fn ws_login(
+pub async fn ws(
     req: HttpRequest,
     stream: Payload,
     config: Data<BldConfig>,

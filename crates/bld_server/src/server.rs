@@ -1,9 +1,6 @@
 use crate::cron::CronScheduler;
-use crate::endpoints::{
-    auth_redirect, auth_refresh, check, cron, deps, hist, home, list, print, pull, push, remove,
-    run, stop,
-};
-use crate::sockets::{ws_exec, ws_login, ws_monit};
+use crate::endpoints::{home, auth, check, hist, list, remove, run, push, deps, pull, stop, print, cron};
+use crate::sockets::{exec, monit, login};
 use crate::supervisor::channel::SupervisorMessageSender;
 use actix_web::web::{get, resource};
 use actix_web::{middleware, App, HttpServer};
@@ -49,26 +46,26 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .app_data(prx.clone())
             .app_data(cron.clone())
             .wrap(middleware::Logger::default())
-            .service(home)
-            .service(auth_redirect)
-            .service(auth_refresh)
-            .service(check)
-            .service(hist)
-            .service(list)
-            .service(remove)
-            .service(run)
-            .service(push)
-            .service(deps)
-            .service(pull)
-            .service(stop)
-            .service(print)
+            .service(home::get)
+            .service(auth::redirect)
+            .service(auth::refresh)
+            .service(check::get)
+            .service(hist::get)
+            .service(list::get)
+            .service(remove::delete)
+            .service(run::post)
+            .service(push::post)
+            .service(deps::get)
+            .service(pull::get)
+            .service(stop::post)
+            .service(print::get)
             .service(cron::get)
             .service(cron::post)
             .service(cron::patch)
             .service(cron::delete)
-            .service(resource("/ws-exec/").route(get().to(ws_exec)))
-            .service(resource("/ws-monit/").route(get().to(ws_monit)))
-            .service(resource("/ws-login/").route(get().to(ws_login)))
+            .service(resource("/ws-exec/").route(get().to(exec::ws)))
+            .service(resource("/ws-monit/").route(get().to(monit::ws)))
+            .service(resource("/ws-login/").route(get().to(login::ws)))
     });
 
     let address = format!("{host}:{port}");

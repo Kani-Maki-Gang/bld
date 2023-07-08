@@ -1,13 +1,11 @@
 mod auth;
-mod check;
+mod common;
 mod cron;
 mod hist;
-mod print;
 mod push;
 
 pub use auth::*;
-pub use check::*;
+pub use common::*;
 pub use cron::*;
 pub use hist::*;
-pub use print::*;
 pub use push::*;
