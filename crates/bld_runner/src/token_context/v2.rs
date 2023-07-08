@@ -92,7 +92,7 @@ pub struct PipelineContext<'a> {
 
 impl<'a> PipelineContext<'a> {
     fn get_regex_pattern(keyword: &'a str) -> String {
-        format!("{}{}{}", "\\$\\{\\{\\s*", keyword, "\\s*\\}\\}")
+        format!("{}{}{}", r"\$\{\{\s*", keyword, r"\s*\}\}")
     }
 
     async fn cache_new_regex(&self, pattern: String) -> Result<Arc<Regex>> {

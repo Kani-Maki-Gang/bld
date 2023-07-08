@@ -57,11 +57,6 @@ impl Pipeline {
     pub async fn apply_tokens<'a>(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
         self.runs_on.apply_tokens(context).await?;
 
-        self.dispose = context
-            .transform(self.dispose.to_string())
-            .await?
-            .parse::<bool>()?;
-
         for (_, v) in self.environment.iter_mut() {
             *v = context.transform(v.to_owned()).await?;
         }
