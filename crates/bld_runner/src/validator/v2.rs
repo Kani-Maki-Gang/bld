@@ -166,7 +166,11 @@ impl<'a> PipelineValidator<'a> {
 
         match self.proxy.path(pipeline) {
             Ok(path) if !path.is_yaml() => {
-                let _ = writeln!(self.errors, "[external > pipeline > {}] Not found", pipeline);
+                let _ = writeln!(
+                    self.errors,
+                    "[external > pipeline > {}] Not found",
+                    pipeline
+                );
             }
             Err(e) => {
                 let _ = writeln!(self.errors, "[external > pipeline > {}] {e}", pipeline);
@@ -236,7 +240,9 @@ impl<'a> PipelineValidator<'a> {
                 self.validate_exec(&section, exec);
             }
             BuildStep::Many {
-                exec, working_dir, name
+                exec,
+                working_dir,
+                name,
             } => {
                 if let Some(name) = name {
                     let _ = write!(section, " > {name}");
