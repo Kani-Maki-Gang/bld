@@ -19,6 +19,7 @@ pub struct PipelineValidator<'a> {
     proxy: Arc<PipelineFileSystemProxy>,
     regex: Regex,
     symbols: HashSet<&'a str>,
+    errors: String,
 }
 
 impl<'a> PipelineValidator<'a> {
@@ -29,12 +30,14 @@ impl<'a> PipelineValidator<'a> {
     ) -> Result<Self> {
         let regex = Regex::new(r"\$\{\{\s*(\b\w+\b)\s*\}\}")?;
         let symbols = Self::prepare_symbols(pipeline);
+        let errors = String::new();
         Ok(Self {
             pipeline,
             config,
             proxy,
             regex,
             symbols,
+            errors,
         })
     }
 
@@ -55,268 +58,204 @@ impl<'a> PipelineValidator<'a> {
         symbols
     }
 
-    pub fn validate(&self) -> Result<()> {
-        let mut errors = String::new();
+    pub fn validate(mut self) -> Result<()> {
+        self.validate_runs_on();
+        self.validate_variables(None, &self.pipeline.variables);
+        self.validate_environment(None, &self.pipeline.environment);
+        self.validate_external();
+        self.validate_artifacts();
+        self.validate_jobs();
 
-        if let Err(e) = self.validate_runs_on() {
-            write!(errors, "{e}")?;
+        if !self.errors.is_empty() {
+            bail!(self.errors)
         }
 
-        if let Err(e) = self.validate_variables(None, &self.pipeline.variables) {
-            write!(errors, "{e}")?;
-        }
-
-        if let Err(e) = self.validate_environment(None, &self.pipeline.environment) {
-            write!(errors, "{e}")?;
-        }
-
-        if let Err(e) = self.validate_external() {
-            write!(errors, "{e}")?;
-        }
-
-        if let Err(e) = self.validate_jobs() {
-            write!(errors, "{e}")?;
-        }
-
-        if let Err(e) = self.validate_artifacts() {
-            write!(errors, "{e}")?;
-        }
-
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            bail!(errors)
-        }
+        Ok(())
     }
 
     fn sanitize_symbol(symbol: &'a str) -> &'a str {
         symbol[3..symbol.len() - 2].trim()
     }
 
-    fn validate_symbols(&self, section: &'a str, value: &'a str) -> Result<()> {
-        let mut errors = String::new();
-
+    fn validate_symbols(&mut self, section: &str, value: &'a str) {
         for symbol in self.regex.find_iter(value).map(|x| x.as_str()) {
             if !self.symbols.contains(Self::sanitize_symbol(symbol)) {
-                writeln!(
-                    errors,
+                let _ = writeln!(
+                    self.errors,
                     "[{section} > {symbol}] expression isn't a keyword or variable",
-                )?;
+                );
             }
         }
-
-        if !errors.is_empty() {
-            bail!(errors)
-        }
-
-        Ok(())
     }
 
-    fn validate_runs_on(&self) -> Result<()> {
+    fn validate_runs_on(&mut self) {
         match &self.pipeline.runs_on {
             Platform::Build {
                 name,
                 tag,
                 dockerfile,
             } => {
-                let mut errors = String::new();
-
-                if let Err(e) = self.validate_symbols("runs_on > name", name) {
-                    write!(errors, "{e}")?;
-                }
-
-                if let Err(e) = self.validate_symbols("runs_on > tag", tag) {
-                    write!(errors, "{e}")?;
-                }
-
-                if let Err(e) = self.validate_symbols("runs_on > dockerfile", dockerfile) {
-                    write!(errors, "{e}")?;
-                }
-
-                if !errors.is_empty() {
-                    bail!(errors)
-                }
+                self.validate_symbols("runs_on > name", name);
+                self.validate_symbols("runs_on > tag", tag);
+                self.validate_symbols("runs_on > dockerfile", dockerfile);
             }
-
-            Platform::Pull { image, .. } => self.validate_symbols("runs_on > image", image)?,
-
-            Platform::ContainerOrMachine(value) => self.validate_symbols("runs_on >", value)?,
+            Platform::Pull { image, .. } => self.validate_symbols("runs_on > image", image),
+            Platform::ContainerOrMachine(value) => self.validate_symbols("runs_on", value),
         }
-        Ok(())
     }
 
     fn validate_variables(
-        &self,
+        &mut self,
         section: Option<&str>,
-        variables: &HashMap<String, String>,
-    ) -> Result<()> {
-        let mut errors = String::new();
-
+        variables: &'a HashMap<String, String>,
+    ) {
         for (k, v) in variables.iter() {
             let section = section
                 .map(|x| format!("{x} > "))
                 .unwrap_or_else(String::new);
             let section = format!("{section}variables > {k}");
-            if let Err(e) = self.validate_symbols(&section, v) {
-                write!(errors, "{e}")?;
-            }
+            self.validate_symbols(&section, v);
         }
-
-        if !errors.is_empty() {
-            bail!(errors)
-        }
-
-        Ok(())
     }
 
     fn validate_environment(
-        &self,
+        &mut self,
         section: Option<&str>,
-        environment: &HashMap<String, String>,
-    ) -> Result<()> {
-        let mut errors = String::new();
-
+        environment: &'a HashMap<String, String>,
+    ) {
         for (k, v) in environment.iter() {
             let section = section
                 .map(|x| format!("{x} > "))
                 .unwrap_or_else(String::new);
             let section = format!("{section}environment > {k}");
-            if let Err(e) = self.validate_symbols(&section, v) {
-                write!(errors, "{e}")?;
-            }
+            self.validate_symbols(&section, v);
         }
-
-        if !errors.is_empty() {
-            bail!(errors)
-        }
-
-        Ok(())
     }
 
-    fn validate_external(&self) -> Result<()> {
-        let mut errors = String::new();
-
+    fn validate_external(&mut self) {
         for entry in &self.pipeline.external {
-            if let Err(e) = self.validate_external_name(entry.name.as_deref()) {
-                writeln!(errors, "{e}")?;
-            }
-
-            if let Err(e) = self.validate_external_pipeline(&entry.pipeline) {
-                writeln!(errors, "{e}")?;
-            }
-
-            if let Err(e) = self.validate_external_server(entry.server.as_deref()) {
-                writeln!(errors, "{e}")?;
-            }
-
-            if let Err(e) = self.validate_variables(Some("external"), &entry.variables) {
-                writeln!(errors, "{e}")?;
-            }
-
-            if let Err(e) = self.validate_environment(Some("external"), &entry.environment) {
-                writeln!(errors, "{e}")?;
-            }
+            self.validate_external_name(entry.name.as_deref());
+            self.validate_external_pipeline(&entry.pipeline);
+            self.validate_external_server(entry.server.as_deref());
+            self.validate_variables(Some("external"), &entry.variables);
+            self.validate_environment(Some("external"), &entry.environment);
         }
-
-        if !errors.is_empty() {
-            bail!(errors)
-        }
-
-        Ok(())
     }
 
-    fn validate_external_name(&self, name: Option<&str>) -> Result<()> {
+    fn validate_external_name(&mut self, name: Option<&'a str>) {
         let Some(name) = name else {
-            return Ok(());
+            return;
         };
         self.validate_symbols("external > name", name)
     }
 
-    fn validate_external_pipeline(&self, pipeline: &str) -> Result<()> {
-        let mut errors = String::new();
-
-        if let Err(e) = self.validate_symbols("external > pipeline", pipeline) {
-            write!(errors, "{e}")?;
-        }
+    fn validate_external_pipeline(&mut self, pipeline: &'a str) {
+        self.validate_symbols("external > pipeline", pipeline);
 
         match self.proxy.path(pipeline) {
             Ok(path) if !path.is_yaml() => {
-                write!(errors, "[external > pipeline: {}] Not found", pipeline)?;
+                let _ = writeln!(self.errors, "[external > pipeline > {}] Not found", pipeline);
             }
-            Err(e) => write!(errors, "[external > pipeline: {}] {e}", pipeline)?,
+            Err(e) => {
+                let _ = writeln!(self.errors, "[external > pipeline > {}] {e}", pipeline);
+            }
             _ => {}
         }
-
-        if !errors.is_empty() {
-            bail!(errors)
-        }
-
-        Ok(())
     }
 
-    fn validate_external_server(&self, server: Option<&str>) -> Result<()> {
+    fn validate_external_server(&mut self, server: Option<&'a str>) {
         let Some(server) = server else {
-            return Ok(());
+            return;
         };
 
-        let mut errors = String::new();
-
-        if let Err(e) = self.validate_symbols("external > server", server) {
-            write!(errors, "{e}")?;
-        }
+        self.validate_symbols("external > server", server);
 
         if self.config.server(server).is_err() {
-            write!(
-                errors,
-                "[external > server: {}] Doesn't exist in current config",
+            let _ = writeln!(
+                self.errors,
+                "[external > server > {}] Doesn't exist in current config",
                 server
-            )?;
+            );
         }
-
-        if !errors.is_empty() {
-            bail!(errors)
-        }
-
-        Ok(())
     }
 
-    fn validate_jobs(&self) -> Result<()> {
-        let mut errors = String::new();
+    fn validate_artifacts(&mut self) {
+        for artifact in self.pipeline.artifacts.iter() {
+            self.validate_symbols("artifacts > from", &artifact.from);
+            self.validate_symbols("artifacts > to", &artifact.to);
+            self.validate_artifact_after(artifact.after.as_ref());
+        }
+    }
 
-        for step in self.pipeline.jobs.iter().flat_map(|(_, steps)| steps) {
-            match step {
-                BuildStep::One(exec) => {
-                    if let Err(e) = self.validate_exec(exec) {
-                        writeln!(errors, "{e}")?;
-                    }
+    fn validate_artifact_after(&mut self, after: Option<&'a String>) {
+        let Some(after) = after else {
+            return;
+        };
+
+        self.validate_symbols("artifacts > after", after);
+
+        let is_job_or_step = self
+            .pipeline
+            .jobs
+            .iter()
+            .any(|(name, steps)| name == after || steps.iter().any(|s| s.is(after)));
+
+        if !is_job_or_step {
+            let _ = writeln!(
+                self.errors,
+                "[artifacts > after > {after}] Not a declared job or step name"
+            );
+        }
+    }
+
+    fn validate_jobs(&mut self) {
+        for (job, steps) in self.pipeline.jobs.iter() {
+            for step in steps.iter() {
+                self.validate_step(job, step);
+            }
+        }
+    }
+
+    fn validate_step(&mut self, job: &str, step: &'a BuildStep) {
+        let mut section = format!("jobs > {job} > steps");
+
+        match step {
+            BuildStep::One(exec) => {
+                self.validate_exec(&section, exec);
+            }
+            BuildStep::Many {
+                exec, working_dir, name
+            } => {
+                if let Some(name) = name {
+                    let _ = write!(section, " > {name}");
                 }
-                BuildStep::Many { exec, .. } => {
-                    for exec in exec.iter() {
-                        if let Err(e) = self.validate_exec(exec) {
-                            writeln!(errors, "{e}")?;
-                        }
-                    }
+
+                if let Some(wd) = working_dir.as_ref() {
+                    self.validate_symbols(&section, wd)
+                }
+
+                for exec in exec.iter() {
+                    self.validate_exec(&section, exec);
                 }
             }
         }
-
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            bail!(errors)
-        }
     }
 
-    fn validate_exec(&self, step: &BuildStepExec) -> Result<()> {
+    fn validate_exec(&mut self, section: &str, step: &'a BuildStepExec) {
         match step {
-            BuildStepExec::Shell(_) => Ok(()),
-            BuildStepExec::External { value } => self.validate_exec_ext(value),
+            BuildStepExec::Shell(value) => {
+                self.validate_symbols(section, value);
+            }
+            BuildStepExec::External { value } => {
+                self.validate_symbols(section, value);
+                self.validate_exec_ext(section, value);
+            }
         }
     }
 
-    fn validate_exec_ext(&self, value: &str) -> Result<()> {
+    fn validate_exec_ext(&mut self, section: &str, value: &str) {
         if self.pipeline.external.iter().any(|e| e.is(value)) {
-            return Ok(());
+            return;
         }
 
         let found_path = self
@@ -324,43 +263,9 @@ impl<'a> PipelineValidator<'a> {
             .path(value)
             .map(|x| x.is_yaml())
             .unwrap_or_default();
+
         if !found_path {
-            bail!("[steps > exec > ext: {value}] Not found in either the external section or as a local pipeline");
+            let _ = writeln!(self.errors, "[{section} > ext > {value}] Not found in either the external section or as a local pipeline");
         }
-
-        Ok(())
-    }
-
-    fn validate_artifacts(&self) -> Result<()> {
-        let mut errors = String::new();
-
-        for artifact in &self.pipeline.artifacts {
-            if let Err(e) = self.validate_artifact_after(artifact.after.as_ref()) {
-                writeln!(errors, "{e}")?;
-            }
-        }
-
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            bail!(errors)
-        }
-    }
-
-    fn validate_artifact_after(&self, after: Option<&String>) -> Result<()> {
-        let Some(after) = after else {
-            return Ok(());
-        };
-
-        if !self
-            .pipeline
-            .jobs
-            .iter()
-            .any(|(name, steps)| name == after || steps.iter().any(|s| s.is(after)))
-        {
-            bail!("[artifacts > after: {after}] Not a declared job or step name");
-        }
-
-        Ok(())
     }
 }
