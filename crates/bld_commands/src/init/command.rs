@@ -2,7 +2,7 @@ use crate::command::BldCommand;
 use anyhow::{bail, Result};
 use bld_config::definitions::{
     default_client_config, default_server_config, DEFAULT_V2_PIPELINE_CONTENT, LOCAL_DB,
-    LOCAL_LOGS, LOCAL_SERVER_PIPELINES, TOOL_DEFAULT_CONFIG_FILE, TOOL_DEFAULT_PIPELINE, TOOL_DIR,
+    LOCAL_LOGS, LOCAL_SERVER_PIPELINES, TOOL_DEFAULT_CONFIG_FILE, TOOL_DEFAULT_PIPELINE, TOOL_DIR, TOOL_DEFAULT_PIPELINE_FILE,
 };
 use bld_config::path;
 use bld_utils::term::print_info;
@@ -104,7 +104,7 @@ fn create_server_pipelines_dir(is_server: bool) -> Result<()> {
 }
 
 fn create_default_yaml() -> Result<()> {
-    let path = path![TOOL_DIR, TOOL_DEFAULT_PIPELINE];
+    let path = path![TOOL_DIR, TOOL_DEFAULT_PIPELINE_FILE];
     write(path, DEFAULT_V2_PIPELINE_CONTENT)?;
     print_info(&format!("{} yaml file created", TOOL_DEFAULT_PIPELINE))?;
     Ok(())
