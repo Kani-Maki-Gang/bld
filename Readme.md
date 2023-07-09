@@ -109,8 +109,8 @@ variables:
 jobs:
   main:
   - git clone ${{branch}} https://some-url-for-the-repository
-  - name: Run scanner
-    working_dir: /example-project/src
+  - working_dir: /example-project/src
+    exec:
     - dotnet sonarscanner begin /k:"${{key}}" /d:sonar.host.url=${{url}} /d:sonar.login="${{login}}"
     - dotnet build
     - dotnet sonarscanner end /d:sonar.login="${{login}}"
@@ -179,5 +179,3 @@ A more indepth look on bld's features can be found in the (bld book)[https://kan
 - [How to run a server](https://kani-maki-gang.github.io/bld-book/configuration/server/running_a_server.html)
 - [Cli information](https://kani-maki-gang.github.io/bld-book/cli/preface.html)
 - [Examples](https://kani-maki-gang.github.io/bld-book/examples/preface.html)
-
-
