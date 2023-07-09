@@ -173,7 +173,7 @@ jobs:
 Since each run could create and run container as well as issue remote runs to bld servers, the cli handles the SIGINT and SIGTERM signals in order to properly cleanup all of the external components. To be noted that the stop command which stops a pipeline running on a server, can be used for a graceful early shutdown of a pipeline.
 
 # The bld book
-A more indepth look on bld's features can be found in the (bld book)[https://kani-maki-gang.github.io/bld-book/] where you can find more topics such as:
+A more indepth look on bld's features can be found in the [bld book](https://kani-maki-gang.github.io/bld-book/) where you can find more topics such as:
 - [Pipeline syntax](https://kani-maki-gang.github.io/bld-book/pipelines/version2.html)
 - [Configuration](https://kani-maki-gang.github.io/bld-book/configuration/preface.html)
 - [How to run a server](https://kani-maki-gang.github.io/bld-book/configuration/server/running_a_server.html)
