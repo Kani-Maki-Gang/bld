@@ -475,7 +475,7 @@ dependencies = [
 
 [[package]]
 name = "bld_commands"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "actix",
  "actix-codec",
@@ -508,7 +508,7 @@ dependencies = [
 
 [[package]]
 name = "bld_config"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "openidconnect",
@@ -520,7 +520,7 @@ dependencies = [
 
 [[package]]
 name = "bld_core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "actix",
  "actix-web",
@@ -553,7 +553,7 @@ dependencies = [
 
 [[package]]
 name = "bld_runner"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "actix",
  "actix-codec",
@@ -583,7 +583,7 @@ dependencies = [
 
 [[package]]
 name = "bld_server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "actix",
  "actix-codec",
@@ -613,7 +613,7 @@ dependencies = [
 
 [[package]]
 name = "bld_sock"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "actix",
  "actix-codec",
@@ -635,7 +635,7 @@ dependencies = [
 
 [[package]]
 name = "bld_supervisor"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "actix",
  "actix-codec",
@@ -662,7 +662,7 @@ dependencies = [
 
 [[package]]
 name = "bld_utils"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "actix-web",
  "anyhow",
