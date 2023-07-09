@@ -47,6 +47,9 @@ If a bld binary is not available, you will have to start a container with the bl
 
 > The project currently targets only Linux. It has not been tested on Windows or Macos.
 
+# Installation
+For a prebuilt version of bld go to the github [releases](https://github.com/Kani-Maki-Gang/bld/releases) page and download the latest version.
+
 # Creating a project
 If you have followed the above Building section and have a Bld binary available, you can execute the below commands to initialize a Bld directory.
 ```bash
