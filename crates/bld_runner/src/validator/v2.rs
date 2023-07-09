@@ -20,6 +20,7 @@ pub struct PipelineValidator<'a> {
     config: Arc<BldConfig>,
     proxy: Arc<PipelineFileSystemProxy>,
     regex: Regex,
+    keywords: HashSet<&'a str>,
     symbols: HashSet<&'a str>,
     errors: String,
 }
@@ -31,6 +32,7 @@ impl<'a> PipelineValidator<'a> {
         proxy: Arc<PipelineFileSystemProxy>,
     ) -> Result<Self> {
         let regex = Regex::new(r"\$\{\{\s*(\b\w+\b)\s*\}\}")?;
+        let keywords = Self::prepare_keywords();
         let symbols = Self::prepare_symbols(pipeline);
         let errors = String::new();
         Ok(Self {
@@ -38,9 +40,18 @@ impl<'a> PipelineValidator<'a> {
             config,
             proxy,
             regex,
+            keywords,
             symbols,
             errors,
         })
+    }
+
+    fn prepare_keywords() -> HashSet<&'a str> {
+        let mut keywords = HashSet::new();
+        keywords.insert(KEYWORD_BLD_DIR_V2);
+        keywords.insert(KEYWORD_RUN_PROPS_ID_V2);
+        keywords.insert(KEYWORD_RUN_PROPS_START_TIME_V2);
+        keywords
     }
 
     fn prepare_symbols(pipeline: &'a Pipeline) -> HashSet<&'a str> {
@@ -80,12 +91,21 @@ impl<'a> PipelineValidator<'a> {
         symbol[3..symbol.len() - 2].trim()
     }
 
+    fn validate_keywords(&mut self, section: &str, name: &'a str) {
+        if self.keywords.contains(name) {
+            let _ = writeln!(
+                self.errors,
+                "[{section}] Invalid name, reserved as keyword",
+            );
+        }
+    }
+
     fn validate_symbols(&mut self, section: &str, value: &'a str) {
         for symbol in self.regex.find_iter(value).map(|x| x.as_str()) {
             if !self.symbols.contains(Self::sanitize_symbol(symbol)) {
                 let _ = writeln!(
                     self.errors,
-                    "[{section} > {symbol}] expression isn't a keyword or variable",
+                    "[{section} > {symbol}] Expression isn't a keyword or variable",
                 );
             }
         }
@@ -126,6 +146,7 @@ impl<'a> PipelineValidator<'a> {
                 .map(|x| format!("{x} > "))
                 .unwrap_or_else(String::new);
             let section = format!("{section}variables > {k}");
+            self.validate_keywords(&section, k);
             self.validate_symbols(&section, v);
         }
     }
@@ -140,6 +161,7 @@ impl<'a> PipelineValidator<'a> {
                 .map(|x| format!("{x} > "))
                 .unwrap_or_else(String::new);
             let section = format!("{section}environment > {k}");
+            self.validate_keywords(&section, k);
             self.validate_symbols(&section, v);
         }
     }

@@ -158,9 +158,9 @@ impl<'a> PipelineContext<'a> {
 
     pub async fn transform(&self, mut text: String) -> Result<String> {
         text = self.bld_directory_transform(text).await?;
-        text = self.variables_transform(text).await?;
-        text = self.environment_transform(text).await?;
         text = self.run_id_transform(text).await?;
-        self.run_start_time_transform(text).await
+        text = self.run_start_time_transform(text).await?;
+        text = self.variables_transform(text).await?;
+        self.environment_transform(text).await
     }
 }
