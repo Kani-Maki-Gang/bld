@@ -3,7 +3,7 @@
 /.vscode
 /.vimspector.json
 /dist
-/.bld
+/.bld/**/*
 !/.bld/config.yaml
 !/.bld/build-musl.yaml
 !/.bld/release.yaml
