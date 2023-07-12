@@ -11,7 +11,7 @@ external:
 
 jobs:
   main:
-  - rm -r ${{bld_project_dir}}/dist/*
+  - rm -r ${{bld_project_dir}}/dist/* || true
   - ext: build-musl.yaml
   - working_dir: ${{bld_project_dir}}/dist
     exec:
