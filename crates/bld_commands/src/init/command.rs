@@ -2,7 +2,8 @@ use crate::command::BldCommand;
 use anyhow::{bail, Result};
 use bld_config::definitions::{
     default_client_config, default_server_config, DEFAULT_V2_PIPELINE_CONTENT, LOCAL_DB,
-    LOCAL_LOGS, LOCAL_SERVER_PIPELINES, TOOL_DEFAULT_CONFIG_FILE, TOOL_DEFAULT_PIPELINE, TOOL_DIR, TOOL_DEFAULT_PIPELINE_FILE,
+    LOCAL_LOGS, LOCAL_SERVER_PIPELINES, TOOL_DEFAULT_CONFIG_FILE, TOOL_DEFAULT_PIPELINE,
+    TOOL_DEFAULT_PIPELINE_FILE, TOOL_DIR,
 };
 use bld_config::path;
 use bld_utils::term::print_info;
