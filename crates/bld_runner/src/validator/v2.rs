@@ -3,7 +3,8 @@ use crate::platform::v2::Platform;
 use crate::step::v2::{BuildStep, BuildStepExec};
 use anyhow::{bail, Result};
 use bld_config::definitions::{
-    KEYWORD_BLD_DIR_V2, KEYWORD_RUN_PROPS_ID_V2, KEYWORD_RUN_PROPS_START_TIME_V2,
+    KEYWORD_BLD_DIR_V2, KEYWORD_PROJECT_DIR_V2, KEYWORD_RUN_PROPS_ID_V2,
+    KEYWORD_RUN_PROPS_START_TIME_V2,
 };
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
@@ -49,6 +50,7 @@ impl<'a> PipelineValidator<'a> {
     fn prepare_keywords() -> HashSet<&'a str> {
         let mut keywords = HashSet::new();
         keywords.insert(KEYWORD_BLD_DIR_V2);
+        keywords.insert(KEYWORD_PROJECT_DIR_V2);
         keywords.insert(KEYWORD_RUN_PROPS_ID_V2);
         keywords.insert(KEYWORD_RUN_PROPS_START_TIME_V2);
         keywords
@@ -57,6 +59,7 @@ impl<'a> PipelineValidator<'a> {
     fn prepare_symbols(pipeline: &'a Pipeline) -> HashSet<&'a str> {
         let mut symbols = HashSet::new();
         symbols.insert(KEYWORD_BLD_DIR_V2);
+        symbols.insert(KEYWORD_PROJECT_DIR_V2);
         symbols.insert(KEYWORD_RUN_PROPS_ID_V2);
         symbols.insert(KEYWORD_RUN_PROPS_START_TIME_V2);
 
@@ -93,10 +96,7 @@ impl<'a> PipelineValidator<'a> {
 
     fn validate_keywords(&mut self, section: &str, name: &'a str) {
         if self.keywords.contains(name) {
-            let _ = writeln!(
-                self.errors,
-                "[{section}] Invalid name, reserved as keyword",
-            );
+            let _ = writeln!(self.errors, "[{section}] Invalid name, reserved as keyword",);
         }
     }
 

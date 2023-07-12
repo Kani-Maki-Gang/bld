@@ -32,7 +32,10 @@ pub fn err_no_server_in_config() -> Error {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct BldConfig {
     #[serde(skip_serializing, skip_deserializing)]
-    pub path: String,
+    pub root_dir: String,
+
+    #[serde(skip_serializing, skip_deserializing)]
+    pub project_dir: String,
 
     #[serde(default)]
     pub local: BldLocalConfig,
@@ -53,15 +56,28 @@ impl BldConfig {
     pub fn load() -> Result<Self> {
         let path = Self::path()?;
 
+        let root_dir = path
+            .parent()
+            .ok_or_else(|| anyhow!("unable to resolve config path"))?;
+
+        let project_dir = root_dir
+            .parent()
+            .ok_or_else(|| anyhow!("unable to resolve project path"))?;
+
         debug!("loading config file from: {}", &path.display());
 
         let mut instance: Self =
             serde_yaml::from_str(&read_to_string(&path)?).map_err(|e| anyhow!(e))?;
 
-        instance.path = path
-            .into_os_string()
-            .into_string()
-            .map_err(|_| anyhow!("unable to get text reprasentation of config path"))?;
+        instance.root_dir = root_dir
+            .to_str()
+            .map(ToOwned::to_owned)
+            .ok_or_else(|| anyhow!("unable to construct config path"))?;
+
+        instance.project_dir = project_dir
+            .to_str()
+            .map(ToOwned::to_owned)
+            .ok_or_else(|| anyhow!("unable to construct project path"))?;
 
         instance.local.debug_info();
         Ok(instance)

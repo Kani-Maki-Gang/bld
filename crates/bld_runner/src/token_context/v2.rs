@@ -2,7 +2,8 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use bld_config::definitions::{
-    KEYWORD_BLD_DIR_V2, KEYWORD_RUN_PROPS_ID_V2, KEYWORD_RUN_PROPS_START_TIME_V2,
+    KEYWORD_BLD_DIR_V2, KEYWORD_PROJECT_DIR_V2, KEYWORD_RUN_PROPS_ID_V2,
+    KEYWORD_RUN_PROPS_START_TIME_V2,
 };
 use bld_core::regex::RegexCache;
 use bld_utils::sync::IntoArc;
@@ -10,7 +11,8 @@ use regex::Regex;
 
 #[derive(Default)]
 pub struct PipelineContextBuilder<'a> {
-    bld_directory: Option<&'a str>,
+    root_dir: Option<&'a str>,
+    project_dir: Option<&'a str>,
     variables: HashMap<String, String>,
     environment: HashMap<String, String>,
     run_id: Option<&'a str>,
@@ -19,8 +21,13 @@ pub struct PipelineContextBuilder<'a> {
 }
 
 impl<'a> PipelineContextBuilder<'a> {
-    pub fn bld_directory(mut self, directory: &'a str) -> Self {
-        self.bld_directory = Some(directory);
+    pub fn root_dir(mut self, directory: &'a str) -> Self {
+        self.root_dir = Some(directory);
+        self
+    }
+
+    pub fn project_dir(mut self, directory: &'a str) -> Self {
+        self.project_dir = Some(directory);
         self
     }
 
@@ -54,9 +61,13 @@ impl<'a> PipelineContextBuilder<'a> {
     }
 
     pub fn build(self) -> Result<PipelineContext<'a>> {
-        let bld_directory = self
-            .bld_directory
-            .ok_or_else(|| anyhow!("bld directory not provided in pipeline context"))?;
+        let root_dir = self
+            .root_dir
+            .ok_or_else(|| anyhow!("bld root directory not provided in pipeline context"))?;
+
+        let project_dir = self
+            .project_dir
+            .ok_or_else(|| anyhow!("project directory not provided in pipeline context"))?;
 
         let run_id = self
             .run_id
@@ -71,7 +82,8 @@ impl<'a> PipelineContextBuilder<'a> {
             .ok_or_else(|| anyhow!("regex cache not provided in pipeline context"))?;
 
         Ok(PipelineContext {
-            bld_directory,
+            root_dir,
+            project_dir,
             variables: self.variables,
             environment: self.environment,
             run_id,
@@ -82,7 +94,8 @@ impl<'a> PipelineContextBuilder<'a> {
 }
 
 pub struct PipelineContext<'a> {
-    pub bld_directory: &'a str,
+    pub root_dir: &'a str,
+    pub project_dir: &'a str,
     pub variables: HashMap<String, String>,
     pub environment: HashMap<String, String>,
     pub run_id: &'a str,
@@ -101,7 +114,7 @@ impl<'a> PipelineContext<'a> {
         Ok(re)
     }
 
-    async fn bld_directory_transform(&'a self, text: String) -> Result<String> {
+    async fn root_dir_transform(&'a self, text: String) -> Result<String> {
         let pattern = Self::get_regex_pattern(KEYWORD_BLD_DIR_V2);
 
         let re = match self.regex_cache.get(pattern.clone()).await? {
@@ -109,7 +122,20 @@ impl<'a> PipelineContext<'a> {
             None => self.cache_new_regex(pattern).await?,
         };
 
-        let result = re.replace_all(&text, self.bld_directory).to_string();
+        let result = re.replace_all(&text, self.root_dir).to_string();
+
+        Ok(result)
+    }
+
+    async fn project_dir_transform(&self, text: String) -> Result<String> {
+        let pattern = Self::get_regex_pattern(KEYWORD_PROJECT_DIR_V2);
+
+        let re = match self.regex_cache.get(pattern.clone()).await? {
+            Some(v) => v,
+            None => self.cache_new_regex(pattern).await?,
+        };
+
+        let result = re.replace_all(&text, self.project_dir).to_string();
 
         Ok(result)
     }
@@ -157,7 +183,8 @@ impl<'a> PipelineContext<'a> {
     }
 
     pub async fn transform(&self, mut text: String) -> Result<String> {
-        text = self.bld_directory_transform(text).await?;
+        text = self.root_dir_transform(text).await?;
+        text = self.project_dir_transform(text).await?;
         text = self.run_id_transform(text).await?;
         text = self.run_start_time_transform(text).await?;
         text = self.variables_transform(text).await?;
