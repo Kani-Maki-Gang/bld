@@ -1,3 +1,9 @@
+[package]
+name = "bld"
+version = "0.2.1"
+authors = ["Kostas Vlachos <kvl_93@outlook.com>"]
+edition = "2021"
+
 [workspace]
 members = [
   "crates/bld_core",
@@ -9,12 +15,6 @@ members = [
   "crates/bld_server",
   "crates/bld_commands"
 ]
-
-[package]
-name = "bld"
-version = "0.2.0"
-authors = ["Kostas Vlachos <kvl_93@outlook.com>"]
-edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
