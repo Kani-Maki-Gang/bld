@@ -2,7 +2,7 @@ name: Bld build pipeline for musl
 version: 2
 runs_on:
   name: bld-musl-builder
-  dockerfile: ./musl/Dockerfile
+  dockerfile: ${{bld_project_dir}}/musl/Dockerfile
   tag: latest
 
 variables:

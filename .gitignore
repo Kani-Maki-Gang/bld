@@ -6,3 +6,4 @@
 /.bld
 !/.bld/config.yaml
 !/.bld/build-musl.yaml
+!/.bld/release.yaml
