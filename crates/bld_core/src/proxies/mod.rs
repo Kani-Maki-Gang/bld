@@ -1,20 +1,26 @@
-use crate::database::pipeline::{self, Pipeline};
 use anyhow::{anyhow, bail, Result};
-use bld_config::definitions::{LOCAL_MACHINE_TMP_DIR, TOOL_DEFAULT_CONFIG_FILE};
-use bld_config::{definitions::TOOL_DIR, path, BldConfig};
-use bld_utils::fs::IsYaml;
-use bld_utils::sync::IntoArc;
-use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::sqlite::SqliteConnection;
-use std::env::current_dir;
-use std::fmt::Write as FmtWrite;
-use std::fs::{create_dir_all, read_to_string, remove_file, File};
-use std::io::Write;
-use std::path::PathBuf;
-use std::process::{Command, ExitStatus};
-use std::sync::Arc;
+use bld_config::{
+    definitions::{LOCAL_MACHINE_TMP_DIR, TOOL_DEFAULT_CONFIG_FILE, TOOL_DIR},
+    path, BldConfig,
+};
+use bld_utils::{fs::IsYaml, sync::IntoArc};
+use diesel::{
+    r2d2::{ConnectionManager, Pool},
+    sqlite::SqliteConnection,
+};
+use std::{
+    env::current_dir,
+    fmt::Write as FmtWrite,
+    fs::{copy, create_dir_all, read_to_string, remove_file, File},
+    io::Write,
+    path::PathBuf,
+    process::{Command, ExitStatus},
+    sync::Arc,
+};
 use uuid::Uuid;
 use walkdir::WalkDir;
+
+use crate::database::pipeline::{self, Pipeline};
 
 pub enum PipelineFileSystemProxy {
     Local {
@@ -161,6 +167,25 @@ impl PipelineFileSystemProxy {
             Ok(())
         } else {
             bail!("pipeline not found");
+        }
+    }
+
+    pub fn copy(&self, source: &str, target: &str) -> Result<()> {
+        match self {
+            Self::Local { .. } => {
+                let source_path = self.path(source)?;
+                let target_path = self.path(target)?;
+                copy(source_path, target_path)?;
+                Ok(())
+            }
+            Self::Server { pool, .. } => {
+                let mut conn = pool.get()?;
+                let source_pipeline = pipeline::select_by_name(&mut conn, source)?;
+                let Err(_) = pipeline::select_by_name(&mut conn, target) else {
+                    bail!("target pipeline already exist");
+                };
+                pipeline::update_name(&mut conn, &source_pipeline.id, target)
+            }
         }
     }
 

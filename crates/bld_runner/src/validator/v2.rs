@@ -93,10 +93,7 @@ impl<'a> PipelineValidator<'a> {
 
     fn validate_keywords(&mut self, section: &str, name: &'a str) {
         if self.keywords.contains(name) {
-            let _ = writeln!(
-                self.errors,
-                "[{section}] Invalid name, reserved as keyword",
-            );
+            let _ = writeln!(self.errors, "[{section}] Invalid name, reserved as keyword",);
         }
     }
 
