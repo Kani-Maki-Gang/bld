@@ -1,7 +1,6 @@
 use crate::cron::CronScheduler;
 use crate::endpoints::{
-    auth, check, copy, cron, deps, hist, home, list, print, pull, push, remove, run, stop,
-    r#move
+    auth, check, copy, cron, deps, hist, home, list, print, pull, push, r#move, remove, run, stop,
 };
 use crate::sockets::{exec, login, monit};
 use crate::supervisor::channel::SupervisorMessageSender;

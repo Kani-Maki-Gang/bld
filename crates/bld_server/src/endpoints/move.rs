@@ -16,7 +16,7 @@ pub async fn patch(
 ) -> impl Responder {
     info!("Reached handler for /move route");
     match proxy.mv(&body.pipeline, &body.target) {
-        Ok(_) => HttpResponse::Ok().body(""),
+        Ok(_) => HttpResponse::Ok().json(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }

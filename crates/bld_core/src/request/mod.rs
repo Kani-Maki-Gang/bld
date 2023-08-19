@@ -6,8 +6,8 @@ use std::sync::Arc;
 use crate::auth::{read_tokens, write_tokens, AuthTokens, RefreshTokenParams};
 use crate::messages::ExecClientMessage;
 use crate::requests::{
-    AddJobRequest, HistQueryParams, JobFiltersParams, PipelineQueryParams, PushInfo,
-    UpdateJobRequest,
+    AddJobRequest, HistQueryParams, JobFiltersParams, PipelinePathRequest, PipelineQueryParams,
+    PushInfo, UpdateJobRequest,
 };
 use crate::responses::{CronJobResponse, HistoryEntry, PullResponse};
 use anyhow::{anyhow, bail, Result};
@@ -497,6 +497,50 @@ impl HttpClient {
         if Self::unauthorized(&response) {
             self.refresh().await?;
             self.cron_remove_inner(id).await
+        } else {
+            response
+        }
+    }
+
+    async fn copy_inner(&self, data: &PipelinePathRequest) -> Result<()> {
+        let server = self.config.server(&self.server)?;
+        let url = format!("{}/copy", server.base_url_http());
+        Request::post(&url)
+            .auth(server)
+            .send_json(data)
+            .await
+            .map(|_: String| ())
+    }
+
+    pub async fn copy(&self, pipeline: &str, target: &str) -> Result<()> {
+        let data = PipelinePathRequest::new(pipeline, target);
+        let response = self.copy_inner(&data).await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.copy_inner(&data).await
+        } else {
+            response
+        }
+    }
+
+    async fn mv_inner(&self, data: &PipelinePathRequest) -> Result<()> {
+        let server = self.config.server(&self.server)?;
+        let url = format!("{}/move", server.base_url_http());
+        Request::patch(&url)
+            .auth(server)
+            .send_json(data)
+            .await
+            .map(|_: String| ())
+    }
+
+    pub async fn mv(&self, pipeline: &str, target: &str) -> Result<()> {
+        let data = PipelinePathRequest::new(pipeline, target);
+        let response = self.mv_inner(&data).await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.mv_inner(&data).await
         } else {
             response
         }

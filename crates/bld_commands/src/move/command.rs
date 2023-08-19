@@ -1,6 +1,7 @@
+use actix::System;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::{proxies::PipelineFileSystemProxy, request::HttpClient};
 use bld_utils::sync::IntoArc;
 use clap::Args;
 
@@ -33,8 +34,12 @@ impl MoveCommand {
         proxy.mv(&self.pipeline, &self.target)
     }
 
-    fn remote_move(&self, _srv: &str) -> Result<()> {
-        Ok(())
+    fn remote_move(&self, server: &str) -> Result<()> {
+        System::new().block_on(async move {
+            let config = BldConfig::load()?.into_arc();
+            let client = HttpClient::new(config, server);
+            client.mv(&self.pipeline, &self.target).await
+        })
     }
 }
 

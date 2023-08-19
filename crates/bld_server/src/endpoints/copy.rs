@@ -16,7 +16,7 @@ pub async fn post(
 ) -> impl Responder {
     info!("Reached handler for /copy route");
     match proxy.copy(&body.pipeline, &body.target) {
-        Ok(_) => HttpResponse::Ok().body(""),
+        Ok(_) => HttpResponse::Ok().json(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
