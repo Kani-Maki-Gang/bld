@@ -3,6 +3,7 @@ use crate::cat::CatCommand;
 use crate::check::CheckCommand;
 use crate::command::BldCommand;
 use crate::config::ConfigCommand;
+use crate::copy::CopyCommand;
 use crate::edit::EditCommand;
 use crate::hist::HistCommand;
 use crate::init::InitCommand;
@@ -27,6 +28,7 @@ enum Commands {
     Cat(CatCommand),
     Check(CheckCommand),
     Config(ConfigCommand),
+    Cp(CopyCommand),
     Cron(CronCommand),
     Edit(EditCommand),
     Hist(HistCommand),
@@ -59,6 +61,7 @@ impl Cli {
             Commands::Cat(cat) => cat.invoke(),
             Commands::Check(check) => check.invoke(),
             Commands::Config(config) => config.invoke(),
+            Commands::Cp(copy) => copy.invoke(),
             Commands::Cron(cron) => cron.invoke(),
             Commands::Edit(edit) => edit.invoke(),
             Commands::Hist(hist) => hist.invoke(),

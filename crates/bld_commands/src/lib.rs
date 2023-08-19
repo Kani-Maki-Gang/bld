@@ -5,6 +5,7 @@ mod check;
 pub mod cli;
 pub mod command;
 mod config;
+mod copy;
 mod cron;
 mod edit;
 mod hist;
