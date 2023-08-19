@@ -11,7 +11,7 @@ use diesel::{
 use std::{
     env::current_dir,
     fmt::Write as FmtWrite,
-    fs::{copy, create_dir_all, read_to_string, remove_file, File},
+    fs::{copy, create_dir_all, read_to_string, remove_file, rename, File},
     io::Write,
     path::PathBuf,
     process::{Command, ExitStatus},
@@ -178,10 +178,25 @@ impl PipelineFileSystemProxy {
                 copy(source_path, target_path)?;
                 Ok(())
             }
+            Self::Server { .. } => {
+                let content = self.read(source)?;
+                self.create(target, &content, false)
+            }
+        }
+    }
+
+    pub fn r#move(&self, source: &str, target: &str) -> Result<()> {
+        match self {
+            Self::Local { .. } => {
+                let source_path = self.path(source)?;
+                let target_path = self.path(target)?;
+                rename(source_path, target_path)?;
+                Ok(())
+            }
             Self::Server { pool, .. } => {
                 let mut conn = pool.get()?;
                 let source_pipeline = pipeline::select_by_name(&mut conn, source)?;
-                let Err(_) = pipeline::select_by_name(&mut conn, target) else {
+                if pipeline::select_by_name(&mut conn, target).is_ok() {
                     bail!("target pipeline already exist");
                 };
                 pipeline::update_name(&mut conn, &source_pipeline.id, target)
