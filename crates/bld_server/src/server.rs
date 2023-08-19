@@ -1,6 +1,7 @@
 use crate::cron::CronScheduler;
 use crate::endpoints::{
-    auth, check, cron, deps, hist, home, list, print, pull, push, remove, run, stop,
+    auth, check, copy, cron, deps, hist, home, list, print, pull, push, remove, run, stop,
+    r#move
 };
 use crate::sockets::{exec, login, monit};
 use crate::supervisor::channel::SupervisorMessageSender;
@@ -52,6 +53,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .service(auth::redirect)
             .service(auth::refresh)
             .service(check::get)
+            .service(copy::post)
             .service(hist::get)
             .service(list::get)
             .service(remove::delete)
@@ -60,6 +62,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .service(deps::get)
             .service(pull::get)
             .service(stop::post)
+            .service(r#move::patch)
             .service(print::get)
             .service(cron::get)
             .service(cron::post)
