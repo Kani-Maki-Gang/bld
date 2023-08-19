@@ -185,7 +185,7 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    pub fn r#move(&self, source: &str, target: &str) -> Result<()> {
+    pub fn mv(&self, source: &str, target: &str) -> Result<()> {
         match self {
             Self::Local { .. } => {
                 let source_path = self.path(source)?;

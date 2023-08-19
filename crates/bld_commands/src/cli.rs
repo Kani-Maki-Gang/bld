@@ -11,6 +11,7 @@ use crate::list::ListCommand;
 use crate::monit::MonitCommand;
 use crate::pull::PullCommand;
 use crate::push::PushCommand;
+use crate::r#move::MoveCommand;
 use crate::remove::RemoveCommand;
 use crate::run::RunCommand;
 use crate::server::ServerCommand;
@@ -36,6 +37,7 @@ enum Commands {
     Add(AddCommand),
     Ls(ListCommand),
     Monit(MonitCommand),
+    Mv(MoveCommand),
     Pull(PullCommand),
     Push(PushCommand),
     Rm(RemoveCommand),
@@ -69,6 +71,7 @@ impl Cli {
             Commands::Add(add) => add.invoke(),
             Commands::Ls(list) => list.invoke(),
             Commands::Monit(monit) => monit.invoke(),
+            Commands::Mv(r#move) => r#move.invoke(),
             Commands::Pull(pull) => pull.invoke(),
             Commands::Push(push) => push.invoke(),
             Commands::Rm(remove) => remove.invoke(),

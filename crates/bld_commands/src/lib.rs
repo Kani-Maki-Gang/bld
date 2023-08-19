@@ -12,6 +12,7 @@ mod hist;
 mod init;
 mod list;
 mod monit;
+mod r#move;
 mod pull;
 mod push;
 mod remove;
