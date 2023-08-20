@@ -25,6 +25,7 @@ struct InsertPipeline<'a> {
 pub fn select_all(conn: &mut SqliteConnection) -> Result<Vec<Pipeline>> {
     debug!("loading all pipelines from the database");
     pipeline
+        .order_by(name)
         .load(conn)
         .map(|p| {
             debug!("loaded all pipelines successfully");
