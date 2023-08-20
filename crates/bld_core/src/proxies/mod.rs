@@ -171,18 +171,18 @@ impl PipelineFileSystemProxy {
     }
 
     pub fn copy(&self, source: &str, target: &str) -> Result<()> {
-        let source_path = self.path(source)?;
-        if !source_path.is_yaml() {
-            bail!("invalid source pipeline path");
-        }
-
-        let target_path = self.path(target)?;
-        if !target_path.valid_path() {
-            bail!("invalid target pipeline path");
-        }
-
         match self {
             Self::Local { .. } => {
+                let source_path = self.path(source)?;
+                if !source_path.is_yaml() {
+                    bail!("invalid source pipeline path");
+                }
+
+                let target_path = self.path(target)?;
+                if !target_path.valid_path() {
+                    bail!("invalid target pipeline path");
+                }
+
                 copy(source_path, target_path)?;
                 Ok(())
             }
@@ -194,18 +194,18 @@ impl PipelineFileSystemProxy {
     }
 
     pub fn mv(&self, source: &str, target: &str) -> Result<()> {
-        let source_path = self.path(source)?;
-        if !source_path.is_yaml() {
-            bail!("invalid source pipeline path");
-        }
-
-        let target_path = self.path(target)?;
-        if !target_path.valid_path() {
-            bail!("invalid target pipeline path");
-        }
-
         match self {
             Self::Local { .. } => {
+                let source_path = self.path(source)?;
+                if !source_path.is_yaml() {
+                    bail!("invalid source pipeline path");
+                }
+
+                let target_path = self.path(target)?;
+                if !target_path.valid_path() {
+                    bail!("invalid target pipeline path");
+                }
+
                 rename(source_path, target_path)?;
                 Ok(())
             }
