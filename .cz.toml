@@ -1,8 +1,15 @@
 [tool.commitizen]
 name = "cz_conventional_commits"
 <<<<<<< HEAD
+<<<<<<< HEAD
 version = "0.0.1"
 =======
 version = "0.2.1"
 >>>>>>> bfe1c32 (Bugfix/Wrong output of root dir keyword)
+=======
+version = "0.2.1"
+=======
+version = "0.0.1"
+>>>>>>> 8ff3f10 (style(.cz.toml): Added .cz.toml configuration file)
+>>>>>>> b369ec3 (style(.cz.toml): Added .cz.toml configuration file)
 tag_format = "$version"
