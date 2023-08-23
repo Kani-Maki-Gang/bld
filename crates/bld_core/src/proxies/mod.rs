@@ -11,7 +11,7 @@ use diesel::{
 use std::{
     env::current_dir,
     fmt::Write as FmtWrite,
-    fs::{copy, create_dir_all, read_to_string, remove_file, rename, File},
+    fs::{copy, create_dir_all, read_to_string, remove_file, File},
     io::Write,
     path::PathBuf,
     process::{Command, ExitStatus},
@@ -190,6 +190,7 @@ impl PipelineFileSystemProxy {
         match self {
             Self::Local { .. } => {
                 let source_path = self.path(source)?;
+<<<<<<< HEAD
                 if !source_path.is_yaml() {
                     bail!("invalid source pipeline path");
                 }
@@ -239,6 +240,16 @@ impl PipelineFileSystemProxy {
                 let mut conn = pool.get()?;
                 let source_pipeline = pipeline::select_by_name(&mut conn, source)?;
                 if pipeline::select_by_name(&mut conn, target).is_ok() {
+=======
+                let target_path = self.path(target)?;
+                copy(source_path, target_path)?;
+                Ok(())
+            }
+            Self::Server { pool, .. } => {
+                let mut conn = pool.get()?;
+                let source_pipeline = pipeline::select_by_name(&mut conn, source)?;
+                let Err(_) = pipeline::select_by_name(&mut conn, target) else {
+>>>>>>> 2f70165 (feat(proxies): Added the copy method in the file system proxy)
                     bail!("target pipeline already exist");
                 };
                 pipeline::update_name(&mut conn, &source_pipeline.id, target)
