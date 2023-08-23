@@ -1,20 +1,26 @@
-use crate::database::pipeline::{self, Pipeline};
 use anyhow::{anyhow, bail, Result};
-use bld_config::definitions::{LOCAL_MACHINE_TMP_DIR, TOOL_DEFAULT_CONFIG_FILE};
-use bld_config::{definitions::TOOL_DIR, path, BldConfig};
-use bld_utils::fs::IsYaml;
-use bld_utils::sync::IntoArc;
-use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::sqlite::SqliteConnection;
-use std::env::current_dir;
-use std::fmt::Write as FmtWrite;
-use std::fs::{create_dir_all, read_to_string, remove_file, File};
-use std::io::Write;
-use std::path::PathBuf;
-use std::process::{Command, ExitStatus};
-use std::sync::Arc;
+use bld_config::{
+    definitions::{LOCAL_MACHINE_TMP_DIR, TOOL_DEFAULT_CONFIG_FILE, TOOL_DIR},
+    path, BldConfig,
+};
+use bld_utils::{fs::IsYaml, sync::IntoArc};
+use diesel::{
+    r2d2::{ConnectionManager, Pool},
+    sqlite::SqliteConnection,
+};
+use std::{
+    env::current_dir,
+    fmt::Write as FmtWrite,
+    fs::{copy, create_dir_all, read_to_string, remove_file, rename, File},
+    io::Write,
+    path::PathBuf,
+    process::{Command, ExitStatus},
+    sync::Arc,
+};
 use uuid::Uuid;
 use walkdir::WalkDir;
+
+use crate::database::pipeline::{self, Pipeline};
 
 pub enum PipelineFileSystemProxy {
     Local {
@@ -46,18 +52,21 @@ impl PipelineFileSystemProxy {
         Self::Server { config, pool }
     }
 
-    pub fn path(&self, name: &str) -> Result<PathBuf> {
-        match self {
-            Self::Local { .. } => Ok(path![current_dir()?, TOOL_DIR, name]),
-            Self::Server { config, pool } => {
-                let mut conn = pool.get()?;
-                let pip = pipeline::select_by_name(&mut conn, name)?;
-                Ok(path![
-                    &config.local.server.pipelines,
-                    format!("{}.yaml", pip.id)
-                ])
-            }
-        }
+    fn local_path(&self, name: &str) -> Result<PathBuf> {
+        Ok(path![current_dir()?, TOOL_DIR, name])
+    }
+
+    fn server_path(&self, name: &str) -> Result<PathBuf> {
+        let Self::Server { config, pool } = self else {
+            bail!("server path isn't supported for a local proxy");
+        };
+
+        let mut conn = pool.get()?;
+        let pip = pipeline::select_by_name(&mut conn, name)?;
+        Ok(path![
+            &config.local.server.pipelines,
+            format!("{}.yaml", pip.id)
+        ])
     }
 
     fn pipeline_path(&self, pipeline: &Pipeline) -> Result<PathBuf> {
@@ -68,6 +77,13 @@ impl PipelineFileSystemProxy {
             &config.local.server.pipelines,
             format!("{}.yaml", pipeline.id)
         ])
+    }
+
+    pub fn path(&self, name: &str) -> Result<PathBuf> {
+        match self {
+            Self::Local { .. } => self.local_path(name),
+            Self::Server { .. } => self.server_path(name),
+        }
     }
 
     pub fn tmp_path(&self, name: &str) -> Result<PathBuf> {
@@ -110,6 +126,12 @@ impl PipelineFileSystemProxy {
     }
 
     pub fn create(&self, name: &str, content: &str, overwrite: bool) -> Result<()> {
+        let local_path = self.local_path(name)?;
+
+        if !local_path.valid_path() {
+            bail!("invalid pipeline path");
+        }
+
         if let Self::Server { pool, .. } = self {
             let mut conn = pool.get()?;
             let response = pipeline::select_by_name(&mut conn, name);
@@ -164,12 +186,72 @@ impl PipelineFileSystemProxy {
         }
     }
 
+    pub fn copy(&self, source: &str, target: &str) -> Result<()> {
+        match self {
+            Self::Local { .. } => {
+                let source_path = self.path(source)?;
+                if !source_path.is_yaml() {
+                    bail!("invalid source pipeline path");
+                }
+                let target_path = self.path(target)?;
+                if !target_path.valid_path() {
+                    bail!("invalid target pipeline path");
+                }
+                if target_path.is_yaml() {
+                    bail!("target pipeline already exists");
+                }
+                if let Some(parent) = target_path.parent() {
+                    create_dir_all(parent)?;
+                }
+                copy(source_path, target_path)?;
+                Ok(())
+            }
+            Self::Server { .. } => {
+                let content = self.read(source)?;
+                self.create(target, &content, false)
+            }
+        }
+    }
+
+    pub fn mv(&self, source: &str, target: &str) -> Result<()> {
+        let source_path = self.path(source)?;
+        if !source_path.is_yaml() {
+            bail!("invalid source pipeline path");
+        }
+
+        let target_path = self.local_path(target)?;
+        if !target_path.valid_path() {
+            bail!("invalid target pipeline path");
+        }
+
+        match self {
+            Self::Local { .. } => {
+                if target_path.is_yaml() {
+                    bail!("target pipeline already exist");
+                }
+                if let Some(parent) = target_path.parent() {
+                    create_dir_all(parent)?;
+                }
+                rename(source_path, target_path)?;
+                Ok(())
+            }
+            Self::Server { pool, .. } => {
+                let mut conn = pool.get()?;
+                let source_pipeline = pipeline::select_by_name(&mut conn, source)?;
+                if pipeline::select_by_name(&mut conn, target).is_ok() {
+                    bail!("target pipeline already exist");
+                };
+                pipeline::update_name(&mut conn, &source_pipeline.id, target)
+            }
+        }
+    }
+
     pub fn list(&self) -> Result<Vec<String>> {
         match self {
             Self::Local { .. } => {
                 let root = path![current_dir()?, TOOL_DIR];
                 let root_str = format!("{}/", root.display());
-                let entries = WalkDir::new(root)
+                let mut entries: Vec<String> = WalkDir::new(root)
                     .into_iter()
                     .filter_map(|e| e.ok())
                     .filter(|e| e.path().is_yaml())
@@ -179,6 +261,7 @@ impl PipelineFileSystemProxy {
                         entry
                     })
                     .collect();
+                entries.sort();
                 Ok(entries)
             }
             Self::Server { pool, .. } => {

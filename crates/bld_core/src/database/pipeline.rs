@@ -25,6 +25,7 @@ struct InsertPipeline<'a> {
 pub fn select_all(conn: &mut SqliteConnection) -> Result<Vec<Pipeline>> {
     debug!("loading all pipelines from the database");
     pipeline
+        .order_by(name)
         .load(conn)
         .map(|p| {
             debug!("loaded all pipelines successfully");
@@ -62,6 +63,19 @@ pub fn select_by_name(conn: &mut SqliteConnection, pip_name: &str) -> Result<Pip
         })
         .map_err(|e| {
             error!("could not load pipeline due to {e}");
+            anyhow!(e)
+        })
+}
+
+pub fn update_name(conn: &mut SqliteConnection, pip_id: &str, pip_name: &str) -> Result<()> {
+    debug!("updating pipeline with id: {pip_id} with new name: {pip_name}");
+    diesel::update(pipeline)
+        .set(name.eq(pip_name))
+        .filter(id.eq(pip_id))
+        .execute(conn)
+        .map(|_| debug!("pipeline updated successfully"))
+        .map_err(|e| {
+            error!("could not update pipeline due to {e}");
             anyhow!(e)
         })
 }

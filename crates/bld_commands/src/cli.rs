@@ -3,6 +3,7 @@ use crate::cat::CatCommand;
 use crate::check::CheckCommand;
 use crate::command::BldCommand;
 use crate::config::ConfigCommand;
+use crate::copy::CopyCommand;
 use crate::edit::EditCommand;
 use crate::hist::HistCommand;
 use crate::init::InitCommand;
@@ -10,6 +11,7 @@ use crate::list::ListCommand;
 use crate::monit::MonitCommand;
 use crate::pull::PullCommand;
 use crate::push::PushCommand;
+use crate::r#move::MoveCommand;
 use crate::remove::RemoveCommand;
 use crate::run::RunCommand;
 use crate::server::ServerCommand;
@@ -27,6 +29,7 @@ enum Commands {
     Cat(CatCommand),
     Check(CheckCommand),
     Config(ConfigCommand),
+    Cp(CopyCommand),
     Cron(CronCommand),
     Edit(EditCommand),
     Hist(HistCommand),
@@ -34,6 +37,7 @@ enum Commands {
     Add(AddCommand),
     Ls(ListCommand),
     Monit(MonitCommand),
+    Mv(MoveCommand),
     Pull(PullCommand),
     Push(PushCommand),
     Rm(RemoveCommand),
@@ -59,6 +63,7 @@ impl Cli {
             Commands::Cat(cat) => cat.invoke(),
             Commands::Check(check) => check.invoke(),
             Commands::Config(config) => config.invoke(),
+            Commands::Cp(copy) => copy.invoke(),
             Commands::Cron(cron) => cron.invoke(),
             Commands::Edit(edit) => edit.invoke(),
             Commands::Hist(hist) => hist.invoke(),
@@ -66,6 +71,7 @@ impl Cli {
             Commands::Add(add) => add.invoke(),
             Commands::Ls(list) => list.invoke(),
             Commands::Monit(monit) => monit.invoke(),
+            Commands::Mv(r#move) => r#move.invoke(),
             Commands::Pull(pull) => pull.invoke(),
             Commands::Push(push) => push.invoke(),
             Commands::Rm(remove) => remove.invoke(),
