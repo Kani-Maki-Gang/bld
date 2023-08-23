@@ -193,16 +193,16 @@ impl PipelineFileSystemProxy {
                 if !source_path.is_yaml() {
                     bail!("invalid source pipeline path");
                 }
-
                 let target_path = self.path(target)?;
                 if !target_path.valid_path() {
                     bail!("invalid target pipeline path");
                 }
-
                 if target_path.is_yaml() {
                     bail!("target pipeline already exists");
                 }
-
+                if let Some(parent) = target_path.parent() {
+                    create_dir_all(parent)?;
+                }
                 copy(source_path, target_path)?;
                 Ok(())
             }
@@ -228,6 +228,9 @@ impl PipelineFileSystemProxy {
             Self::Local { .. } => {
                 if target_path.is_yaml() {
                     bail!("target pipeline already exist");
+                }
+                if let Some(parent) = target_path.parent() {
+                    create_dir_all(parent)?;
                 }
                 rename(source_path, target_path)?;
                 Ok(())
