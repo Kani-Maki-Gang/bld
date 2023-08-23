@@ -11,6 +11,7 @@ pub const KEYWORD_RUN_PROPS_ID_V1: &str = "bld:run:id";
 pub const KEYWORD_RUN_PROPS_START_TIME_V1: &str = "bld:run:start_time";
 
 pub const KEYWORD_BLD_DIR_V2: &str = "bld_root_dir";
+pub const KEYWORD_PROJECT_DIR_V2: &str = "bld_project_dir";
 pub const KEYWORD_RUN_PROPS_ID_V2: &str = "bld_run_id";
 pub const KEYWORD_RUN_PROPS_START_TIME_V2: &str = "bld_start_time";
 

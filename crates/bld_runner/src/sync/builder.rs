@@ -187,7 +187,8 @@ impl RunnerBuilder {
 
             VersionedPipeline::Version2(mut pipeline) => {
                 let pipeline_context = PipelineContextBuilder::default()
-                    .bld_directory(&config.path)
+                    .root_dir(&config.root_dir)
+                    .project_dir(&config.project_dir)
                     .add_variables(&pipeline.variables)
                     .add_variables(&vars)
                     .add_environment(&pipeline.environment)

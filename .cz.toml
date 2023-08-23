@@ -1,4 +1,8 @@
 [tool.commitizen]
 name = "cz_conventional_commits"
+<<<<<<< HEAD
 version = "0.0.1"
+=======
+version = "0.2.1"
+>>>>>>> bfe1c32 (Bugfix/Wrong output of root dir keyword)
 tag_format = "$version"
