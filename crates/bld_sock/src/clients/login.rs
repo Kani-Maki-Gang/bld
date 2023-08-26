@@ -1,6 +1,7 @@
 use std::{
     fmt::Write,
     process::{ExitStatus, Stdio},
+    sync::Arc,
 };
 
 use actix::{
@@ -15,7 +16,7 @@ use awc::{
     ws::{Codec, Frame, Message},
     BoxedSocket,
 };
-use bld_config::{os_name, OSname};
+use bld_config::{os_name, BldConfig, OSname};
 use bld_core::{
     auth::write_tokens,
     messages::{LoginClientMessage, LoginServerMessage},
@@ -25,16 +26,22 @@ use tokio::process::Command;
 use tracing::error;
 
 pub struct LoginClient {
+    config: Arc<BldConfig>,
     server: String,
     writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>,
 }
 
 impl LoginClient {
     pub fn new(
+        config: Arc<BldConfig>,
         server: String,
         writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>,
     ) -> Self {
-        Self { server, writer }
+        Self {
+            config,
+            server,
+            writer,
+        }
     }
 
     fn handle_server_message(
@@ -77,7 +84,7 @@ impl LoginClient {
             }
 
             LoginServerMessage::Completed(tokens) => {
-                if let Err(e) = write_tokens(&self.server, tokens) {
+                if let Err(e) = write_tokens(self.config.clone(), &self.server, tokens) {
                     println!("Login failed, {e}");
                 } else {
                     println!("Login completed successfully!");

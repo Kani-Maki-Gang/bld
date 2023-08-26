@@ -1,8 +1,11 @@
+use std::sync::Arc;
+
 use actix::{io::SinkWrite, Actor, StreamHandler, System};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::{messages::LoginClientMessage, request::WebSocket};
 use bld_sock::clients::LoginClient;
+use bld_utils::sync::IntoArc;
 use clap::Args;
 use futures::stream::StreamExt;
 use tracing::debug;
@@ -24,14 +27,14 @@ pub struct AuthCommand {
 }
 
 impl AuthCommand {
-    async fn login(config: BldConfig, server: String) -> Result<()> {
+    async fn login(config: Arc<BldConfig>, server: String) -> Result<()> {
         let server = config.server(&server)?;
         let url = format!("{}/ws-login/", server.base_url_ws());
 
         debug!("establishing web socket connection on {}", url);
 
         let (_, framed) = WebSocket::new(&url)?
-            .auth(server)
+            .auth(config.clone(), server)
             .request()
             .connect()
             .await
@@ -40,7 +43,11 @@ impl AuthCommand {
         let (sink, stream) = framed.split();
         let addr = LoginClient::create(|ctx| {
             LoginClient::add_stream(stream, ctx);
-            LoginClient::new(server.name.to_owned(), SinkWrite::new(sink, ctx))
+            LoginClient::new(
+                config.clone(),
+                server.name.to_owned(),
+                SinkWrite::new(sink, ctx),
+            )
         });
 
         addr.send(LoginClientMessage::Init)
@@ -55,7 +62,7 @@ impl BldCommand for AuthCommand {
     }
 
     fn exec(self) -> Result<()> {
-        let config = BldConfig::load()?;
+        let config = BldConfig::load()?.into_arc();
         let server = self.server.to_owned();
 
         debug!("running login subcommand with --server: {}", self.server);

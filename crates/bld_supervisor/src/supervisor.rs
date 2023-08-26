@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::queues::worker_queue_channel;
 use crate::sockets::{ws_server_socket, ws_worker_socket};
 use actix_web::web::{get, resource};
@@ -16,7 +18,7 @@ pub async fn start(config: BldConfig) -> Result<()> {
     );
     let config = config.into_data();
     let config_clone = config.clone();
-    let pool = new_connection_pool(&config.local.db)?.into_data();
+    let pool = new_connection_pool(Arc::clone(&config))?.into_data();
     let worker_queue_sender = worker_queue_channel(
         config.local.supervisor.workers.try_into()?,
         config.clone(),

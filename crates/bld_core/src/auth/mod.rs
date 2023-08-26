@@ -3,11 +3,12 @@ use std::{
     fs::{create_dir_all, remove_file, File},
     io::{Read, Write},
     path::PathBuf,
+    sync::Arc,
 };
 
 use actix_web::rt::spawn;
 use anyhow::{anyhow, bail, Result};
-use bld_config::{definitions::REMOTE_SERVER_AUTH, path};
+use bld_config::{definitions::REMOTE_SERVER_AUTH, path, BldConfig};
 use serde_derive::{Deserialize, Serialize};
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
@@ -127,9 +128,8 @@ impl RefreshTokenParams {
     }
 }
 
-pub fn read_tokens(server: &str) -> Result<AuthTokens> {
-    let mut path = path![REMOTE_SERVER_AUTH];
-    path.push(server);
+pub fn read_tokens(config: Arc<BldConfig>, server: &str) -> Result<AuthTokens> {
+    let path = path![&config.root_dir, REMOTE_SERVER_AUTH, server];
 
     if !path.is_file() {
         bail!("file not found");
@@ -140,8 +140,8 @@ pub fn read_tokens(server: &str) -> Result<AuthTokens> {
     serde_json::from_slice(&buf).map_err(|e| anyhow!(e))
 }
 
-pub fn write_tokens(server: &str, tokens: AuthTokens) -> Result<()> {
-    let mut path = path![REMOTE_SERVER_AUTH];
+pub fn write_tokens(config: Arc<BldConfig>, server: &str, tokens: AuthTokens) -> Result<()> {
+    let mut path = path![&config.root_dir, REMOTE_SERVER_AUTH];
 
     create_dir_all(&path)?;
 

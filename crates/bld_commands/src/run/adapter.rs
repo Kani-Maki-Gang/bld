@@ -228,7 +228,7 @@ impl RunAdapter {
             variables: Some(mode.variables),
         };
 
-        let web_socket = WebSocket::new(&url)?.auth(server);
+        let web_socket = WebSocket::new(&url)?.auth(mode.config.clone(), server);
 
         let (_, framed) = web_socket
             .request()

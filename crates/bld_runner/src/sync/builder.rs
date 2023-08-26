@@ -162,6 +162,7 @@ impl RunnerBuilder {
                     .environment(env.clone())
                     .logger(self.logger.clone())
                     .context(context.clone())
+                    .proxy(self.proxy.clone())
                     .build()
                     .await?;
 

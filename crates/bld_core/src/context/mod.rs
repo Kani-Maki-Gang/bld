@@ -287,7 +287,7 @@ impl Context {
         let url = format!("{}/stop", server.base_url_http());
 
         let _: String = Request::post(&url)
-            .auth(server)
+            .auth(config.clone(), server)
             .send_json(&run.run_id)
             .await?;
 

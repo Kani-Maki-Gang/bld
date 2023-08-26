@@ -5,6 +5,7 @@ use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::{messages::MonitInfo, request::WebSocket};
 use bld_sock::clients::MonitClient;
+use bld_utils::sync::IntoArc;
 use clap::Args;
 use futures::stream::StreamExt;
 use tracing::debug;
@@ -45,14 +46,14 @@ pub struct MonitCommand {
 
 impl MonitCommand {
     async fn request(self) -> Result<()> {
-        let config = BldConfig::load()?;
+        let config = BldConfig::load()?.into_arc();
         let server = config.server(&self.server)?;
         let url = format!("{}/ws-monit/", server.base_url_ws());
 
         debug!("establishing web socket connection on {}", url);
 
         let (_, framed) = WebSocket::new(&url)?
-            .auth(server)
+            .auth(config.clone(), server)
             .request()
             .connect()
             .await

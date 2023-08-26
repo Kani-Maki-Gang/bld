@@ -1,14 +1,15 @@
 use crate::logger::LoggerSender;
+use crate::proxies::PipelineFileSystemProxy;
 use anyhow::{bail, Result};
-use bld_config::definitions::LOCAL_MACHINE_TMP_DIR;
 use bld_config::{os_name, path, OSname};
-use std::collections::HashMap;
-use std::env::current_dir;
-use std::fmt::Write;
-use std::fs::{copy, create_dir_all, remove_dir_all};
-use std::path::{Path, PathBuf};
-use std::process::{Command, ExitStatus};
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    fmt::Write,
+    fs::{copy, create_dir_all, remove_dir_all},
+    path::{Path, PathBuf},
+    process::{Command, ExitStatus},
+    sync::Arc,
+};
 
 pub struct Machine {
     tmp_dir: String,
@@ -18,16 +19,16 @@ pub struct Machine {
 impl Machine {
     pub fn new(
         id: &str,
+        proxy: Arc<PipelineFileSystemProxy>,
         pipeline_env: &HashMap<String, String>,
         env: Arc<HashMap<String, String>>,
     ) -> Result<Self> {
-        let tmp_path = path![current_dir()?, LOCAL_MACHINE_TMP_DIR, id];
-        let tmp_dir = tmp_path.display().to_string();
+        let tmp_path = proxy.tmp_path(id)?;
         if !tmp_path.is_dir() {
-            create_dir_all(tmp_path)?;
+            create_dir_all(&tmp_path)?;
         }
         Ok(Self {
-            tmp_dir,
+            tmp_dir: tmp_path.display().to_string(),
             env: Self::create_environment(pipeline_env, env),
         })
     }

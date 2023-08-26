@@ -6,6 +6,7 @@ use bld_core::{
     context::ContextSender,
     logger::LoggerSender,
     platform::{Container, Image, Machine, TargetPlatform},
+    proxies::PipelineFileSystemProxy,
 };
 use bld_utils::sync::IntoArc;
 
@@ -18,6 +19,7 @@ pub struct TargetPlatformBuilder<'a> {
     environment: Option<Arc<HashMap<String, String>>>,
     logger: Option<Arc<LoggerSender>>,
     context: Option<Arc<ContextSender>>,
+    proxy: Option<Arc<PipelineFileSystemProxy>>,
 }
 
 impl<'a> TargetPlatformBuilder<'a> {
@@ -56,6 +58,11 @@ impl<'a> TargetPlatformBuilder<'a> {
         self
     }
 
+    pub fn proxy(mut self, proxy: Arc<PipelineFileSystemProxy>) -> Self {
+        self.proxy = Some(proxy);
+        self
+    }
+
     pub async fn build(self) -> Result<Arc<TargetPlatform>> {
         let run_id = self
             .run_id
@@ -81,6 +88,10 @@ impl<'a> TargetPlatformBuilder<'a> {
             .context
             .ok_or_else(|| anyhow!("no context provided for target platform builder"))?;
 
+        let proxy = self
+            .proxy
+            .ok_or_else(|| anyhow!("no file system proxy for target platform builder"))?;
+
         let platform = match self.image {
             Some(image) => {
                 let container = Container::new(
@@ -95,7 +106,7 @@ impl<'a> TargetPlatformBuilder<'a> {
                 TargetPlatform::container(Box::new(container))
             }
             None => {
-                let machine = Machine::new(run_id, pipeline_environment, environment)?;
+                let machine = Machine::new(run_id, proxy, pipeline_environment, environment)?;
                 TargetPlatform::machine(Box::new(machine))
             }
         }

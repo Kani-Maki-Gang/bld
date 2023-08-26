@@ -196,7 +196,7 @@ impl Job {
         );
 
         let (_, framed) = WebSocket::new(&url)?
-            .auth(server)
+            .auth(self.config.clone(), server)
             .request()
             .connect()
             .await
@@ -329,6 +329,7 @@ impl Runner {
             .environment(self.env.clone())
             .logger(self.logger.clone())
             .context(self.context.clone())
+            .proxy(self.proxy.clone())
             .build()
             .await?;
 

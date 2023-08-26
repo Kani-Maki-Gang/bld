@@ -24,7 +24,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
     let config = config.into_data();
     let client = config.openid_core_client().await?.into_data();
     let config_clone = config.clone();
-    let pool = new_connection_pool(&config.local.db)?;
+    let pool = new_connection_pool(Arc::clone(&config))?;
     let supervisor_sender = SupervisorMessageSender::new(Arc::clone(&config)).into_data();
     let logins = LoginProcess::new().into_data();
     let pool = pool.into_data();

@@ -88,8 +88,8 @@ impl Request {
         self
     }
 
-    pub fn auth(mut self, server: &BldRemoteServerConfig) -> Self {
-        if let Ok(tokens) = read_tokens(&server.name) {
+    pub fn auth(mut self, config: Arc<BldConfig>, server: &BldRemoteServerConfig) -> Self {
+        if let Ok(tokens) = read_tokens(config.clone(), &server.name) {
             self.request = self
                 .request
                 .insert_header(("Authorization", format!("Bearer {}", tokens.access_token)));
@@ -155,8 +155,8 @@ impl WebSocket {
         })
     }
 
-    pub fn auth(mut self, server: &BldRemoteServerConfig) -> Self {
-        if let Ok(tokens) = read_tokens(&server.name) {
+    pub fn auth(mut self, config: Arc<BldConfig>, server: &BldRemoteServerConfig) -> Self {
+        if let Ok(tokens) = read_tokens(config, &server.name) {
             self.request = self
                 .request
                 .header("Authorization", format!("Bearer {}", tokens.access_token));
@@ -185,13 +185,13 @@ impl HttpClient {
     async fn refresh(&self) -> Result<()> {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/refresh", server.base_url_http());
-        let tokens = read_tokens(&self.server)?;
+        let tokens = read_tokens(self.config.clone(), &self.server)?;
         let Some(refresh_token) = tokens.refresh_token else {
             bail!("no refresh token found");
         };
         let params = RefreshTokenParams::new(&refresh_token);
         let tokens: AuthTokens = Request::get(&url).query(&params)?.send().await?;
-        write_tokens(&self.server, tokens)
+        write_tokens(self.config.clone(), &self.server, tokens)
     }
 
     fn unauthorized<T>(response: &Result<T>) -> bool {
@@ -210,7 +210,7 @@ impl HttpClient {
         let params = PipelineQueryParams::new(pipeline);
         Request::get(&url)
             .query(&params)?
-            .auth(server)
+            .auth(self.config.clone(), server)
             .send()
             .await
             .map(|_: String| ())
@@ -230,7 +230,11 @@ impl HttpClient {
     async fn deps_inner(&self, params: &PipelineQueryParams) -> Result<Vec<String>> {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/deps", server.base_url_http());
-        Request::get(&url).auth(server).query(params)?.send().await
+        Request::get(&url)
+            .auth(self.config.clone(), server)
+            .query(params)?
+            .send()
+            .await
     }
 
     pub async fn deps(&self, pipeline: &str) -> Result<Vec<String>> {
@@ -248,7 +252,11 @@ impl HttpClient {
     async fn hist_inner(&self, params: &HistQueryParams) -> Result<Vec<HistoryEntry>> {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/hist", server.base_url_http());
-        Request::get(&url).query(params)?.auth(server).send().await
+        Request::get(&url)
+            .query(params)?
+            .auth(self.config.clone(), server)
+            .send()
+            .await
     }
 
     pub async fn hist(
@@ -271,7 +279,11 @@ impl HttpClient {
     async fn print_inner(&self, params: &PipelineQueryParams) -> Result<String> {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/print", server.base_url_http());
-        Request::get(&url).auth(server).query(params)?.send().await
+        Request::get(&url)
+            .auth(self.config.clone(), server)
+            .query(params)?
+            .send()
+            .await
     }
 
     pub async fn print(&self, pipeline: &str) -> Result<String> {
@@ -289,7 +301,10 @@ impl HttpClient {
     async fn list_inner(&self) -> Result<String> {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/list", server.base_url_http());
-        Request::get(&url).auth(server).send().await
+        Request::get(&url)
+            .auth(self.config.clone(), server)
+            .send()
+            .await
     }
 
     pub async fn list(&self) -> Result<String> {
@@ -306,7 +321,11 @@ impl HttpClient {
     async fn pull_inner(&self, params: &PipelineQueryParams) -> Result<PullResponse> {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/pull", server.base_url_http());
-        Request::get(&url).auth(server).query(params)?.send().await
+        Request::get(&url)
+            .auth(self.config.clone(), server)
+            .query(params)?
+            .send()
+            .await
     }
 
     pub async fn pull(&self, pipeline: &str) -> Result<PullResponse> {
@@ -325,7 +344,7 @@ impl HttpClient {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/push", server.base_url_http());
         Request::post(&url)
-            .auth(server)
+            .auth(self.config.clone(), server)
             .send_json(json)
             .await
             .map(|_: String| ())
@@ -350,7 +369,7 @@ impl HttpClient {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/remove", server.base_url_http());
         Request::delete(&url)
-            .auth(server)
+            .auth(self.config.clone(), server)
             .query(params)?
             .send()
             .await
@@ -373,7 +392,7 @@ impl HttpClient {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/run", server.base_url_http());
         Request::post(&url)
-            .auth(server)
+            .auth(self.config.clone(), server)
             .send_json(json)
             .await
             .map(|_: String| ())
@@ -404,7 +423,7 @@ impl HttpClient {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/stop", server.base_url_http());
         Request::post(&url)
-            .auth(server)
+            .auth(self.config.clone(), server)
             .send_json(json)
             .await
             .map(|_: String| ())
@@ -425,7 +444,11 @@ impl HttpClient {
     async fn cron_list_inner(&self, filters: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/cron", server.base_url_http());
-        Request::get(&url).auth(server).query(filters)?.send().await
+        Request::get(&url)
+            .auth(self.config.clone(), server)
+            .query(filters)?
+            .send()
+            .await
     }
 
     pub async fn cron_list(&self, filters: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
@@ -443,7 +466,7 @@ impl HttpClient {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/cron", server.base_url_http());
         Request::post(&url)
-            .auth(server)
+            .auth(self.config.clone(), server)
             .send_json(body)
             .await
             .map(|_: String| ())
@@ -464,7 +487,7 @@ impl HttpClient {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/cron", server.base_url_http());
         Request::patch(&url)
-            .auth(server)
+            .auth(self.config.clone(), server)
             .send_json(body)
             .await
             .map(|_: String| ())
@@ -485,7 +508,7 @@ impl HttpClient {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/cron/{id}", server.base_url_http());
         Request::delete(&url)
-            .auth(server)
+            .auth(self.config.clone(), server)
             .send()
             .await
             .map(|_: String| ())
@@ -506,7 +529,7 @@ impl HttpClient {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/copy", server.base_url_http());
         Request::post(&url)
-            .auth(server)
+            .auth(self.config.clone(), server)
             .send_json(data)
             .await
             .map(|_: String| ())
@@ -528,7 +551,7 @@ impl HttpClient {
         let server = self.config.server(&self.server)?;
         let url = format!("{}/move", server.base_url_http());
         Request::patch(&url)
-            .auth(server)
+            .auth(self.config.clone(), server)
             .send_json(data)
             .await
             .map(|_: String| ())

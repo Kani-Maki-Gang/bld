@@ -9,7 +9,6 @@ use diesel::{
     sqlite::SqliteConnection,
 };
 use std::{
-    env::current_dir,
     fmt::Write as FmtWrite,
     fs::{copy, create_dir_all, read_to_string, remove_file, rename, File},
     io::Write,
@@ -91,7 +90,11 @@ impl PipelineFileSystemProxy {
     }
 
     pub fn tmp_path(&self, name: &str) -> Result<PathBuf> {
-        Ok(path![current_dir()?, LOCAL_MACHINE_TMP_DIR, name])
+        let config = match self {
+            Self::Local { config } => config,
+            Self::Server { config, .. } => config,
+        };
+        Ok(path![&config.root_dir, LOCAL_MACHINE_TMP_DIR, name])
     }
 
     fn read_internal(&self, path: &PathBuf) -> Result<String> {
