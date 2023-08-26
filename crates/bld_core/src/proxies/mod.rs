@@ -73,7 +73,7 @@ impl PipelineFileSystemProxy {
 
     pub fn path(&self, name: &str) -> Result<PathBuf> {
         match self {
-            Self::Local { .. } => Ok(self.config().full_path(name)),
+            Self::Local { config } => Ok(config.full_path(name)),
             Self::Server { .. } => self.server_path(name),
         }
     }
