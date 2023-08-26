@@ -33,7 +33,7 @@ impl RemoveCommand {
 
     fn remote_remove(&self, server: &str) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
-        let client = HttpClient::new(config, server);
+        let client = HttpClient::new(config, server)?;
 
         debug!(
             "running remove subcommand with --server: {:?} and --pipeline: {}",

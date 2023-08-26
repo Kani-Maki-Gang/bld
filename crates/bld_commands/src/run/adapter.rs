@@ -221,6 +221,7 @@ impl RunAdapter {
 
     async fn run_web_socket(mode: WebSocketRequest) -> Result<()> {
         let server = mode.config.server(&mode.server)?;
+        let auth_path = mode.config.auth_full_path(&server.name);
         let url = format!("{}/ws-exec/", server.base_url_ws());
         let data = ExecClientMessage::EnqueueRun {
             name: mode.pipeline,
@@ -228,7 +229,7 @@ impl RunAdapter {
             variables: Some(mode.variables),
         };
 
-        let web_socket = WebSocket::new(&url)?.auth(mode.config.clone(), server);
+        let web_socket = WebSocket::new(&url)?.auth(&auth_path);
 
         let (_, framed) = web_socket
             .request()
@@ -259,7 +260,7 @@ impl RunAdapter {
     }
 
     async fn run_http(mode: HttpRequest) -> Result<()> {
-        HttpClient::new(mode.config, &mode.server)
+        HttpClient::new(mode.config, &mode.server)?
             .run(&mode.pipeline, Some(mode.environment), Some(mode.variables))
             .await
             .map(|_| println!("pipeline has been scheduled to run"))

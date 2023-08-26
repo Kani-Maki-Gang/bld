@@ -57,7 +57,7 @@ impl AddCommand {
         System::new().block_on(async move {
             let config = BldConfig::load()?.into_arc();
             let proxy = PipelineFileSystemProxy::local(config.clone());
-            let client = HttpClient::new(config, server);
+            let client = HttpClient::new(config, server)?;
             let tmp_name = format!("{}.yaml", Uuid::new_v4());
 
             println!("Creating temporary local pipeline {}", tmp_name);

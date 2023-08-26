@@ -84,7 +84,8 @@ impl LoginClient {
             }
 
             LoginServerMessage::Completed(tokens) => {
-                if let Err(e) = write_tokens(self.config.clone(), &self.server, tokens) {
+                let auth_path = self.config.auth_full_path(&self.server);
+                if let Err(e) = write_tokens(&auth_path, tokens) {
                     println!("Login failed, {e}");
                 } else {
                     println!("Login completed successfully!");

@@ -284,10 +284,11 @@ impl Context {
 
     async fn cleanup_remote_run(config: Arc<BldConfig>, run: &RemoteRun) -> Result<()> {
         let server = config.server(&run.server)?;
+        let auth_path = config.auth_full_path(&server.name);
         let url = format!("{}/stop", server.base_url_http());
 
         let _: String = Request::post(&url)
-            .auth(config.clone(), server)
+            .auth(&auth_path)
             .send_json(&run.run_id)
             .await?;
 

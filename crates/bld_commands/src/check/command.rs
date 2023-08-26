@@ -37,7 +37,7 @@ impl CheckCommand {
     fn remote_check(&self, server: &str) -> Result<()> {
         System::new().block_on(async move {
             let config = BldConfig::load()?.into_arc();
-            HttpClient::new(config, server).check(&self.pipeline).await
+            HttpClient::new(config, server)?.check(&self.pipeline).await
         })
     }
 }

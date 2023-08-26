@@ -65,7 +65,7 @@ impl BldCommand for HistCommand {
                 self.server, self.limit,
             );
 
-            let history = HttpClient::new(config, &self.server)
+            let history = HttpClient::new(config, &self.server)?
                 .hist(state, self.pipeline, self.limit)
                 .await?;
 

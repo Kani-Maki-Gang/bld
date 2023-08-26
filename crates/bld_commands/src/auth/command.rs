@@ -29,12 +29,13 @@ pub struct AuthCommand {
 impl AuthCommand {
     async fn login(config: Arc<BldConfig>, server: String) -> Result<()> {
         let server = config.server(&server)?;
+        let auth_path = config.auth_full_path(&server.name);
         let url = format!("{}/ws-login/", server.base_url_ws());
 
         debug!("establishing web socket connection on {}", url);
 
         let (_, framed) = WebSocket::new(&url)?
-            .auth(config.clone(), server)
+            .auth(&auth_path)
             .request()
             .connect()
             .await

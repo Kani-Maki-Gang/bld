@@ -185,6 +185,7 @@ impl Job {
     async fn server_external(&self, server: &str, details: &External) -> Result<()> {
         let server_name = server.to_owned();
         let server = self.config.server(server)?;
+        let auth_path = self.config.auth_full_path(&server.name);
         let variables = details.variables.clone();
         let environment = details.environment.clone();
 
@@ -196,7 +197,7 @@ impl Job {
         );
 
         let (_, framed) = WebSocket::new(&url)?
-            .auth(self.config.clone(), server)
+            .auth(&auth_path)
             .request()
             .connect()
             .await

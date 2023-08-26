@@ -30,7 +30,7 @@ impl BldCommand for CronRemoveCommand {
 
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
-        let client = HttpClient::new(config, &self.server);
+        let client = HttpClient::new(config, &self.server)?;
         System::new().block_on(async move { client.cron_remove(&self.cron_job_id).await })
     }
 }

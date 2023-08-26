@@ -135,6 +135,10 @@ impl BldConfig {
         path![&self.root_dir, REMOTE_SERVER_AUTH, server]
     }
 
+    pub fn server_auth_full_path(&self, server: &str) -> Result<PathBuf> {
+        self.server(server).map(|s| self.auth_full_path(&s.name))
+    }
+
     pub fn config_full_path(&self) -> PathBuf {
         path![&self.root_dir, TOOL_DEFAULT_CONFIG_FILE]
     }

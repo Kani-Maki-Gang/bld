@@ -2,12 +2,11 @@ use std::{
     collections::HashMap,
     fs::{create_dir_all, remove_file, File},
     io::{Read, Write},
-    sync::Arc,
+    path::Path,
 };
 
 use actix_web::rt::spawn;
 use anyhow::{anyhow, bail, Result};
-use bld_config::BldConfig;
 use serde_derive::{Deserialize, Serialize};
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
@@ -127,26 +126,23 @@ impl RefreshTokenParams {
     }
 }
 
-pub fn read_tokens(config: Arc<BldConfig>, server: &str) -> Result<AuthTokens> {
-    let path = config.auth_full_path(server);
-
+pub fn read_tokens(path: &Path) -> Result<AuthTokens> {
     if !path.is_file() {
         bail!("file not found");
     }
 
     let mut buf = Vec::new();
-    File::open(&path)?.read_to_end(&mut buf)?;
+    File::open(path)?.read_to_end(&mut buf)?;
     serde_json::from_slice(&buf).map_err(|e| anyhow!(e))
 }
 
-pub fn write_tokens(config: Arc<BldConfig>, server: &str, tokens: AuthTokens) -> Result<()> {
-    let mut path = config.auth_full_path(server);
+pub fn write_tokens(path: &Path, tokens: AuthTokens) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        create_dir_all(parent)?;
+    }
 
-    create_dir_all(&path)?;
-
-    path.push(server);
     if path.is_file() {
-        remove_file(&path)?;
+        remove_file(path)?;
     }
 
     let data = serde_json::to_vec(&tokens)?;
