@@ -2,13 +2,12 @@ use std::{
     collections::HashMap,
     fs::{create_dir_all, remove_file, File},
     io::{Read, Write},
-    path::PathBuf,
     sync::Arc,
 };
 
 use actix_web::rt::spawn;
 use anyhow::{anyhow, bail, Result};
-use bld_config::{definitions::REMOTE_SERVER_AUTH, path, BldConfig};
+use bld_config::BldConfig;
 use serde_derive::{Deserialize, Serialize};
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
@@ -129,7 +128,7 @@ impl RefreshTokenParams {
 }
 
 pub fn read_tokens(config: Arc<BldConfig>, server: &str) -> Result<AuthTokens> {
-    let path = path![&config.root_dir, REMOTE_SERVER_AUTH, server];
+    let path = config.auth_full_path(server);
 
     if !path.is_file() {
         bail!("file not found");
@@ -141,7 +140,7 @@ pub fn read_tokens(config: Arc<BldConfig>, server: &str) -> Result<AuthTokens> {
 }
 
 pub fn write_tokens(config: Arc<BldConfig>, server: &str, tokens: AuthTokens) -> Result<()> {
-    let mut path = path![&config.root_dir, REMOTE_SERVER_AUTH];
+    let mut path = config.auth_full_path(server);
 
     create_dir_all(&path)?;
 

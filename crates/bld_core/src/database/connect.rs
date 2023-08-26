@@ -1,13 +1,11 @@
 use crate::database::run_migrations;
 use anyhow::Result;
-use bld_config::definitions::DB_NAME;
-use bld_config::{path, BldConfig};
+use bld_config::BldConfig;
 use diesel::connection::SimpleConnection;
 use diesel::r2d2::{ConnectionManager, CustomizeConnection, Error, Pool};
 use diesel::result::Error as DieselError;
 use diesel::sqlite::SqliteConnection;
 use std::fmt::Write;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, error};
@@ -50,9 +48,7 @@ impl CustomizeConnection<SqliteConnection, Error> for SqliteConnectionOptions {
 pub fn new_connection_pool(
     config: Arc<BldConfig>,
 ) -> Result<Pool<ConnectionManager<SqliteConnection>>> {
-    let path = path![&config.root_dir, &config.local.db, DB_NAME]
-        .display()
-        .to_string();
+    let path = config.db_full_path().display().to_string();
 
     debug!("creating sqlite connection pool");
 

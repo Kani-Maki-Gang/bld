@@ -1,4 +1,4 @@
-use bld_config::{path, BldConfig};
+use bld_config::BldConfig;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
@@ -12,7 +12,7 @@ pub struct FileScanner {
 impl FileScanner {
     pub fn new(cfg: Arc<BldConfig>, run_id: &str) -> Self {
         Self {
-            path: path![&cfg.root_dir, &cfg.local.logs, run_id],
+            path: cfg.log_full_path(run_id),
             file_handle: None,
         }
     }
