@@ -329,7 +329,6 @@ impl Runner {
             .environment(self.env.clone())
             .logger(self.logger.clone())
             .context(self.context.clone())
-            .proxy(self.proxy.clone())
             .build()
             .await?;
 

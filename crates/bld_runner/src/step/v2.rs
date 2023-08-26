@@ -1,9 +1,7 @@
 use anyhow::Result;
-use bld_config::path;
 use bld_config::BldConfig;
 use bld_utils::fs::IsYaml;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 
 use crate::token_context::v2::PipelineContext;
 
@@ -73,9 +71,8 @@ pub enum BuildStepExec {
 
 impl BuildStepExec {
     pub fn local_dependencies(&self, config: &BldConfig) -> Option<String> {
-        let root_dir = &config.root_dir;
         match self {
-            BuildStepExec::External { value } if path![root_dir, value].is_yaml() => {
+            BuildStepExec::External { value } if config.full_path(value).is_yaml() => {
                 Some(value.to_owned())
             }
             _ => None,

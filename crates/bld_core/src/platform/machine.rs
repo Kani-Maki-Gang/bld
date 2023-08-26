@@ -1,7 +1,6 @@
 use crate::logger::LoggerSender;
-use crate::proxies::PipelineFileSystemProxy;
 use anyhow::{bail, Result};
-use bld_config::{os_name, path, OSname};
+use bld_config::{os_name, path, OSname, BldConfig};
 use std::{
     collections::HashMap,
     fmt::Write,
@@ -19,11 +18,11 @@ pub struct Machine {
 impl Machine {
     pub fn new(
         id: &str,
-        proxy: Arc<PipelineFileSystemProxy>,
+        config: Arc<BldConfig>,
         pipeline_env: &HashMap<String, String>,
         env: Arc<HashMap<String, String>>,
     ) -> Result<Self> {
-        let tmp_path = proxy.tmp_path(id)?;
+        let tmp_path = config.tmp_full_path(id);
         if !tmp_path.is_dir() {
             create_dir_all(&tmp_path)?;
         }

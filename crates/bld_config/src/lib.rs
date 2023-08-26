@@ -21,6 +21,8 @@ use std::fs::read_to_string;
 use std::path::PathBuf;
 use tracing::debug;
 
+use crate::definitions::{LOCAL_MACHINE_TMP_DIR, TOOL_DEFAULT_CONFIG_FILE};
+
 pub fn err_server_not_in_config() -> Error {
     anyhow!("server not found in config")
 }
@@ -113,5 +115,21 @@ impl BldConfig {
         } else {
             Ok(None)
         }
+    }
+
+    pub fn server_pipelines(&self) -> PathBuf {
+        path![&self.root_dir, &self.local.server.pipelines]
+    }
+
+    pub fn config_full_path(&self) -> PathBuf {
+        path![&self.root_dir, TOOL_DEFAULT_CONFIG_FILE]
+    }
+
+    pub fn full_path(&self, name: &str) -> PathBuf {
+        path![&self.root_dir, name]
+    }
+
+    pub fn tmp_full_path(&self, name: &str) -> PathBuf {
+        path![&self.root_dir, LOCAL_MACHINE_TMP_DIR, name]
     }
 }
