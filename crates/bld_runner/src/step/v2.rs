@@ -1,6 +1,6 @@
 use anyhow::Result;
-use bld_config::definitions::TOOL_DIR;
 use bld_config::path;
+use bld_config::BldConfig;
 use bld_utils::fs::IsYaml;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -20,13 +20,16 @@ pub enum BuildStep {
 }
 
 impl BuildStep {
-    pub fn local_dependencies(&self) -> Vec<String> {
+    pub fn local_dependencies(&self, config: &BldConfig) -> Vec<String> {
         match self {
             Self::One(exec) => exec
-                .local_dependencies()
+                .local_dependencies(config)
                 .map(|x| vec![x])
                 .unwrap_or_default(),
-            Self::Many { exec, .. } => exec.iter().flat_map(|e| e.local_dependencies()).collect(),
+            Self::Many { exec, .. } => exec
+                .iter()
+                .flat_map(|e| e.local_dependencies(config))
+                .collect(),
         }
     }
 
@@ -69,9 +72,10 @@ pub enum BuildStepExec {
 }
 
 impl BuildStepExec {
-    pub fn local_dependencies(&self) -> Option<String> {
+    pub fn local_dependencies(&self, config: &BldConfig) -> Option<String> {
+        let root_dir = &config.root_dir;
         match self {
-            BuildStepExec::External { value } if path![TOOL_DIR, value].is_yaml() => {
+            BuildStepExec::External { value } if path![root_dir, value].is_yaml() => {
                 Some(value.to_owned())
             }
             _ => None,

@@ -1,6 +1,6 @@
 use anyhow::{anyhow, bail, Result};
 use bld_config::{
-    definitions::{LOCAL_MACHINE_TMP_DIR, TOOL_DEFAULT_CONFIG_FILE, TOOL_DIR},
+    definitions::{LOCAL_MACHINE_TMP_DIR, TOOL_DEFAULT_CONFIG_FILE},
     path, BldConfig,
 };
 use bld_utils::{fs::IsYaml, sync::IntoArc};
@@ -53,7 +53,10 @@ impl PipelineFileSystemProxy {
     }
 
     fn local_path(&self, name: &str) -> Result<PathBuf> {
-        Ok(path![current_dir()?, TOOL_DIR, name])
+        let Self::Local { config } = self else {
+            bail!("local path isn't supported for a server proxy");
+        };
+        Ok(path![&config.root_dir, name])
     }
 
     fn server_path(&self, name: &str) -> Result<PathBuf> {
@@ -64,6 +67,7 @@ impl PipelineFileSystemProxy {
         let mut conn = pool.get()?;
         let pip = pipeline::select_by_name(&mut conn, name)?;
         Ok(path![
+            &config.root_dir,
             &config.local.server.pipelines,
             format!("{}.yaml", pip.id)
         ])
@@ -248,16 +252,15 @@ impl PipelineFileSystemProxy {
 
     pub fn list(&self) -> Result<Vec<String>> {
         match self {
-            Self::Local { .. } => {
-                let root = path![current_dir()?, TOOL_DIR];
-                let root_str = format!("{}/", root.display());
-                let mut entries: Vec<String> = WalkDir::new(root)
+            Self::Local { config, .. } => {
+                let root_dir = format!("{}/", config.root_dir);
+                let mut entries: Vec<String> = WalkDir::new(&root_dir)
                     .into_iter()
                     .filter_map(|e| e.ok())
                     .filter(|e| e.path().is_yaml())
                     .map(|e| {
                         let mut entry = e.path().display().to_string();
-                        entry = entry.replace(&root_str, "");
+                        entry = entry.replace(&root_dir, "");
                         entry
                     })
                     .collect();
@@ -315,7 +318,11 @@ impl PipelineFileSystemProxy {
     }
 
     pub fn edit_config(&self) -> Result<()> {
-        let config_path = path![current_dir()?, TOOL_DIR, TOOL_DEFAULT_CONFIG_FILE];
+        let config = match self {
+            Self::Local { config } => config,
+            Self::Server { config, .. } => config,
+        };
+        let config_path = path![&config.root_dir, TOOL_DEFAULT_CONFIG_FILE];
         self.edit_internal(&config_path, false)
     }
 }

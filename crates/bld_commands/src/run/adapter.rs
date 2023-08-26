@@ -5,6 +5,7 @@ use bld_config::BldConfig;
 use bld_core::context::ContextSender;
 use bld_core::logger::LoggerSender;
 use bld_core::messages::ExecClientMessage;
+use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::request::{HttpClient, WebSocket};
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::ExecClient;
@@ -201,6 +202,7 @@ impl RunAdapter {
 
         let runner = RunnerBuilder::default()
             .config(mode.config.clone())
+            .proxy(PipelineFileSystemProxy::local(mode.config.clone()).into_arc())
             .pipeline(&mode.pipeline)
             .logger(LoggerSender::shell().into_arc())
             .context(ContextSender::local(mode.config.clone()).into_arc())

@@ -46,11 +46,24 @@ pub struct BldConfig {
 
 impl BldConfig {
     pub fn path() -> Result<PathBuf> {
-        Ok(path![
-            current_dir()?,
-            definitions::TOOL_DIR,
-            format!("{}.yaml", definitions::TOOL_DEFAULT_CONFIG)
-        ])
+        let mut current = current_dir()?;
+        loop {
+            let cfg_file = path![
+                &current,
+                definitions::TOOL_DIR,
+                format!("{}.yaml", definitions::TOOL_DEFAULT_CONFIG)
+            ];
+
+            if !cfg_file.exists() {
+                current = current
+                    .parent()
+                    .map(|p| p.to_path_buf())
+                    .ok_or_else(|| anyhow!(".bld directory not found"))?;
+                continue;
+            }
+
+            return Ok(cfg_file);
+        }
     }
 
     pub fn load() -> Result<Self> {
