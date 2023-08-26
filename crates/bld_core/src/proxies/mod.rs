@@ -52,8 +52,8 @@ impl PipelineFileSystemProxy {
     }
 
     fn local_path(&self, name: &str) -> Result<PathBuf> {
-        let Self::Local { config } = self else {
-            bail!("local path isn't supported for a server proxy");
+        let config = match self {
+            Self::Local { config } | Self::Server { config, .. } => config,
         };
         Ok(path![&config.root_dir, name])
     }
@@ -77,6 +77,7 @@ impl PipelineFileSystemProxy {
             bail!("pipeline path isn't supported for a local proxy");
         };
         Ok(path![
+            &config.root_dir,
             &config.local.server.pipelines,
             format!("{}.yaml", pipeline.id)
         ])

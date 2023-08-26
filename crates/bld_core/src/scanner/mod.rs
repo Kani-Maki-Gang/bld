@@ -12,7 +12,7 @@ pub struct FileScanner {
 impl FileScanner {
     pub fn new(cfg: Arc<BldConfig>, run_id: &str) -> Self {
         Self {
-            path: path![&cfg.local.logs, run_id],
+            path: path![&cfg.root_dir, &cfg.local.logs, run_id],
             file_handle: None,
         }
     }
