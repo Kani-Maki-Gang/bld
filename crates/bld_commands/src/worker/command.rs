@@ -75,7 +75,7 @@ impl BldCommand for WorkerCommand {
         let variables = parse_variables(&self.variables).into_arc();
         let environment = parse_variables(&self.environment).into_arc();
 
-        let pool = new_connection_pool(&config.local.db)?.into_arc();
+        let pool = new_connection_pool(config.clone())?.into_arc();
         let mut conn = pool.get()?;
         let pipeline_run = pipeline_runs::select_by_id(&mut conn, &run_id)?;
         let start_date_time = pipeline_run.start_date_time;

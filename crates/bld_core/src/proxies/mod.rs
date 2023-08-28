@@ -1,15 +1,11 @@
 use anyhow::{anyhow, bail, Result};
-use bld_config::{
-    definitions::{LOCAL_MACHINE_TMP_DIR, TOOL_DEFAULT_CONFIG_FILE, TOOL_DIR},
-    path, BldConfig,
-};
+use bld_config::{path, BldConfig};
 use bld_utils::{fs::IsYaml, sync::IntoArc};
 use diesel::{
     r2d2::{ConnectionManager, Pool},
     sqlite::SqliteConnection,
 };
 use std::{
-    env::current_dir,
     fmt::Write as FmtWrite,
     fs::{copy, create_dir_all, read_to_string, remove_file, rename, File},
     io::Write,
@@ -52,8 +48,10 @@ impl PipelineFileSystemProxy {
         Self::Server { config, pool }
     }
 
-    fn local_path(&self, name: &str) -> Result<PathBuf> {
-        Ok(path![current_dir()?, TOOL_DIR, name])
+    fn config(&self) -> &BldConfig {
+        match self {
+            Self::Server { config, .. } | Self::Local { config } => config,
+        }
     }
 
     fn server_path(&self, name: &str) -> Result<PathBuf> {
@@ -63,31 +61,21 @@ impl PipelineFileSystemProxy {
 
         let mut conn = pool.get()?;
         let pip = pipeline::select_by_name(&mut conn, name)?;
-        Ok(path![
-            &config.local.server.pipelines,
-            format!("{}.yaml", pip.id)
-        ])
+        Ok(path![config.server_pipelines(), format!("{}.yaml", pip.id)])
     }
 
-    fn pipeline_path(&self, pipeline: &Pipeline) -> Result<PathBuf> {
+    fn pipeline_path(&self, pip: &Pipeline) -> Result<PathBuf> {
         let Self::Server { config, .. } = self else {
             bail!("pipeline path isn't supported for a local proxy");
         };
-        Ok(path![
-            &config.local.server.pipelines,
-            format!("{}.yaml", pipeline.id)
-        ])
+        Ok(path![config.server_pipelines(), format!("{}.yaml", pip.id)])
     }
 
     pub fn path(&self, name: &str) -> Result<PathBuf> {
         match self {
-            Self::Local { .. } => self.local_path(name),
+            Self::Local { config } => Ok(config.full_path(name)),
             Self::Server { .. } => self.server_path(name),
         }
-    }
-
-    pub fn tmp_path(&self, name: &str) -> Result<PathBuf> {
-        Ok(path![current_dir()?, LOCAL_MACHINE_TMP_DIR, name])
     }
 
     fn read_internal(&self, path: &PathBuf) -> Result<String> {
@@ -104,7 +92,7 @@ impl PipelineFileSystemProxy {
     }
 
     pub fn read_tmp(&self, name: &str) -> Result<String> {
-        let path = self.tmp_path(name)?;
+        let path = self.config().tmp_full_path(name);
         self.read_internal(&path)
     }
 
@@ -126,7 +114,7 @@ impl PipelineFileSystemProxy {
     }
 
     pub fn create(&self, name: &str, content: &str, overwrite: bool) -> Result<()> {
-        let local_path = self.local_path(name)?;
+        let local_path = self.config().full_path(name);
 
         if !local_path.valid_path() {
             bail!("invalid pipeline path");
@@ -147,7 +135,7 @@ impl PipelineFileSystemProxy {
     }
 
     pub fn create_tmp(&self, name: &str, content: &str, overwrite: bool) -> Result<String> {
-        let path = self.tmp_path(name)?;
+        let path = self.config().tmp_full_path(name);
         self.create_internal(&path, content, overwrite)?;
         Ok(path.display().to_string())
     }
@@ -177,7 +165,7 @@ impl PipelineFileSystemProxy {
     }
 
     pub fn remove_tmp(&self, name: &str) -> Result<()> {
-        let path = self.tmp_path(name)?;
+        let path = self.config().tmp_full_path(name);
         if path.is_yaml() {
             remove_file(path)?;
             Ok(())
@@ -219,7 +207,7 @@ impl PipelineFileSystemProxy {
             bail!("invalid source pipeline path");
         }
 
-        let target_path = self.local_path(target)?;
+        let target_path = self.config().full_path(target);
         if !target_path.valid_path() {
             bail!("invalid target pipeline path");
         }
@@ -248,16 +236,15 @@ impl PipelineFileSystemProxy {
 
     pub fn list(&self) -> Result<Vec<String>> {
         match self {
-            Self::Local { .. } => {
-                let root = path![current_dir()?, TOOL_DIR];
-                let root_str = format!("{}/", root.display());
-                let mut entries: Vec<String> = WalkDir::new(root)
+            Self::Local { config, .. } => {
+                let root_dir = format!("{}/", config.root_dir);
+                let mut entries: Vec<String> = WalkDir::new(&root_dir)
                     .into_iter()
                     .filter_map(|e| e.ok())
                     .filter(|e| e.path().is_yaml())
                     .map(|e| {
                         let mut entry = e.path().display().to_string();
-                        entry = entry.replace(&root_str, "");
+                        entry = entry.replace(&root_dir, "");
                         entry
                     })
                     .collect();
@@ -310,12 +297,11 @@ impl PipelineFileSystemProxy {
     }
 
     pub fn edit_tmp(&self, name: &str) -> Result<()> {
-        let path = self.tmp_path(name)?;
+        let path = self.config().tmp_full_path(name);
         self.edit_internal(&path, true)
     }
 
     pub fn edit_config(&self) -> Result<()> {
-        let config_path = path![current_dir()?, TOOL_DIR, TOOL_DEFAULT_CONFIG_FILE];
-        self.edit_internal(&config_path, false)
+        self.edit_internal(&self.config().config_full_path(), false)
     }
 }

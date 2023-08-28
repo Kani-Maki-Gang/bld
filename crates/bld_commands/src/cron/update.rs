@@ -51,7 +51,7 @@ impl BldCommand for CronUpdateCommand {
 
     fn exec(self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
-        let client = HttpClient::new(config, &self.server);
+        let client = HttpClient::new(config, &self.server)?;
         let variables = Some(parse_variables(&self.variables));
         let environment = Some(parse_variables(&self.environment));
         let update_job = UpdateJobRequest::new(self.id, self.schedule, variables, environment);

@@ -1,8 +1,8 @@
-use std::{fmt::Write as FormatWrite, fs::File, io::Read, io::Write, path::PathBuf, sync::Arc};
+use std::{fmt::Write as FormatWrite, fs::File, io::Read, io::Write, sync::Arc};
 
 use actix_web::rt::spawn;
 use anyhow::{anyhow, Result};
-use bld_config::{path, BldConfig};
+use bld_config::BldConfig;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
@@ -53,7 +53,7 @@ impl LoggerReceiver {
     }
 
     pub fn file(config: Arc<BldConfig>, run_id: &str) -> Result<Self> {
-        let path = path![&config.local.logs, run_id];
+        let path = config.log_full_path(run_id);
         Ok(Self::File {
             handle: if path.is_file() {
                 File::open(&path)?

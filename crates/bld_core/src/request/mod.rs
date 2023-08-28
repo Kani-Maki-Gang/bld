@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::auth::{read_tokens, write_tokens, AuthTokens, RefreshTokenParams};
@@ -14,13 +15,13 @@ use anyhow::{anyhow, bail, Result};
 use awc::http::StatusCode;
 use awc::ws::WebsocketsRequest;
 use awc::{Client, ClientRequest, Connector, SendClientRequest};
-use bld_config::{BldConfig, BldRemoteServerConfig};
+use bld_config::BldConfig;
 use bld_utils::sync::IntoArc;
 use bld_utils::tls::load_root_certificates;
 use rustls::ClientConfig;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use tracing::debug;
+use tracing::{error, debug};
 
 #[derive(Debug)]
 struct RequestError {
@@ -88,8 +89,8 @@ impl Request {
         self
     }
 
-    pub fn auth(mut self, server: &BldRemoteServerConfig) -> Self {
-        if let Ok(tokens) = read_tokens(&server.name) {
+    pub fn auth(mut self, path: &Path) -> Self {
+        if let Ok(tokens) = read_tokens(path) {
             self.request = self
                 .request
                 .insert_header(("Authorization", format!("Bearer {}", tokens.access_token)));
@@ -155,8 +156,8 @@ impl WebSocket {
         })
     }
 
-    pub fn auth(mut self, server: &BldRemoteServerConfig) -> Self {
-        if let Ok(tokens) = read_tokens(&server.name) {
+    pub fn auth(mut self, path: &Path) -> Self {
+        if let Ok(tokens) = read_tokens(path) {
             self.request = self
                 .request
                 .header("Authorization", format!("Bearer {}", tokens.access_token));
@@ -170,28 +171,31 @@ impl WebSocket {
 }
 
 pub struct HttpClient {
-    config: Arc<BldConfig>,
-    server: String,
+    base_url: String,
+    auth_path: PathBuf,
 }
 
 impl HttpClient {
-    pub fn new(config: Arc<BldConfig>, server: &str) -> Self {
-        Self {
-            config,
-            server: server.to_owned(),
-        }
+    pub fn new(config: Arc<BldConfig>, server: &str) -> Result<Self> {
+        let server = config.server(server)?;
+        let base_url = server.base_url_http();
+        let auth_path = config.auth_full_path(&server.name);
+        Ok(Self {
+            base_url,
+            auth_path,
+        })
     }
 
     async fn refresh(&self) -> Result<()> {
-        let server = self.config.server(&self.server)?;
-        let url = format!("{}/refresh", server.base_url_http());
-        let tokens = read_tokens(&self.server)?;
+        let url = format!("{}/refresh", self.base_url);
+        let tokens = read_tokens(&self.auth_path)?;
         let Some(refresh_token) = tokens.refresh_token else {
-            bail!("no refresh token found");
+            error!("no refresh token found");
+            bail!("request failed with status code: 401 Unauthorized");
         };
         let params = RefreshTokenParams::new(&refresh_token);
         let tokens: AuthTokens = Request::get(&url).query(&params)?.send().await?;
-        write_tokens(&self.server, tokens)
+        write_tokens(&self.auth_path, tokens)
     }
 
     fn unauthorized<T>(response: &Result<T>) -> bool {
@@ -205,12 +209,11 @@ impl HttpClient {
     }
 
     async fn check_inner(&self, pipeline: &str) -> Result<()> {
-        let server = self.config.server(&self.server)?;
-        let url = format!("{}/check", server.base_url_http());
+        let url = format!("{}/check", self.base_url);
         let params = PipelineQueryParams::new(pipeline);
         Request::get(&url)
             .query(&params)?
-            .auth(server)
+            .auth(&self.auth_path)
             .send()
             .await
             .map(|_: String| ())
@@ -228,9 +231,12 @@ impl HttpClient {
     }
 
     async fn deps_inner(&self, params: &PipelineQueryParams) -> Result<Vec<String>> {
-        let server = self.config.server(&self.server)?;
-        let url = format!("{}/deps", server.base_url_http());
-        Request::get(&url).auth(server).query(params)?.send().await
+        let url = format!("{}/deps", self.base_url);
+        Request::get(&url)
+            .auth(&self.auth_path)
+            .query(params)?
+            .send()
+            .await
     }
 
     pub async fn deps(&self, pipeline: &str) -> Result<Vec<String>> {
@@ -246,9 +252,12 @@ impl HttpClient {
     }
 
     async fn hist_inner(&self, params: &HistQueryParams) -> Result<Vec<HistoryEntry>> {
-        let server = self.config.server(&self.server)?;
-        let url = format!("{}/hist", server.base_url_http());
-        Request::get(&url).query(params)?.auth(server).send().await
+        let url = format!("{}/hist", self.base_url);
+        Request::get(&url)
+            .query(params)?
+            .auth(&self.auth_path)
+            .send()
+            .await
     }
 
     pub async fn hist(
@@ -269,9 +278,12 @@ impl HttpClient {
     }
 
     async fn print_inner(&self, params: &PipelineQueryParams) -> Result<String> {
-        let server = self.config.server(&self.server)?;
-        let url = format!("{}/print", server.base_url_http());
-        Request::get(&url).auth(server).query(params)?.send().await
+        let url = format!("{}/print", self.base_url);
+        Request::get(&url)
+            .auth(&self.auth_path)
+            .query(params)?
+            .send()
+            .await
     }
 
     pub async fn print(&self, pipeline: &str) -> Result<String> {
@@ -287,9 +299,8 @@ impl HttpClient {
     }
 
     async fn list_inner(&self) -> Result<String> {
-        let server = self.config.server(&self.server)?;
-        let url = format!("{}/list", server.base_url_http());
-        Request::get(&url).auth(server).send().await
+        let url = format!("{}/list", self.base_url);
+        Request::get(&url).auth(&self.auth_path).send().await
     }
 
     pub async fn list(&self) -> Result<String> {
@@ -304,9 +315,12 @@ impl HttpClient {
     }
 
     async fn pull_inner(&self, params: &PipelineQueryParams) -> Result<PullResponse> {
-        let server = self.config.server(&self.server)?;
-        let url = format!("{}/pull", server.base_url_http());
-        Request::get(&url).auth(server).query(params)?.send().await
+        let url = format!("{}/pull", self.base_url);
+        Request::get(&url)
+            .auth(&self.auth_path)
+            .query(params)?
+            .send()
+            .await
     }
 
     pub async fn pull(&self, pipeline: &str) -> Result<PullResponse> {
@@ -322,10 +336,9 @@ impl HttpClient {
     }
 
     async fn push_inner(&self, json: &PushInfo) -> Result<()> {
-        let server = self.config.server(&self.server)?;
-        let url = format!("{}/push", server.base_url_http());
+        let url = format!("{}/push", self.base_url);
         Request::post(&url)
-            .auth(server)
+            .auth(&self.auth_path)
             .send_json(json)
             .await
             .map(|_: String| ())
@@ -347,10 +360,9 @@ impl HttpClient {
     }
 
     async fn remove_inner(&self, params: &PipelineQueryParams) -> Result<()> {
-        let server = self.config.server(&self.server)?;
-        let url = format!("{}/remove", server.base_url_http());
+        let url = format!("{}/remove", self.base_url);
         Request::delete(&url)
-            .auth(server)
+            .auth(&self.auth_path)
             .query(params)?
             .send()
             .await
@@ -370,10 +382,9 @@ impl HttpClient {
     }
 
     async fn run_inner(&self, json: &ExecClientMessage) -> Result<()> {
-        let server = self.config.server(&self.server)?;
-        let url = format!("{}/run", server.base_url_http());
+        let url = format!("{}/run", self.base_url);
         Request::post(&url)
-            .auth(server)
+            .auth(&self.auth_path)
             .send_json(json)
             .await
             .map(|_: String| ())
@@ -401,10 +412,9 @@ impl HttpClient {
     }
 
     async fn stop_inner(&self, json: &String) -> Result<()> {
-        let server = self.config.server(&self.server)?;
-        let url = format!("{}/stop", server.base_url_http());
+        let url = format!("{}/stop", self.base_url);
         Request::post(&url)
-            .auth(server)
+            .auth(&self.auth_path)
             .send_json(json)
             .await
             .map(|_: String| ())
@@ -423,9 +433,12 @@ impl HttpClient {
     }
 
     async fn cron_list_inner(&self, filters: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
-        let server = self.config.server(&self.server)?;
-        let url = format!("{}/cron", server.base_url_http());
-        Request::get(&url).auth(server).query(filters)?.send().await
+        let url = format!("{}/cron", self.base_url);
+        Request::get(&url)
+            .auth(&self.auth_path)
+            .query(filters)?
+            .send()
+            .await
     }
 
     pub async fn cron_list(&self, filters: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
@@ -440,10 +453,9 @@ impl HttpClient {
     }
 
     async fn cron_add_inner(&self, body: &AddJobRequest) -> Result<()> {
-        let server = self.config.server(&self.server)?;
-        let url = format!("{}/cron", server.base_url_http());
+        let url = format!("{}/cron", self.base_url);
         Request::post(&url)
-            .auth(server)
+            .auth(&self.auth_path)
             .send_json(body)
             .await
             .map(|_: String| ())
@@ -461,10 +473,9 @@ impl HttpClient {
     }
 
     async fn cron_update_inner(&self, body: &UpdateJobRequest) -> Result<()> {
-        let server = self.config.server(&self.server)?;
-        let url = format!("{}/cron", server.base_url_http());
+        let url = format!("{}/cron", self.base_url);
         Request::patch(&url)
-            .auth(server)
+            .auth(&self.auth_path)
             .send_json(body)
             .await
             .map(|_: String| ())
@@ -482,10 +493,9 @@ impl HttpClient {
     }
 
     async fn cron_remove_inner(&self, id: &str) -> Result<()> {
-        let server = self.config.server(&self.server)?;
-        let url = format!("{}/cron/{id}", server.base_url_http());
+        let url = format!("{}/cron/{id}", self.base_url);
         Request::delete(&url)
-            .auth(server)
+            .auth(&self.auth_path)
             .send()
             .await
             .map(|_: String| ())
@@ -503,10 +513,9 @@ impl HttpClient {
     }
 
     async fn copy_inner(&self, data: &PipelinePathRequest) -> Result<()> {
-        let server = self.config.server(&self.server)?;
-        let url = format!("{}/copy", server.base_url_http());
+        let url = format!("{}/copy", self.base_url);
         Request::post(&url)
-            .auth(server)
+            .auth(&self.auth_path)
             .send_json(data)
             .await
             .map(|_: String| ())
@@ -525,10 +534,9 @@ impl HttpClient {
     }
 
     async fn mv_inner(&self, data: &PipelinePathRequest) -> Result<()> {
-        let server = self.config.server(&self.server)?;
-        let url = format!("{}/move", server.base_url_http());
+        let url = format!("{}/move", self.base_url);
         Request::patch(&url)
-            .auth(server)
+            .auth(&self.auth_path)
             .send_json(data)
             .await
             .map(|_: String| ())

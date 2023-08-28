@@ -47,12 +47,13 @@ impl MonitCommand {
     async fn request(self) -> Result<()> {
         let config = BldConfig::load()?;
         let server = config.server(&self.server)?;
+        let auth_path = config.auth_full_path(&server.name);
         let url = format!("{}/ws-monit/", server.base_url_ws());
 
         debug!("establishing web socket connection on {}", url);
 
         let (_, framed) = WebSocket::new(&url)?
-            .auth(server)
+            .auth(&auth_path)
             .request()
             .connect()
             .await

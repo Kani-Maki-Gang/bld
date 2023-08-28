@@ -37,7 +37,7 @@ impl CopyCommand {
     fn remote_copy(&self, server: &str) -> Result<()> {
         System::new().block_on(async move {
             let config = BldConfig::load()?.into_arc();
-            let client = HttpClient::new(config, server);
+            let client = HttpClient::new(config, server)?;
             client.copy(&self.pipeline, &self.target).await
         })
     }

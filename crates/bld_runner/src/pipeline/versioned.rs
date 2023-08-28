@@ -59,16 +59,18 @@ impl VersionedPipeline {
     }
 
     pub fn dependencies(
+        config: &BldConfig,
         proxy: &PipelineFileSystemProxy,
         name: &str,
     ) -> Result<HashMap<String, String>> {
-        Self::dependencies_recursive(proxy, name).map(|mut hs| {
+        Self::dependencies_recursive(config, proxy, name).map(|mut hs| {
             hs.remove(name);
             hs.into_iter().collect()
         })
     }
 
     fn dependencies_recursive(
+        config: &BldConfig,
         proxy: &PipelineFileSystemProxy,
         name: &str,
     ) -> Result<HashMap<String, String>> {
@@ -83,12 +85,12 @@ impl VersionedPipeline {
         set.insert(name.to_string(), src);
 
         let local_pipelines = match pipeline {
-            Self::Version1(pip) => pip.local_dependencies(),
-            Self::Version2(pip) => pip.local_dependencies(),
+            Self::Version1(pip) => pip.local_dependencies(config),
+            Self::Version2(pip) => pip.local_dependencies(config),
         };
 
         for pipeline in local_pipelines.iter() {
-            for (k, v) in Self::dependencies_recursive(proxy, pipeline)? {
+            for (k, v) in Self::dependencies_recursive(config, proxy, pipeline)? {
                 set.insert(k, v);
             }
         }

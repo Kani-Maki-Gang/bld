@@ -79,7 +79,7 @@ fn create_build_dir() -> Result<()> {
 
 fn create_logs_dir(is_server: bool) -> Result<()> {
     if is_server {
-        let path = Path::new(LOCAL_LOGS);
+        let path = path![TOOL_DIR, LOCAL_LOGS];
         create_dir(path)?;
         print_dir_created(LOCAL_LOGS)?;
     }
@@ -88,7 +88,7 @@ fn create_logs_dir(is_server: bool) -> Result<()> {
 
 fn create_db_dir(is_server: bool) -> Result<()> {
     if is_server {
-        let path = Path::new(LOCAL_DB);
+        let path = path![TOOL_DIR, LOCAL_DB];
         create_dir(path)?;
         print_dir_created(LOCAL_DB)?;
     }
@@ -97,7 +97,7 @@ fn create_db_dir(is_server: bool) -> Result<()> {
 
 fn create_server_pipelines_dir(is_server: bool) -> Result<()> {
     if is_server {
-        let path = Path::new(LOCAL_SERVER_PIPELINES);
+        let path = path![TOOL_DIR, LOCAL_SERVER_PIPELINES];
         create_dir(path)?;
         print_dir_created(LOCAL_SERVER_PIPELINES)?;
     }

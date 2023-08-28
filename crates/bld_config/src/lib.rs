@@ -21,6 +21,10 @@ use std::fs::read_to_string;
 use std::path::PathBuf;
 use tracing::debug;
 
+use crate::definitions::{
+    DB_NAME, LOCAL_MACHINE_TMP_DIR, REMOTE_SERVER_AUTH, TOOL_DEFAULT_CONFIG_FILE,
+};
+
 pub fn err_server_not_in_config() -> Error {
     anyhow!("server not found in config")
 }
@@ -46,11 +50,24 @@ pub struct BldConfig {
 
 impl BldConfig {
     pub fn path() -> Result<PathBuf> {
-        Ok(path![
-            current_dir()?,
-            definitions::TOOL_DIR,
-            format!("{}.yaml", definitions::TOOL_DEFAULT_CONFIG)
-        ])
+        let mut current = current_dir()?;
+        loop {
+            let cfg_file = path![
+                &current,
+                definitions::TOOL_DIR,
+                format!("{}.yaml", definitions::TOOL_DEFAULT_CONFIG)
+            ];
+
+            if !cfg_file.exists() {
+                current = current
+                    .parent()
+                    .map(|p| p.to_path_buf())
+                    .ok_or_else(|| anyhow!(".bld directory not found"))?;
+                continue;
+            }
+
+            return Ok(cfg_file);
+        }
     }
 
     pub fn load() -> Result<Self> {
@@ -100,5 +117,37 @@ impl BldConfig {
         } else {
             Ok(None)
         }
+    }
+
+    pub fn server_pipelines(&self) -> PathBuf {
+        path![&self.root_dir, &self.local.server.pipelines]
+    }
+
+    pub fn log_full_path(&self, id: &str) -> PathBuf {
+        path![&self.root_dir, &self.local.logs, id]
+    }
+
+    pub fn db_full_path(&self) -> PathBuf {
+        path![&self.root_dir, &self.local.db, DB_NAME]
+    }
+
+    pub fn auth_full_path(&self, server: &str) -> PathBuf {
+        path![&self.root_dir, REMOTE_SERVER_AUTH, server]
+    }
+
+    pub fn server_auth_full_path(&self, server: &str) -> Result<PathBuf> {
+        self.server(server).map(|s| self.auth_full_path(&s.name))
+    }
+
+    pub fn config_full_path(&self) -> PathBuf {
+        path![&self.root_dir, TOOL_DEFAULT_CONFIG_FILE]
+    }
+
+    pub fn full_path(&self, name: &str) -> PathBuf {
+        path![&self.root_dir, name]
+    }
+
+    pub fn tmp_full_path(&self, name: &str) -> PathBuf {
+        path![&self.root_dir, LOCAL_MACHINE_TMP_DIR, name]
     }
 }

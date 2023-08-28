@@ -4,6 +4,7 @@ use crate::platform::v2::Platform;
 use crate::step::v2::BuildStep;
 use crate::token_context::v2::PipelineContext;
 use anyhow::Result;
+use bld_config::BldConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -38,12 +39,12 @@ impl Pipeline {
         true
     }
 
-    pub fn local_dependencies(&self) -> Vec<String> {
+    pub fn local_dependencies(&self, config: &BldConfig) -> Vec<String> {
         let from_steps = self
             .jobs
             .iter()
             .flat_map(|(_, steps)| steps)
-            .flat_map(|s| s.local_dependencies());
+            .flat_map(|s| s.local_dependencies(config));
 
         let from_external = self
             .external

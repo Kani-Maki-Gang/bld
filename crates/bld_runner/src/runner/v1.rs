@@ -284,6 +284,7 @@ impl Runner {
     async fn server_external(&self, server: &str, details: &External) -> Result<()> {
         let server_name = server.to_owned();
         let server = self.config.server(server)?;
+        let auth_path = self.config.auth_full_path(&server.name);
         let variables = details
             .variables
             .iter()
@@ -304,7 +305,7 @@ impl Runner {
         );
 
         let (_, framed) = WebSocket::new(&url)?
-            .auth(server)
+            .auth(&auth_path)
             .request()
             .connect()
             .await

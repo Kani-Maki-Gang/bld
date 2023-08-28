@@ -1,13 +1,12 @@
 use crate::database::run_migrations;
 use anyhow::Result;
-use bld_config::definitions::DB_NAME;
-use bld_config::path;
+use bld_config::BldConfig;
 use diesel::connection::SimpleConnection;
 use diesel::r2d2::{ConnectionManager, CustomizeConnection, Error, Pool};
 use diesel::result::Error as DieselError;
 use diesel::sqlite::SqliteConnection;
 use std::fmt::Write;
-use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, error};
 
@@ -46,9 +45,13 @@ impl CustomizeConnection<SqliteConnection, Error> for SqliteConnectionOptions {
     }
 }
 
-pub fn new_connection_pool(db: &str) -> Result<Pool<ConnectionManager<SqliteConnection>>> {
-    let path = path![db, DB_NAME].as_path().display().to_string();
+pub fn new_connection_pool(
+    config: Arc<BldConfig>,
+) -> Result<Pool<ConnectionManager<SqliteConnection>>> {
+    let path = config.db_full_path().display().to_string();
+
     debug!("creating sqlite connection pool");
+
     let pool = Pool::builder()
         .max_size(16)
         .connection_customizer(Box::new(SqliteConnectionOptions {
@@ -57,8 +60,10 @@ pub fn new_connection_pool(db: &str) -> Result<Pool<ConnectionManager<SqliteConn
             busy_timeout: Some(Duration::from_secs(30)),
         }))
         .build(ConnectionManager::<SqliteConnection>::new(path))?;
+
     debug!("running migrations");
     let mut conn = pool.get()?;
     run_migrations(&mut conn)?;
+
     Ok(pool)
 }

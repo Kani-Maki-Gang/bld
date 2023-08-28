@@ -40,7 +40,7 @@ impl CatCommand {
     fn remote_print(&self, server: &str) -> Result<()> {
         System::new().block_on(async move {
             let config = BldConfig::load()?.into_arc();
-            HttpClient::new(config, server)
+            HttpClient::new(config, server)?
                 .print(&self.pipeline)
                 .await
                 .map(|r| println!("{r}"))

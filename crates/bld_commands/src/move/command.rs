@@ -37,8 +37,9 @@ impl MoveCommand {
     fn remote_move(&self, server: &str) -> Result<()> {
         System::new().block_on(async move {
             let config = BldConfig::load()?.into_arc();
-            let client = HttpClient::new(config, server);
-            client.mv(&self.pipeline, &self.target).await
+            HttpClient::new(config, server)?
+                .mv(&self.pipeline, &self.target)
+                .await
         })
     }
 }

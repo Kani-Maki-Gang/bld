@@ -36,7 +36,7 @@ impl EditCommand {
     fn remote_edit(&self, server: &str) -> Result<()> {
         System::new().block_on(async move {
             let config = BldConfig::load()?.into_arc();
-            let client = HttpClient::new(config.clone(), server);
+            let client = HttpClient::new(config.clone(), server)?;
             let proxy = PipelineFileSystemProxy::local(config);
             println!("Pulling pipline {}", self.pipeline);
 

@@ -5,6 +5,7 @@ use bld_config::BldConfig;
 use bld_core::context::ContextSender;
 use bld_core::logger::LoggerSender;
 use bld_core::messages::ExecClientMessage;
+use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::request::{HttpClient, WebSocket};
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::ExecClient;
@@ -201,6 +202,7 @@ impl RunAdapter {
 
         let runner = RunnerBuilder::default()
             .config(mode.config.clone())
+            .proxy(PipelineFileSystemProxy::local(mode.config.clone()).into_arc())
             .pipeline(&mode.pipeline)
             .logger(LoggerSender::shell().into_arc())
             .context(ContextSender::local(mode.config.clone()).into_arc())
@@ -219,6 +221,7 @@ impl RunAdapter {
 
     async fn run_web_socket(mode: WebSocketRequest) -> Result<()> {
         let server = mode.config.server(&mode.server)?;
+        let auth_path = mode.config.auth_full_path(&server.name);
         let url = format!("{}/ws-exec/", server.base_url_ws());
         let data = ExecClientMessage::EnqueueRun {
             name: mode.pipeline,
@@ -226,7 +229,7 @@ impl RunAdapter {
             variables: Some(mode.variables),
         };
 
-        let web_socket = WebSocket::new(&url)?.auth(server);
+        let web_socket = WebSocket::new(&url)?.auth(&auth_path);
 
         let (_, framed) = web_socket
             .request()
@@ -257,7 +260,7 @@ impl RunAdapter {
     }
 
     async fn run_http(mode: HttpRequest) -> Result<()> {
-        HttpClient::new(mode.config, &mode.server)
+        HttpClient::new(mode.config, &mode.server)?
             .run(&mode.pipeline, Some(mode.environment), Some(mode.variables))
             .await
             .map(|_| println!("pipeline has been scheduled to run"))

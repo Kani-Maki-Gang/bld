@@ -32,7 +32,7 @@ impl ListCommand {
     fn remote_list(&self, server: &str) -> Result<()> {
         System::new().block_on(async move {
             let config = BldConfig::load()?.into_arc();
-            HttpClient::new(config, server)
+            HttpClient::new(config, server)?
                 .list()
                 .await
                 .map(|r| println!("{r}"))

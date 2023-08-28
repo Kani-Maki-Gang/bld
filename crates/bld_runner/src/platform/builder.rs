@@ -95,7 +95,7 @@ impl<'a> TargetPlatformBuilder<'a> {
                 TargetPlatform::container(Box::new(container))
             }
             None => {
-                let machine = Machine::new(run_id, pipeline_environment, environment)?;
+                let machine = Machine::new(run_id, config, pipeline_environment, environment)?;
                 TargetPlatform::machine(Box::new(machine))
             }
         }
