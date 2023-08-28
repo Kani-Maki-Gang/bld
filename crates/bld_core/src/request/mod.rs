@@ -21,7 +21,7 @@ use bld_utils::tls::load_root_certificates;
 use rustls::ClientConfig;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use tracing::debug;
+use tracing::{error, debug};
 
 #[derive(Debug)]
 struct RequestError {
@@ -190,7 +190,8 @@ impl HttpClient {
         let url = format!("{}/refresh", self.base_url);
         let tokens = read_tokens(&self.auth_path)?;
         let Some(refresh_token) = tokens.refresh_token else {
-            bail!("no refresh token found");
+            error!("no refresh token found");
+            bail!("request failed with status code: 401 Unauthorized");
         };
         let params = RefreshTokenParams::new(&refresh_token);
         let tokens: AuthTokens = Request::get(&url).query(&params)?.send().await?;
