@@ -1,14 +1,16 @@
 use anyhow::{anyhow, Result};
-use diesel::Insertable;
-use diesel::{prelude::*, query_dsl::RunQueryDsl, sqlite::SqliteConnection, Connection, Queryable};
+use diesel::{prelude::*, query_dsl::RunQueryDsl, Connection, Queryable};
 use tracing::{debug, error};
 
-use crate::database::schema::cron_jobs;
-use crate::database::schema::cron_jobs::dsl::*;
-use crate::database::{cron_job_environment_variables, cron_job_variables, pipeline};
+use crate::database::{
+    cron_job_environment_variables, cron_job_variables, pipeline,
+    schema::{cron_jobs, cron_jobs::dsl::*},
+};
 
-use super::cron_job_environment_variables::InsertCronJobEnvironmentVariable;
-use super::cron_job_variables::InsertCronJobVariable;
+use super::{
+    cron_job_environment_variables::InsertCronJobEnvironmentVariable,
+    cron_job_variables::InsertCronJobVariable, DbConnection,
+};
 
 #[derive(Debug, Queryable)]
 pub struct CronJob {
@@ -20,8 +22,6 @@ pub struct CronJob {
     pub date_updated: Option<String>,
 }
 
-#[derive(Insertable)]
-#[diesel(table_name = cron_jobs)]
 pub struct InsertCronJob<'a> {
     pub id: &'a str,
     pub pipeline_id: &'a str,
@@ -35,7 +35,7 @@ pub struct UpdateCronJob<'a> {
     pub schedule: &'a str,
 }
 
-pub fn select_all(conn: &mut SqliteConnection) -> Result<Vec<CronJob>> {
+pub fn select_all(conn: &mut DbConnection) -> Result<Vec<CronJob>> {
     debug!("loading all cron jobs from the database");
     cron_jobs
         .load(conn)
@@ -49,7 +49,7 @@ pub fn select_all(conn: &mut SqliteConnection) -> Result<Vec<CronJob>> {
         })
 }
 
-pub fn select_by_id(conn: &mut SqliteConnection, cj_id: &str) -> Result<CronJob> {
+pub fn select_by_id(conn: &mut DbConnection, cj_id: &str) -> Result<CronJob> {
     debug!("loading last cron job with id: {cj_id}");
     cron_jobs
         .filter(id.eq(cj_id))
@@ -65,7 +65,7 @@ pub fn select_by_id(conn: &mut SqliteConnection, cj_id: &str) -> Result<CronJob>
 }
 
 pub fn select_default_by_pipeline(
-    conn: &mut SqliteConnection,
+    conn: &mut DbConnection,
     cj_pipeline_id: &str,
 ) -> Result<CronJob> {
     debug!("loading default cron job associated with pipeline: {cj_pipeline_id}");
@@ -82,10 +82,7 @@ pub fn select_default_by_pipeline(
         })
 }
 
-pub fn select_by_pipeline(
-    conn: &mut SqliteConnection,
-    cj_pipeline_id: &str,
-) -> Result<Vec<CronJob>> {
+pub fn select_by_pipeline(conn: &mut DbConnection, cj_pipeline_id: &str) -> Result<Vec<CronJob>> {
     debug!("loading cron job associated with pipeline: {cj_pipeline_id}");
     cron_jobs
         .filter(pipeline_id.eq(cj_pipeline_id))
@@ -101,7 +98,7 @@ pub fn select_by_pipeline(
 }
 
 pub fn select_with_filters(
-    conn: &mut SqliteConnection,
+    conn: &mut DbConnection,
     flt_id: Option<&str>,
     flt_pipeline: Option<&str>,
     flt_schedule: Option<&str>,
@@ -146,7 +143,7 @@ pub fn select_with_filters(
 }
 
 pub fn insert(
-    conn: &mut SqliteConnection,
+    conn: &mut DbConnection,
     cj_model: &InsertCronJob,
     cv_models: &Option<Vec<InsertCronJobVariable>>,
     cve_models: &Option<Vec<InsertCronJobEnvironmentVariable>>,
@@ -157,7 +154,12 @@ pub fn insert(
     );
     conn.transaction(|conn| {
         diesel::insert_into(cron_jobs::table)
-            .values(cj_model)
+            .values((
+                id.eq(cj_model.id),
+                pipeline_id.eq(cj_model.pipeline_id),
+                schedule.eq(cj_model.schedule),
+                is_default.eq(cj_model.is_default),
+            ))
             .execute(conn)
             .map_err(|e| {
                 error!("couldn't insert cron job due to {e}");
@@ -183,7 +185,7 @@ pub fn insert(
 }
 
 pub fn update(
-    conn: &mut SqliteConnection,
+    conn: &mut DbConnection,
     cj_model: &UpdateCronJob,
     cv_models: &Option<Vec<InsertCronJobVariable>>,
     cve_models: &Option<Vec<InsertCronJobEnvironmentVariable>>,
@@ -223,7 +225,7 @@ pub fn update(
     })
 }
 
-pub fn delete_by_cron_job_id(conn: &mut SqliteConnection, cj_id: &str) -> Result<()> {
+pub fn delete_by_cron_job_id(conn: &mut DbConnection, cj_id: &str) -> Result<()> {
     debug!("deleting cron job with id: {cj_id}");
     conn.transaction(|conn| {
         cron_job_variables::delete_by_cron_job_id(conn, cj_id)
@@ -243,7 +245,7 @@ pub fn delete_by_cron_job_id(conn: &mut SqliteConnection, cj_id: &str) -> Result
     })
 }
 
-pub fn delete_by_pipeline(conn: &mut SqliteConnection, cj_pipeline_id: &str) -> Result<()> {
+pub fn delete_by_pipeline(conn: &mut DbConnection, cj_pipeline_id: &str) -> Result<()> {
     debug!("deleting cron jobs associated with pipeline id: {cj_pipeline_id}");
     select_by_pipeline(conn, cj_pipeline_id).map(|entries| {
         for entry in entries {

@@ -1,10 +1,6 @@
-use crate::database::schema::pipeline_runs;
-use crate::database::schema::pipeline_runs::dsl::*;
+use crate::database::{schema::pipeline_runs, schema::pipeline_runs::dsl::*, DbConnection};
 use anyhow::{anyhow, Result};
-use diesel::prelude::*;
-use diesel::query_dsl::RunQueryDsl;
-use diesel::sqlite::SqliteConnection;
-use diesel::Queryable;
+use diesel::{prelude::*, query_dsl::RunQueryDsl, Queryable};
 use tracing::{debug, error};
 
 pub const PR_STATE_INITIAL: &str = "initial";
@@ -24,16 +20,13 @@ pub struct PipelineRuns {
     pub end_date_time: Option<String>,
 }
 
-#[derive(Insertable)]
-#[diesel(table_name = pipeline_runs)]
-struct InsertPipelineRun<'a> {
+pub struct InsertPipelineRun<'a> {
     pub id: &'a str,
     pub name: &'a str,
-    pub state: &'a str,
     pub user: &'a str,
 }
 
-pub fn select_all(conn: &mut SqliteConnection) -> Result<Vec<PipelineRuns>> {
+pub fn select_all(conn: &mut DbConnection) -> Result<Vec<PipelineRuns>> {
     debug!("loading all pipeline runs from the database");
     pipeline_runs
         .order(start_date_time)
@@ -48,7 +41,7 @@ pub fn select_all(conn: &mut SqliteConnection) -> Result<Vec<PipelineRuns>> {
         })
 }
 
-pub fn select_running_by_id(conn: &mut SqliteConnection, run_id: &str) -> Result<PipelineRuns> {
+pub fn select_running_by_id(conn: &mut DbConnection, run_id: &str) -> Result<PipelineRuns> {
     debug!("loading pipeline run with id: {run_id} that is in a running state");
     pipeline_runs
         .filter(id.eq(run_id).and(state.eq(PR_STATE_RUNNING)))
@@ -63,7 +56,7 @@ pub fn select_running_by_id(conn: &mut SqliteConnection, run_id: &str) -> Result
         })
 }
 
-pub fn select_by_id(conn: &mut SqliteConnection, pip_id: &str) -> Result<PipelineRuns> {
+pub fn select_by_id(conn: &mut DbConnection, pip_id: &str) -> Result<PipelineRuns> {
     debug!("loading pipeline with id: {pip_id} from the database");
     pipeline_runs
         .filter(id.eq(pip_id))
@@ -78,7 +71,7 @@ pub fn select_by_id(conn: &mut SqliteConnection, pip_id: &str) -> Result<Pipelin
         })
 }
 
-pub fn select_by_name(conn: &mut SqliteConnection, pip_name: &str) -> Result<PipelineRuns> {
+pub fn select_by_name(conn: &mut DbConnection, pip_name: &str) -> Result<PipelineRuns> {
     debug!("loading pipeline with name: {pip_name} from the database");
     pipeline_runs
         .filter(name.eq(pip_name))
@@ -93,7 +86,7 @@ pub fn select_by_name(conn: &mut SqliteConnection, pip_name: &str) -> Result<Pip
         })
 }
 
-pub fn select_last(conn: &mut SqliteConnection) -> Result<PipelineRuns> {
+pub fn select_last(conn: &mut DbConnection) -> Result<PipelineRuns> {
     debug!("loading the last invoked pipeline from the database");
     pipeline_runs
         .order(start_date_time.desc())
@@ -109,7 +102,7 @@ pub fn select_last(conn: &mut SqliteConnection) -> Result<PipelineRuns> {
 }
 
 pub fn select_with_filters(
-    conn: &mut SqliteConnection,
+    conn: &mut DbConnection,
     flt_state: &Option<String>,
     flt_name: &Option<String>,
     limit_by: i64,
@@ -141,22 +134,16 @@ pub fn select_with_filters(
         })
 }
 
-pub fn insert(
-    conn: &mut SqliteConnection,
-    pip_id: &str,
-    pip_name: &str,
-    pip_user: &str,
-) -> Result<PipelineRuns> {
+pub fn insert<'a>(conn: &mut DbConnection, model: InsertPipelineRun<'a>) -> Result<PipelineRuns> {
     debug!("inserting new pipeline to the database");
-    let run = InsertPipelineRun {
-        id: pip_id,
-        name: pip_name,
-        state: PR_STATE_INITIAL,
-        user: pip_user,
-    };
     conn.transaction(|conn| {
         diesel::insert_into(pipeline_runs::table)
-            .values(&run)
+            .values((
+                id.eq(model.id),
+                name.eq(model.name),
+                user.eq(model.user),
+                state.eq(PR_STATE_INITIAL),
+            ))
             .execute(conn)
             .map_err(|e| {
                 error!("could not insert pipeline due to: {e}");
@@ -165,15 +152,15 @@ pub fn insert(
             .and_then(|_| {
                 debug!(
                     "created new pipeline run entry for id: {}, name: {}, user: {}",
-                    pip_id, pip_name, pip_user
+                    model.id, model.name, model.user
                 );
-                select_by_id(conn, pip_id)
+                select_by_id(conn, model.id)
             })
     })
 }
 
 pub fn update_state(
-    conn: &mut SqliteConnection,
+    conn: &mut DbConnection,
     pip_id: &str,
     pip_state: &str,
 ) -> Result<PipelineRuns> {

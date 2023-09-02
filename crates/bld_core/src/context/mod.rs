@@ -1,15 +1,17 @@
-use crate::database::pipeline_run_containers::{
-    self, InsertPipelineRunContainer, PipelineRunContainers, PRC_STATE_FAULTED,
-    PRC_STATE_KEEP_ALIVE, PRC_STATE_REMOVED,
-};
 use crate::database::pipeline_runs::{self, PR_STATE_FINISHED, PR_STATE_RUNNING};
+use crate::database::{
+    pipeline_run_containers::{
+        self, InsertPipelineRunContainer, PipelineRunContainers, PRC_STATE_FAULTED,
+        PRC_STATE_KEEP_ALIVE, PRC_STATE_REMOVED,
+    },
+    DbConnection,
+};
 use crate::platform::TargetPlatform;
 use crate::request::Request;
 use actix_web::rt::spawn;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::sqlite::SqliteConnection;
 use std::sync::Arc;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::oneshot;
@@ -52,7 +54,7 @@ pub enum Context {
         config: Arc<BldConfig>,
         run_id: String,
         remote_runs: Vec<RemoteRun>,
-        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        pool: Arc<Pool<ConnectionManager<DbConnection>>>,
         platforms: Vec<Arc<TargetPlatform>>,
     },
     Local {
@@ -65,7 +67,7 @@ pub enum Context {
 impl Context {
     pub fn server(
         config: Arc<BldConfig>,
-        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        pool: Arc<Pool<ConnectionManager<DbConnection>>>,
         run_id: &str,
     ) -> Self {
         Self::Server {
@@ -303,7 +305,7 @@ pub struct ContextSender {
 impl ContextSender {
     pub fn server(
         config: Arc<BldConfig>,
-        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        pool: Arc<Pool<ConnectionManager<DbConnection>>>,
         run_id: &str,
     ) -> Self {
         let (tx, rx) = channel(4096);

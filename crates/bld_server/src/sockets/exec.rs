@@ -1,30 +1,34 @@
-use crate::extractors::User;
-use crate::supervisor::channel::SupervisorMessageSender;
-use crate::supervisor::helpers::enqueue_worker;
+use crate::{
+    extractors::User,
+    supervisor::{channel::SupervisorMessageSender, helpers::enqueue_worker},
+};
 use actix::prelude::*;
-use actix_web::error::ErrorUnauthorized;
-use actix_web::web::{Data, Payload};
-use actix_web::{Error, HttpRequest, HttpResponse};
+use actix_web::{
+    error::ErrorUnauthorized,
+    web::{Data, Payload},
+    Error, HttpRequest, HttpResponse,
+};
 use actix_web_actors::ws;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::database::pipeline_runs::{
-    self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED,
+use bld_core::{
+    database::{
+        pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED},
+        DbConnection,
+    },
+    messages::{ExecClientMessage, ExecServerMessage},
+    proxies::PipelineFileSystemProxy,
+    scanner::FileScanner,
 };
-use bld_core::messages::{ExecClientMessage, ExecServerMessage};
-use bld_core::proxies::PipelineFileSystemProxy;
-use bld_core::scanner::FileScanner;
 use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::sqlite::SqliteConnection;
 use futures_util::future::ready;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 use tracing::{debug, error};
 
 pub struct ExecutePipelineSocket {
     config: Data<BldConfig>,
     supervisor: Data<SupervisorMessageSender>,
-    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    pool: Data<Pool<ConnectionManager<DbConnection>>>,
     proxy: Data<PipelineFileSystemProxy>,
     user: User,
     scanner: Option<FileScanner>,
@@ -36,7 +40,7 @@ impl ExecutePipelineSocket {
         user: User,
         config: Data<BldConfig>,
         supervisor_sender: Data<SupervisorMessageSender>,
-        pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+        pool: Data<Pool<ConnectionManager<DbConnection>>>,
         proxy: Data<PipelineFileSystemProxy>,
     ) -> Self {
         Self {
@@ -169,7 +173,7 @@ pub async fn ws(
     stream: Payload,
     cfg: Data<BldConfig>,
     supervisor_sender: Data<SupervisorMessageSender>,
-    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    pool: Data<Pool<ConnectionManager<DbConnection>>>,
     proxy: Data<PipelineFileSystemProxy>,
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;

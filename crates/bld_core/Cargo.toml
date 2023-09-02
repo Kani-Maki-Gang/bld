@@ -13,7 +13,7 @@ async-trait = "0.1.50"
 awc = { version = "3.0.0", features = ["rustls"] }
 bld_config = { path = "../bld_config" }
 bld_utils = { path = "../bld_utils" }
-diesel = { version = "2.1.1", features = ["sqlite", "postgres_backend", "mysql_backend", "r2d2"] }
+diesel = { version = "2.1.1", features = ["sqlite", "postgres", "mysql", "r2d2"] }
 diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
 libsqlite3-sys = { version = "*", features = ["bundled"] }
 futures = "0.3.15"

@@ -2,13 +2,15 @@ use actix_web::rt::spawn;
 use actix_web::web::Data;
 use anyhow::{anyhow, Error, Result};
 use bld_config::BldConfig;
-use bld_core::database::pipeline_run_containers::{self, PRC_STATE_REMOVED};
-use bld_core::database::pipeline_runs::{
-    self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED,
+use bld_core::{
+    database::{
+        pipeline_run_containers::{self, PRC_STATE_REMOVED},
+        pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED},
+        DbConnection,
+    },
+    workers::PipelineWorker,
 };
-use bld_core::workers::PipelineWorker;
 use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::sqlite::SqliteConnection;
 use shiplift::errors::Error as ShipliftError;
 use shiplift::{Docker, RmContainerOptions};
 use std::collections::VecDeque;
@@ -48,7 +50,7 @@ struct WorkerQueueReceiver {
     active: Vec<PipelineWorker>,
     backlog: VecDeque<PipelineWorker>,
     config: Data<BldConfig>,
-    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    pool: Data<Pool<ConnectionManager<DbConnection>>>,
     rx: mpsc::Receiver<WorkerQueueMessage>,
 }
 
@@ -56,7 +58,7 @@ impl WorkerQueueReceiver {
     pub fn new(
         capacity: usize,
         config: Data<BldConfig>,
-        pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+        pool: Data<Pool<ConnectionManager<DbConnection>>>,
         rx: mpsc::Receiver<WorkerQueueMessage>,
     ) -> Self {
         let config_clone = config.clone();
@@ -254,7 +256,7 @@ impl WorkerQueueSender {
 pub fn worker_queue_channel(
     capacity: usize,
     config: Data<BldConfig>,
-    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    pool: Data<Pool<ConnectionManager<DbConnection>>>,
 ) -> WorkerQueueSender {
     let (tx, rx) = mpsc::channel(4096);
     let receiver = WorkerQueueReceiver::new(capacity, config, pool, rx);
@@ -273,7 +275,7 @@ pub fn worker_queue_channel(
 /// complete successfully so it will be set to finished and all of its associated
 /// containers will be set as faulted in order to be cleaned up later.
 fn try_cleanup_process(
-    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    pool: Data<Pool<ConnectionManager<DbConnection>>>,
     worker: &mut PipelineWorker,
 ) -> Result<()> {
     debug!("starting worker process cleanup");
@@ -300,7 +302,7 @@ fn try_cleanup_process(
 /// engine API and then set their state as removed.
 pub async fn try_cleanup_containers(
     config: Data<BldConfig>,
-    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    pool: Data<Pool<ConnectionManager<DbConnection>>>,
 ) -> Result<()> {
     let mut conn = pool.get()?;
     let run_containers = pipeline_run_containers::select_in_invalid_state(&mut conn)?;

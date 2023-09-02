@@ -9,6 +9,7 @@ use bld_core::{
         cron_job_variables::{self, CronJobVariable, InsertCronJobVariable},
         cron_jobs::{self, CronJob, InsertCronJob, UpdateCronJob},
         pipeline::{self, Pipeline},
+        DbConnection,
     },
     messages::ExecClientMessage,
     proxies::PipelineFileSystemProxy,
@@ -17,7 +18,7 @@ use bld_core::{
 };
 use diesel::{
     r2d2::{ConnectionManager, Pool},
-    Connection, SqliteConnection,
+    Connection,
 };
 use tokio_cron_scheduler::{Job, JobScheduler};
 use uuid::Uuid;
@@ -26,7 +27,7 @@ use crate::supervisor::{channel::SupervisorMessageSender, helpers::enqueue_worke
 
 pub struct CronScheduler {
     proxy: Arc<PipelineFileSystemProxy>,
-    pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
+    pool: Arc<Pool<ConnectionManager<DbConnection>>>,
     supervisor: Arc<SupervisorMessageSender>,
     scheduler: JobScheduler,
 }
@@ -34,7 +35,7 @@ pub struct CronScheduler {
 impl CronScheduler {
     pub async fn new(
         proxy: Arc<PipelineFileSystemProxy>,
-        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        pool: Arc<Pool<ConnectionManager<DbConnection>>>,
         supervisor: Arc<SupervisorMessageSender>,
     ) -> Result<Self> {
         let scheduler = JobScheduler::new().await?;
@@ -106,7 +107,7 @@ impl CronScheduler {
 
     fn create_database_job(
         &self,
-        conn: &mut SqliteConnection,
+        conn: &mut DbConnection,
         job_id: &Uuid,
         add_job: &AddJobRequest,
         pipeline_id: &str,
@@ -136,7 +137,7 @@ impl CronScheduler {
 
     fn update_database_job(
         &self,
-        conn: &mut SqliteConnection,
+        conn: &mut DbConnection,
         job_id: &Uuid,
         update_job: &UpdateJobRequest,
         pipeline_id: &str,
@@ -201,7 +202,7 @@ impl CronScheduler {
 
     async fn add_inner(
         &self,
-        conn: &mut SqliteConnection,
+        conn: &mut DbConnection,
         add_job: &AddJobRequest,
         pipeline: &Pipeline,
     ) -> Result<()> {
@@ -230,7 +231,7 @@ impl CronScheduler {
 
     async fn update_inner(
         &self,
-        conn: &mut SqliteConnection,
+        conn: &mut DbConnection,
         update_job: &UpdateJobRequest,
         job: &CronJob,
         pipeline: &Pipeline,
@@ -340,7 +341,7 @@ impl CronScheduler {
 
     fn get_inner(
         &self,
-        conn: &mut SqliteConnection,
+        conn: &mut DbConnection,
         jobs: Vec<CronJob>,
     ) -> Result<Vec<CronJobResponse>> {
         let mut response = Vec::with_capacity(jobs.len());

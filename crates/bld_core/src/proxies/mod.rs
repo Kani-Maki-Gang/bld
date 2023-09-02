@@ -1,10 +1,7 @@
 use anyhow::{anyhow, bail, Result};
 use bld_config::{path, BldConfig};
 use bld_utils::{fs::IsYaml, sync::IntoArc};
-use diesel::{
-    r2d2::{ConnectionManager, Pool},
-    sqlite::SqliteConnection,
-};
+use diesel::r2d2::{ConnectionManager, Pool};
 use std::{
     fmt::Write as FmtWrite,
     fs::{copy, create_dir_all, read_to_string, remove_file, rename, File},
@@ -16,7 +13,10 @@ use std::{
 use uuid::Uuid;
 use walkdir::WalkDir;
 
-use crate::database::pipeline::{self, Pipeline};
+use crate::database::{
+    pipeline::{self, InsertPipeline, Pipeline},
+    DbConnection,
+};
 
 pub enum PipelineFileSystemProxy {
     Local {
@@ -24,7 +24,7 @@ pub enum PipelineFileSystemProxy {
     },
     Server {
         config: Arc<BldConfig>,
-        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        pool: Arc<Pool<ConnectionManager<DbConnection>>>,
     },
 }
 
@@ -43,7 +43,7 @@ impl PipelineFileSystemProxy {
 
     pub fn server(
         config: Arc<BldConfig>,
-        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        pool: Arc<Pool<ConnectionManager<DbConnection>>>,
     ) -> Self {
         Self::Server { config, pool }
     }
@@ -125,7 +125,8 @@ impl PipelineFileSystemProxy {
             let response = pipeline::select_by_name(&mut conn, name);
             if response.is_err() {
                 let id = Uuid::new_v4().to_string();
-                pipeline::insert(&mut conn, &id, name)?;
+                let model = InsertPipeline { id: &id, name };
+                pipeline::insert(&mut conn, model)?;
             }
         }
 
@@ -269,7 +270,7 @@ impl PipelineFileSystemProxy {
     }
 
     fn edit_internal(&self, path: &PathBuf, check_path: bool) -> Result<()> {
-        let Self::Local {config} = self else {
+        let Self::Local { config } = self else {
             bail!("server pipelines dont support direct editing");
         };
 

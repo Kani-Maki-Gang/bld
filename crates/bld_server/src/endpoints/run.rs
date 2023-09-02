@@ -1,21 +1,25 @@
 use std::sync::Arc;
 
-use crate::extractors::User;
-use crate::supervisor::channel::SupervisorMessageSender;
-use crate::supervisor::helpers::enqueue_worker;
-use actix_web::web::{Data, Json};
-use actix_web::{post, HttpResponse, Responder};
-use bld_core::messages::ExecClientMessage;
-use bld_core::proxies::PipelineFileSystemProxy;
+use crate::{
+    extractors::User,
+    supervisor::{channel::SupervisorMessageSender, helpers::enqueue_worker},
+};
+use actix_web::{
+    post,
+    web::{Data, Json},
+    HttpResponse, Responder,
+};
+use bld_core::{
+    database::DbConnection, messages::ExecClientMessage, proxies::PipelineFileSystemProxy,
+};
 use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::SqliteConnection;
 use tracing::info;
 
 #[post("/run")]
 pub async fn post(
     user: User,
     proxy: Data<PipelineFileSystemProxy>,
-    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    pool: Data<Pool<ConnectionManager<DbConnection>>>,
     supervisor: Data<SupervisorMessageSender>,
     data: Json<ExecClientMessage>,
 ) -> impl Responder {

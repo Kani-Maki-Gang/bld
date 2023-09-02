@@ -1,12 +1,13 @@
 #![allow(dead_code)]
-use crate::database::schema::pipeline::dsl::*;
-use crate::database::{cron_jobs, schema::pipeline};
+use crate::database::{
+    cron_jobs,
+    schema::{pipeline, pipeline::dsl::*},
+};
 use anyhow::{anyhow, Result};
-use diesel::prelude::*;
-use diesel::query_dsl::RunQueryDsl;
-use diesel::sqlite::SqliteConnection;
-use diesel::Queryable;
+use diesel::{prelude::*, query_dsl::RunQueryDsl, Queryable};
 use tracing::{debug, error};
+
+use super::DbConnection;
 
 #[derive(Debug, Queryable)]
 pub struct Pipeline {
@@ -15,14 +16,12 @@ pub struct Pipeline {
     pub date_created: String,
 }
 
-#[derive(Insertable)]
-#[diesel(table_name = pipeline)]
-struct InsertPipeline<'a> {
+pub struct InsertPipeline<'a> {
     pub id: &'a str,
     pub name: &'a str,
 }
 
-pub fn select_all(conn: &mut SqliteConnection) -> Result<Vec<Pipeline>> {
+pub fn select_all(conn: &mut DbConnection) -> Result<Vec<Pipeline>> {
     debug!("loading all pipelines from the database");
     pipeline
         .order_by(name)
@@ -37,7 +36,7 @@ pub fn select_all(conn: &mut SqliteConnection) -> Result<Vec<Pipeline>> {
         })
 }
 
-pub fn select_by_id(conn: &mut SqliteConnection, pip_id: &str) -> Result<Pipeline> {
+pub fn select_by_id(conn: &mut DbConnection, pip_id: &str) -> Result<Pipeline> {
     debug!("loading pipeline with id: {pip_id} from the database");
     pipeline
         .filter(id.eq(pip_id))
@@ -52,7 +51,7 @@ pub fn select_by_id(conn: &mut SqliteConnection, pip_id: &str) -> Result<Pipelin
         })
 }
 
-pub fn select_by_name(conn: &mut SqliteConnection, pip_name: &str) -> Result<Pipeline> {
+pub fn select_by_name(conn: &mut DbConnection, pip_name: &str) -> Result<Pipeline> {
     debug!("loading pipeline with name: {pip_name} from the database");
     pipeline
         .filter(name.eq(pip_name))
@@ -67,7 +66,7 @@ pub fn select_by_name(conn: &mut SqliteConnection, pip_name: &str) -> Result<Pip
         })
 }
 
-pub fn update_name(conn: &mut SqliteConnection, pip_id: &str, pip_name: &str) -> Result<()> {
+pub fn update_name(conn: &mut DbConnection, pip_id: &str, pip_name: &str) -> Result<()> {
     debug!("updating pipeline with id: {pip_id} with new name: {pip_name}");
     diesel::update(pipeline)
         .set(name.eq(pip_name))
@@ -80,28 +79,27 @@ pub fn update_name(conn: &mut SqliteConnection, pip_id: &str, pip_name: &str) ->
         })
 }
 
-pub fn insert(conn: &mut SqliteConnection, pip_id: &str, pip_name: &str) -> Result<Pipeline> {
+pub fn insert(conn: &mut DbConnection, model: InsertPipeline) -> Result<Pipeline> {
     debug!("inserting new pipeline to the database");
-    let model = InsertPipeline {
-        id: pip_id,
-        name: pip_name,
-    };
     conn.transaction(|conn| {
         diesel::insert_into(pipeline::table)
-            .values(&model)
+            .values((id.eq(model.id), name.eq(model.name)))
             .execute(conn)
             .map_err(|e| {
                 error!("could not insert pipeline due to: {e}");
                 anyhow!(e)
             })
             .and_then(|_| {
-                debug!("created new pipeline entry with id: {pip_id}, name: {pip_name}");
-                select_by_id(conn, pip_id)
+                debug!(
+                    "created new pipeline entry with id: {}, name: {}",
+                    model.id, model.name
+                );
+                select_by_id(conn, model.id)
             })
     })
 }
 
-pub fn delete_by_name(conn: &mut SqliteConnection, pip_name: &str) -> Result<()> {
+pub fn delete_by_name(conn: &mut DbConnection, pip_name: &str) -> Result<()> {
     debug!("deleting pipeline with name: {pip_name} from the database");
     conn.transaction(|conn| {
         select_by_name(conn, pip_name)

@@ -1,13 +1,18 @@
-use crate::database::pipeline_runs::{PipelineRuns, PR_STATE_FAULTED, PR_STATE_FINISHED};
-use crate::database::schema::pipeline_run_containers;
-use crate::database::schema::pipeline_run_containers::dsl::*;
-use crate::database::schema::pipeline_runs::dsl as pr_dsl;
+use crate::database::{
+    pipeline_runs::{PipelineRuns, PR_STATE_FAULTED, PR_STATE_FINISHED},
+    schema::{
+        pipeline_run_containers, pipeline_run_containers::dsl::*, pipeline_runs::dsl as pr_dsl,
+    },
+};
 use anyhow::{anyhow, Result};
-use diesel::prelude::*;
-use diesel::query_dsl::{QueryDsl, RunQueryDsl};
-use diesel::sqlite::SqliteConnection;
-use diesel::{Associations, Identifiable, Insertable, Queryable};
+use diesel::{
+    prelude::*,
+    query_dsl::{QueryDsl, RunQueryDsl},
+    Associations, Identifiable, Queryable,
+};
 use tracing::{debug, error};
+
+use super::DbConnection;
 
 pub const PRC_STATE_ACTIVE: &str = "active";
 pub const PRC_STATE_REMOVED: &str = "removed";
@@ -25,8 +30,7 @@ pub struct PipelineRunContainers {
     pub date_created: String,
 }
 
-#[derive(Debug, Insertable)]
-#[diesel(table_name = pipeline_run_containers)]
+#[derive(Debug)]
 pub struct InsertPipelineRunContainer<'a> {
     pub id: &'a str,
     pub run_id: &'a str,
@@ -34,10 +38,7 @@ pub struct InsertPipelineRunContainer<'a> {
     pub state: &'a str,
 }
 
-pub fn select(
-    conn: &mut SqliteConnection,
-    run: &PipelineRuns,
-) -> Result<Vec<PipelineRunContainers>> {
+pub fn select(conn: &mut DbConnection, run: &PipelineRuns) -> Result<Vec<PipelineRunContainers>> {
     debug!(
         "loading pipeline run containers for run with id: {}",
         run.id
@@ -54,7 +55,7 @@ pub fn select(
         })
 }
 
-pub fn select_by_id(conn: &mut SqliteConnection, prc_id: &str) -> Result<PipelineRunContainers> {
+pub fn select_by_id(conn: &mut DbConnection, prc_id: &str) -> Result<PipelineRunContainers> {
     debug!("loading pipeline run container with id: {prc_id}");
     pipeline_run_containers
         .filter(id.eq(prc_id))
@@ -69,7 +70,7 @@ pub fn select_by_id(conn: &mut SqliteConnection, prc_id: &str) -> Result<Pipelin
         })
 }
 
-pub fn select_in_invalid_state(conn: &mut SqliteConnection) -> Result<Vec<PipelineRunContainers>> {
+pub fn select_in_invalid_state(conn: &mut DbConnection) -> Result<Vec<PipelineRunContainers>> {
     debug!("loading all pipeline run containers that are in an invalid state");
     let active_containers: Vec<(PipelineRuns, PipelineRunContainers)> = pr_dsl::pipeline_runs
         .inner_join(pipeline_run_containers)
@@ -105,13 +106,18 @@ pub fn select_in_invalid_state(conn: &mut SqliteConnection) -> Result<Vec<Pipeli
 }
 
 pub fn insert(
-    conn: &mut SqliteConnection,
+    conn: &mut DbConnection,
     model: InsertPipelineRunContainer,
 ) -> Result<PipelineRunContainers> {
     debug!("inserting pipeline run container");
     conn.transaction(|conn| {
         diesel::insert_into(pipeline_run_containers)
-            .values(&model)
+            .values((
+                id.eq(model.id),
+                run_id.eq(model.run_id),
+                container_id.eq(model.container_id),
+                state.eq(model.state),
+            ))
             .execute(conn)
             .map_err(|e| {
                 error!("could not insert pipeline run container. {e}");
@@ -125,7 +131,7 @@ pub fn insert(
 }
 
 pub fn update_state(
-    conn: &mut SqliteConnection,
+    conn: &mut DbConnection,
     prc_id: &str,
     prc_state: &str,
 ) -> Result<PipelineRunContainers> {
@@ -146,7 +152,7 @@ pub fn update_state(
 }
 
 pub fn update_running_containers_to_faulted(
-    conn: &mut SqliteConnection,
+    conn: &mut DbConnection,
     prc_run_id: &str,
 ) -> Result<()> {
     debug!(

@@ -1,30 +1,33 @@
 use crate::extractors::User;
 use actix::prelude::*;
-use actix_web::error::ErrorUnauthorized;
-use actix_web::web::{Data, Payload};
-use actix_web::{Error, HttpRequest, HttpResponse};
+use actix_web::{
+    error::ErrorUnauthorized,
+    web::{Data, Payload},
+    Error, HttpRequest, HttpResponse,
+};
 use actix_web_actors::ws;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::database::pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED};
-use bld_core::messages::MonitInfo;
-use bld_core::scanner::FileScanner;
+use bld_core::{
+    database::{
+        pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED},
+        DbConnection,
+    },
+    messages::MonitInfo,
+    scanner::FileScanner,
+};
 use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::sqlite::SqliteConnection;
 use std::{sync::Arc, time::Duration};
 
 pub struct MonitorPipelineSocket {
     id: String,
-    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    pool: Data<Pool<ConnectionManager<DbConnection>>>,
     config: Data<BldConfig>,
     scanner: Option<FileScanner>,
 }
 
 impl MonitorPipelineSocket {
-    pub fn new(
-        pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
-        config: Data<BldConfig>,
-    ) -> Self {
+    pub fn new(pool: Data<Pool<ConnectionManager<DbConnection>>>, config: Data<BldConfig>) -> Self {
         Self {
             id: String::new(),
             pool,
@@ -119,7 +122,7 @@ pub async fn ws(
     user: Option<User>,
     req: HttpRequest,
     stream: Payload,
-    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    pool: Data<Pool<ConnectionManager<DbConnection>>>,
     config: Data<BldConfig>,
 ) -> Result<HttpResponse, Error> {
     if user.is_none() {

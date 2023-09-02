@@ -21,7 +21,7 @@ use bld_utils::tls::load_root_certificates;
 use rustls::ClientConfig;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use tracing::{error, debug};
+use tracing::{debug, error};
 
 #[derive(Debug)]
 struct RequestError {

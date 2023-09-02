@@ -4,18 +4,22 @@ use crate::endpoints::{
 };
 use crate::sockets::{exec, login, monit};
 use crate::supervisor::channel::SupervisorMessageSender;
-use actix_web::web::{get, resource};
-use actix_web::{middleware, App, HttpServer};
+use actix_web::{
+    middleware,
+    web::{get, resource},
+    App, HttpServer,
+};
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::auth::LoginProcess;
-use bld_core::database::new_connection_pool;
-use bld_core::proxies::PipelineFileSystemProxy;
-use bld_utils::sync::IntoData;
-use bld_utils::tls::{load_server_certificate, load_server_private_key};
+use bld_core::{
+    auth::LoginProcess, database::new_connection_pool, proxies::PipelineFileSystemProxy,
+};
+use bld_utils::{
+    sync::IntoData,
+    tls::{load_server_certificate, load_server_private_key},
+};
 use rustls::ServerConfig;
-use std::env::set_var;
-use std::sync::Arc;
+use std::{env::set_var, sync::Arc};
 use tracing::info;
 
 pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {

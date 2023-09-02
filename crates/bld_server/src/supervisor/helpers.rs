@@ -1,20 +1,23 @@
 use crate::supervisor::channel::SupervisorMessageSender;
 use anyhow::{bail, Result};
-use bld_core::database::pipeline_runs;
-use bld_core::messages::ExecClientMessage;
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::{
+    database::{
+        pipeline_runs::{self, InsertPipelineRun},
+        DbConnection,
+    },
+    messages::ExecClientMessage,
+    proxies::PipelineFileSystemProxy,
+};
 use bld_utils::fs::IsYaml;
 use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::SqliteConnection;
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tracing::{debug, error};
 use uuid::Uuid;
 
 pub async fn enqueue_worker(
     user_name: &str,
     proxy: Arc<PipelineFileSystemProxy>,
-    pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
+    pool: Arc<Pool<ConnectionManager<DbConnection>>>,
     supervisor_sender: Arc<SupervisorMessageSender>,
     data: ExecClientMessage,
 ) -> Result<String> {
@@ -31,7 +34,12 @@ pub async fn enqueue_worker(
 
     let run_id = Uuid::new_v4().to_string();
     let mut conn = pool.get()?;
-    let run = pipeline_runs::insert(&mut conn, &run_id, &name, user_name)?;
+    let model = InsertPipelineRun {
+        id: &run_id,
+        name: &name,
+        user: &user_name,
+    };
+    let run = pipeline_runs::insert(&mut conn, model)?;
 
     let variables = variables.map(hash_map_to_var_string);
     let environment = environment.map(hash_map_to_var_string);

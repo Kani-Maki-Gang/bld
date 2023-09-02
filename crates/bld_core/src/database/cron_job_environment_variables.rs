@@ -1,12 +1,13 @@
 use anyhow::{anyhow, Result};
-use diesel::{
-    prelude::*, query_dsl::RunQueryDsl, sqlite::SqliteConnection, Connection, Insertable, Queryable,
-};
+use diesel::{prelude::*, query_dsl::RunQueryDsl, Insertable, Queryable};
 use tracing::{debug, error};
 use uuid::Uuid;
 
-use crate::database::schema::cron_job_environment_variables;
-use crate::database::schema::cron_job_environment_variables::dsl::*;
+use crate::database::schema::{
+    cron_job_environment_variables, cron_job_environment_variables::dsl::*,
+};
+
+use super::DbConnection;
 
 #[derive(Debug, Queryable)]
 #[diesel(belongs_to(CronJob, foreign_key = cron_job_id))]
@@ -43,7 +44,7 @@ impl<'a> InsertCronJobEnvironmentVariable<'a> {
 }
 
 pub fn select_by_cron_job_id(
-    conn: &mut SqliteConnection,
+    conn: &mut DbConnection,
     cev_cron_job_id: &str,
 ) -> Result<Vec<CronJobEnvironmentVariable>> {
     debug!("loading all environment variables for cron job with id: {cev_cron_job_id}");
@@ -61,12 +62,17 @@ pub fn select_by_cron_job_id(
 }
 
 pub fn insert_many(
-    conn: &mut SqliteConnection,
+    conn: &mut DbConnection,
     models: &[InsertCronJobEnvironmentVariable],
 ) -> Result<()> {
-    conn.transaction(|conn| {
+    for model in models {
         diesel::insert_into(cron_job_environment_variables::table)
-            .values(models)
+            .values((
+                id.eq(&model.id),
+                name.eq(model.name),
+                value.eq(model.value),
+                cron_job_id.eq(model.cron_job_id),
+            ))
             .execute(conn)
             .map(|_| {
                 debug!("created new cron job environment variables successfully");
@@ -74,11 +80,12 @@ pub fn insert_many(
             .map_err(|e| {
                 error!("couldn't insert cron job environment variables due to {e}");
                 anyhow!(e)
-            })
-    })
+            })?
+    }
+    Ok(())
 }
 
-pub fn delete_by_cron_job_id(conn: &mut SqliteConnection, cev_cron_job_id: &str) -> Result<()> {
+pub fn delete_by_cron_job_id(conn: &mut DbConnection, cev_cron_job_id: &str) -> Result<()> {
     debug!(
         "deleting cron job environment variables associated with cron job id: {cev_cron_job_id}"
     );

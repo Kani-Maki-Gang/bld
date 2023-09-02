@@ -1,17 +1,18 @@
 use crate::extractors::User;
 use actix_web::{get, web::Data, web::Query, HttpResponse, Responder};
 use anyhow::Result;
-use bld_core::database::pipeline_runs;
-use bld_core::requests::HistQueryParams;
-use bld_core::responses::HistoryEntry;
+use bld_core::{
+    database::{pipeline_runs, DbConnection},
+    requests::HistQueryParams,
+    responses::HistoryEntry,
+};
 use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::sqlite::SqliteConnection;
 use tracing::info;
 
 #[get("/hist")]
 pub async fn get(
     _user: User,
-    db_pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    db_pool: Data<Pool<ConnectionManager<DbConnection>>>,
     params: Query<HistQueryParams>,
 ) -> impl Responder {
     info!("Reached handler for /hist route");
@@ -22,7 +23,7 @@ pub async fn get(
 }
 
 fn history_info(
-    db_pool: &Pool<ConnectionManager<SqliteConnection>>,
+    db_pool: &Pool<ConnectionManager<DbConnection>>,
     params: HistQueryParams,
 ) -> Result<Vec<HistoryEntry>> {
     let mut conn = db_pool.get()?;
