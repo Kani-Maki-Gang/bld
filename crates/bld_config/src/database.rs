@@ -2,6 +2,7 @@ use crate::definitions::LOCAL_DB;
 use serde_derive::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum BldDatabaseConfig {
     Legacy(String),
 	Connection {
