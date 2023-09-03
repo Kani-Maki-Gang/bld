@@ -4,10 +4,11 @@ use tracing::debug;
 
 use super::DbConnection;
 
-const EMBEDDED_MIGRATIONS: EmbeddedMigrations = embed_migrations!();
+const SQLITE_EMBEDDED_MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/sqlite");
+const POSTGRES_EMBEDDED_MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/postgres");
 
 pub fn run_migrations(conn: &mut DbConnection) -> Result<()> {
-    conn.run_pending_migrations(EMBEDDED_MIGRATIONS)
+    conn.run_pending_migrations(SQLITE_EMBEDDED_MIGRATIONS)
         .map_err(|e| anyhow!(e))?;
     debug!("executed migrations");
     Ok(())

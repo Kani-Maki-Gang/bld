@@ -4,30 +4,30 @@ create table pipeline_runs_temp (
     id text primary key not null,
     name text not null,
     running boolean not null,
-    user text not null,
+    app_user text not null,
     start_date_time text default current_timestamp not null,
     end_date_time text,
     stopped boolean
 );
 
 insert into pipeline_runs_temp (
-  id, 
-  name, 
-  running, 
-  user, 
-  start_date_time, 
+  id,
+  name,
+  running,
+  app_user,
+  start_date_time,
   end_date_time,
   stopped
 )
-select 
-  id, 
-  name, 
-  running, 
-  user, 
-  start_date_time, 
+select
+  id,
+  name,
+  running,
+  app_user,
+  start_date_time,
   end_date_time,
   stopped
-from 
+from
   pipeline_runs;
 
 drop table pipeline_runs;
@@ -36,7 +36,7 @@ create table pipeline_runs (
     id text primary key not null,
     name text not null,
     running boolean not null,
-    user text not null,
+    app_user text not null,
     start_date_time text default current_timestamp not null,
     end_date_time text
 );

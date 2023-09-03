@@ -7,7 +7,7 @@ create table pipeline_runs (
     id text primary key not null,
     name text not null,
     running boolean not null,
-    user text not null,
+    app_user text not null,
     start_date_time text default current_timestamp not null,
     end_date_time text,
     stopped boolean
@@ -17,7 +17,7 @@ insert into pipeline_runs (
   id,
   name,
   running,
-  user,
+  app_user,
   start_date_time,
   end_date_time,
   stopped
@@ -29,7 +29,7 @@ select
     when 'running' then true
     else false
   end as state,
-  user,
+  app_user,
   start_date_time,
   end_date_time,
   stopped

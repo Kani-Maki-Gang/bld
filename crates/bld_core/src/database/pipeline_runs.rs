@@ -15,7 +15,7 @@ pub struct PipelineRuns {
     pub id: String,
     pub name: String,
     pub state: String,
-    pub user: String,
+    pub app_user: String,
     pub start_date_time: String,
     pub end_date_time: Option<String>,
 }
@@ -23,7 +23,7 @@ pub struct PipelineRuns {
 pub struct InsertPipelineRun<'a> {
     pub id: &'a str,
     pub name: &'a str,
-    pub user: &'a str,
+    pub app_user: &'a str,
 }
 
 pub fn select_all(conn: &mut DbConnection) -> Result<Vec<PipelineRuns>> {
@@ -141,7 +141,7 @@ pub fn insert<'a>(conn: &mut DbConnection, model: InsertPipelineRun<'a>) -> Resu
             .values((
                 id.eq(model.id),
                 name.eq(model.name),
-                user.eq(model.user),
+                app_user.eq(model.app_user),
                 state.eq(PR_STATE_INITIAL),
             ))
             .execute(conn)
@@ -152,7 +152,7 @@ pub fn insert<'a>(conn: &mut DbConnection, model: InsertPipelineRun<'a>) -> Resu
             .and_then(|_| {
                 debug!(
                     "created new pipeline run entry for id: {}, name: {}, user: {}",
-                    model.id, model.name, model.user
+                    model.id, model.name, model.app_user
                 );
                 select_by_id(conn, model.id)
             })

@@ -37,7 +37,7 @@ pub async fn enqueue_worker(
     let model = InsertPipelineRun {
         id: &run_id,
         name: &name,
-        user: &user_name,
+        app_user: &user_name,
     };
     let run = pipeline_runs::insert(&mut conn, model)?;
 

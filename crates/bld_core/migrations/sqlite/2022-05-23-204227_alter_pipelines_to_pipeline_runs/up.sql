@@ -3,7 +3,7 @@ create table pipeline_runs (
     id text primary key not null,
     name text not null,
     running boolean not null,
-    user text not null,
+    app_user text not null,
     start_date_time text default current_timestamp not null,
     end_date_time text
 );
@@ -15,21 +15,21 @@ begin
 end;
 
 insert into pipeline_runs (
-  id, 
-  name, 
-  running, 
-  user, 
-  start_date_time, 
+  id,
+  name,
+  running,
+  app_user,
+  start_date_time,
   end_date_time
 )
-select 
-  id, 
-  name, 
-  running, 
-  user, 
-  start_date_time, 
-  end_date_time 
-from 
+select
+  id,
+  name,
+  running,
+  app_user,
+  start_date_time,
+  end_date_time
+from
   pipelines;
 
 drop table pipelines;

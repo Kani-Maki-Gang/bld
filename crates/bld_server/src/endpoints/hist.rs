@@ -36,7 +36,7 @@ fn history_info(
                 .map(|p| HistoryEntry {
                     name: p.name,
                     id: p.id,
-                    user: p.user,
+                    user: p.app_user,
                     state: p.state,
                     start_date_time: p.start_date_time,
                     end_date_time: p.end_date_time.unwrap_or_default(),

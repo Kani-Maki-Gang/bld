@@ -135,7 +135,7 @@ diesel::table! {
         id -> Text,
         name -> Text,
         state -> Text,
-        user -> Text,
+        app_user -> Text,
         start_date_time -> Text,
         end_date_time -> Nullable<Text>,
     }
