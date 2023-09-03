@@ -29,7 +29,7 @@ use tracing::debug;
 pub fn new_connection_pool(
     config: Arc<BldConfig>,
 ) -> Result<Pool<ConnectionManager<DbConnection>>> {
-    let path = config.db_full_path().display().to_string();
+    let path = config.db_full_path();
 
     debug!("creating sqlite connection pool");
 

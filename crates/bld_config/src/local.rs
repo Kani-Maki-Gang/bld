@@ -1,4 +1,4 @@
-use crate::{definitions, Auth, BldLocalServerConfig, BldLocalSupervisorConfig};
+use crate::{definitions, Auth, BldLocalServerConfig, BldLocalSupervisorConfig, BldDatabaseConfig};
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
@@ -13,8 +13,8 @@ pub struct BldLocalConfig {
     #[serde(default = "BldLocalConfig::default_logs")]
     pub logs: String,
 
-    #[serde(default = "BldLocalConfig::default_db")]
-    pub db: String,
+    #[serde(default = "BldDatabaseConfig::default")]
+    pub db: BldDatabaseConfig,
 
     #[serde(default = "BldLocalConfig::default_docker_url")]
     pub docker_url: String,
@@ -26,10 +26,6 @@ pub struct BldLocalConfig {
 impl BldLocalConfig {
     fn default_logs() -> String {
         definitions::LOCAL_LOGS.to_owned()
-    }
-
-    fn default_db() -> String {
-        definitions::LOCAL_DB.to_owned()
     }
 
     fn default_docker_url() -> String {
@@ -73,7 +69,13 @@ impl BldLocalConfig {
             debug!("supervisor > tls > private-key: {}", tls.private_key);
         }
         debug!("logs: {}", self.logs);
-        debug!("db: {}", self.db);
+		match &self.db {
+			BldDatabaseConfig::Legacy(db) => debug!("db: {db}"),
+			BldDatabaseConfig::Connection { engine, connection_string } => {
+				debug!("db > engine: {engine}");
+				debug!("db > connection_string: {connection_string}");
+			}
+		}
         debug!("docker-url: {}", self.docker_url);
     }
 }
@@ -84,7 +86,7 @@ impl Default for BldLocalConfig {
             server: BldLocalServerConfig::default(),
             supervisor: BldLocalSupervisorConfig::default(),
             logs: Self::default_logs(),
-            db: Self::default_db(),
+            db: BldDatabaseConfig::default(),
             docker_url: Self::default_docker_url(),
             editor: Self::default_editor(),
         }

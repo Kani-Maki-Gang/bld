@@ -1,4 +1,5 @@
 mod auth;
+mod database;
 pub mod definitions;
 mod local;
 mod path;
@@ -7,6 +8,7 @@ mod supervisor;
 mod tls;
 
 pub use auth::*;
+pub use database::*;
 pub use local::*;
 use openidconnect::core::CoreClient;
 pub use path::*;
@@ -127,8 +129,15 @@ impl BldConfig {
         path![&self.root_dir, &self.local.logs, id]
     }
 
-    pub fn db_full_path(&self) -> PathBuf {
-        path![&self.root_dir, &self.local.db, DB_NAME]
+    pub fn db_full_path(&self) -> String {
+		match &self.local.db {
+			BldDatabaseConfig::Legacy(db) => {
+				path![&self.root_dir, db, DB_NAME].display().to_string()
+			}
+			BldDatabaseConfig::Connection { connection_string, .. } => {
+				connection_string.to_owned()
+			}
+		}
     }
 
     pub fn auth_full_path(&self, server: &str) -> PathBuf {
