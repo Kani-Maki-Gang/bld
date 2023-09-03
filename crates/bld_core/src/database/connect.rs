@@ -13,9 +13,9 @@ use tracing::error;
 
 #[derive(MultiConnection)]
 pub enum DbConnection {
-    Sqlite(SqliteConnection),
     Postgres(PgConnection),
     Mysql(MysqlConnection),
+    Sqlite(SqliteConnection),
 }
 
 #[derive(Debug)]
