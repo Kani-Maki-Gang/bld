@@ -130,14 +130,14 @@ impl BldConfig {
     }
 
     pub fn db_full_path(&self) -> String {
-		match &self.local.db {
-			BldDatabaseConfig::Legacy(db) => {
-				path![&self.root_dir, db, DB_NAME].display().to_string()
-			}
-			BldDatabaseConfig::Connection { connection_string, .. } => {
-				connection_string.to_owned()
-			}
-		}
+        match &self.local.db {
+            BldDatabaseConfig::Legacy(db) => {
+                path![&self.root_dir, db, DB_NAME].display().to_string()
+            }
+            BldDatabaseConfig::Connection {
+                connection_string, ..
+            } => connection_string.to_owned(),
+        }
     }
 
     pub fn auth_full_path(&self, server: &str) -> PathBuf {

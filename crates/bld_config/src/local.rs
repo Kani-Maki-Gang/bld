@@ -1,4 +1,4 @@
-use crate::{definitions, Auth, BldLocalServerConfig, BldLocalSupervisorConfig, BldDatabaseConfig};
+use crate::{definitions, Auth, BldDatabaseConfig, BldLocalServerConfig, BldLocalSupervisorConfig};
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
@@ -69,13 +69,16 @@ impl BldLocalConfig {
             debug!("supervisor > tls > private-key: {}", tls.private_key);
         }
         debug!("logs: {}", self.logs);
-		match &self.db {
-			BldDatabaseConfig::Legacy(db) => debug!("db: {db}"),
-			BldDatabaseConfig::Connection { engine, connection_string } => {
-				debug!("db > engine: {engine}");
-				debug!("db > connection_string: {connection_string}");
-			}
-		}
+        match &self.db {
+            BldDatabaseConfig::Legacy(db) => debug!("db: {db}"),
+            BldDatabaseConfig::Connection {
+                engine,
+                connection_string,
+            } => {
+                debug!("db > engine: {engine}");
+                debug!("db > connection_string: {connection_string}");
+            }
+        }
         debug!("docker-url: {}", self.docker_url);
     }
 }
