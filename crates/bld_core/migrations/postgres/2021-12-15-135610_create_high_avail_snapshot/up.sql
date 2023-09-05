@@ -1,7 +1,7 @@
 -- Your SQL goes here
 create table ha_snapshot (
-  id bigint primary key not null,
-  term bigint not null,
+  id integer primary key not null,
+  term integer not null,
   data bytea not null,
   date_created text default current_timestamp not null,
   date_updated text default current_timestamp not null
@@ -19,8 +19,8 @@ after update on ha_snapshot
 for each row execute procedure ha_snapshot_after_update();
 
 create table ha_members (
-  id bigint primary key not null,
-  snapshot_id bigint not null,
+  id integer primary key not null,
+  snapshot_id integer not null,
   date_created text default current_timestamp not null,
   date_updated text default current_timestamp not null,
   foreign key(snapshot_id) references ha_snapshot(id)
@@ -38,8 +38,8 @@ after update on ha_members
 for each row execute procedure ha_members_after_update();
 
 create table ha_members_after_consensus (
-  id bigint primary key not null,
-  snapshot_id bigint not null,
+  id integer primary key not null,
+  snapshot_id integer not null,
   date_created text default current_timestamp not null,
   date_updated text default current_timestamp not null,
   foreign key(snapshot_id) references ha_snapshot(id)

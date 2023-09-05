@@ -1,7 +1,7 @@
 -- Your SQL goes here
 create table ha_log (
-  id bigint primary key not null,
-  term bigint not null,
+  id integer primary key not null,
+  term integer not null,
   payload_type text not null,
   payload text not null,
   date_created text default current_timestamp not null,

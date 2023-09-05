@@ -1,8 +1,8 @@
 -- Your SQL goes here
 create table ha_hard_state (
-  id bigint generated always as identity primary key not null,
-  current_term bigint not null,
-  voted_for bigint,
+  id integer generated always as identity primary key not null,
+  current_term integer not null,
+  voted_for integer,
   date_created text default current_timestamp not null,
   date_updated text default current_timestamp not null
 );
