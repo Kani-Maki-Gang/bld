@@ -9,7 +9,7 @@ create table ha_snapshot (
 
 create or replace function ha_snapshot_after_update() returns trigger language plpgsql as $$
 begin
-    new.end_date_time = current_timestamp;
+    new.date_updated = current_timestamp;
     return new;
 end;
 $$;
@@ -28,7 +28,7 @@ create table ha_members (
 
 create or replace function ha_members_after_update() returns trigger language plpgsql as $$
 begin
-    new.end_date_time = current_timestamp;
+    new.date_updated = current_timestamp;
     return new;
 end;
 $$;
@@ -47,7 +47,7 @@ create table ha_members_after_consensus (
 
 create or replace function ha_members_after_consensus_after_update() returns trigger language plpgsql as $$
 begin
-    new.end_date_time = current_timestamp;
+    new.date_updated = current_timestamp;
     return new;
 end;
 $$;

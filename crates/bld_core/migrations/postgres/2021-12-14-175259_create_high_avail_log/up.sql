@@ -10,7 +10,7 @@ create table ha_log (
 
 create or replace function ha_log_after_update() returns trigger language plpgsql as $$
 begin
-    new.end_date_time = current_timestamp;
+    new.date_updated = current_timestamp;
     return new;
 end;
 $$;

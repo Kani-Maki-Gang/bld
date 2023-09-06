@@ -11,7 +11,7 @@ create table if not exists cron_jobs (
 
 create or replace function cron_jobs_after_update() returns trigger language plpgsql as $$
 begin
-    new.end_date_time = current_timestamp;
+    new.date_updated = current_timestamp;
     return new;
 end;
 $$;
@@ -32,7 +32,7 @@ create table if not exists cron_job_variables (
 
 create or replace function cron_job_variables_after_update() returns trigger language plpgsql as $$
 begin
-    new.end_date_time = current_timestamp;
+    new.date_updated = current_timestamp;
     return new;
 end;
 $$;
@@ -53,7 +53,7 @@ create table if not exists cron_job_environment_variables (
 
 create or replace function cron_job_environment_variables_after_update() returns trigger language plpgsql as $$
 begin
-    new.end_date_time = current_timestamp;
+    new.date_updated = current_timestamp;
     return new;
 end;
 $$;

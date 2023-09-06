@@ -1,6 +1,6 @@
 -- This file should undo anything in `up.sql`
 alter table pipeline_runs disable trigger tg_pipeline_runs_after_update;
-alter table pipeline_runs add column running boolean not null;
+alter table pipeline_runs add column running boolean not null default false;
 
 update
     pipeline_runs
