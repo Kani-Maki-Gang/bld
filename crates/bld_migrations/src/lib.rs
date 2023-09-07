@@ -8,6 +8,12 @@ mod m20230907_153905_create_ha_log_table;
 mod m20230907_154545_create_ha_snapshot_table;
 mod m20230907_155136_create_ha_members_table;
 mod m20230907_155841_create_ha_members_after_consensus_table;
+mod m20230907_181924_create_pipeline_table;
+mod m20230907_182138_create_pipeline_runs_table;
+mod m20230907_182418_create_pipeline_run_containers_table;
+mod m20230907_190009_create_cron_jobs_table;
+mod m20230907_190403_create_cron_job_variables_table;
+mod m20230907_190709_create_cron_job_environment_variables_table;
 
 pub struct Migrator;
 
@@ -23,6 +29,12 @@ impl MigratorTrait for Migrator {
             Box::new(m20230907_154545_create_ha_snapshot_table::Migration),
             Box::new(m20230907_155136_create_ha_members_table::Migration),
             Box::new(m20230907_155841_create_ha_members_after_consensus_table::Migration),
+            Box::new(m20230907_181924_create_pipeline_table::Migration),
+            Box::new(m20230907_182138_create_pipeline_runs_table::Migration),
+            Box::new(m20230907_182418_create_pipeline_run_containers_table::Migration),
+            Box::new(m20230907_190009_create_cron_jobs_table::Migration),
+            Box::new(m20230907_190403_create_cron_job_variables_table::Migration),
+            Box::new(m20230907_190709_create_cron_job_environment_variables_table::Migration),
         ]
     }
 }

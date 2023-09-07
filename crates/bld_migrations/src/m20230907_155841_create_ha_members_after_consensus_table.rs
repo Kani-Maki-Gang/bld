@@ -35,7 +35,9 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
+                            .from_tbl(HighAvailabilityMembersAfterConsensus::Table)
                             .from_col(HighAvailabilityMembersAfterConsensus::SnapshotId)
+                            .to_tbl(HighAvailabilitySnapshot::Table)
                             .to_col(HighAvailabilitySnapshot::Id)
                     )
                     .to_owned()

@@ -1,7 +1,5 @@
 use sea_orm_migration::prelude::*;
 
-use crate::m20230907_154545_create_ha_snapshot_table::HighAvailabilitySnapshot;
-
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -11,34 +9,37 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(HighAvailabilityMembers::Table)
+                    .table(PipelineRuns::Table)
                     .col(
-                        ColumnDef::new(HighAvailabilityMembers::Id)
-                            .integer()
+                        ColumnDef::new(PipelineRuns::Id)
+                            .string()
                             .primary_key()
                             .not_null()
                     )
                     .col(
-                        ColumnDef::new(HighAvailabilityMembers::SnapshotId)
-                            .integer()
+                        ColumnDef::new(PipelineRuns::Name)
+                            .string()
                             .not_null()
                     )
                     .col(
-                        ColumnDef::new(HighAvailabilityMembers::DateCreated)
+                        ColumnDef::new(PipelineRuns::State)
+                            .string()
+                            .not_null()
+                    )
+                    .col(
+                        ColumnDef::new(PipelineRuns::AppUser)
+                            .string()
+                            .not_null()
+                    )
+                    .col(
+                        ColumnDef::new(PipelineRuns::StartDate)
                             .timestamp()
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(HighAvailabilityMembers::DateUpdated)
+                        ColumnDef::new(PipelineRuns::EndDate)
                             .timestamp()
                             .not_null(),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .from_tbl(HighAvailabilityMembers::Table)
-                            .from_col(HighAvailabilityMembers::SnapshotId)
-                            .to_tbl(HighAvailabilitySnapshot::Table)
-                            .to_col(HighAvailabilitySnapshot::Id)
                     )
                     .to_owned()
             )
@@ -50,7 +51,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_table(
                 Table::drop()
-                    .table(HighAvailabilityMembers::Table)
+                    .table(PipelineRuns::Table)
                     .to_owned()
             )
             .await?;
@@ -59,10 +60,12 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(DeriveIden)]
-enum HighAvailabilityMembers {
+pub enum PipelineRuns {
     Table,
     Id,
-    SnapshotId,
-    DateCreated,
-    DateUpdated,
+    Name,
+    State,
+    AppUser,
+    StartDate,
+    EndDate,
 }

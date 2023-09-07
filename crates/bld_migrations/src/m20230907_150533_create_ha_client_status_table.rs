@@ -35,7 +35,9 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
+                            .from_tbl(HighAvailabilityClientStatus::Table)
                             .from_col(HighAvailabilityClientStatus::StateMachineId)
+                            .to_tbl(HighAvailabilityStateMachine::Table)
                             .to_col(HighAvailabilityStateMachine::Id),
                     )
                     .to_owned(),

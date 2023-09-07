@@ -41,7 +41,9 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
+                            .from_tbl(HighAvailabilityClientSerialResponses::Table)
                             .from_col(HighAvailabilityClientSerialResponses::StateMachineId)
+                            .to_tbl(HighAvailabilityStateMachine::Table)
                             .to_col(HighAvailabilityStateMachine::Id),
                     )
                     .to_owned(),
