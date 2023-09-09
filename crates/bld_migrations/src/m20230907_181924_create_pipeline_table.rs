@@ -14,19 +14,11 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(Pipeline::Id)
                             .string()
                             .primary_key()
-                            .not_null()
-                    )
-                    .col(
-                        ColumnDef::new(Pipeline::Name)
-                            .string()
-                            .not_null()
-                    )
-                    .col(
-                        ColumnDef::new(Pipeline::DateCreated)
-                            .timestamp()
                             .not_null(),
                     )
-                    .to_owned()
+                    .col(ColumnDef::new(Pipeline::Name).string().not_null())
+                    .col(ColumnDef::new(Pipeline::DateCreated).timestamp().not_null())
+                    .to_owned(),
             )
             .await?;
         Ok(())
@@ -34,11 +26,7 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(
-                Table::drop()
-                    .table(Pipeline::Table)
-                    .to_owned()
-            )
+            .drop_table(Table::drop().table(Pipeline::Table).to_owned())
             .await?;
         Ok(())
     }

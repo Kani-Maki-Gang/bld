@@ -1,7 +1,10 @@
-use crate::database::{schema::pipeline_runs, schema::pipeline_runs::dsl::*, DbConnection};
 use anyhow::{anyhow, Result};
+use bld_entities::pipeline_runs;
 use diesel::{prelude::*, query_dsl::RunQueryDsl, Queryable};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, QueryOrder};
 use tracing::{debug, error};
+
+pub use bld_entities::pipeline_runs::Entity as PipelineRuns;
 
 pub const PR_STATE_INITIAL: &str = "initial";
 pub const PR_STATE_QUEUED: &str = "queued";
@@ -9,28 +12,18 @@ pub const PR_STATE_RUNNING: &str = "running";
 pub const PR_STATE_FINISHED: &str = "finished";
 pub const PR_STATE_FAULTED: &str = "faulted";
 
-#[derive(Debug, Identifiable, Queryable)]
-#[diesel(table_name = pipeline_runs)]
-pub struct PipelineRuns {
+pub struct InsertPipelineRun {
     pub id: String,
     pub name: String,
-    pub state: String,
     pub app_user: String,
-    pub start_date_time: String,
-    pub end_date_time: Option<String>,
 }
 
-pub struct InsertPipelineRun<'a> {
-    pub id: &'a str,
-    pub name: &'a str,
-    pub app_user: &'a str,
-}
-
-pub fn select_all(conn: &mut DbConnection) -> Result<Vec<PipelineRuns>> {
+pub async fn select_all(conn: &DatabaseConnection) -> Result<Vec<PipelineRuns>> {
     debug!("loading all pipeline runs from the database");
-    pipeline_runs
-        .order(start_date_time)
+    PipelineRuns::find()
+        .order_by_asc(pipeline_runs::Column::StartDate)
         .load(conn)
+        .await
         .map(|p| {
             debug!("loaded all pipeline runs successfully");
             p
@@ -41,11 +34,13 @@ pub fn select_all(conn: &mut DbConnection) -> Result<Vec<PipelineRuns>> {
         })
 }
 
-pub fn select_running_by_id(conn: &mut DbConnection, run_id: &str) -> Result<PipelineRuns> {
+pub async fn select_running_by_id(conn: &DatabaseConnection, run_id: &str) -> Result<PipelineRuns> {
     debug!("loading pipeline run with id: {run_id} that is in a running state");
-    pipeline_runs
-        .filter(id.eq(run_id).and(state.eq(PR_STATE_RUNNING)))
-        .first(conn)
+    PipelineRuns::find()
+        .filter(pipeline_runs::Column::Id.eq(run_id))
+        .filter(pipeline_runs::Column::State.eq(PR_STATE_RUNNING))
+        .load(conn)
+        .await
         .map(|p| {
             debug!("loaded pipeline runs successfully");
             p
@@ -56,11 +51,11 @@ pub fn select_running_by_id(conn: &mut DbConnection, run_id: &str) -> Result<Pip
         })
 }
 
-pub fn select_by_id(conn: &mut DbConnection, pip_id: &str) -> Result<PipelineRuns> {
+pub async fn select_by_id(conn: &DatabaseConnection, pip_id: &str) -> Result<PipelineRuns> {
     debug!("loading pipeline with id: {pip_id} from the database");
-    pipeline_runs
-        .filter(id.eq(pip_id))
-        .first(conn)
+    PipelineRuns::find_by_id(pip_id)
+        .one(conn)
+        .await
         .map(|p| {
             debug!("loaded pipeline successfully");
             p
@@ -71,11 +66,12 @@ pub fn select_by_id(conn: &mut DbConnection, pip_id: &str) -> Result<PipelineRun
         })
 }
 
-pub fn select_by_name(conn: &mut DbConnection, pip_name: &str) -> Result<PipelineRuns> {
+pub async fn select_by_name(conn: &DatabaseConnection, pip_name: &str) -> Result<PipelineRuns> {
     debug!("loading pipeline with name: {pip_name} from the database");
-    pipeline_runs
-        .filter(name.eq(pip_name))
-        .first(conn)
+    PipelineRuns::find()
+        .filter(pipeline_runs::Column::Name.eq(pip_name))
+        .one(conn)
+        .await
         .map(|p| {
             debug!("loaded pipeline successfully");
             p
@@ -86,11 +82,12 @@ pub fn select_by_name(conn: &mut DbConnection, pip_name: &str) -> Result<Pipelin
         })
 }
 
-pub fn select_last(conn: &mut DbConnection) -> Result<PipelineRuns> {
+pub async fn select_last(conn: &DatabaseConnection) -> Result<PipelineRuns> {
     debug!("loading the last invoked pipeline from the database");
-    pipeline_runs
-        .order(start_date_time.desc())
-        .first(conn)
+    PipelineRuns::find()
+        .order_by_desc(pipeline_runs::Column::StartDate)
+        .one(conn)
+        .await
         .map(|p| {
             debug!("loaded pipeline successfully");
             p
@@ -101,28 +98,28 @@ pub fn select_last(conn: &mut DbConnection) -> Result<PipelineRuns> {
         })
 }
 
-pub fn select_with_filters(
-    conn: &mut DbConnection,
+pub async fn select_with_filters(
+    conn: &DatabaseConnection,
     flt_state: &Option<String>,
     flt_name: &Option<String>,
     limit_by: i64,
 ) -> anyhow::Result<Vec<PipelineRuns>> {
     debug!("loading pipeline runs from the database with filters:");
 
-    let mut select_statement = pipeline_runs.into_boxed();
+    let mut find = PipelineRuns::find();
 
     if let Some(flt_state) = flt_state {
-        select_statement = select_statement.filter(state.eq(flt_state));
+        find = find.filter(pipeline_runs::Column::State.eq(flt_state));
     }
 
     if let Some(flt_name) = flt_name {
-        select_statement = select_statement.filter(name.eq(flt_name));
+        find = find.filter(pipeline_runs::Column::Name.eq(flt_name));
     }
 
-    select_statement
-        .limit(limit_by)
-        .order(start_date_time.desc())
+    find.limit(limit_by)
+        .order_by_desc(pipeline_runs::Column::StartDate)
         .load(conn)
+        .await
         .map(|mut p| {
             debug!("loaded all pipeline runs successfully");
             p.reverse();
@@ -134,48 +131,51 @@ pub fn select_with_filters(
         })
 }
 
-pub fn insert<'a>(conn: &mut DbConnection, model: InsertPipelineRun<'a>) -> Result<PipelineRuns> {
+pub async fn insert(conn: &DatabaseConnection, model: InsertPipelineRun) -> Result<PipelineRuns> {
     debug!("inserting new pipeline to the database");
-    conn.transaction(|conn| {
-        diesel::insert_into(pipeline_runs::table)
-            .values((
-                id.eq(model.id),
-                name.eq(model.name),
-                app_user.eq(model.app_user),
-                state.eq(PR_STATE_INITIAL),
-            ))
-            .execute(conn)
-            .map_err(|e| {
-                error!("could not insert pipeline due to: {e}");
-                anyhow!(e)
-            })
-            .and_then(|_| {
-                debug!(
-                    "created new pipeline run entry for id: {}, name: {}, user: {}",
-                    model.id, model.name, model.app_user
-                );
-                select_by_id(conn, model.id)
-            })
-    })
+
+    let model = pipeline_runs::ActiveModel {
+        id: model.id,
+        name: model.name,
+        app_user: model.app_user,
+        state: PR_STATE_INITIAL.to_owned(),
+        ..Default::default()
+    };
+
+    model
+        .insert(conn)
+        .await
+        .map_err(|e| {
+            error!("could not insert pipeline due to: {e}");
+            anyhow!(e)
+        })?;
+
+    debug!(
+        "created new pipeline run entry for id: {}, name: {}, user: {}",
+        model.id, model.name, model.app_user
+    );
+    model
 }
 
-pub fn update_state(
-    conn: &mut DbConnection,
+pub async fn update_state(
+    conn: &DatabaseConnection,
     pip_id: &str,
     pip_state: &str,
 ) -> Result<PipelineRuns> {
     debug!("updating pipeline id: {pip_id} with values state: {pip_state}");
-    conn.transaction(|conn| {
-        diesel::update(pipeline_runs.filter(id.eq(pip_id)))
-            .set(state.eq(pip_state))
-            .execute(conn)
-            .map_err(|e| {
-                error!("could not update pipeline run due to: {e}");
-                anyhow!(e)
-            })
-            .and_then(|_| {
-                debug!("updated pipeline successfully");
-                select_by_id(conn, pip_id)
-            })
-    })
+
+    PipelineRuns::update_many()
+        .set(pipeline_runs::Column::State.eq(pip_state))
+        .filter(pipeline_runs::Column::Id.eq(pip_id))
+        .exec(conn)
+        .await
+        .map(|_| {
+            debug!("updated pipeline successfully");
+        })
+        .map_err(|e| {
+            error!("could not update pipeline run due to: {e}");
+            anyhow!(e)
+        })?;
+
+    select_by_id(conn, pip_id).await
 }

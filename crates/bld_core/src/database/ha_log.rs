@@ -1,29 +1,15 @@
-use crate::database::schema::ha_log;
-use crate::database::schema::ha_log::dsl::*;
 use anyhow::{anyhow, Result};
-use diesel::prelude::*;
-use diesel::query_dsl::RunQueryDsl;
-use diesel::sqlite::SqliteConnection;
-use diesel::{Insertable, Queryable};
+use bld_entities::high_availability_log;
+use sea_orm::{DatabaseConnection, EntityTrait, QueryOrder, Condition};
 use tracing::{debug, error};
+
+pub use bld_entities::high_availability_log::Entity as HighAvailLog;
 
 pub const BLANK: &str = "blank";
 pub const NORMAL: &str = "normal";
 pub const CONFIG_CHANGE: &str = "config_change";
 pub const SNAPSHOT_POINTER: &str = "snapshot_pointer";
 
-#[derive(Debug, Queryable)]
-pub struct HighAvailLog {
-    pub id: i32,
-    pub term: i32,
-    pub payload_type: String,
-    pub payload: String,
-    pub date_created: String,
-    pub date_updated: String,
-}
-
-#[derive(Debug, Insertable)]
-#[diesel(table_name = ha_log)]
 pub struct InsertHighAvailLog {
     pub id: i32,
     pub term: i32,
@@ -45,11 +31,12 @@ impl InsertHighAvailLog {
     }
 }
 
-pub fn select_last(conn: &mut SqliteConnection) -> Result<HighAvailLog> {
+pub async fn select_last(conn: &DatabaseConnection) -> Result<HighAvailLog> {
     debug!("loading the last entry of high availability log");
-    ha_log
-        .order(id.desc())
-        .first(conn)
+    HighAvailLog::find()
+        .order_by_desc(high_availability_log::Column::Id)
+        .one(conn)
+        .await
         .map(|l| {
             debug!("loaded high availability log successfully");
             l
@@ -60,12 +47,13 @@ pub fn select_last(conn: &mut SqliteConnection) -> Result<HighAvailLog> {
         })
 }
 
-pub fn select_last_rows(conn: &mut SqliteConnection, rows: i64) -> Result<Vec<HighAvailLog>> {
+pub async fn select_last_rows(conn: &DatabaseConnection, rows: i64) -> Result<Vec<HighAvailLog>> {
     debug!("loading the last {} rows of high availability log", rows);
-    ha_log
-        .order(id.desc())
+    HighAvailLog::find()
+        .order_by_desc(high_availability_log::Column::Id).
         .limit(rows)
         .load(conn)
+        .await
         .map(|l| {
             debug!("loaded high availability logs successfully");
             l
@@ -76,11 +64,11 @@ pub fn select_last_rows(conn: &mut SqliteConnection, rows: i64) -> Result<Vec<Hi
         })
 }
 
-pub fn select_by_id(conn: &mut SqliteConnection, lg_id: i32) -> Result<HighAvailLog> {
+pub async fn select_by_id(conn: &DatabaseConnection, lg_id: i32) -> Result<HighAvailLog> {
     debug!("loading high availability log with id: {}", lg_id);
-    ha_log
-        .filter(id.eq(lg_id))
-        .first(conn)
+    HighAvailLog::find_by_id(lg_id)
+        .one(conn)
+        .await
         .map(|l| {
             debug!("loaded high availability log successfully");
             l
@@ -91,8 +79,8 @@ pub fn select_by_id(conn: &mut SqliteConnection, lg_id: i32) -> Result<HighAvail
         })
 }
 
-pub fn select_between_ids(
-    conn: &mut SqliteConnection,
+pub async fn select_between_ids(
+    conn: &DatabaseConnection,
     lg_start_id: i32,
     lg_end_id: i32,
 ) -> Result<Vec<HighAvailLog>> {
@@ -100,9 +88,11 @@ pub fn select_between_ids(
         "loading high availability logs from id: {} to id: {}",
         lg_start_id, lg_end_id
     );
-    ha_log
-        .filter(id.ge(lg_start_id).and(id.le(lg_end_id)))
+    HighAvailLog::find()
+        .filter(high_availability_log::Column::Id.ge(lg_start_id))
+        .filter(high_availability_log::Column::Id.le(lg_end_id))
         .load(conn)
+        .await
         .map(|l| {
             debug!("loaded high availability logs successfully");
             l
@@ -113,13 +103,17 @@ pub fn select_between_ids(
         })
 }
 
-pub fn select_by_payload_type(conn: &mut SqliteConnection) -> Result<HighAvailLog> {
+pub async fn select_by_payload_type(conn: &DatabaseConnection) -> Result<HighAvailLog> {
     debug!("loading high availability log with either config_change or snapshot payload types");
-    ha_log
-        .filter(payload_type.eq(CONFIG_CHANGE))
-        .or_filter(payload_type.eq(SNAPSHOT_POINTER))
-        .order(date_created.desc())
-        .first(conn)
+    HighAvailLog::find()
+        .filter(
+            Condition::any()
+                .add(high_availability_log::Column::PayloadType.eq(CONFIG_CHANGE))
+                .add(high_availability_log::Column::PayloadType.eq(SNAPSHOT_POINTER))
+        )
+        .order_by_desc(high_availability_log::Column::DateCreated)
+        .one(conn)
+        .await
         .map(|l| {
             debug!("load high availability log model entries successfully");
             l
@@ -130,11 +124,12 @@ pub fn select_by_payload_type(conn: &mut SqliteConnection) -> Result<HighAvailLo
         })
 }
 
-pub fn select_first_by_date_created_desc(conn: &mut SqliteConnection) -> Result<HighAvailLog> {
+pub async fn select_first_by_date_created_desc(conn: &DatabaseConnection) -> Result<HighAvailLog> {
     debug!("loading first high availability log ordered by descending creation date");
-    ha_log
-        .order(date_created.desc())
-        .first(conn)
+    HighAvailLog::find()
+        .order_by_desc(high_availability_log::Column::DateCreated)
+        .one(conn)
+        .await
         .map(|l| {
             debug!("loaded first high availability log successfully");
             l
@@ -145,17 +140,19 @@ pub fn select_first_by_date_created_desc(conn: &mut SqliteConnection) -> Result<
         })
 }
 
-pub fn select_config_greater_than_id(
-    conn: &mut SqliteConnection,
+pub async fn select_config_greater_than_id(
+    conn: &DatabaseConnection,
     lg_id: i32,
 ) -> Result<HighAvailLog> {
     debug!(
         "loading high availability logs with greater id than: {}",
         lg_id
     );
-    ha_log
-        .filter(id.gt(lg_id).and(payload_type.eq(CONFIG_CHANGE)))
-        .first(conn)
+    HighAvailLog::find()
+        .filter(high_availability_log::Column::Id.gt(lg_id))
+        .filter(high_availability_log::Column::PayloadType.eq(CONFIG_CHANGE))
+        .one(conn)
+        .await
         .map(|l| {
             debug!("loaded high availability logs successfully");
             l
@@ -166,21 +163,27 @@ pub fn select_config_greater_than_id(
         })
 }
 
-pub fn insert(conn: &mut SqliteConnection, model: InsertHighAvailLog) -> Result<HighAvailLog> {
+pub async fn insert(conn: &DatabaseConnection, model: InsertHighAvailLog) -> Result<HighAvailLog> {
     debug!("inserting new high availability log: {:?}", model);
-    conn.transaction(|conn| {
-        diesel::insert_into(ha_log)
-            .values(model)
-            .execute(conn)
-            .map_err(|e| {
-                error!("could not insert high availability log due to: {}", e);
-                anyhow!(e)
-            })
-            .and_then(|_| {
-                debug!("high availability log inserted successfully");
-                select_last(conn)
-            })
-    })
+
+    let model = high_availability_log::ActiveModel {
+        id: model.id,
+        term: model.term,
+        payload: model.payload,
+        payload_type: model.payload_type,
+        ..Default::default()
+    };
+
+    model
+        .insert(conn)
+        .await
+        .map_err(|e| {
+            error!("could not insert high availability log due to: {}", e);
+            anyhow!(e)
+        })?;
+
+    debug!("high availability log inserted successfully");
+    model
 }
 
 pub fn insert_many(

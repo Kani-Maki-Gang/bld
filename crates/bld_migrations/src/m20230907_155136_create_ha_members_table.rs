@@ -16,12 +16,12 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(HighAvailabilityMembers::Id)
                             .integer()
                             .primary_key()
-                            .not_null()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(HighAvailabilityMembers::SnapshotId)
                             .integer()
-                            .not_null()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(HighAvailabilityMembers::DateCreated)
@@ -38,9 +38,9 @@ impl MigrationTrait for Migration {
                             .from_tbl(HighAvailabilityMembers::Table)
                             .from_col(HighAvailabilityMembers::SnapshotId)
                             .to_tbl(HighAvailabilitySnapshot::Table)
-                            .to_col(HighAvailabilitySnapshot::Id)
+                            .to_col(HighAvailabilitySnapshot::Id),
                     )
-                    .to_owned()
+                    .to_owned(),
             )
             .await?;
         Ok(())
@@ -51,7 +51,7 @@ impl MigrationTrait for Migration {
             .drop_table(
                 Table::drop()
                     .table(HighAvailabilityMembers::Table)
-                    .to_owned()
+                    .to_owned(),
             )
             .await?;
         Ok(())

@@ -14,34 +14,18 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(PipelineRuns::Id)
                             .string()
                             .primary_key()
-                            .not_null()
+                            .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(PipelineRuns::Name)
-                            .string()
-                            .not_null()
-                    )
-                    .col(
-                        ColumnDef::new(PipelineRuns::State)
-                            .string()
-                            .not_null()
-                    )
-                    .col(
-                        ColumnDef::new(PipelineRuns::AppUser)
-                            .string()
-                            .not_null()
-                    )
+                    .col(ColumnDef::new(PipelineRuns::Name).string().not_null())
+                    .col(ColumnDef::new(PipelineRuns::State).string().not_null())
+                    .col(ColumnDef::new(PipelineRuns::AppUser).string().not_null())
                     .col(
                         ColumnDef::new(PipelineRuns::StartDate)
                             .timestamp()
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(PipelineRuns::EndDate)
-                            .timestamp()
-                            .not_null(),
-                    )
-                    .to_owned()
+                    .col(ColumnDef::new(PipelineRuns::EndDate).timestamp().not_null())
+                    .to_owned(),
             )
             .await?;
         Ok(())
@@ -49,11 +33,7 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(
-                Table::drop()
-                    .table(PipelineRuns::Table)
-                    .to_owned()
-            )
+            .drop_table(Table::drop().table(PipelineRuns::Table).to_owned())
             .await?;
         Ok(())
     }

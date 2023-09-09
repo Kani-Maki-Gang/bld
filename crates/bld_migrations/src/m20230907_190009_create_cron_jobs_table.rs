@@ -16,41 +16,21 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(CronJobs::Id)
                             .string()
                             .primary_key()
-                            .not_null()
+                            .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(CronJobs::PipelineId)
-                            .string()
-                            .not_null()
-                    )
-                    .col(
-                        ColumnDef::new(CronJobs::Schedule)
-                            .string()
-                            .not_null()
-                    )
-                    .col(
-                        ColumnDef::new(CronJobs::IsDefault)
-                            .boolean()
-                            .not_null()
-                    )
-                    .col(
-                        ColumnDef::new(CronJobs::DateCreated)
-                            .timestamp()
-                            .not_null()
-                    )
-                    .col(
-                        ColumnDef::new(CronJobs::DateUpdated)
-                            .timestamp()
-                            .not_null()
-                    )
+                    .col(ColumnDef::new(CronJobs::PipelineId).string().not_null())
+                    .col(ColumnDef::new(CronJobs::Schedule).string().not_null())
+                    .col(ColumnDef::new(CronJobs::IsDefault).boolean().not_null())
+                    .col(ColumnDef::new(CronJobs::DateCreated).timestamp().not_null())
+                    .col(ColumnDef::new(CronJobs::DateUpdated).timestamp().not_null())
                     .foreign_key(
                         ForeignKey::create()
                             .from_tbl(CronJobs::Table)
                             .from_col(CronJobs::PipelineId)
                             .to_tbl(Pipeline::Table)
-                            .to_col(Pipeline::Id)
+                            .to_col(Pipeline::Id),
                     )
-                    .to_owned()
+                    .to_owned(),
             )
             .await?;
         Ok(())
@@ -58,11 +38,7 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(
-                Table::drop()
-                    .table(CronJobs::Table)
-                    .to_owned()
-            )
+            .drop_table(Table::drop().table(CronJobs::Table).to_owned())
             .await?;
         Ok(())
     }

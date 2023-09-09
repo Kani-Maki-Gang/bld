@@ -16,22 +16,22 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(PipelineRunContainers::Id)
                             .string()
                             .primary_key()
-                            .not_null()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(PipelineRunContainers::RunId)
                             .string()
-                            .not_null()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(PipelineRunContainers::ContainerId)
                             .string()
-                            .not_null()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(PipelineRunContainers::State)
                             .string()
-                            .not_null()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(PipelineRunContainers::DateCreated)
@@ -48,22 +48,17 @@ impl MigrationTrait for Migration {
                             .from_tbl(PipelineRunContainers::Table)
                             .from_col(PipelineRunContainers::RunId)
                             .to_tbl(PipelineRuns::Table)
-                            .to_col(PipelineRuns::Id)
+                            .to_col(PipelineRuns::Id),
                     )
-                    .to_owned()
+                    .to_owned(),
             )
             .await?;
         Ok(())
-
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(
-                Table::drop()
-                    .table(PipelineRunContainers::Table)
-                    .to_owned()
-            )
+            .drop_table(Table::drop().table(PipelineRunContainers::Table).to_owned())
             .await?;
         Ok(())
     }

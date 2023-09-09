@@ -12,13 +12,14 @@ anyhow = "1.0.40"
 async-trait = "0.1.50"
 awc = { version = "3.0.0", features = ["rustls"] }
 bld_config = { path = "../bld_config" }
+bld_entities = { path = "../bld_entities" }
 bld_utils = { path = "../bld_utils" }
-diesel = { version = "2.1.1", features = ["sqlite", "postgres", "mysql", "r2d2"] }
-diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
+bld_migrations = { path = "../bld_migrations" }
 libsqlite3-sys = { version = "*", features = ["bundled"] }
 futures = "0.3.15"
 futures-util = "0.3.15"
 shiplift = { version = "0.7.0", default-features = false, features = ["unix-socket", "tls"] }
+sea-orm = { version = "0.12.2", features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls"] }
 serde = "1.0.126"
 serde_derive = "1.0.126"
 serde_json = "1.0.64"

@@ -1,11 +1,11 @@
 [package]
-name = "migration"
+name = "bld_migrations"
 version = "0.3.0"
 edition = "2021"
 publish = false
 
 [lib]
-name = "migration"
+name = "bld_migrations"
 path = "src/lib.rs"
 
 [dependencies]

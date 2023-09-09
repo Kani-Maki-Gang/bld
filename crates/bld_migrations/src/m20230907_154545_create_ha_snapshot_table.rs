@@ -19,12 +19,12 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(HighAvailabilitySnapshot::Term)
                             .integer()
-                            .not_null()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(HighAvailabilitySnapshot::Data)
                             .binary()
-                            .not_null()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(HighAvailabilitySnapshot::DateCreated)

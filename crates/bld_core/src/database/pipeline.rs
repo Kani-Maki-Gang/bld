@@ -1,31 +1,23 @@
-#![allow(dead_code)]
-use crate::database::{
-    cron_jobs,
-    schema::{pipeline, pipeline::dsl::*},
-};
 use anyhow::{anyhow, Result};
-use diesel::{prelude::*, query_dsl::RunQueryDsl, Queryable};
+use bld_entities::pipeline;
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait};
 use tracing::{debug, error};
 
-use super::DbConnection;
+use crate::database::cron_jobs;
 
-#[derive(Debug, Queryable)]
-pub struct Pipeline {
+pub use bld_entities::pipeline::Entity as Pipeline;
+
+pub struct InsertPipeline {
     pub id: String,
     pub name: String,
-    pub date_created: String,
 }
 
-pub struct InsertPipeline<'a> {
-    pub id: &'a str,
-    pub name: &'a str,
-}
-
-pub fn select_all(conn: &mut DbConnection) -> Result<Vec<Pipeline>> {
+pub async fn select_all(conn: &DatabaseConnection) -> Result<Vec<Pipeline>> {
     debug!("loading all pipelines from the database");
-    pipeline
-        .order_by(name)
+    Pipeline::find()
+        .order_by_asc(pipeline::Column::Name)
         .load(conn)
+        .await
         .map(|p| {
             debug!("loaded all pipelines successfully");
             p
@@ -36,11 +28,11 @@ pub fn select_all(conn: &mut DbConnection) -> Result<Vec<Pipeline>> {
         })
 }
 
-pub fn select_by_id(conn: &mut DbConnection, pip_id: &str) -> Result<Pipeline> {
+pub async fn select_by_id(conn: &DatabaseConnection, pip_id: &str) -> Result<Pipeline> {
     debug!("loading pipeline with id: {pip_id} from the database");
-    pipeline
-        .filter(id.eq(pip_id))
-        .first(conn)
+    Pipeline::find_by_id(pip_id)
+        .one(conn)
+        .await
         .map(|p| {
             debug!("loaded pipeline successfully");
             p
@@ -51,11 +43,12 @@ pub fn select_by_id(conn: &mut DbConnection, pip_id: &str) -> Result<Pipeline> {
         })
 }
 
-pub fn select_by_name(conn: &mut DbConnection, pip_name: &str) -> Result<Pipeline> {
+pub async fn select_by_name(conn: &DatabaseConnection, pip_name: &str) -> Result<Pipeline> {
     debug!("loading pipeline with name: {pip_name} from the database");
-    pipeline
-        .filter(name.eq(pip_name))
-        .first(conn)
+    Pipeline::find()
+        .filter(pipeline::Column::Name.eq(pip_name))
+        .one(conn)
+        .await
         .map(|p| {
             debug!("loaded pipeline successfully");
             p
@@ -66,12 +59,13 @@ pub fn select_by_name(conn: &mut DbConnection, pip_name: &str) -> Result<Pipelin
         })
 }
 
-pub fn update_name(conn: &mut DbConnection, pip_id: &str, pip_name: &str) -> Result<()> {
+pub async fn update_name(conn: &DatabaseConnection, pip_id: &str, pip_name: &str) -> Result<()> {
     debug!("updating pipeline with id: {pip_id} with new name: {pip_name}");
-    diesel::update(pipeline)
-        .set(name.eq(pip_name))
-        .filter(id.eq(pip_id))
-        .execute(conn)
+    Pipeline::update_many()
+        .set(pipeline::Column::Name.eq(pip_name))
+        .filter(pipeline::Column::Id.eq(pip_id))
+        .exec(conn)
+        .await
         .map(|_| debug!("pipeline updated successfully"))
         .map_err(|e| {
             error!("could not update pipeline due to {e}");
@@ -79,41 +73,47 @@ pub fn update_name(conn: &mut DbConnection, pip_id: &str, pip_name: &str) -> Res
         })
 }
 
-pub fn insert(conn: &mut DbConnection, model: InsertPipeline) -> Result<Pipeline> {
+pub async fn insert(conn: &DatabaseConnection, model: InsertPipeline) -> Result<Pipeline> {
     debug!("inserting new pipeline to the database");
-    conn.transaction(|conn| {
-        diesel::insert_into(pipeline::table)
-            .values((id.eq(model.id), name.eq(model.name)))
-            .execute(conn)
-            .map_err(|e| {
-                error!("could not insert pipeline due to: {e}");
-                anyhow!(e)
-            })
-            .and_then(|_| {
-                debug!(
-                    "created new pipeline entry with id: {}, name: {}",
-                    model.id, model.name
-                );
-                select_by_id(conn, model.id)
-            })
-    })
+
+    let model = pipeline::ActiveModel {
+        id: model.id,
+        name: model.name,
+        ..Default::default()
+    };
+
+    model
+        .insert(conn)
+        .await
+        .map_err(|e| {
+            error!("could not insert pipeline due to: {e}");
+            anyhow!(e)
+        })?;
+
+    debug!(
+        "created new pipeline entry with id: {}, name: {}",
+        model.id, model.name
+    );
+    model
 }
 
-pub fn delete_by_name(conn: &mut DbConnection, pip_name: &str) -> Result<()> {
+pub async fn delete_by_name(conn: &DatabaseConnection, pip_name: &str) -> Result<()> {
     debug!("deleting pipeline with name: {pip_name} from the database");
-    conn.transaction(|conn| {
-        select_by_name(conn, pip_name)
-            .and_then(|pip| cron_jobs::delete_by_pipeline(conn, &pip.id))
-            .and_then(|_| {
-                diesel::delete(pipeline.filter(name.eq(pip_name)))
-                    .execute(conn)
-                    .map_err(|e| {
-                        error!("could not delete pipeline due to {e}");
-                        anyhow!(e)
-                    })
-                    .map(|_| {
-                        debug!("pipeline deleted successfully");
-                    })
-            })
+    conn.transaction(|txn| {
+        Box::pin(async move {
+            let model = select_by_name(txn, pip_name).await?;
+            cron_jobs::delete_by_pipeline(txn, &model.id).await?;
+            model
+                .delete(txn)
+                .await
+                .map_err(|e| {
+                    error!("could not delete pipeline due to {e}");
+                    anyhow!(e)
+                })
+                .map(|_| {
+                    debug!("pipeline deleted successfully");
+                })
+        })
     })
+    .await
 }

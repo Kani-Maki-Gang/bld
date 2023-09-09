@@ -16,41 +16,41 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(CronJobEnvironmentVariables::Id)
                             .string()
                             .primary_key()
-                            .not_null()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(CronJobEnvironmentVariables::Name)
                             .string()
-                            .not_null()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(CronJobEnvironmentVariables::Value)
                             .string()
-                            .not_null()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(CronJobEnvironmentVariables::CronJobId)
                             .string()
-                            .not_null()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(CronJobEnvironmentVariables::DateCreated)
                             .timestamp()
-                            .not_null()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(CronJobEnvironmentVariables::DateUpdated)
                             .timestamp()
-                            .not_null()
+                            .not_null(),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .from_tbl(CronJobEnvironmentVariables::Table)
                             .from_col(CronJobEnvironmentVariables::CronJobId)
                             .to_tbl(CronJobs::Table)
-                            .to_col(CronJobs::Id)
+                            .to_col(CronJobs::Id),
                     )
-                    .to_owned()
+                    .to_owned(),
             )
             .await?;
         Ok(())
@@ -61,7 +61,7 @@ impl MigrationTrait for Migration {
             .drop_table(
                 Table::drop()
                     .table(CronJobEnvironmentVariables::Table)
-                    .to_owned()
+                    .to_owned(),
             )
             .await?;
         Ok(())
