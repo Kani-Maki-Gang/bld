@@ -8,6 +8,7 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i32,
     pub state_machine_id: i32,
+    pub status: String,
     pub date_created: DateTime,
     pub date_updated: DateTime,
 }

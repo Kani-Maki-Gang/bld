@@ -24,6 +24,11 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(
+                        ColumnDef::new(HighAvailabilityClientStatus::Status)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
                         ColumnDef::new(HighAvailabilityClientStatus::DateCreated)
                             .timestamp()
                             .not_null(),
@@ -63,6 +68,7 @@ enum HighAvailabilityClientStatus {
     Table,
     Id,
     StateMachineId,
+    Status,
     DateCreated,
     DateUpdated,
 }

@@ -8,7 +8,7 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i32,
     pub current_term: i32,
-    pub voted_for: i32,
+    pub voted_for: Option<i32>,
     pub date_created: DateTime,
     pub date_updated: DateTime,
 }

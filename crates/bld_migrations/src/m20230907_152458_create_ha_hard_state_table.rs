@@ -21,11 +21,7 @@ impl MigrationTrait for Migration {
                             .integer()
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(HighAvailabilityHardState::VotedFor)
-                            .integer()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(HighAvailabilityHardState::VotedFor).integer())
                     .col(
                         ColumnDef::new(HighAvailabilityHardState::DateCreated)
                             .timestamp()

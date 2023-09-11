@@ -1,15 +1,19 @@
 use anyhow::{anyhow, Result};
-use bld_entities::high_availability_log;
-use sea_orm::{DatabaseConnection, EntityTrait, QueryOrder, Condition};
+use bld_entities::high_availability_log::{self, Entity as HighAvailLogEntity};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
+    QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+};
 use tracing::{debug, error};
 
-pub use bld_entities::high_availability_log::Entity as HighAvailLog;
+pub use bld_entities::high_availability_log::Model as HighAvailLog;
 
 pub const BLANK: &str = "blank";
 pub const NORMAL: &str = "normal";
 pub const CONFIG_CHANGE: &str = "config_change";
 pub const SNAPSHOT_POINTER: &str = "snapshot_pointer";
 
+#[derive(Debug)]
 pub struct InsertHighAvailLog {
     pub id: i32,
     pub term: i32,
@@ -31,28 +35,39 @@ impl InsertHighAvailLog {
     }
 }
 
-pub async fn select_last(conn: &DatabaseConnection) -> Result<HighAvailLog> {
+pub async fn select_last<C: ConnectionTrait + TransactionTrait>(conn: &C) -> Result<HighAvailLog> {
     debug!("loading the last entry of high availability log");
-    HighAvailLog::find()
+
+    let model = HighAvailLogEntity::find()
         .order_by_desc(high_availability_log::Column::Id)
         .one(conn)
         .await
+        .map_err(|e| {
+            error!("could not load high availability log due to: {}", e);
+            anyhow!(e)
+        })?;
+
+    model
+        .ok_or_else(|| {
+            error!("couldn't load high availability log due to: not found");
+            anyhow!("high availability log not found")
+        })
         .map(|l| {
             debug!("loaded high availability log successfully");
             l
         })
-        .map_err(|e| {
-            error!("could not load high availability log due to: {}", e);
-            anyhow!(e)
-        })
 }
 
-pub async fn select_last_rows(conn: &DatabaseConnection, rows: i64) -> Result<Vec<HighAvailLog>> {
+pub async fn select_last_rows<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    rows: u64,
+) -> Result<Vec<HighAvailLog>> {
     debug!("loading the last {} rows of high availability log", rows);
-    HighAvailLog::find()
-        .order_by_desc(high_availability_log::Column::Id).
+
+    HighAvailLogEntity::find()
+        .order_by_desc(high_availability_log::Column::Id)
         .limit(rows)
-        .load(conn)
+        .all(conn)
         .await
         .map(|l| {
             debug!("loaded high availability logs successfully");
@@ -64,23 +79,33 @@ pub async fn select_last_rows(conn: &DatabaseConnection, rows: i64) -> Result<Ve
         })
 }
 
-pub async fn select_by_id(conn: &DatabaseConnection, lg_id: i32) -> Result<HighAvailLog> {
+pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    lg_id: i32,
+) -> Result<HighAvailLog> {
     debug!("loading high availability log with id: {}", lg_id);
-    HighAvailLog::find_by_id(lg_id)
+
+    let model = HighAvailLogEntity::find_by_id(lg_id)
         .one(conn)
         .await
+        .map_err(|e| {
+            error!("could not load high availability log due to: {}", e);
+            anyhow!(e)
+        })?;
+
+    model
+        .ok_or_else(|| {
+            error!("couldn't load high availability log due to: not found");
+            anyhow!("high availability log not found")
+        })
         .map(|l| {
             debug!("loaded high availability log successfully");
             l
         })
-        .map_err(|e| {
-            error!("could not load high availability log due to: {}", e);
-            anyhow!(e)
-        })
 }
 
-pub async fn select_between_ids(
-    conn: &DatabaseConnection,
+pub async fn select_between_ids<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
     lg_start_id: i32,
     lg_end_id: i32,
 ) -> Result<Vec<HighAvailLog>> {
@@ -88,10 +113,10 @@ pub async fn select_between_ids(
         "loading high availability logs from id: {} to id: {}",
         lg_start_id, lg_end_id
     );
-    HighAvailLog::find()
-        .filter(high_availability_log::Column::Id.ge(lg_start_id))
-        .filter(high_availability_log::Column::Id.le(lg_end_id))
-        .load(conn)
+    HighAvailLogEntity::find()
+        .filter(high_availability_log::Column::Id.gte(lg_start_id))
+        .filter(high_availability_log::Column::Id.lte(lg_end_id))
+        .all(conn)
         .await
         .map(|l| {
             debug!("loaded high availability logs successfully");
@@ -103,116 +128,151 @@ pub async fn select_between_ids(
         })
 }
 
-pub async fn select_by_payload_type(conn: &DatabaseConnection) -> Result<HighAvailLog> {
+pub async fn select_by_payload_type<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+) -> Result<HighAvailLog> {
     debug!("loading high availability log with either config_change or snapshot payload types");
-    HighAvailLog::find()
+
+    let model = HighAvailLogEntity::find()
         .filter(
             Condition::any()
                 .add(high_availability_log::Column::PayloadType.eq(CONFIG_CHANGE))
-                .add(high_availability_log::Column::PayloadType.eq(SNAPSHOT_POINTER))
+                .add(high_availability_log::Column::PayloadType.eq(SNAPSHOT_POINTER)),
         )
         .order_by_desc(high_availability_log::Column::DateCreated)
         .one(conn)
         .await
+        .map_err(|e| {
+            error!("could not load high availability logs due to: {}", e);
+            anyhow!(e)
+        })?;
+
+    model
+        .ok_or_else(|| {
+            error!("couldn't load high availability log due to: not found");
+            anyhow!("high availability log not found")
+        })
         .map(|l| {
             debug!("load high availability log model entries successfully");
             l
         })
-        .map_err(|e| {
-            error!("could not load high availability logs due to: {}", e);
-            anyhow!(e)
-        })
 }
 
-pub async fn select_first_by_date_created_desc(conn: &DatabaseConnection) -> Result<HighAvailLog> {
+pub async fn select_first_by_date_created_desc<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+) -> Result<HighAvailLog> {
     debug!("loading first high availability log ordered by descending creation date");
-    HighAvailLog::find()
+
+    let model = HighAvailLogEntity::find()
         .order_by_desc(high_availability_log::Column::DateCreated)
         .one(conn)
         .await
+        .map_err(|e| {
+            error!("could not load high availability log due to: {}", e);
+            anyhow!(e)
+        })?;
+
+    model
+        .ok_or_else(|| {
+            error!("couldn't load high availability log due to: not found");
+            anyhow!("high availability log not found")
+        })
         .map(|l| {
             debug!("loaded first high availability log successfully");
             l
         })
-        .map_err(|e| {
-            error!("could not load high availability log due to: {}", e);
-            anyhow!(e)
-        })
 }
 
-pub async fn select_config_greater_than_id(
-    conn: &DatabaseConnection,
+pub async fn select_config_greater_than_id<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
     lg_id: i32,
 ) -> Result<HighAvailLog> {
     debug!(
         "loading high availability logs with greater id than: {}",
         lg_id
     );
-    HighAvailLog::find()
-        .filter(high_availability_log::Column::Id.gt(lg_id))
+
+    let model = HighAvailLogEntity::find()
+        .filter(high_availability_log::Column::Id.gte(lg_id))
         .filter(high_availability_log::Column::PayloadType.eq(CONFIG_CHANGE))
         .one(conn)
         .await
+        .map_err(|e| {
+            error!("could not load high availability logs due to: {}", e);
+            anyhow!(e)
+        })?;
+
+    model
+        .ok_or_else(|| {
+            error!("couldn't load high availability log due to: not found");
+            anyhow!("high availability log not found")
+        })
         .map(|l| {
             debug!("loaded high availability logs successfully");
             l
         })
-        .map_err(|e| {
-            error!("could not load high availability logs due to: {}", e);
-            anyhow!(e)
-        })
 }
 
-pub async fn insert(conn: &DatabaseConnection, model: InsertHighAvailLog) -> Result<HighAvailLog> {
+pub async fn insert<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    model: InsertHighAvailLog,
+) -> Result<()> {
     debug!("inserting new high availability log: {:?}", model);
 
     let model = high_availability_log::ActiveModel {
-        id: model.id,
-        term: model.term,
-        payload: model.payload,
-        payload_type: model.payload_type,
+        id: Set(model.id),
+        term: Set(model.term),
+        payload: Set(model.payload),
+        payload_type: Set(model.payload_type),
         ..Default::default()
     };
 
-    model
-        .insert(conn)
+    model.insert(conn).await.map_err(|e| {
+        error!("could not insert high availability log due to: {}", e);
+        anyhow!(e)
+    })?;
+
+    debug!("high availability log inserted successfully");
+    Ok(())
+}
+
+pub async fn insert_many<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    models: Vec<InsertHighAvailLog>,
+) -> Result<()> {
+    debug!("inserting multiple high availability log entries");
+
+    let models: Vec<high_availability_log::ActiveModel> = models
+        .into_iter()
+        .map(|m| high_availability_log::ActiveModel {
+            id: Set(m.id),
+            term: Set(m.term),
+            payload: Set(m.payload),
+            payload_type: Set(m.payload_type),
+            ..Default::default()
+        })
+        .collect();
+
+    HighAvailLogEntity::insert_many(models)
+        .exec(conn)
         .await
         .map_err(|e| {
-            error!("could not insert high availability log due to: {}", e);
+            error!(
+                "could not insert multiple high availability logs due to: {}",
+                e
+            );
             anyhow!(e)
         })?;
 
-    debug!("high availability log inserted successfully");
-    model
+    debug!("inserted multiple high availability log entries successfully");
+    Ok(())
 }
 
-pub fn insert_many(
-    conn: &mut SqliteConnection,
-    models: Vec<InsertHighAvailLog>,
-) -> Result<Vec<HighAvailLog>> {
-    debug!("inserting multiple high availability log entries");
-    conn.transaction(|conn| {
-        diesel::insert_into(ha_log)
-            .values(models)
-            .execute(conn)
-            .map_err(|e| {
-                error!(
-                    "could not insert multiple high availability logs due to: {}",
-                    e
-                );
-                anyhow!(e)
-            })
-            .and_then(|rows| {
-                debug!("inserted multiple high availability log entries successfully");
-                select_last_rows(conn, rows as i64)
-            })
-    })
-}
-
-pub fn delete(conn: &mut SqliteConnection) -> Result<()> {
+pub async fn delete<C: ConnectionTrait + TransactionTrait>(conn: &C) -> Result<()> {
     debug!("deleting all high availability logs");
-    diesel::delete(ha_log)
-        .execute(conn)
+    HighAvailLogEntity::delete_many()
+        .exec(conn)
+        .await
         .map(|_| debug!("deleted all high availability logs successfully"))
         .map_err(|e| {
             error!("could not delete high availability logs due to: {}", e);
@@ -220,27 +280,43 @@ pub fn delete(conn: &mut SqliteConnection) -> Result<()> {
         })
 }
 
-pub fn delete_by_ids(conn: &mut SqliteConnection, lg_ids: Vec<i32>) -> Result<()> {
+pub async fn delete_by_ids<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    lg_ids: Vec<i32>,
+) -> Result<()> {
     debug!("deleting high availability log entries");
-    diesel::delete(ha_log.filter(id.eq_any(lg_ids)))
-        .execute(conn)
-        .map(|_| debug!("deleted high availability log entries successfully"))
-        .map_err(|e| {
-            error!(
-                "could not delete high availability log entries due to: {}",
-                e
-            );
-            anyhow!(e)
-        })
+    let txn = conn.begin().await?;
+
+    for lg_id in lg_ids {
+        HighAvailLogEntity::delete_many()
+            .filter(high_availability_log::Column::Id.eq(lg_id))
+            .exec(conn)
+            .await
+            .map(|_| debug!("deleted high availability log entries successfully"))
+            .map_err(|e| {
+                error!(
+                    "could not delete high availability log entries due to: {}",
+                    e
+                );
+                anyhow!(e)
+            })?;
+    }
+
+    txn.commit().await?;
+    Ok(())
 }
 
-pub fn delete_from_id(conn: &mut SqliteConnection, lg_id: i32) -> Result<()> {
+pub async fn delete_from_id<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    lg_id: i32,
+) -> Result<()> {
     debug!(
         "deleting high availability log entries starting from id: {}",
         lg_id
     );
-    diesel::delete(ha_log.filter(id.ge(lg_id)))
-        .execute(conn)
+    HighAvailLogEntity::delete_by_id(lg_id)
+        .exec(conn)
+        .await
         .map(|_| debug!("deleted high availability log entry successfully"))
         .map_err(|e| {
             error!("could not delete high availability log entry due to: {}", e);
@@ -248,13 +324,18 @@ pub fn delete_from_id(conn: &mut SqliteConnection, lg_id: i32) -> Result<()> {
         })
 }
 
-pub fn delete_until_id(conn: &mut SqliteConnection, lg_id: i32) -> Result<()> {
+pub async fn delete_until_id<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    lg_id: i32,
+) -> Result<()> {
     debug!(
         "deleting high availability logs less than equal to: {}",
         lg_id
     );
-    diesel::delete(ha_log.filter(id.le(lg_id)))
-        .execute(conn)
+    HighAvailLogEntity::delete_many()
+        .filter(high_availability_log::Column::Id.lt(lg_id))
+        .exec(conn)
+        .await
         .map(|_| debug!("deleted high availability logs successfully"))
         .map_err(|e| {
             error!("could not delete high availability logs due to: {}", e);

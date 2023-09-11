@@ -1,10 +1,14 @@
 use anyhow::{anyhow, Result};
-use bld_entities::cron_job_environment_variables;
-use sea_orm::{ActiveValue::Set, DatabaseConnection, EntityTrait, QueryFilter};
+use bld_entities::cron_job_environment_variables::{
+    self, Entity as CronJobEnvironmentVariableEntity,
+};
+use sea_orm::{
+    ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait,
+};
 use tracing::{debug, error};
 use uuid::Uuid;
 
-pub use bld_entities::cron_job_environment_variables::Entity as CronJobEnvironmentVariable;
+pub use bld_entities::cron_job_environment_variables::Model as CronJobEnvironmentVariable;
 
 pub struct InsertCronJobEnvironmentVariable {
     pub id: String,
@@ -26,12 +30,12 @@ impl InsertCronJobEnvironmentVariable {
     }
 }
 
-pub async fn select_by_cron_job_id(
-    conn: &DatabaseConnection,
+pub async fn select_by_cron_job_id<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
     cev_cron_job_id: &str,
 ) -> Result<Vec<CronJobEnvironmentVariable>> {
     debug!("loading all environment variables for cron job with id: {cev_cron_job_id}");
-    CronJobEnvironmentVariable::find()
+    CronJobEnvironmentVariableEntity::find()
         .filter(cron_job_environment_variables::Column::CronJobId.eq(cev_cron_job_id))
         .all(conn)
         .await
@@ -45,22 +49,22 @@ pub async fn select_by_cron_job_id(
         })
 }
 
-pub async fn insert_many(
-    conn: &DatabaseConnection,
+pub async fn insert_many<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
     models: &[InsertCronJobEnvironmentVariable],
 ) -> Result<()> {
-    let models: Vec<CronJobEnvironmentVariable> = models
+    let models: Vec<cron_job_environment_variables::ActiveModel> = models
         .iter()
         .map(|m| cron_job_environment_variables::ActiveModel {
-            id: Set(m.id),
-            name: Set(m.name),
-            value: Set(m.value),
-            cron_job_id: Set(m.cron_job_id),
+            id: Set(m.id.to_owned()),
+            name: Set(m.name.to_owned()),
+            value: Set(m.value.to_owned()),
+            cron_job_id: Set(m.cron_job_id.to_owned()),
             ..Default::default()
         })
         .collect();
 
-    CronJobEnvironmentVariable::insert_many(models)
+    CronJobEnvironmentVariableEntity::insert_many(models)
         .exec(conn)
         .await
         .map(|_| {
@@ -72,11 +76,14 @@ pub async fn insert_many(
         })
 }
 
-pub async fn delete_by_cron_job_id(conn: &DatabaseConnection, cev_cron_job_id: &str) -> Result<()> {
+pub async fn delete_by_cron_job_id<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    cev_cron_job_id: &str,
+) -> Result<()> {
     debug!(
         "deleting cron job environment variables associated with cron job id: {cev_cron_job_id}"
     );
-    CronJobEnvironmentVariable::delete_many()
+    CronJobEnvironmentVariableEntity::delete_many()
         .filter(cron_job_environment_variables::Column::CronJobId.eq(cev_cron_job_id))
         .exec(conn)
         .await
