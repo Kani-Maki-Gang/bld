@@ -132,8 +132,10 @@ impl RunnerBuilder {
             .pipeline
             .ok_or_else(|| anyhow!("no pipeline provided"))?;
 
-        let pipeline = Yaml::load(&self.proxy.read(&pipeline_name)?)?;
-        pipeline.validate(config.clone(), self.proxy.clone())?;
+        let pipeline = Yaml::load(&self.proxy.read(&pipeline_name).await?)?;
+        pipeline
+            .validate(config.clone(), self.proxy.clone())
+            .await?;
 
         let env = self
             .env

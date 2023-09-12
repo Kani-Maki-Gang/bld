@@ -18,18 +18,18 @@ pub async fn start(config: BldConfig) -> Result<()> {
     );
     let config = config.into_data();
     let config_clone = config.clone();
-    let pool = new_connection_pool(Arc::clone(&config))?.into_data();
+    let conn = new_connection_pool(Arc::clone(&config)).await?.into_data();
     let worker_queue_sender = worker_queue_channel(
         config.local.supervisor.workers.try_into()?,
         config.clone(),
-        pool.clone(),
+        conn.clone(),
     );
     let worker_queue_sender = worker_queue_sender.into_data();
 
     let mut server = HttpServer::new(move || {
         App::new()
             .app_data(config_clone.clone())
-            .app_data(pool.clone())
+            .app_data(conn.clone())
             .app_data(worker_queue_sender.clone())
             .service(resource("/ws-server/").route(get().to(ws_server_socket)))
             .service(resource("/ws-worker/").route(get().to(ws_worker_socket)))
