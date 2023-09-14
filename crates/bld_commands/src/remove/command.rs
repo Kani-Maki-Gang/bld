@@ -25,13 +25,13 @@ pub struct RemoveCommand {
 }
 
 impl RemoveCommand {
-    fn local_remove(&self) -> Result<()> {
+    async fn local_remove(&self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config);
-        proxy.remove(&self.pipeline)
+        proxy.remove(&self.pipeline).await
     }
 
-    fn remote_remove(&self, server: &str) -> Result<()> {
+    async fn remote_remove(&self, server: &str) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let client = HttpClient::new(config, server)?;
 
@@ -40,7 +40,7 @@ impl RemoveCommand {
             self.server, self.pipeline
         );
 
-        System::new().block_on(async move { client.remove(&self.pipeline).await })
+        client.remove(&self.pipeline).await
     }
 }
 
@@ -50,9 +50,11 @@ impl BldCommand for RemoveCommand {
     }
 
     fn exec(self) -> Result<()> {
-        match &self.server {
-            Some(srv) => self.remote_remove(srv),
-            None => self.local_remove(),
-        }
+        System::new().block_on(async move {
+            match &self.server {
+                Some(srv) => self.remote_remove(srv).await,
+                None => self.local_remove().await,
+            }
+        })
     }
 }

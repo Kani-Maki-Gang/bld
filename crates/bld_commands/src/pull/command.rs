@@ -82,7 +82,7 @@ impl PullCommand {
                     err
                 })?;
 
-            proxy.create(&data.name, &data.content, true)?;
+            proxy.create(&data.name, &data.content, true).await?;
         }
 
         Ok(())

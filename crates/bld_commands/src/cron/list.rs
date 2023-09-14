@@ -71,7 +71,7 @@ impl BldCommand for CronListCommand {
             self.pipeline,
             self.schedule,
             self.is_default,
-            self.limit.map(|x| x as i64),
+            self.limit.map(|x| x as u64),
         );
         let response = System::new().block_on(async move { client.cron_list(&filters).await })?;
 

@@ -67,30 +67,28 @@ impl BldCommand for WorkerCommand {
     }
 
     fn exec(self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
-        let socket_cfg = config.clone();
-
-        let pipeline = self.pipeline.into_arc();
-        let run_id = self.run_id.into_arc();
-        let variables = parse_variables(&self.variables).into_arc();
-        let environment = parse_variables(&self.environment).into_arc();
-
-        let pool = new_connection_pool(config.clone())?.into_arc();
-        let mut conn = pool.get()?;
-        let pipeline_run = pipeline_runs::select_by_id(&mut conn, &run_id)?;
-        let start_date_time = pipeline_run.start_date_time;
-        let proxy = PipelineFileSystemProxy::Server {
-            config: config.clone(),
-            pool: pool.clone(),
-        }
-        .into_arc();
-
-        let (worker_tx, worker_rx) = channel(4096);
-        let worker_tx = Some(worker_tx).into_arc();
-
         System::new().block_on(async move {
+            let config = BldConfig::load()?.into_arc();
+            let socket_cfg = config.clone();
+
+            let pipeline = self.pipeline.into_arc();
+            let run_id = self.run_id.into_arc();
+            let variables = parse_variables(&self.variables).into_arc();
+            let environment = parse_variables(&self.environment).into_arc();
+
+            let conn = new_connection_pool(config.clone()).await?.into_arc();
+            let pipeline_run = pipeline_runs::select_by_id(conn.as_ref(), &run_id).await?;
+            let start_date_time = pipeline_run.start_date.to_string();
+            let proxy = PipelineFileSystemProxy::Server {
+                config: config.clone(),
+                conn: conn.clone(),
+            }
+            .into_arc();
+
+            let (worker_tx, worker_rx) = channel(4096);
+            let worker_tx = Some(worker_tx).into_arc();
             let logger = LoggerSender::file(config.clone(), &run_id)?.into_arc();
-            let context = ContextSender::server(config.clone(), pool, &run_id).into_arc();
+            let context = ContextSender::server(config.clone(), conn, &run_id).into_arc();
             let (cmd_signals, signals_rx) = CommandSignals::new()?;
 
             let socket_handle = spawn(async move {
