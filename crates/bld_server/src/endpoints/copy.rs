@@ -15,7 +15,7 @@ pub async fn post(
     body: Json<PipelinePathRequest>,
 ) -> impl Responder {
     info!("Reached handler for /copy route");
-    match proxy.copy(&body.pipeline, &body.target) {
+    match proxy.copy(&body.pipeline, &body.target).await {
         Ok(_) => HttpResponse::Ok().json(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }

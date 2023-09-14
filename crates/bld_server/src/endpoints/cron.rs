@@ -15,7 +15,7 @@ pub async fn get(
     query: Query<JobFiltersParams>,
 ) -> impl Responder {
     info!("Reached handler for GET /cron route");
-    match cron.get(&query) {
+    match cron.get(&query).await {
         Ok(res) => HttpResponse::Ok().json(res),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }

@@ -12,7 +12,7 @@ pub async fn get(
     params: Query<PipelineQueryParams>,
 ) -> impl Responder {
     info!("Reached handler for /print route");
-    match prx.read(&params.pipeline) {
+    match prx.read(&params.pipeline).await {
         Ok(content) => HttpResponse::Ok().json(content),
         Err(_) => HttpResponse::BadRequest().body("pipeline not found"),
     }

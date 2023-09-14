@@ -27,7 +27,7 @@ async fn do_push(
     cron: &CronScheduler,
     info: &PushInfo,
 ) -> Result<()> {
-    prx.create(&info.name, &info.content, true)?;
+    prx.create(&info.name, &info.content, true).await?;
     let pipeline: VersionedPipeline = Yaml::load(&info.content)?;
     let remove_res = match pipeline.cron() {
         Some(schedule) => cron.upsert_default(schedule, &info.name).await,

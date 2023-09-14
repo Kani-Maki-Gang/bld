@@ -12,17 +12,18 @@ pub async fn get(
     params: Query<HistQueryParams>,
 ) -> impl Responder {
     info!("Reached handler for /hist route");
-    match history_info(conn.get_ref(), params.into_inner()) {
+    match history_info(conn.get_ref(), params.into_inner()).await {
         Ok(ls) => HttpResponse::Ok().json(ls),
         Err(_) => HttpResponse::BadRequest().body(""),
     }
 }
 
-fn history_info(conn: &DatabaseConnection, params: HistQueryParams) -> Result<Vec<HistoryEntry>> {
-    let conn = conn.as_ref()?;
+async fn history_info(
+    conn: &DatabaseConnection,
+    params: HistQueryParams,
+) -> Result<Vec<HistoryEntry>> {
     let history =
-        pipeline_runs::select_with_filters(&mut conn, &params.state, &params.name, params.limit)
-            .await;
+        pipeline_runs::select_with_filters(conn, &params.state, &params.name, params.limit).await;
     let entries = history
         .map(|entries| {
             entries
@@ -32,8 +33,8 @@ fn history_info(conn: &DatabaseConnection, params: HistQueryParams) -> Result<Ve
                     id: p.id,
                     user: p.app_user,
                     state: p.state,
-                    start_date_time: p.start_date_time,
-                    end_date_time: p.end_date_time.unwrap_or_default(),
+                    start_date_time: p.start_date.to_string(),
+                    end_date_time: p.end_date.to_string(),
                 })
                 .collect()
         })

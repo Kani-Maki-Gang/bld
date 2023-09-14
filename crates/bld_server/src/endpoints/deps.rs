@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::extractors::User;
 use actix_web::{
     get,
@@ -18,17 +20,19 @@ pub async fn get(
     params: Query<PipelineQueryParams>,
 ) -> impl Responder {
     info!("Reached handler for /deps route");
-    match do_deps(&config, &proxy, &params) {
+    match do_deps(config, proxy, params.into_inner()).await {
         Ok(r) => HttpResponse::Ok().json(r),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
 
-fn do_deps(
-    config: &BldConfig,
-    proxy: &PipelineFileSystemProxy,
-    params: &PipelineQueryParams,
+async fn do_deps(
+    config: Data<BldConfig>,
+    proxy: Data<PipelineFileSystemProxy>,
+    params: PipelineQueryParams,
 ) -> Result<Vec<String>> {
-    let dependencies = VersionedPipeline::dependencies(config, proxy, &params.pipeline)?;
+    let config = Arc::clone(&config);
+    let proxy = Arc::clone(&proxy);
+    let dependencies = VersionedPipeline::dependencies(config, proxy, params.pipeline).await?;
     Ok(dependencies.into_keys().collect())
 }
