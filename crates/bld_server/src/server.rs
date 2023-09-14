@@ -29,7 +29,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
     let config_clone = config.clone();
     let conn = new_connection_pool(Arc::clone(&config)).await?;
     let supervisor_sender = SupervisorMessageSender::new(Arc::clone(&config)).into_data();
-    let logins = LoginProcess::new().into_data();
+    let logins = LoginProcess::default().into_data();
     let pool = conn.into_data();
     let prx = PipelineFileSystemProxy::server(Arc::clone(&config), Arc::clone(&pool)).into_data();
     let cron = CronScheduler::new(

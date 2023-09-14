@@ -62,8 +62,8 @@ pub struct LoginProcess {
     tx: Sender<LoginProcessMessage>,
 }
 
-impl LoginProcess {
-    pub fn new() -> Self {
+impl Default for LoginProcess {
+    fn default() -> Self {
         let (tx, rx) = channel(4096);
 
         spawn(async move {
@@ -75,7 +75,9 @@ impl LoginProcess {
 
         Self { tx }
     }
+}
 
+impl LoginProcess {
     pub async fn add(&self, token: String, sender: oneshot::Sender<String>) -> Result<()> {
         self.tx
             .send(LoginProcessMessage::Add(token, sender))

@@ -189,11 +189,6 @@ impl WorkerQueueReceiver {
                 i += 1;
             }
         }
-        self.active.retain_mut(|w| {
-            let found = w.has_run_id(&run_id);
-            if found {}
-            !found
-        });
 
         for entry in stopped.iter_mut() {
             if let Err(e) = entry.stop() {
@@ -308,7 +303,7 @@ async fn try_cleanup_process(
     let run = pipeline_runs::select_running_by_id(conn, run_id).await?;
 
     if run.state != PR_STATE_FINISHED || run.state != PR_STATE_FAULTED {
-        let _ = pipeline_runs::update_state(conn, run_id, PR_STATE_FAULTED);
+        let _ = pipeline_runs::update_state(conn, run_id, PR_STATE_FAULTED).await;
     }
 
     let _ = pipeline_run_containers::update_running_containers_to_faulted(conn, run_id).await;

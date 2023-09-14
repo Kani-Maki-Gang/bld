@@ -69,7 +69,6 @@ pub async fn select_by_id(conn: &DatabaseConnection, pip_id: &str) -> Result<Pip
     let model = PipelineRunsEntity::find_by_id(pip_id)
         .one(conn)
         .await
-        .map(|p| p)
         .map_err(|e| {
             error!("could not load pipeline run due to: {e}");
             anyhow!(e)
