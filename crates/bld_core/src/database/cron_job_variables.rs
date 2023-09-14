@@ -16,7 +16,7 @@ pub struct InsertCronJobVariable {
 }
 
 impl InsertCronJobVariable {
-    pub fn new(kv: (&str, &str), job_id: &str) -> Self {
+    pub fn new(kv: (&String, &String), job_id: &str) -> Self {
         let cv_id = Uuid::new_v4().to_string();
         let (cv_name, cv_value) = kv;
         Self {

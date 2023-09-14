@@ -9,17 +9,15 @@ use actix_web::{
     web::{Data, Json},
     HttpResponse, Responder,
 };
-use bld_core::{
-    database::DbConnection, messages::ExecClientMessage, proxies::PipelineFileSystemProxy,
-};
-use diesel::r2d2::{ConnectionManager, Pool};
+use bld_core::{messages::ExecClientMessage, proxies::PipelineFileSystemProxy};
+use sea_orm::DatabaseConnection;
 use tracing::info;
 
 #[post("/run")]
 pub async fn post(
     user: User,
     proxy: Data<PipelineFileSystemProxy>,
-    pool: Data<Pool<ConnectionManager<DbConnection>>>,
+    conn: Data<DatabaseConnection>,
     supervisor: Data<SupervisorMessageSender>,
     data: Json<ExecClientMessage>,
 ) -> impl Responder {
@@ -28,7 +26,7 @@ pub async fn post(
     let result = enqueue_worker(
         &user.name,
         Arc::clone(&proxy),
-        Arc::clone(&pool),
+        Arc::clone(&conn),
         Arc::clone(&supervisor),
         data.into_inner(),
     )

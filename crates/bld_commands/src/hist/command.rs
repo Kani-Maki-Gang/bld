@@ -42,7 +42,7 @@ pub struct HistCommand {
         default_value = "100",
         help = "Limit the results"
     )]
-    limit: i64,
+    limit: u64,
 }
 
 impl BldCommand for HistCommand {

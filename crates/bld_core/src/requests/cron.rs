@@ -59,7 +59,7 @@ pub struct JobFiltersParams {
     pub pipeline: Option<String>,
     pub schedule: Option<String>,
     pub is_default: Option<bool>,
-    pub limit: Option<i64>,
+    pub limit: Option<u64>,
 }
 
 impl JobFiltersParams {
@@ -68,7 +68,7 @@ impl JobFiltersParams {
         pipeline: Option<String>,
         schedule: Option<String>,
         is_default: Option<bool>,
-        limit: Option<i64>,
+        limit: Option<u64>,
     ) -> Self {
         Self {
             id,

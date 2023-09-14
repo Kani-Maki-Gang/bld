@@ -18,7 +18,7 @@ pub struct InsertCronJobEnvironmentVariable {
 }
 
 impl InsertCronJobEnvironmentVariable {
-    pub fn new(kv: (&str, &str), job_id: &str) -> Self {
+    pub fn new(kv: (&String, &String), job_id: &str) -> Self {
         let cve_id = Uuid::new_v4().to_string();
         let (cve_name, cve_value) = kv;
         Self {

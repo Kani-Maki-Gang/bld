@@ -28,9 +28,7 @@ pub struct UpdateCronJob {
     pub schedule: String,
 }
 
-pub async fn select_all<C: ConnectionTrait + TransactionTrait>(
-    conn: &DatabaseConnection,
-) -> Result<Vec<CronJob>> {
+pub async fn select_all<C: ConnectionTrait + TransactionTrait>(conn: &C) -> Result<Vec<CronJob>> {
     debug!("loading all cron jobs from the database");
     CronJobEntity::find()
         .all(conn)
