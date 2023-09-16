@@ -206,6 +206,8 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
         cron_job_environment_variables::insert_many(&txn, cve_models).await?;
     }
 
+    txn.commit().await?;
+
     debug!("created cron job successfully");
     Ok(())
 }
@@ -241,6 +243,7 @@ pub async fn update<C: ConnectionTrait + TransactionTrait>(
         cron_job_environment_variables::insert_many(&txn, cve_models).await?;
     }
 
+    txn.commit().await?;
     debug!("updated cron job successfully");
     Ok(())
 }
@@ -265,7 +268,10 @@ pub async fn delete_by_cron_job_id<C: ConnectionTrait + TransactionTrait>(
         .map_err(|e| {
             error!("couldn't delete cron job due to {e}");
             anyhow!(e)
-        })
+        })?;
+
+    txn.commit().await?;
+    Ok(())
 }
 
 pub async fn delete_by_pipeline<C: ConnectionTrait + TransactionTrait>(
@@ -290,5 +296,6 @@ pub async fn delete_by_pipeline<C: ConnectionTrait + TransactionTrait>(
                 anyhow!(e)
             })?;
     }
+    txn.commit().await?;
     Ok(())
 }

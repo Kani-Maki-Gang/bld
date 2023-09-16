@@ -22,24 +22,6 @@ pub struct InsertPipelineRun {
     pub app_user: String,
 }
 
-pub async fn select_all<C: ConnectionTrait + TransactionTrait>(
-    conn: &C,
-) -> Result<Vec<PipelineRuns>> {
-    debug!("loading all pipeline runs from the database");
-    PipelineRunsEntity::find()
-        .order_by_asc(pipeline_runs::Column::StartDate)
-        .all(conn)
-        .await
-        .map(|p| {
-            debug!("loaded all pipeline runs successfully");
-            p
-        })
-        .map_err(|e| {
-            error!("couldn't load pipeline runs due to: {e}");
-            anyhow!(e)
-        })
-}
-
 pub async fn select_running_by_id<C: ConnectionTrait + TransactionTrait>(
     conn: &C,
     run_id: &str,
@@ -113,7 +95,7 @@ pub async fn select_last<C: ConnectionTrait + TransactionTrait>(conn: &C) -> Res
     debug!("loading the last invoked pipeline from the database");
 
     let model = PipelineRunsEntity::find()
-        .order_by_desc(pipeline_runs::Column::StartDate)
+        .order_by_desc(pipeline_runs::Column::DateCreated)
         .one(conn)
         .await
         .map_err(|e| {
@@ -148,7 +130,7 @@ pub async fn select_with_filters<C: ConnectionTrait + TransactionTrait>(
     }
 
     find.limit(limit_by)
-        .order_by_desc(pipeline_runs::Column::StartDate)
+        .order_by_desc(pipeline_runs::Column::DateCreated)
         .all(conn)
         .await
         .map(|mut p| {

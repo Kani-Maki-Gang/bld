@@ -142,5 +142,7 @@ pub async fn delete_by_name<C: ConnectionTrait + TransactionTrait>(
         .map_err(|e| {
             error!("could not delete pipeline due to {e}");
             anyhow!(e)
-        })
+        })?;
+    txn.commit().await?;
+    Ok(())
 }
