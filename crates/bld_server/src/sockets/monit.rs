@@ -16,6 +16,7 @@ use bld_core::{
 use futures_util::future::ready;
 use sea_orm::DatabaseConnection;
 use std::{sync::Arc, time::Duration};
+use tracing::{debug, error};
 
 pub struct MonitorPipelineSocket {
     id: String,
@@ -43,10 +44,10 @@ impl MonitorPipelineSocket {
         }
     }
 
-    fn exec(act: &mut Self) {
+    fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
         let conn = act.conn.clone();
         let id = act.id.to_owned();
-        let _ = async move { pipeline_runs::select_by_id(conn.as_ref(), &id).await }
+        let select_fut = async move { pipeline_runs::select_by_id(conn.as_ref(), &id).await }
             .into_actor(act)
             .then(|res, _, ctx| match res {
                 Ok(run) if run.state == PR_STATE_FINISHED || run.state == PR_STATE_FAULTED => {
@@ -60,12 +61,13 @@ impl MonitorPipelineSocket {
                 }
                 _ => ready(()),
             });
+        ctx.spawn(select_fut);
     }
 
-    fn dependencies(&mut self, data: &str) {
+    fn dependencies(&mut self, data: String, ctx: &mut <Self as Actor>::Context) {
         let conn = self.conn.clone();
-        let _ = async move {
-            let data = serde_json::from_str::<MonitInfo>(data)?;
+        let pipeline_fut = async move {
+            let data = serde_json::from_str::<MonitInfo>(&data)?;
             let run = if data.last {
                 pipeline_runs::select_last(conn.as_ref()).await
             } else if let Some(id) = data.id {
@@ -78,19 +80,22 @@ impl MonitorPipelineSocket {
             run.map_err(|_| anyhow!("pipeline not found"))
         }
         .into_actor(self)
-        .then(|res, _, ctx| match res {
+        .then(|res, act, ctx| match res {
             Ok(run) => {
-                self.id = run.id.clone();
-                self.scanner = Some(FileScanner::new(Arc::clone(&self.config), &run.id));
+                debug!("starting scan for run");
+                act.id = run.id.clone();
+                act.scanner = Some(FileScanner::new(Arc::clone(&act.config), &run.id));
                 ready(())
             }
             Err(e) => {
-                eprintln!("{e}");
+                error!("{e}");
                 ctx.text("internal server error");
                 ctx.stop();
                 ready(())
             }
         });
+
+        ctx.spawn(pipeline_fut);
     }
 }
 
@@ -101,8 +106,8 @@ impl Actor for MonitorPipelineSocket {
         ctx.run_interval(Duration::from_millis(500), |act, ctx| {
             MonitorPipelineSocket::scan(act, ctx);
         });
-        ctx.run_interval(Duration::from_secs(1), |act, _| {
-            MonitorPipelineSocket::exec(act);
+        ctx.run_interval(Duration::from_secs(1), |act, ctx| {
+            MonitorPipelineSocket::exec(act, ctx);
         });
     }
 }
@@ -111,7 +116,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MonitorPipelineSo
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(txt)) => {
-                self.dependencies(&txt);
+                debug!("received message {txt}");
+                self.dependencies(txt.to_string(), ctx);
             }
             Ok(ws::Message::Ping(msg)) => {
                 ctx.pong(&msg);

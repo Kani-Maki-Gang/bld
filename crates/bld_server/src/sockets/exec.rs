@@ -63,10 +63,11 @@ impl ExecutePipelineSocket {
         }
     }
 
-    fn exec(act: &mut Self) {
+    fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
         if let Some(run_id) = act.run_id.as_ref() {
             let conn = act.conn.clone();
-            let _ = async move { pipeline_runs::select_by_id(conn.as_ref(), run_id).await }
+            let run_id = run_id.to_owned();
+            let select_fut = async move { pipeline_runs::select_by_id(conn.as_ref(), &run_id).await }
                 .into_actor(act)
                 .then(|res, _, ctx| match res {
                     Ok(run) if run.state == PR_STATE_FINISHED || run.state == PR_STATE_FAULTED => {
@@ -85,6 +86,7 @@ impl ExecutePipelineSocket {
                     }
                     _ => ready(())
                 });
+            ctx.spawn(select_fut);
         }
     }
 
@@ -136,8 +138,8 @@ impl Actor for ExecutePipelineSocket {
         ctx.run_interval(Duration::from_millis(500), |act, ctx| {
             ExecutePipelineSocket::scan(act, ctx);
         });
-        ctx.run_interval(Duration::from_secs(1), |act, _| {
-            ExecutePipelineSocket::exec(act);
+        ctx.run_interval(Duration::from_secs(1), |act, ctx| {
+            ExecutePipelineSocket::exec(act, ctx);
         });
     }
 }

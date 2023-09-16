@@ -6,7 +6,7 @@ use awc::ws::{Codec, Frame, Message};
 use awc::BoxedSocket;
 use bld_core::messages::MonitInfo;
 use futures::stream::SplitSink;
-use tracing::debug;
+use tracing::{debug, error};
 
 pub struct MonitClient {
     writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>,
@@ -36,9 +36,14 @@ impl Actor for MonitClient {
 impl Handler<MonitInfo> for MonitClient {
     type Result = ();
 
-    fn handle(&mut self, msg: MonitInfo, _ctx: &mut Self::Context) {
-        if let Ok(text) = serde_json::to_string(&msg) {
-            let _ = self.writer.write(Message::Text(text.into()));
+    fn handle(&mut self, msg: MonitInfo, ctx: &mut Self::Context) {
+        let Ok(text) = serde_json::to_string(&msg) else {
+            return;
+        };
+        debug!("sending data {text} to socket");
+        if self.writer.write(Message::Text(text.into())).is_err() {
+            error!("encountered error while sending data to socket");
+            ctx.stop();
         }
     }
 }
