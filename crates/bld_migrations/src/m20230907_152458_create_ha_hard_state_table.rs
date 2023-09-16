@@ -25,13 +25,10 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(HighAvailabilityHardState::DateCreated)
                             .timestamp()
+                            .default(SimpleExpr::Keyword(Keyword::CurrentTimestamp))
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(HighAvailabilityHardState::DateUpdated)
-                            .timestamp()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(HighAvailabilityHardState::DateUpdated).timestamp())
                     .to_owned(),
             )
             .await?;

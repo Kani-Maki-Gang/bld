@@ -10,8 +10,10 @@ pub struct Model {
     pub name: String,
     pub state: String,
     pub app_user: String,
-    pub start_date: DateTime,
-    pub end_date: DateTime,
+    pub start_date: Option<DateTime>,
+    pub end_date: Option<DateTime>,
+    pub date_created: DateTime,
+    pub date_updated: Option<DateTime>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

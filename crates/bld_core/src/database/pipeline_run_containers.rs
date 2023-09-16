@@ -5,9 +5,10 @@ use bld_entities::{
     pipeline_runs,
 };
 use bld_migrations::Expr;
+use chrono::Utc;
 use sea_orm::{
-    ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait, IntoActiveModel,
-    JoinType, QueryFilter, QuerySelect, RelationTrait, TransactionTrait,
+    ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait, JoinType, QueryFilter,
+    QuerySelect, RelationTrait, TransactionTrait,
 };
 use tracing::{debug, error};
 
@@ -59,7 +60,7 @@ pub async fn select_in_invalid_state<C: ConnectionTrait + TransactionTrait>(
     let mut active_containers = PipelineRunContainersEntity::find()
         .join(
             JoinType::InnerJoin,
-            pipeline_runs::Relation::PipelineRunContainers.def(),
+            pipeline_run_containers::Relation::PipelineRuns.def(),
         )
         .filter(
             Condition::any()
@@ -121,14 +122,17 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
 
 pub async fn update_state<C: ConnectionTrait + TransactionTrait>(
     conn: &C,
-    prc_id: &str,
-    prc_state: &str,
+    id: &str,
+    state: &str,
 ) -> Result<()> {
-    debug!("updating pipeline run container with id: {prc_id} with new state: {prc_state}");
-    let mut model = select_by_id(conn, prc_id).await?.into_active_model();
-    model.state = Set(prc_state.to_owned());
-
-    PipelineRunContainersEntity::update(model)
+    debug!("updating pipeline run container with id: {id} with new state: {state}");
+    let date_updated = Utc::now().naive_utc();
+    PipelineRunContainersEntity::update_many()
+        .col_expr(pipeline_run_containers::Column::State, Expr::value(state))
+        .col_expr(
+            pipeline_run_containers::Column::DateUpdated,
+            Expr::value(date_updated),
+        )
         .exec(conn)
         .await
         .map(|_| {
@@ -148,10 +152,15 @@ pub async fn update_running_containers_to_faulted<C: ConnectionTrait + Transacti
         "updating all pipeline run containers of run id: {} from state running to faulted",
         prc_run_id
     );
+    let date_updated = Utc::now().naive_utc();
     PipelineRunContainersEntity::update_many()
         .col_expr(
             pipeline_run_containers::Column::State,
             Expr::value(PRC_STATE_FAULTED),
+        )
+        .col_expr(
+            pipeline_run_containers::Column::DateUpdated,
+            Expr::value(date_updated),
         )
         .filter(pipeline_run_containers::Column::RunId.eq(prc_run_id))
         .filter(pipeline_run_containers::Column::State.eq(PRC_STATE_ACTIVE))

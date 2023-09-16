@@ -19,12 +19,15 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(PipelineRuns::Name).string().not_null())
                     .col(ColumnDef::new(PipelineRuns::State).string().not_null())
                     .col(ColumnDef::new(PipelineRuns::AppUser).string().not_null())
+                    .col(ColumnDef::new(PipelineRuns::StartDate).timestamp())
+                    .col(ColumnDef::new(PipelineRuns::EndDate).timestamp())
                     .col(
-                        ColumnDef::new(PipelineRuns::StartDate)
+                        ColumnDef::new(PipelineRuns::DateCreated)
                             .timestamp()
+                            .default(SimpleExpr::Keyword(Keyword::CurrentTimestamp))
                             .not_null(),
                     )
-                    .col(ColumnDef::new(PipelineRuns::EndDate).timestamp().not_null())
+                    .col(ColumnDef::new(PipelineRuns::DateUpdated).timestamp())
                     .to_owned(),
             )
             .await?;
@@ -48,4 +51,6 @@ pub enum PipelineRuns {
     AppUser,
     StartDate,
     EndDate,
+    DateCreated,
+    DateUpdated,
 }

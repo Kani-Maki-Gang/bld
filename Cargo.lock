@@ -724,6 +724,7 @@ dependencies = [
  "bld_entities",
  "bld_migrations",
  "bld_utils",
+ "chrono",
  "futures",
  "futures-util",
  "libsqlite3-sys",

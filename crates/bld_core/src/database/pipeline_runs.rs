@@ -1,8 +1,9 @@
 use anyhow::{anyhow, Result};
 use bld_entities::pipeline_runs::{self, Entity as PipelineRunsEntity};
 use bld_migrations::Expr;
+use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, DatabaseConnection,
+    prelude::DateTime, ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait,
     EntityTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use tracing::{debug, error};
@@ -63,7 +64,10 @@ pub async fn select_running_by_id<C: ConnectionTrait + TransactionTrait>(
     Ok(model)
 }
 
-pub async fn select_by_id(conn: &DatabaseConnection, pip_id: &str) -> Result<PipelineRuns> {
+pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    pip_id: &str,
+) -> Result<PipelineRuns> {
     debug!("loading pipeline with id: {pip_id} from the database");
 
     let model = PipelineRunsEntity::find_by_id(pip_id)
@@ -82,7 +86,10 @@ pub async fn select_by_id(conn: &DatabaseConnection, pip_id: &str) -> Result<Pip
     Ok(model)
 }
 
-pub async fn select_by_name(conn: &DatabaseConnection, pip_name: &str) -> Result<PipelineRuns> {
+pub async fn select_by_name<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    pip_name: &str,
+) -> Result<PipelineRuns> {
     debug!("loading pipeline with name: {pip_name} from the database");
 
     let model = PipelineRunsEntity::find()
@@ -102,7 +109,7 @@ pub async fn select_by_name(conn: &DatabaseConnection, pip_name: &str) -> Result
     Ok(model)
 }
 
-pub async fn select_last(conn: &DatabaseConnection) -> Result<PipelineRuns> {
+pub async fn select_last<C: ConnectionTrait + TransactionTrait>(conn: &C) -> Result<PipelineRuns> {
     debug!("loading the last invoked pipeline from the database");
 
     let model = PipelineRunsEntity::find()
@@ -122,8 +129,8 @@ pub async fn select_last(conn: &DatabaseConnection) -> Result<PipelineRuns> {
     Ok(model)
 }
 
-pub async fn select_with_filters(
-    conn: &DatabaseConnection,
+pub async fn select_with_filters<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
     flt_state: &Option<String>,
     flt_name: &Option<String>,
     limit_by: u64,
@@ -155,7 +162,10 @@ pub async fn select_with_filters(
         })
 }
 
-pub async fn insert(conn: &DatabaseConnection, model: InsertPipelineRun) -> Result<()> {
+pub async fn insert<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    model: InsertPipelineRun,
+) -> Result<()> {
     debug!("inserting new pipeline to the database");
 
     let active_model = pipeline_runs::ActiveModel {
@@ -178,16 +188,27 @@ pub async fn insert(conn: &DatabaseConnection, model: InsertPipelineRun) -> Resu
     Ok(())
 }
 
-pub async fn update_state(
-    conn: &DatabaseConnection,
-    pip_id: &str,
-    pip_state: &str,
+pub async fn update_state<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    id: &str,
+    state: &str,
 ) -> Result<PipelineRuns> {
-    debug!("updating pipeline id: {pip_id} with values state: {pip_state}");
+    debug!("updating pipeline id: {id} with values state: {state}");
+    let current_date = Utc::now().naive_utc();
+    let mut update_statement = PipelineRunsEntity::update_many()
+        .col_expr(pipeline_runs::Column::State, Expr::value(state))
+        .col_expr(
+            pipeline_runs::Column::DateUpdated,
+            Expr::value(current_date),
+        );
 
-    PipelineRunsEntity::update_many()
-        .col_expr(pipeline_runs::Column::State, Expr::value(pip_state))
-        .filter(pipeline_runs::Column::Id.eq(pip_id))
+    if state == PR_STATE_FINISHED || state == PR_STATE_FAULTED {
+        update_statement =
+            update_statement.col_expr(pipeline_runs::Column::EndDate, Expr::value(current_date));
+    }
+
+    update_statement
+        .filter(pipeline_runs::Column::Id.eq(id))
         .exec(conn)
         .await
         .map(|_| {
@@ -198,5 +219,25 @@ pub async fn update_state(
             anyhow!(e)
         })?;
 
-    select_by_id(conn, pip_id).await
+    select_by_id(conn, id).await
+}
+
+pub async fn update_start_date<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    id: &str,
+    start_date: &DateTime,
+) -> Result<()> {
+    debug!("updating pipeline run {id} with state_date {start_date}");
+    PipelineRunsEntity::update_many()
+        .col_expr(pipeline_runs::Column::StartDate, Expr::value(*start_date))
+        .filter(pipeline_runs::Column::Id.eq(id))
+        .exec(conn)
+        .await
+        .map(|_| {
+            debug!("update pipeline run start date successfully");
+        })
+        .map_err(|e| {
+            debug!("couldn't update pipeline run's start date due to {e}");
+            anyhow!(e)
+        })
 }

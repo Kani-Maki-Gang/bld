@@ -1,15 +1,17 @@
 use anyhow::{anyhow, Result};
 use bld_entities::high_availability_state_machine::{self, Entity as HighAvailStateMachineEntity};
+use bld_migrations::Expr;
+use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DatabaseConnection, EntityTrait,
-    IntoActiveModel, QueryOrder, TransactionTrait,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
+    QueryOrder, TransactionTrait,
 };
 use tracing::{debug, error};
 
 use bld_entities::high_availability_state_machine::Model as HighAvailStateMachine;
 
 pub async fn select_first<C: ConnectionTrait + TransactionTrait>(
-    conn: &DatabaseConnection,
+    conn: &C,
 ) -> Result<HighAvailStateMachine> {
     debug!("loading the first entry of high availability state machine");
 
@@ -36,7 +38,7 @@ pub async fn select_first<C: ConnectionTrait + TransactionTrait>(
 }
 
 pub async fn select_last<C: ConnectionTrait + TransactionTrait>(
-    conn: &DatabaseConnection,
+    conn: &C,
 ) -> Result<HighAvailStateMachine> {
     debug!("loading the last entry of high availability state machine");
 
@@ -119,25 +121,31 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
 
 pub async fn update<C: ConnectionTrait + TransactionTrait>(
     conn: &C,
-    sm_id: i32,
-    sm_last_applied_log: i32,
+    id: i32,
+    last_applied_log: i32,
 ) -> Result<()> {
-    debug!(
-        "updating high availability state machine with id: {}",
-        sm_id
-    );
-
-    let mut model = select_by_id(conn, sm_id).await?.into_active_model();
-    model.last_applied_log = Set(sm_last_applied_log);
-
-    model.update(conn).await.map_err(|e| {
-        error!(
-            "could not update high availability state machine due to: {}",
-            e
-        );
-        anyhow!(e)
-    })?;
-
-    debug!("updated high availability state machine successfully");
-    Ok(())
+    debug!("updating high availability state machine with id: {}", id);
+    let date_updated = Utc::now().naive_utc();
+    HighAvailStateMachineEntity::update_many()
+        .col_expr(
+            high_availability_state_machine::Column::LastAppliedLog,
+            Expr::value(last_applied_log),
+        )
+        .col_expr(
+            high_availability_state_machine::Column::DateUpdated,
+            Expr::value(date_updated),
+        )
+        .filter(high_availability_state_machine::Column::Id.eq(id))
+        .exec(conn)
+        .await
+        .map(|_| {
+            debug!("updated high availability state machine successfully");
+        })
+        .map_err(|e| {
+            error!(
+                "could not update high availability state machine due to: {}",
+                e
+            );
+            anyhow!(e)
+        })
 }

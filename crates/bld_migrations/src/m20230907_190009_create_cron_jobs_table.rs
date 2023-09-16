@@ -21,8 +21,13 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(CronJobs::PipelineId).string().not_null())
                     .col(ColumnDef::new(CronJobs::Schedule).string().not_null())
                     .col(ColumnDef::new(CronJobs::IsDefault).boolean().not_null())
-                    .col(ColumnDef::new(CronJobs::DateCreated).timestamp().not_null())
-                    .col(ColumnDef::new(CronJobs::DateUpdated).timestamp().not_null())
+                    .col(
+                        ColumnDef::new(CronJobs::DateCreated)
+                            .timestamp()
+                            .default(SimpleExpr::Keyword(Keyword::CurrentTimestamp))
+                            .not_null(),
+                    )
+                    .col(ColumnDef::new(CronJobs::DateUpdated).timestamp())
                     .foreign_key(
                         ForeignKey::create()
                             .from_tbl(CronJobs::Table)

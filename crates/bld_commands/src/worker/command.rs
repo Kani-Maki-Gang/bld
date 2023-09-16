@@ -15,6 +15,7 @@ use bld_runner::RunnerBuilder;
 use bld_sock::clients::WorkerClient;
 use bld_utils::sync::IntoArc;
 use bld_utils::variables::parse_variables;
+use chrono::Utc;
 use clap::Args;
 use futures::join;
 use futures::stream::StreamExt;
@@ -77,8 +78,9 @@ impl BldCommand for WorkerCommand {
             let environment = parse_variables(&self.environment).into_arc();
 
             let conn = new_connection_pool(config.clone()).await?.into_arc();
-            let pipeline_run = pipeline_runs::select_by_id(conn.as_ref(), &run_id).await?;
-            let start_date_time = pipeline_run.start_date.to_string();
+            let start_date = Utc::now().naive_utc();
+            pipeline_runs::update_start_date(conn.as_ref(), &run_id, &start_date).await?;
+            let start_date = start_date.format("%F %X").to_string();
             let proxy = PipelineFileSystemProxy::Server {
                 config: config.clone(),
                 conn: conn.clone(),
@@ -100,7 +102,7 @@ impl BldCommand for WorkerCommand {
             let runner_handle = spawn(async move {
                 match RunnerBuilder::default()
                     .run_id(&run_id)
-                    .run_start_time(&start_date_time)
+                    .run_start_time(&start_date)
                     .config(config)
                     .proxy(proxy)
                     .pipeline(&pipeline)

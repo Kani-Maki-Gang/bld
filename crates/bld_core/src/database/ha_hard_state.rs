@@ -1,8 +1,10 @@
 use anyhow::{anyhow, Result};
 use bld_entities::high_availability_hard_state::{self, Entity as HighAvailHardStateEntity};
+use bld_migrations::Expr;
+use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, EntityTrait, IntoActiveModel, QueryOrder,
-    TransactionTrait,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
+    QueryOrder, TransactionTrait,
 };
 use tracing::{debug, error};
 
@@ -125,27 +127,36 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
 
 pub async fn update<C: ConnectionTrait + TransactionTrait>(
     conn: &C,
-    hs_id: i32,
-    hs_current_term: i32,
-    hs_voted_for: Option<i32>,
+    id: i32,
+    current_term: i32,
+    voted_for: Option<i32>,
 ) -> Result<()> {
-    debug!(
-        "updateing the high availability hard state with id: {}",
-        hs_id
-    );
-
-    let mut active_model = select_by_id(conn, hs_id).await?.into_active_model();
-    active_model.current_term = Set(hs_current_term);
-    active_model.voted_for = Set(hs_voted_for);
-
-    active_model.update(conn).await.map_err(|e| {
-        error!(
-            "update of high availability hard state failed due to: {}",
-            e
-        );
-        anyhow!(e)
-    })?;
-
-    debug!("updated the high availability hard state successfully");
-    Ok(())
+    debug!("updateing the high availability hard state with id: {}", id);
+    let date_updated = Utc::now().naive_utc();
+    HighAvailHardStateEntity::update_many()
+        .col_expr(
+            high_availability_hard_state::Column::CurrentTerm,
+            Expr::value(current_term),
+        )
+        .col_expr(
+            high_availability_hard_state::Column::VotedFor,
+            Expr::value(voted_for),
+        )
+        .col_expr(
+            high_availability_hard_state::Column::DateUpdated,
+            Expr::value(date_updated),
+        )
+        .filter(high_availability_hard_state::Column::Id.eq(id))
+        .exec(conn)
+        .await
+        .map(|_| {
+            debug!("updated the high availability hard state successfully");
+        })
+        .map_err(|e| {
+            error!(
+                "update of high availability hard state failed due to: {}",
+                e
+            );
+            anyhow!(e)
+        })
 }

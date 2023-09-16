@@ -31,13 +31,10 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(HighAvailabilityClientStatus::DateCreated)
                             .timestamp()
+                            .default(SimpleExpr::Keyword(Keyword::CurrentTimestamp))
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(HighAvailabilityClientStatus::DateUpdated)
-                            .timestamp()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(HighAvailabilityClientStatus::DateUpdated).timestamp())
                     .foreign_key(
                         ForeignKey::create()
                             .from_tbl(HighAvailabilityClientStatus::Table)

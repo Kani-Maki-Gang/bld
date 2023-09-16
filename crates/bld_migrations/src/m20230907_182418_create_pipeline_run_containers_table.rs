@@ -36,6 +36,7 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(PipelineRunContainers::DateCreated)
                             .timestamp()
+                            .default(SimpleExpr::Keyword(Keyword::CurrentTimestamp))
                             .not_null(),
                     )
                     .col(

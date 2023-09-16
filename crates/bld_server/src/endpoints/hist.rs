@@ -25,19 +25,7 @@ async fn history_info(
     let history =
         pipeline_runs::select_with_filters(conn, &params.state, &params.name, params.limit).await;
     let entries = history
-        .map(|entries| {
-            entries
-                .into_iter()
-                .map(|p| HistoryEntry {
-                    name: p.name,
-                    id: p.id,
-                    user: p.app_user,
-                    state: p.state,
-                    start_date_time: p.start_date.to_string(),
-                    end_date_time: p.end_date.to_string(),
-                })
-                .collect()
-        })
+        .map(|entries| entries.into_iter().map(|p| p.into()).collect())
         .unwrap_or_else(|_| vec![]);
     Ok(entries)
 }

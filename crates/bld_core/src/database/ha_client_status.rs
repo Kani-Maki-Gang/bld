@@ -1,7 +1,10 @@
 use anyhow::{anyhow, Result};
 use bld_entities::high_availability_client_status::{self, Entity as HighAvailClientStatusEntity};
+use bld_migrations::Expr;
+use chrono::Utc;
 use sea_orm::{
-    ActiveValue::Set, ConnectionTrait, EntityTrait, IntoActiveModel, QueryOrder, TransactionTrait,
+    ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder,
+    TransactionTrait,
 };
 use tracing::{debug, error};
 
@@ -114,28 +117,34 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
 
 pub async fn update<C: ConnectionTrait + TransactionTrait>(
     conn: &C,
-    cs_id: i32,
-    cs_status: &str,
+    id: i32,
+    status: &str,
 ) -> Result<()> {
     debug!(
         "updating high availability client status: {} with status: {}",
-        cs_id, cs_status
+        id, status
     );
-
-    let mut model = select_by_id(conn, cs_id).await?.into_active_model();
-    model.status = Set(cs_status.to_owned());
-
-    HighAvailClientStatusEntity::update(model)
+    let date_updated = Utc::now().naive_utc();
+    HighAvailClientStatusEntity::update_many()
+        .col_expr(
+            high_availability_client_status::Column::Status,
+            Expr::value(status),
+        )
+        .col_expr(
+            high_availability_client_status::Column::DateUpdated,
+            Expr::value(date_updated),
+        )
+        .filter(high_availability_client_status::Column::Id.eq(id))
         .exec(conn)
         .await
+        .map(|_| {
+            debug!("updated high availability client status successfully");
+        })
         .map_err(|e| {
             error!(
                 "could not update high availability client status due to: {}",
                 e
             );
             anyhow!(e)
-        })?;
-
-    debug!("updated high availability client status successfully");
-    Ok(())
+        })
 }

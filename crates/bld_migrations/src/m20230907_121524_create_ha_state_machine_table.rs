@@ -25,6 +25,7 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(HighAvailabilityStateMachine::DateCreated)
                             .timestamp()
+                            .default(SimpleExpr::Keyword(Keyword::CurrentTimestamp))
                             .not_null(),
                     )
                     .col(ColumnDef::new(HighAvailabilityStateMachine::DateUpdated).timestamp())

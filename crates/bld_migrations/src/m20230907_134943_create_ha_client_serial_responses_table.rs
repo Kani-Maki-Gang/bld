@@ -33,6 +33,7 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(HighAvailabilityClientSerialResponses::DateCreated)
                             .timestamp()
+                            .default(SimpleExpr::Keyword(Keyword::CurrentTimestamp))
                             .not_null(),
                     )
                     .col(

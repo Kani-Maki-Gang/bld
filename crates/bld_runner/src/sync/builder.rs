@@ -41,7 +41,7 @@ impl Default for RunnerBuilder {
     fn default() -> Self {
         Self {
             run_id: Uuid::new_v4().to_string(),
-            run_start_time: Utc::now().format("%F %X").to_string(),
+            run_start_time: Utc::now().naive_utc().format("%F %X").to_string(),
             config: None,
             signals: None,
             logger: LoggerSender::default().into_arc(),

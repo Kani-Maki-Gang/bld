@@ -3,9 +3,11 @@ use bld_entities::{
     cron_jobs::{self, Entity as CronJobEntity},
     pipeline::{self, Entity as Pipeline},
 };
+use bld_migrations::Expr;
+use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, DatabaseConnection,
-    EntityTrait, IntoActiveModel, QueryFilter, QuerySelect, TransactionTrait,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, IntoActiveModel,
+    QueryFilter, QuerySelect, TransactionTrait,
 };
 use tracing::{debug, error};
 
@@ -208,18 +210,26 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
     Ok(())
 }
 
-pub async fn update(
-    conn: &DatabaseConnection,
+pub async fn update<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
     cj_model: &UpdateCronJob,
     cv_models: &Option<Vec<InsertCronJobVariable>>,
     cve_models: &Option<Vec<InsertCronJobEnvironmentVariable>>,
 ) -> Result<()> {
     debug!("updating cron job entry with id: {}", cj_model.id);
     let txn = conn.begin().await?;
+    let date_updated = Utc::now().naive_utc();
 
-    let mut model = select_by_id(&txn, &cj_model.id).await?.into_active_model();
-    model.schedule = Set(cj_model.schedule.to_owned());
-    model.update(&txn).await?;
+    CronJobEntity::update_many()
+        .col_expr(cron_jobs::Column::Schedule, Expr::value(&cj_model.schedule))
+        .col_expr(cron_jobs::Column::DateUpdated, Expr::value(date_updated))
+        .filter(cron_jobs::Column::Id.eq(&cj_model.id))
+        .exec(conn)
+        .await
+        .map_err(|e| {
+            error!("couldn't update cron job due to: {e}");
+            anyhow!(e)
+        })?;
 
     cron_job_variables::delete_by_cron_job_id(&txn, &cj_model.id).await?;
     if let Some(cv_models) = cv_models.as_ref() {
@@ -235,17 +245,19 @@ pub async fn update(
     Ok(())
 }
 
-pub async fn delete_by_cron_job_id(conn: &DatabaseConnection, cj_id: &str) -> Result<()> {
-    debug!("deleting cron job with id: {cj_id}");
+pub async fn delete_by_cron_job_id<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    id: &str,
+) -> Result<()> {
+    debug!("deleting cron job with id: {id}");
     let txn = conn.begin().await?;
 
-    cron_job_variables::delete_by_cron_job_id(&txn, cj_id).await?;
-    cron_job_environment_variables::delete_by_cron_job_id(&txn, cj_id).await?;
+    cron_job_variables::delete_by_cron_job_id(&txn, id).await?;
+    cron_job_environment_variables::delete_by_cron_job_id(&txn, id).await?;
 
-    select_by_id(&txn, cj_id)
-        .await?
-        .into_active_model()
-        .delete(&txn)
+    CronJobEntity::delete_many()
+        .filter(cron_jobs::Column::Id.eq(id))
+        .exec(&txn)
         .await
         .map(|_| {
             debug!("deleted cron job successfully");

@@ -11,7 +11,7 @@ pub struct Model {
     pub payload_type: String,
     pub payload: String,
     pub date_created: DateTime,
-    pub date_updated: DateTime,
+    pub date_updated: Option<DateTime>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

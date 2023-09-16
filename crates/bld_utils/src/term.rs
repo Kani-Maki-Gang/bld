@@ -17,7 +17,7 @@ pub fn print_error(text: &str) -> Result<()> {
     let mut stderr = StandardStream::stderr(ColorChoice::Always);
 
     stderr.set_color(ColorSpec::new().set_fg(Some(Color::Red)))?;
-    writeln!(&mut stderr, "{}", text)?;
+    writeln!(&mut stderr, "Error: {}", text)?;
 
     stderr.set_color(ColorSpec::new().set_fg(None))?;
 

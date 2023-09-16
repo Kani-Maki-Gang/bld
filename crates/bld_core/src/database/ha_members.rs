@@ -4,8 +4,8 @@ use bld_entities::{
     high_availability_snapshot,
 };
 use sea_orm::{
-    ActiveValue::Set, ConnectionTrait, EntityTrait, JoinType, QueryOrder, QuerySelect,
-    RelationTrait, TransactionTrait,
+    ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, QueryFilter, QueryOrder,
+    QuerySelect, RelationTrait, TransactionTrait,
 };
 use tracing::{debug, error};
 
@@ -36,8 +36,9 @@ pub async fn select<C: ConnectionTrait + TransactionTrait>(
     HighAvailMembersEntity::find()
         .join(
             JoinType::InnerJoin,
-            high_availability_snapshot::Relation::HighAvailabilityMembers.def(),
+            high_availability_members::Relation::HighAvailabilitySnapshot.def(),
         )
+        .filter(high_availability_snapshot::Column::Id.eq(sn_id))
         .all(conn)
         .await
         .map(|m| {

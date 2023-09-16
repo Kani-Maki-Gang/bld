@@ -359,7 +359,7 @@ impl CronScheduler {
                 environment,
                 is_default: job.is_default,
                 date_created: job.date_created.to_string(),
-                date_updated: Some(job.date_updated.to_string()),
+                date_updated: job.date_updated.map(|x| x.to_string()),
             });
         }
 

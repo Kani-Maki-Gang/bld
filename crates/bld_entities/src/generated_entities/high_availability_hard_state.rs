@@ -10,7 +10,7 @@ pub struct Model {
     pub current_term: i32,
     pub voted_for: Option<i32>,
     pub date_created: DateTime,
-    pub date_updated: DateTime,
+    pub date_updated: Option<DateTime>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

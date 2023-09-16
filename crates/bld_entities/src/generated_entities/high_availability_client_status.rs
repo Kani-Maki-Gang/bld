@@ -10,7 +10,7 @@ pub struct Model {
     pub state_machine_id: i32,
     pub status: String,
     pub date_created: DateTime,
-    pub date_updated: DateTime,
+    pub date_updated: Option<DateTime>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
