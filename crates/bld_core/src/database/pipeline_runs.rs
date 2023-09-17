@@ -76,6 +76,7 @@ pub async fn select_by_name<C: ConnectionTrait + TransactionTrait>(
 
     let model = PipelineRunsEntity::find()
         .filter(pipeline_runs::Column::Name.eq(pip_name))
+        .order_by_desc(pipeline_runs::Column::DateCreated)
         .one(conn)
         .await
         .map_err(|e| {

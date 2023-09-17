@@ -51,6 +51,10 @@ pub async fn insert_many<C: ConnectionTrait + TransactionTrait>(
     conn: &C,
     models: &[InsertCronJobVariable],
 ) -> Result<()> {
+    if models.is_empty() {
+        return Ok(());
+    }
+
     let models: Vec<cron_job_variables::ActiveModel> = models
         .iter()
         .map(|m| cron_job_variables::ActiveModel {
