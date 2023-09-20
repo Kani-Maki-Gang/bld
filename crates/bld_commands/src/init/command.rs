@@ -1,15 +1,18 @@
 use crate::command::BldCommand;
 use anyhow::{bail, Result};
-use bld_config::definitions::{
-    default_client_config, default_server_config, DEFAULT_V2_PIPELINE_CONTENT, LOCAL_DB,
-    LOCAL_LOGS, LOCAL_SERVER_PIPELINES, TOOL_DEFAULT_CONFIG_FILE, TOOL_DEFAULT_PIPELINE,
-    TOOL_DEFAULT_PIPELINE_FILE, TOOL_DIR,
-};
+use bld_config::definitions::{LOCAL_DEFAULT_DB_DIR, LOCAL_DEFAULT_DB_NAME};
 use bld_config::path;
+use bld_config::{
+    definitions::{
+        DEFAULT_V2_PIPELINE_CONTENT, LOCAL_LOGS, LOCAL_SERVER_PIPELINES, TOOL_DEFAULT_CONFIG_FILE,
+        TOOL_DEFAULT_PIPELINE, TOOL_DEFAULT_PIPELINE_FILE, TOOL_DIR,
+    },
+    BldConfig,
+};
 use bld_utils::term::print_info;
 use clap::Args;
 use std::env::current_dir;
-use std::fs::{create_dir, read_dir, write};
+use std::fs::{create_dir, read_dir, write, File};
 use std::path::Component::Normal;
 use std::path::{Path, PathBuf};
 use tracing::debug;
@@ -39,7 +42,7 @@ impl BldCommand for InitCommand {
             debug!("running init subcommand with --server: {}", self.is_server);
             return create_build_dir()
                 .and_then(|_| create_logs_dir(self.is_server))
-                .and_then(|_| create_db_dir(self.is_server))
+                .and_then(|_| create_db(self.is_server))
                 .and_then(|_| create_server_pipelines_dir(self.is_server))
                 .and_then(|_| create_default_yaml())
                 .and_then(|_| create_config_yaml(self.is_server));
@@ -86,11 +89,13 @@ fn create_logs_dir(is_server: bool) -> Result<()> {
     Ok(())
 }
 
-fn create_db_dir(is_server: bool) -> Result<()> {
+fn create_db(is_server: bool) -> Result<()> {
     if is_server {
-        let path = path![TOOL_DIR, LOCAL_DB];
-        create_dir(path)?;
-        print_dir_created(LOCAL_DB)?;
+        let mut path = path![TOOL_DIR, LOCAL_DEFAULT_DB_DIR];
+        create_dir(&path)?;
+        path.push(LOCAL_DEFAULT_DB_NAME);
+        File::create(&path)?;
+        print_dir_created(LOCAL_DEFAULT_DB_DIR)?;
     }
     Ok(())
 }
@@ -114,8 +119,8 @@ fn create_default_yaml() -> Result<()> {
 fn create_config_yaml(is_server: bool) -> Result<()> {
     let path = path![TOOL_DIR, TOOL_DEFAULT_CONFIG_FILE];
     let content = match is_server {
-        true => default_server_config(),
-        false => default_client_config(),
+        true => BldConfig::default_yaml_for_server()?,
+        false => BldConfig::default_yaml_for_client()?,
     };
     write(path, content)?;
     print_info("config file created")?;

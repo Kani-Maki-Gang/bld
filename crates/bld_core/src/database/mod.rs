@@ -15,14 +15,16 @@ pub mod pipeline_runs;
 
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use bld_config::BldConfig;
 use bld_migrations::{Migrator, MigratorTrait};
 use sea_orm::{Database, DatabaseConnection};
 use tracing::debug;
 
 pub async fn new_connection_pool(config: Arc<BldConfig>) -> Result<DatabaseConnection> {
-    let path = config.db_full_path();
+    let Some(path) = &config.local.db else {
+        bail!("No database connection uri in config");
+    };
 
     debug!("creating sqlite connection pool");
     let conn = Database::connect(path).await?;
