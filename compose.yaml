@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:16-bullseye
+    restart: always
+    environment:
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: bld-server
+    ports:
+    - 5432:5432
+    volumes:
+    - db:/var/lib/postgres/data
+
+  mariadb:
+    image: mariadb:11-jammy
+    restart: always
+    environment:
+      MARIADB_USER: dev
+      MARIADB_PASSWORD: dev
+      MARIADB_ROOT_PASSWORD: dev
+      MARIADB_DATABASE: bld-server
+      MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: true
+    ports:
+    - 3306:3306
+    volumes:
+    - db:/var/lib/mariadb/data
+
+volumes:
+  db:
+    driver: local
