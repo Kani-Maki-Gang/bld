@@ -19,7 +19,6 @@ services:
       MARIADB_PASSWORD: dev
       MARIADB_ROOT_PASSWORD: dev
       MARIADB_DATABASE: bld-server
-      MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: true
     ports:
     - 3306:3306
     volumes:
