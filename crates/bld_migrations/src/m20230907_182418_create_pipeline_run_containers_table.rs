@@ -35,13 +35,13 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(PipelineRunContainers::DateCreated)
-                            .timestamp()
-                            .default(SimpleExpr::Keyword(Keyword::CurrentTimestamp))
+                            .date_time()
+                            .default(SimpleExpr::Keyword(Keyword::CurrentDate))
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(PipelineRunContainers::DateUpdated)
-                            .timestamp()
+                            .date_time()
                             .not_null(),
                     )
                     .foreign_key(

@@ -25,11 +25,11 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(HighAvailabilityMembers::DateCreated)
-                            .timestamp()
-                            .default(SimpleExpr::Keyword(Keyword::CurrentTimestamp))
+                            .date_time()
+                            .default(SimpleExpr::Keyword(Keyword::CurrentDate))
                             .not_null(),
                     )
-                    .col(ColumnDef::new(HighAvailabilityMembers::DateUpdated).timestamp())
+                    .col(ColumnDef::new(HighAvailabilityMembers::DateUpdated).date_time())
                     .foreign_key(
                         ForeignKey::create()
                             .from_tbl(HighAvailabilityMembers::Table)

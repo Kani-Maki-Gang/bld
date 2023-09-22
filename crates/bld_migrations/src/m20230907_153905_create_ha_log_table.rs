@@ -33,11 +33,11 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(HighAvailabilityLog::DateCreated)
-                            .timestamp()
-                            .default(SimpleExpr::Keyword(Keyword::CurrentTimestamp))
+                            .date_time()
+                            .default(SimpleExpr::Keyword(Keyword::CurrentDate))
                             .not_null(),
                     )
-                    .col(ColumnDef::new(HighAvailabilityLog::DateUpdated).timestamp())
+                    .col(ColumnDef::new(HighAvailabilityLog::DateUpdated).date_time())
                     .to_owned(),
             )
             .await?;

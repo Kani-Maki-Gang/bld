@@ -27,11 +27,11 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(CronJobVariables::DateCreated)
-                            .timestamp()
-                            .default(SimpleExpr::Keyword(Keyword::CurrentTimestamp))
+                            .date_time()
+                            .default(SimpleExpr::Keyword(Keyword::CurrentDate))
                             .not_null(),
                     )
-                    .col(ColumnDef::new(CronJobVariables::DateUpdated).timestamp())
+                    .col(ColumnDef::new(CronJobVariables::DateUpdated).date_time())
                     .foreign_key(
                         ForeignKey::create()
                             .from_tbl(CronJobVariables::Table)
