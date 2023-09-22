@@ -112,7 +112,7 @@ impl BldConfig {
         ]
         .display()
         .to_string();
-        instance.local.db = Some(format!("sqlite://{default_db}"));
+        instance.local.server.db = Some(format!("sqlite://{default_db}"));
         let yaml = serde_yaml::to_string(&instance)?;
         Ok(yaml)
     }
@@ -153,7 +153,7 @@ impl BldConfig {
     }
 
     pub fn log_full_path(&self, id: &str) -> PathBuf {
-        path![&self.root_dir, &self.local.logs, id]
+        path![&self.root_dir, &self.local.server.logs, id]
     }
 
     pub fn auth_full_path(&self, server: &str) -> PathBuf {

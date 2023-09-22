@@ -15,6 +15,11 @@ pub struct BldLocalServerConfig {
 
     #[serde(default = "BldLocalServerConfig::default_pipelines")]
     pub pipelines: String,
+
+    #[serde(default = "BldLocalServerConfig::default_logs")]
+    pub logs: String,
+
+    pub db: Option<String>,
 }
 
 impl BldLocalServerConfig {
@@ -29,6 +34,10 @@ impl BldLocalServerConfig {
     fn default_pipelines() -> String {
         definitions::LOCAL_SERVER_PIPELINES.to_owned()
     }
+
+    fn default_logs() -> String {
+        definitions::LOCAL_LOGS.to_owned()
+    }
 }
 
 impl Default for BldLocalServerConfig {
@@ -39,6 +48,8 @@ impl Default for BldLocalServerConfig {
             tls: None,
             auth: None,
             pipelines: Self::default_pipelines(),
+            logs: Self::default_logs(),
+            db: None,
         }
     }
 }

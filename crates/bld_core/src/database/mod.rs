@@ -22,7 +22,7 @@ use sea_orm::{Database, DatabaseConnection};
 use tracing::debug;
 
 pub async fn new_connection_pool(config: Arc<BldConfig>) -> Result<DatabaseConnection> {
-    let Some(path) = &config.local.db else {
+    let Some(path) = &config.local.server.db else {
         bail!("No database connection uri in config");
     };
 
