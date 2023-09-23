@@ -7,3 +7,4 @@
 !/.bld/config.yaml
 !/.bld/build-musl.yaml
 !/.bld/release.yaml
+!/.bld/Dockerfile

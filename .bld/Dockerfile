@@ -1,4 +1,4 @@
-FROM rust:1.65-bullseye
+FROM rust:1.72-bullseye
 
 ARG OPENSSL_VERSION=1.1.1m
 
