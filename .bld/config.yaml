@@ -1,2 +1,2 @@
 local:
-    docker-url: tcp://127.0.0.1:2376
+  docker_url: unix://var/run/docker.sock

@@ -12,6 +12,7 @@ jobs:
   main:
   - working_dir: /usr/src
     exec:
+    - echo 'Cloning repository on branch ${{branch}}'
     - git clone -b ${{branch}} https://github.com/kostas-vl/bld.git
   - working_dir: /usr/src/bld
     exec:
