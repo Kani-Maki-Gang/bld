@@ -1,6 +1,5 @@
 pub const VERSION: &str = "0.3";
 pub const TOOL_DIR: &str = ".bld";
-pub const DB_NAME: &str = "bld-server.db";
 pub const PUSH: &str = "push";
 pub const GET: &str = "get";
 
@@ -28,7 +27,8 @@ pub const LOCAL_SUPERVISOR_PORT: i64 = 7080;
 pub const LOCAL_SUPERVISOR_WORKERS: i64 = 5;
 pub const LOCAL_HA_MODE: bool = false;
 pub const LOCAL_LOGS: &str = "logs";
-pub const LOCAL_DB: &str = "db";
+pub const LOCAL_DEFAULT_DB_DIR: &str = "db";
+pub const LOCAL_DEFAULT_DB_NAME: &str = "bld-server.db";
 pub const LOCAL_DOCKER_URL: &str = "tcp://127.0.0.1:2376";
 pub const LOCAL_MACHINE_TMP_DIR: &str = "tmp";
 
@@ -52,32 +52,3 @@ jobs:
   main:
   - echo 'hello world'
 ";
-
-pub fn default_server_config() -> String {
-    format!(
-        r"local:
-    ha-mode: {LOCAL_HA_MODE}
-    server:
-        host: {LOCAL_SERVER_HOST}
-        port: {LOCAL_SERVER_PORT}
-        pipelines: {LOCAL_SERVER_PIPELINES}
-    supervisor:
-        host: {LOCAL_SUPERVISOR_HOST}
-        port: {LOCAL_SUPERVISOR_PORT}
-        workers: {LOCAL_SUPERVISOR_WORKERS}
-    logs: {LOCAL_LOGS}
-    db: {LOCAL_DB}
-    docker-url: {LOCAL_DOCKER_URL}"
-    )
-}
-
-pub fn default_client_config() -> String {
-    format!(
-        r"local:
-    docker-url: {LOCAL_DOCKER_URL}
-remote:
-    - server: {REMOTE_SERVER_NAME}
-      host: {REMOTE_SERVER_HOST}
-      port: {REMOTE_SERVER_PORT}"
-    )
-}

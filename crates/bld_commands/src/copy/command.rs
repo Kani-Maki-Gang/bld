@@ -28,18 +28,16 @@ pub struct CopyCommand {
 }
 
 impl CopyCommand {
-    fn local_copy(&self) -> Result<()> {
+    async fn local_copy(&self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config);
-        proxy.copy(&self.pipeline, &self.target)
+        proxy.copy(&self.pipeline, &self.target).await
     }
 
-    fn remote_copy(&self, server: &str) -> Result<()> {
-        System::new().block_on(async move {
-            let config = BldConfig::load()?.into_arc();
-            let client = HttpClient::new(config, server)?;
-            client.copy(&self.pipeline, &self.target).await
-        })
+    async fn remote_copy(&self, server: &str) -> Result<()> {
+        let config = BldConfig::load()?.into_arc();
+        let client = HttpClient::new(config, server)?;
+        client.copy(&self.pipeline, &self.target).await
     }
 }
 
@@ -49,9 +47,11 @@ impl BldCommand for CopyCommand {
     }
 
     fn exec(self) -> Result<()> {
-        match self.server.as_ref() {
-            Some(srv) => self.remote_copy(srv),
-            None => self.local_copy(),
-        }
+        System::new().block_on(async move {
+            match self.server.as_ref() {
+                Some(srv) => self.remote_copy(srv).await,
+                None => self.local_copy().await,
+            }
+        })
     }
 }

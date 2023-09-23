@@ -4,5 +4,5 @@ use serde::{Deserialize, Serialize};
 pub struct HistQueryParams {
     pub state: Option<String>,
     pub name: Option<String>,
-    pub limit: i64,
+    pub limit: u64,
 }

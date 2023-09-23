@@ -40,30 +40,35 @@ impl PushCommand {
     async fn push(self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let client = HttpClient::new(config.clone(), &self.server)?;
-        let proxy = PipelineFileSystemProxy::local(config.clone());
+        let proxy = PipelineFileSystemProxy::local(config.clone()).into_arc();
 
         debug!(
             "running push subcommand with --server: {} and --pipeline: {}",
             self.server, self.pipeline
         );
 
-        let mut pipelines = vec![(self.pipeline.to_owned(), proxy.read(&self.pipeline)?)];
+        let mut pipelines = vec![(self.pipeline.to_owned(), proxy.read(&self.pipeline).await?)];
 
         if !self.ignore_deps {
             print!("Resolving dependecies...");
 
-            let mut deps = VersionedPipeline::dependencies(&config, &proxy, &self.pipeline)
-                .map(|pips| {
-                    println!("Done.");
-                    pips
-                })
-                .map_err(|e| {
-                    println!("Error. {e}");
-                    anyhow!("")
-                })?
-                .into_iter()
-                .map(|(n, s)| (n, s))
-                .collect();
+            let mut deps = VersionedPipeline::dependencies(
+                config.clone(),
+                proxy.clone(),
+                self.pipeline.to_owned(),
+            )
+            .await
+            .map(|pips| {
+                println!("Done.");
+                pips
+            })
+            .map_err(|e| {
+                println!("Error. {e}");
+                anyhow!("")
+            })?
+            .into_iter()
+            .map(|(n, s)| (n, s))
+            .collect();
 
             pipelines.append(&mut deps);
         }

@@ -228,14 +228,10 @@ impl Runner {
     async fn external(&self, value: &str) -> Result<()> {
         debug!("starting execution of external section {value}");
 
-        let Some(external) = self
-            .pipeline
-            .external
-            .iter()
-            .find(|i| i.is(value)) else {
-                self.local_external(&External::local(value)).await?;
-                return Ok(());
-            };
+        let Some(external) = self.pipeline.external.iter().find(|i| i.is(value)) else {
+            self.local_external(&External::local(value)).await?;
+            return Ok(());
+        };
 
         match external.server.as_ref() {
             Some(server) => self.server_external(server, external).await?,

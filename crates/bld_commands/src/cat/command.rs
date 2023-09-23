@@ -29,22 +29,20 @@ pub struct CatCommand {
 }
 
 impl CatCommand {
-    fn local_print(&self) -> Result<()> {
+    async fn local_print(&self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config);
-        let pipeline = proxy.read(&self.pipeline)?;
+        let pipeline = proxy.read(&self.pipeline).await?;
         println!("{pipeline}");
         Ok(())
     }
 
-    fn remote_print(&self, server: &str) -> Result<()> {
-        System::new().block_on(async move {
-            let config = BldConfig::load()?.into_arc();
-            HttpClient::new(config, server)?
-                .print(&self.pipeline)
-                .await
-                .map(|r| println!("{r}"))
-        })
+    async fn remote_print(&self, server: &str) -> Result<()> {
+        let config = BldConfig::load()?.into_arc();
+        HttpClient::new(config, server)?
+            .print(&self.pipeline)
+            .await
+            .map(|r| println!("{r}"))
     }
 }
 
@@ -54,9 +52,11 @@ impl BldCommand for CatCommand {
     }
 
     fn exec(self) -> Result<()> {
-        match &self.server {
-            Some(srv) => self.remote_print(srv),
-            None => self.local_print(),
-        }
+        System::new().block_on(async move {
+            match &self.server {
+                Some(srv) => self.remote_print(srv).await,
+                None => self.local_print().await,
+            }
+        })
     }
 }

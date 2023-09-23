@@ -26,19 +26,17 @@ pub struct CheckCommand {
 }
 
 impl CheckCommand {
-    fn local_check(&self) -> Result<()> {
+    async fn local_check(&self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config.clone()).into_arc();
-        let content = proxy.read(&self.pipeline)?;
+        let content = proxy.read(&self.pipeline).await?;
         let pipeline = Yaml::load_with_verbose_errors(&content)?;
-        pipeline.validate_with_verbose_errors(config, proxy)
+        pipeline.validate_with_verbose_errors(config, proxy).await
     }
 
-    fn remote_check(&self, server: &str) -> Result<()> {
-        System::new().block_on(async move {
-            let config = BldConfig::load()?.into_arc();
-            HttpClient::new(config, server)?.check(&self.pipeline).await
-        })
+    async fn remote_check(&self, server: &str) -> Result<()> {
+        let config = BldConfig::load()?.into_arc();
+        HttpClient::new(config, server)?.check(&self.pipeline).await
     }
 }
 
@@ -48,9 +46,11 @@ impl BldCommand for CheckCommand {
     }
 
     fn exec(self) -> Result<()> {
-        match &self.server {
-            Some(server) => self.remote_check(server),
-            None => self.local_check(),
-        }
+        System::new().block_on(async move {
+            match &self.server {
+                Some(server) => self.remote_check(server).await,
+                None => self.local_check().await,
+            }
+        })
     }
 }

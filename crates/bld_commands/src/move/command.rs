@@ -28,19 +28,17 @@ pub struct MoveCommand {
 }
 
 impl MoveCommand {
-    fn local_move(&self) -> Result<()> {
+    async fn local_move(&self) -> Result<()> {
         let config = BldConfig::load()?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config);
-        proxy.mv(&self.pipeline, &self.target)
+        proxy.mv(&self.pipeline, &self.target).await
     }
 
-    fn remote_move(&self, server: &str) -> Result<()> {
-        System::new().block_on(async move {
-            let config = BldConfig::load()?.into_arc();
-            HttpClient::new(config, server)?
-                .mv(&self.pipeline, &self.target)
-                .await
-        })
+    async fn remote_move(&self, server: &str) -> Result<()> {
+        let config = BldConfig::load()?.into_arc();
+        HttpClient::new(config, server)?
+            .mv(&self.pipeline, &self.target)
+            .await
     }
 }
 
@@ -50,9 +48,11 @@ impl BldCommand for MoveCommand {
     }
 
     fn exec(self) -> Result<()> {
-        match self.server.as_ref() {
-            Some(srv) => self.remote_move(srv),
-            None => self.local_move(),
-        }
+        System::new().block_on(async move {
+            match self.server.as_ref() {
+                Some(srv) => self.remote_move(srv).await,
+                None => self.local_move().await,
+            }
+        })
     }
 }

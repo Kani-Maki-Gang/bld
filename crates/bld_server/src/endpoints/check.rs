@@ -18,18 +18,18 @@ pub async fn get(
     params: Query<PipelineQueryParams>,
 ) -> impl Responder {
     info!("Reached handler for /check route");
-    match do_check(Arc::clone(&config), Arc::clone(&proxy), &params) {
+    match do_check(Arc::clone(&config), Arc::clone(&proxy), &params).await {
         Ok(_) => HttpResponse::Ok().json(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
 
-fn do_check(
+async fn do_check(
     config: Arc<BldConfig>,
     proxy: Arc<PipelineFileSystemProxy>,
     params: &PipelineQueryParams,
 ) -> Result<()> {
-    let content = proxy.read(&params.pipeline)?;
+    let content = proxy.read(&params.pipeline).await?;
     let pipeline = Yaml::load_with_verbose_errors(&content)?;
-    pipeline.validate_with_verbose_errors(config, proxy)
+    pipeline.validate_with_verbose_errors(config, proxy).await
 }

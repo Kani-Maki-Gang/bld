@@ -21,7 +21,7 @@ use bld_utils::tls::load_root_certificates;
 use rustls::ClientConfig;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use tracing::{error, debug};
+use tracing::{debug, error};
 
 #[derive(Debug)]
 struct RequestError {
@@ -264,7 +264,7 @@ impl HttpClient {
         &self,
         state: Option<String>,
         name: Option<String>,
-        limit: i64,
+        limit: u64,
     ) -> Result<Vec<HistoryEntry>> {
         let params = HistQueryParams { state, name, limit };
         let response = self.hist_inner(&params).await;

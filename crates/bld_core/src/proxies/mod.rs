@@ -1,10 +1,7 @@
 use anyhow::{anyhow, bail, Result};
 use bld_config::{path, BldConfig};
 use bld_utils::{fs::IsYaml, sync::IntoArc};
-use diesel::{
-    r2d2::{ConnectionManager, Pool},
-    sqlite::SqliteConnection,
-};
+use sea_orm::DatabaseConnection;
 use std::{
     fmt::Write as FmtWrite,
     fs::{copy, create_dir_all, read_to_string, remove_file, rename, File},
@@ -16,7 +13,7 @@ use std::{
 use uuid::Uuid;
 use walkdir::WalkDir;
 
-use crate::database::pipeline::{self, Pipeline};
+use crate::database::pipeline::{self, InsertPipeline, Pipeline};
 
 pub enum PipelineFileSystemProxy {
     Local {
@@ -24,7 +21,7 @@ pub enum PipelineFileSystemProxy {
     },
     Server {
         config: Arc<BldConfig>,
-        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        conn: Arc<DatabaseConnection>,
     },
 }
 
@@ -41,11 +38,8 @@ impl PipelineFileSystemProxy {
         Self::Local { config }
     }
 
-    pub fn server(
-        config: Arc<BldConfig>,
-        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
-    ) -> Self {
-        Self::Server { config, pool }
+    pub fn server(config: Arc<BldConfig>, conn: Arc<DatabaseConnection>) -> Self {
+        Self::Server { config, conn }
     }
 
     fn config(&self) -> &BldConfig {
@@ -54,13 +48,12 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    fn server_path(&self, name: &str) -> Result<PathBuf> {
-        let Self::Server { config, pool } = self else {
+    async fn server_path(&self, name: &str) -> Result<PathBuf> {
+        let Self::Server { config, conn } = self else {
             bail!("server path isn't supported for a local proxy");
         };
 
-        let mut conn = pool.get()?;
-        let pip = pipeline::select_by_name(&mut conn, name)?;
+        let pip = pipeline::select_by_name(conn.as_ref(), name).await?;
         Ok(path![config.server_pipelines(), format!("{}.yaml", pip.id)])
     }
 
@@ -71,10 +64,10 @@ impl PipelineFileSystemProxy {
         Ok(path![config.server_pipelines(), format!("{}.yaml", pip.id)])
     }
 
-    pub fn path(&self, name: &str) -> Result<PathBuf> {
+    pub async fn path(&self, name: &str) -> Result<PathBuf> {
         match self {
             Self::Local { config } => Ok(config.full_path(name)),
-            Self::Server { .. } => self.server_path(name),
+            Self::Server { .. } => self.server_path(name).await,
         }
     }
 
@@ -86,8 +79,8 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    pub fn read(&self, name: &str) -> Result<String> {
-        let path = self.path(name)?;
+    pub async fn read(&self, name: &str) -> Result<String> {
+        let path = self.path(name).await?;
         self.read_internal(&path)
     }
 
@@ -113,23 +106,26 @@ impl PipelineFileSystemProxy {
         Ok(())
     }
 
-    pub fn create(&self, name: &str, content: &str, overwrite: bool) -> Result<()> {
+    pub async fn create(&self, name: &str, content: &str, overwrite: bool) -> Result<()> {
         let local_path = self.config().full_path(name);
 
         if !local_path.valid_path() {
             bail!("invalid pipeline path");
         }
 
-        if let Self::Server { pool, .. } = self {
-            let mut conn = pool.get()?;
-            let response = pipeline::select_by_name(&mut conn, name);
+        if let Self::Server { conn, .. } = self {
+            let response = pipeline::select_by_name(conn.as_ref(), name).await;
             if response.is_err() {
                 let id = Uuid::new_v4().to_string();
-                pipeline::insert(&mut conn, &id, name)?;
+                let model = InsertPipeline {
+                    id,
+                    name: name.to_owned(),
+                };
+                pipeline::insert(conn.as_ref(), model).await?;
             }
         }
 
-        let path = self.path(name)?;
+        let path = self.path(name).await?;
 
         self.create_internal(&path, content, overwrite)
     }
@@ -140,8 +136,8 @@ impl PipelineFileSystemProxy {
         Ok(path.display().to_string())
     }
 
-    pub fn remove(&self, name: &str) -> Result<()> {
-        let path = self.path(name)?;
+    pub async fn remove(&self, name: &str) -> Result<()> {
+        let path = self.path(name).await?;
         match self {
             Self::Local { .. } => {
                 if path.is_yaml() {
@@ -151,10 +147,10 @@ impl PipelineFileSystemProxy {
                     bail!("pipeline not found")
                 }
             }
-            Self::Server { pool, .. } => {
+            Self::Server { conn, .. } => {
                 if path.is_yaml() {
-                    let mut conn = pool.get()?;
-                    pipeline::delete_by_name(&mut conn, name)
+                    pipeline::delete_by_name(conn.as_ref(), name)
+                        .await
                         .and_then(|_| remove_file(path).map_err(|e| anyhow!(e)))
                         .map_err(|_| anyhow!("unable to remove pipeline"))
                 } else {
@@ -174,14 +170,14 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    pub fn copy(&self, source: &str, target: &str) -> Result<()> {
+    pub async fn copy(&self, source: &str, target: &str) -> Result<()> {
         match self {
             Self::Local { .. } => {
-                let source_path = self.path(source)?;
+                let source_path = self.path(source).await?;
                 if !source_path.is_yaml() {
                     bail!("invalid source pipeline path");
                 }
-                let target_path = self.path(target)?;
+                let target_path = self.path(target).await?;
                 if !target_path.valid_path() {
                     bail!("invalid target pipeline path");
                 }
@@ -195,14 +191,14 @@ impl PipelineFileSystemProxy {
                 Ok(())
             }
             Self::Server { .. } => {
-                let content = self.read(source)?;
-                self.create(target, &content, false)
+                let content = self.read(source).await?;
+                self.create(target, &content, false).await
             }
         }
     }
 
-    pub fn mv(&self, source: &str, target: &str) -> Result<()> {
-        let source_path = self.path(source)?;
+    pub async fn mv(&self, source: &str, target: &str) -> Result<()> {
+        let source_path = self.path(source).await?;
         if !source_path.is_yaml() {
             bail!("invalid source pipeline path");
         }
@@ -223,18 +219,18 @@ impl PipelineFileSystemProxy {
                 rename(source_path, target_path)?;
                 Ok(())
             }
-            Self::Server { pool, .. } => {
-                let mut conn = pool.get()?;
-                let source_pipeline = pipeline::select_by_name(&mut conn, source)?;
-                if pipeline::select_by_name(&mut conn, target).is_ok() {
+            Self::Server { conn, .. } => {
+                let conn = conn.as_ref();
+                let source_pipeline = pipeline::select_by_name(conn, source).await?;
+                if pipeline::select_by_name(conn, target).await.is_ok() {
                     bail!("target pipeline already exist");
                 };
-                pipeline::update_name(&mut conn, &source_pipeline.id, target)
+                pipeline::update_name(conn, &source_pipeline.id, target).await
             }
         }
     }
 
-    pub fn list(&self) -> Result<Vec<String>> {
+    pub async fn list(&self) -> Result<Vec<String>> {
         match self {
             Self::Local { config, .. } => {
                 let root_dir = format!("{}/", config.root_dir);
@@ -251,9 +247,9 @@ impl PipelineFileSystemProxy {
                 entries.sort();
                 Ok(entries)
             }
-            Self::Server { pool, .. } => {
-                let mut conn = pool.get()?;
-                let pips = pipeline::select_all(&mut conn)?
+            Self::Server { conn, .. } => {
+                let pips = pipeline::select_all(conn.as_ref())
+                    .await?
                     .iter()
                     .filter(|p| {
                         self.pipeline_path(p)
@@ -269,7 +265,7 @@ impl PipelineFileSystemProxy {
     }
 
     fn edit_internal(&self, path: &PathBuf, check_path: bool) -> Result<()> {
-        let Self::Local {config} = self else {
+        let Self::Local { config } = self else {
             bail!("server pipelines dont support direct editing");
         };
 
@@ -291,8 +287,8 @@ impl PipelineFileSystemProxy {
         Ok(())
     }
 
-    pub fn edit(&self, name: &str) -> Result<()> {
-        let path = self.path(name)?;
+    pub async fn edit(&self, name: &str) -> Result<()> {
+        let path = self.path(name).await?;
         self.edit_internal(&path, true)
     }
 

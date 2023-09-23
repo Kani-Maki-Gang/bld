@@ -54,7 +54,9 @@ impl Image {
         loop {
             match stream.try_next().await {
                 Ok(Some(output)) => {
-                    let Ok(data) = serde_json::from_value::<StatusData>(output) else {continue};
+                    let Ok(data) = serde_json::from_value::<StatusData>(output) else {
+                        continue;
+                    };
                     logger.write_line(data.to_string()).await?
                 }
                 Ok(None) => break,
@@ -104,7 +106,9 @@ impl Image {
         loop {
             match stream.try_next().await {
                 Ok(Some(output)) => {
-                    let Ok(data) = serde_json::from_value::<StreamData>(output) else {continue};
+                    let Ok(data) = serde_json::from_value::<StreamData>(output) else {
+                        continue;
+                    };
                     logger.write(data.stream).await?
                 }
                 Ok(None) => break,

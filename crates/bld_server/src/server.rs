@@ -4,18 +4,21 @@ use crate::endpoints::{
 };
 use crate::sockets::{exec, login, monit};
 use crate::supervisor::channel::SupervisorMessageSender;
-use actix_web::web::{get, resource};
-use actix_web::{middleware, App, HttpServer};
+use actix_web::{
+    middleware,
+    web::{get, resource},
+    App, HttpServer,
+};
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::auth::LoginProcess;
 use bld_core::database::new_connection_pool;
-use bld_core::proxies::PipelineFileSystemProxy;
-use bld_utils::sync::IntoData;
-use bld_utils::tls::{load_server_certificate, load_server_private_key};
+use bld_core::{auth::LoginProcess, proxies::PipelineFileSystemProxy};
+use bld_utils::{
+    sync::IntoData,
+    tls::{load_server_certificate, load_server_private_key},
+};
 use rustls::ServerConfig;
-use std::env::set_var;
-use std::sync::Arc;
+use std::{env::set_var, sync::Arc};
 use tracing::info;
 
 pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
@@ -24,10 +27,10 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
     let config = config.into_data();
     let client = config.openid_core_client().await?.into_data();
     let config_clone = config.clone();
-    let pool = new_connection_pool(Arc::clone(&config))?;
+    let conn = new_connection_pool(Arc::clone(&config)).await?;
     let supervisor_sender = SupervisorMessageSender::new(Arc::clone(&config)).into_data();
-    let logins = LoginProcess::new().into_data();
-    let pool = pool.into_data();
+    let logins = LoginProcess::default().into_data();
+    let pool = conn.into_data();
     let prx = PipelineFileSystemProxy::server(Arc::clone(&config), Arc::clone(&pool)).into_data();
     let cron = CronScheduler::new(
         Arc::clone(&prx),

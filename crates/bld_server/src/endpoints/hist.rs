@@ -1,47 +1,31 @@
 use crate::extractors::User;
 use actix_web::{get, web::Data, web::Query, HttpResponse, Responder};
 use anyhow::Result;
-use bld_core::database::pipeline_runs;
-use bld_core::requests::HistQueryParams;
-use bld_core::responses::HistoryEntry;
-use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::sqlite::SqliteConnection;
+use bld_core::{database::pipeline_runs, requests::HistQueryParams, responses::HistoryEntry};
+use sea_orm::DatabaseConnection;
 use tracing::info;
 
 #[get("/hist")]
 pub async fn get(
     _user: User,
-    db_pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    conn: Data<DatabaseConnection>,
     params: Query<HistQueryParams>,
 ) -> impl Responder {
     info!("Reached handler for /hist route");
-    match history_info(db_pool.get_ref(), params.into_inner()) {
+    match history_info(conn.get_ref(), params.into_inner()).await {
         Ok(ls) => HttpResponse::Ok().json(ls),
         Err(_) => HttpResponse::BadRequest().body(""),
     }
 }
 
-fn history_info(
-    db_pool: &Pool<ConnectionManager<SqliteConnection>>,
+async fn history_info(
+    conn: &DatabaseConnection,
     params: HistQueryParams,
 ) -> Result<Vec<HistoryEntry>> {
-    let mut conn = db_pool.get()?;
     let history =
-        pipeline_runs::select_with_filters(&mut conn, &params.state, &params.name, params.limit);
+        pipeline_runs::select_with_filters(conn, &params.state, &params.name, params.limit).await;
     let entries = history
-        .map(|entries| {
-            entries
-                .into_iter()
-                .map(|p| HistoryEntry {
-                    name: p.name,
-                    id: p.id,
-                    user: p.user,
-                    state: p.state,
-                    start_date_time: p.start_date_time,
-                    end_date_time: p.end_date_time.unwrap_or_default(),
-                })
-                .collect()
-        })
+        .map(|entries| entries.into_iter().map(|p| p.into()).collect())
         .unwrap_or_else(|_| vec![]);
     Ok(entries)
 }

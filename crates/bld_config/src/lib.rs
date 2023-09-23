@@ -7,6 +7,7 @@ mod supervisor;
 mod tls;
 
 pub use auth::*;
+use definitions::{LOCAL_SERVER_HOST, LOCAL_SERVER_PORT, TOOL_DIR};
 pub use local::*;
 use openidconnect::core::CoreClient;
 pub use path::*;
@@ -22,7 +23,8 @@ use std::path::PathBuf;
 use tracing::debug;
 
 use crate::definitions::{
-    DB_NAME, LOCAL_MACHINE_TMP_DIR, REMOTE_SERVER_AUTH, TOOL_DEFAULT_CONFIG_FILE,
+    LOCAL_DEFAULT_DB_DIR, LOCAL_DEFAULT_DB_NAME, LOCAL_MACHINE_TMP_DIR, REMOTE_SERVER_AUTH,
+    TOOL_DEFAULT_CONFIG_FILE,
 };
 
 pub fn err_server_not_in_config() -> Error {
@@ -100,6 +102,33 @@ impl BldConfig {
         Ok(instance)
     }
 
+    pub fn default_yaml_for_server() -> Result<String> {
+        let mut instance = Self::default();
+        let default_db = path![
+            &current_dir()?,
+            TOOL_DIR,
+            LOCAL_DEFAULT_DB_DIR,
+            LOCAL_DEFAULT_DB_NAME
+        ]
+        .display()
+        .to_string();
+        instance.local.server.db = Some(format!("sqlite://{default_db}"));
+        let yaml = serde_yaml::to_string(&instance)?;
+        Ok(yaml)
+    }
+
+    pub fn default_yaml_for_client() -> Result<String> {
+        let mut instance = Self::default();
+        instance.remote.push(BldRemoteServerConfig {
+            name: "local".to_string(),
+            host: LOCAL_SERVER_HOST.to_string(),
+            port: LOCAL_SERVER_PORT,
+            tls: false,
+        });
+        let yaml = serde_yaml::to_string(&instance)?;
+        Ok(yaml)
+    }
+
     pub fn server(&self, name: &str) -> Result<&BldRemoteServerConfig> {
         self.remote
             .iter()
@@ -124,11 +153,7 @@ impl BldConfig {
     }
 
     pub fn log_full_path(&self, id: &str) -> PathBuf {
-        path![&self.root_dir, &self.local.logs, id]
-    }
-
-    pub fn db_full_path(&self) -> PathBuf {
-        path![&self.root_dir, &self.local.db, DB_NAME]
+        path![&self.root_dir, &self.local.server.logs, id]
     }
 
     pub fn auth_full_path(&self, server: &str) -> PathBuf {

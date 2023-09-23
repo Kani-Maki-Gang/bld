@@ -13,7 +13,7 @@ pub async fn get(
     params: Query<PipelineQueryParams>,
 ) -> impl Responder {
     info!("Reached handler for /pull route");
-    match prx.read(&params.pipeline) {
+    match prx.read(&params.pipeline).await {
         Ok(r) => HttpResponse::Ok().json(PullResponse::new(&params.pipeline, &r)),
         Err(_) => HttpResponse::BadRequest().body("Pipeline not found"),
     }

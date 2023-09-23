@@ -1,5 +1,3 @@
-extern crate diesel;
-
 pub mod auth;
 pub mod context;
 pub mod database;

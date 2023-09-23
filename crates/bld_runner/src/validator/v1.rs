@@ -26,14 +26,14 @@ impl<'a> PipelineValidator<'a> {
         }
     }
 
-    pub fn validate(&self) -> Result<()> {
+    pub async fn validate(&self) -> Result<()> {
         let mut errors = String::new();
 
-        if let Err(e) = self.validate_external() {
+        if let Err(e) = self.validate_external().await {
             write!(errors, "{e}")?;
         }
 
-        if let Err(e) = self.validate_steps() {
+        if let Err(e) = self.validate_steps().await {
             write!(errors, "{e}")?;
         }
 
@@ -48,11 +48,11 @@ impl<'a> PipelineValidator<'a> {
         }
     }
 
-    fn validate_external(&self) -> Result<()> {
+    async fn validate_external(&self) -> Result<()> {
         let mut errors = String::new();
 
         for entry in &self.pipeline.external {
-            if let Err(e) = self.validate_external_pipeline(&entry.pipeline) {
+            if let Err(e) = self.validate_external_pipeline(&entry.pipeline).await {
                 writeln!(errors, "{e}")?;
             }
 
@@ -68,8 +68,8 @@ impl<'a> PipelineValidator<'a> {
         }
     }
 
-    fn validate_external_pipeline(&self, pipeline: &str) -> Result<()> {
-        match self.proxy.path(pipeline) {
+    async fn validate_external_pipeline(&self, pipeline: &str) -> Result<()> {
+        match self.proxy.path(pipeline).await {
             Ok(path) if !path.is_yaml() => {
                 bail!("[external > pipeline: {}] Not found", pipeline)
             }
@@ -93,12 +93,12 @@ impl<'a> PipelineValidator<'a> {
         Ok(())
     }
 
-    fn validate_steps(&self) -> Result<()> {
+    async fn validate_steps(&self) -> Result<()> {
         let mut errors = String::new();
 
         for step in &self.pipeline.steps {
             for exec in &step.exec {
-                if let Err(e) = self.validate_exec(exec) {
+                if let Err(e) = self.validate_exec(exec).await {
                     writeln!(errors, "{e}")?;
                 }
             }
@@ -111,14 +111,14 @@ impl<'a> PipelineValidator<'a> {
         }
     }
 
-    fn validate_exec(&self, step: &BuildStepExec) -> Result<()> {
+    async fn validate_exec(&self, step: &BuildStepExec) -> Result<()> {
         match step {
             BuildStepExec::Shell(_) => Ok(()),
-            BuildStepExec::External { value } => self.validate_exec_ext(value),
+            BuildStepExec::External { value } => self.validate_exec_ext(value).await,
         }
     }
 
-    fn validate_exec_ext(&self, value: &str) -> Result<()> {
+    async fn validate_exec_ext(&self, value: &str) -> Result<()> {
         if self.pipeline.external.iter().any(|e| e.is(value)) {
             return Ok(());
         }
@@ -126,6 +126,7 @@ impl<'a> PipelineValidator<'a> {
         let found_path = self
             .proxy
             .path(value)
+            .await
             .map(|x| x.is_yaml())
             .unwrap_or_default();
         if !found_path {

@@ -1,44 +1,40 @@
 use anyhow::{anyhow, Result};
-use diesel::Insertable;
-use diesel::{prelude::*, query_dsl::RunQueryDsl, sqlite::SqliteConnection, Connection, Queryable};
+use bld_entities::{
+    cron_jobs::{self, Entity as CronJobEntity},
+    pipeline::{self, Entity as Pipeline},
+};
+use bld_migrations::Expr;
+use chrono::Utc;
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, IntoActiveModel,
+    QueryFilter, QuerySelect, TransactionTrait,
+};
 use tracing::{debug, error};
 
-use crate::database::schema::cron_jobs;
-use crate::database::schema::cron_jobs::dsl::*;
-use crate::database::{cron_job_environment_variables, cron_job_variables, pipeline};
+use super::{
+    cron_job_environment_variables::{self, InsertCronJobEnvironmentVariable},
+    cron_job_variables::{self, InsertCronJobVariable},
+};
 
-use super::cron_job_environment_variables::InsertCronJobEnvironmentVariable;
-use super::cron_job_variables::InsertCronJobVariable;
+pub use bld_entities::cron_jobs::Model as CronJob;
 
-#[derive(Debug, Queryable)]
-pub struct CronJob {
+pub struct InsertCronJob {
     pub id: String,
     pub pipeline_id: String,
     pub schedule: String,
     pub is_default: bool,
-    pub date_created: String,
-    pub date_updated: Option<String>,
 }
 
-#[derive(Insertable)]
-#[diesel(table_name = cron_jobs)]
-pub struct InsertCronJob<'a> {
-    pub id: &'a str,
-    pub pipeline_id: &'a str,
-    pub schedule: &'a str,
-    pub is_default: bool,
+pub struct UpdateCronJob {
+    pub id: String,
+    pub schedule: String,
 }
 
-pub struct UpdateCronJob<'a> {
-    pub id: &'a str,
-    pub pipeline_id: &'a str,
-    pub schedule: &'a str,
-}
-
-pub fn select_all(conn: &mut SqliteConnection) -> Result<Vec<CronJob>> {
+pub async fn select_all<C: ConnectionTrait + TransactionTrait>(conn: &C) -> Result<Vec<CronJob>> {
     debug!("loading all cron jobs from the database");
-    cron_jobs
-        .load(conn)
+    CronJobEntity::find()
+        .all(conn)
+        .await
         .map(|c| {
             debug!("loaded all cron jobs successfully");
             c
@@ -49,47 +45,66 @@ pub fn select_all(conn: &mut SqliteConnection) -> Result<Vec<CronJob>> {
         })
 }
 
-pub fn select_by_id(conn: &mut SqliteConnection, cj_id: &str) -> Result<CronJob> {
+pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    cj_id: &str,
+) -> Result<CronJob> {
     debug!("loading last cron job with id: {cj_id}");
-    cron_jobs
-        .filter(id.eq(cj_id))
-        .first(conn)
+    let model = CronJobEntity::find_by_id(cj_id)
+        .one(conn)
+        .await
+        .map_err(|e| {
+            error!("couldn't load cron job due to {e}");
+            anyhow!(e)
+        })?;
+
+    model
+        .ok_or_else(|| {
+            error!("couldn't load cron job due to not found");
+            anyhow!("cron job not found")
+        })
         .map(|cj| {
             debug!("loaded cron job successfully");
             cj
         })
-        .map_err(|e| {
-            error!("couldn't load cron job due to {e}");
-            anyhow!(e)
-        })
 }
 
-pub fn select_default_by_pipeline(
-    conn: &mut SqliteConnection,
+pub async fn select_default_by_pipeline<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
     cj_pipeline_id: &str,
 ) -> Result<CronJob> {
     debug!("loading default cron job associated with pipeline: {cj_pipeline_id}");
-    cron_jobs
-        .filter(pipeline_id.eq(cj_pipeline_id).and(is_default.eq(true)))
-        .first(conn)
+
+    let model = CronJobEntity::find()
+        .filter(cron_jobs::Column::PipelineId.eq(cj_pipeline_id))
+        .filter(cron_jobs::Column::IsDefault.eq(true))
+        .one(conn)
+        .await
+        .map_err(|e| {
+            error!("couldn't load cron job due to {e}");
+            anyhow!(e)
+        })?;
+
+    model
+        .ok_or_else(|| {
+            error!("couldn't load cron job due to not found");
+            anyhow!("cron job not found")
+        })
         .map(|cj| {
             debug!("loading cron job successfully");
             cj
         })
-        .map_err(|e| {
-            error!("couldn't load cron job due to {e}");
-            anyhow!(e)
-        })
 }
 
-pub fn select_by_pipeline(
-    conn: &mut SqliteConnection,
+pub async fn select_by_pipeline<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
     cj_pipeline_id: &str,
 ) -> Result<Vec<CronJob>> {
     debug!("loading cron job associated with pipeline: {cj_pipeline_id}");
-    cron_jobs
-        .filter(pipeline_id.eq(cj_pipeline_id))
-        .load(conn)
+    CronJobEntity::find()
+        .filter(cron_jobs::Column::PipelineId.eq(cj_pipeline_id))
+        .all(conn)
+        .await
         .map(|cj| {
             debug!("loading cron job successfully");
             cj
@@ -100,41 +115,54 @@ pub fn select_by_pipeline(
         })
 }
 
-pub fn select_with_filters(
-    conn: &mut SqliteConnection,
+pub async fn select_with_filters<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
     flt_id: Option<&str>,
     flt_pipeline: Option<&str>,
     flt_schedule: Option<&str>,
     flt_is_default: Option<bool>,
-    flt_limit: Option<i64>,
+    flt_limit: Option<u64>,
 ) -> Result<Vec<CronJob>> {
     debug!("loading cron jobs based on filters");
 
-    let mut select_statement = cron_jobs.into_boxed();
+    let mut find = CronJobEntity::find();
 
     if let Some(flt_id) = flt_id {
-        select_statement = select_statement.filter(id.eq(flt_id));
+        find = find.filter(cron_jobs::Column::Id.eq(flt_id));
     }
 
     if let Some(flt_pipeline) = flt_pipeline {
-        let pipeline = pipeline::select_by_name(conn, flt_pipeline)?;
-        select_statement = select_statement.filter(pipeline_id.eq(pipeline.id));
+        let pipeline = Pipeline::find()
+            .filter(pipeline::Column::Name.eq(flt_pipeline))
+            .one(conn)
+            .await
+            .map_err(|e| {
+                error!("couldn't load pipeline with name {flt_pipeline} due to {e}");
+                anyhow!(e)
+            })?
+            .ok_or_else(|| {
+                error!("couldn't load pipeline due to not found");
+                anyhow!("pipeline not found")
+            })
+            .map(|model| {
+                debug!("loaded pipeline with name {flt_pipeline} successfully");
+                model
+            })?;
+        find = find.filter(cron_jobs::Column::PipelineId.eq(pipeline.id));
     }
 
     if let Some(flt_schedule) = flt_schedule {
-        select_statement = select_statement.filter(schedule.eq(flt_schedule));
+        find = find.filter(cron_jobs::Column::Schedule.eq(flt_schedule));
     }
 
     if let Some(flt_is_default) = flt_is_default {
-        select_statement = select_statement.filter(is_default.eq(flt_is_default));
+        find = find.filter(cron_jobs::Column::IsDefault.eq(flt_is_default));
     }
 
-    if let Some(flt_limit) = flt_limit {
-        select_statement = select_statement.limit(flt_limit);
-    }
+    find = find.limit(flt_limit);
 
-    select_statement
-        .load(conn)
+    find.all(conn)
+        .await
         .map(|jobs| {
             debug!("loaded cron jobs successfully!");
             jobs
@@ -145,124 +173,129 @@ pub fn select_with_filters(
         })
 }
 
-pub fn insert(
-    conn: &mut SqliteConnection,
+pub async fn insert<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
     cj_model: &InsertCronJob,
     cv_models: &Option<Vec<InsertCronJobVariable>>,
     cve_models: &Option<Vec<InsertCronJobEnvironmentVariable>>,
-) -> Result<CronJob> {
+) -> Result<()> {
     debug!(
         "inserting new cron job entry with pipeline_id: {} and schedule: {}",
         cj_model.pipeline_id, cj_model.schedule
     );
-    conn.transaction(|conn| {
-        diesel::insert_into(cron_jobs::table)
-            .values(cj_model)
-            .execute(conn)
-            .map_err(|e| {
-                error!("couldn't insert cron job due to {e}");
-                anyhow!(e)
-            })
-            .and_then(|_| {
-                cv_models
-                    .as_ref()
-                    .map(|models| cron_job_variables::insert_many(conn, models))
-                    .unwrap_or(Ok(()))
-            })
-            .and_then(|_| {
-                cve_models
-                    .as_ref()
-                    .map(|models| cron_job_environment_variables::insert_many(conn, models))
-                    .unwrap_or(Ok(()))
-            })
-            .and_then(|_| {
-                debug!("created cron job successfully");
-                select_by_id(conn, cj_model.id)
-            })
-    })
+    let txn = conn.begin().await?;
+
+    let model = cron_jobs::ActiveModel {
+        id: Set(cj_model.id.to_owned()),
+        pipeline_id: Set(cj_model.pipeline_id.to_owned()),
+        schedule: Set(cj_model.schedule.to_owned()),
+        is_default: Set(cj_model.is_default),
+        ..Default::default()
+    };
+
+    model.insert(&txn).await.map_err(|e| {
+        error!("couldn't insert cron job due to {e}");
+        anyhow!(e)
+    })?;
+
+    if let Some(cv_models) = cv_models.as_ref() {
+        cron_job_variables::insert_many(&txn, cv_models).await?;
+    }
+
+    if let Some(cve_models) = cve_models.as_ref() {
+        cron_job_environment_variables::insert_many(&txn, cve_models).await?;
+    }
+
+    txn.commit().await?;
+
+    debug!("created cron job successfully");
+    Ok(())
 }
 
-pub fn update(
-    conn: &mut SqliteConnection,
+pub async fn update<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
     cj_model: &UpdateCronJob,
     cv_models: &Option<Vec<InsertCronJobVariable>>,
     cve_models: &Option<Vec<InsertCronJobEnvironmentVariable>>,
-) -> Result<CronJob> {
+) -> Result<()> {
     debug!("updating cron job entry with id: {}", cj_model.id);
-    conn.transaction(|conn| {
-        diesel::update(cron_jobs::table)
-            .set(schedule.eq(cj_model.schedule))
-            .filter(id.eq(cj_model.id))
-            .execute(conn)
-            .map_err(|e| {
-                error!("couldn't update cron job due to {e}");
-                anyhow!(e)
-            })
-            .and_then(|_| {
-                cron_job_variables::delete_by_cron_job_id(conn, cj_model.id).and_then(|_| {
-                    cv_models
-                        .as_ref()
-                        .map(|models| cron_job_variables::insert_many(conn, models))
-                        .unwrap_or(Ok(()))
-                })
-            })
-            .and_then(|_| {
-                cron_job_environment_variables::delete_by_cron_job_id(conn, cj_model.id).and_then(
-                    |_| {
-                        cve_models
-                            .as_ref()
-                            .map(|models| cron_job_environment_variables::insert_many(conn, models))
-                            .unwrap_or(Ok(()))
-                    },
-                )
-            })
-            .and_then(|_| {
-                debug!("updated cron job successfully");
-                select_by_id(conn, cj_model.id)
-            })
-    })
+    let txn = conn.begin().await?;
+    let date_updated = Utc::now().naive_utc();
+
+    CronJobEntity::update_many()
+        .col_expr(cron_jobs::Column::Schedule, Expr::value(&cj_model.schedule))
+        .col_expr(cron_jobs::Column::DateUpdated, Expr::value(date_updated))
+        .filter(cron_jobs::Column::Id.eq(&cj_model.id))
+        .exec(conn)
+        .await
+        .map_err(|e| {
+            error!("couldn't update cron job due to: {e}");
+            anyhow!(e)
+        })?;
+
+    cron_job_variables::delete_by_cron_job_id(&txn, &cj_model.id).await?;
+    if let Some(cv_models) = cv_models.as_ref() {
+        cron_job_variables::insert_many(&txn, cv_models).await?;
+    }
+
+    cron_job_environment_variables::delete_by_cron_job_id(&txn, &cj_model.id).await?;
+    if let Some(cve_models) = cve_models.as_ref() {
+        cron_job_environment_variables::insert_many(&txn, cve_models).await?;
+    }
+
+    txn.commit().await?;
+    debug!("updated cron job successfully");
+    Ok(())
 }
 
-pub fn delete_by_cron_job_id(conn: &mut SqliteConnection, cj_id: &str) -> Result<()> {
-    debug!("deleting cron job with id: {cj_id}");
-    conn.transaction(|conn| {
-        cron_job_variables::delete_by_cron_job_id(conn, cj_id)
-            .and_then(|_| cron_job_environment_variables::delete_by_cron_job_id(conn, cj_id))
-            .and_then(|_| {
-                diesel::delete(cron_jobs::table)
-                    .filter(id.eq(cj_id))
-                    .execute(conn)
-                    .map(|_| {
-                        debug!("deleted cron job successfully");
-                    })
-                    .map_err(|e| {
-                        error!("couldn't delete cron job due to {e}");
-                        anyhow!(e)
-                    })
-            })
-    })
+pub async fn delete_by_cron_job_id<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    id: &str,
+) -> Result<()> {
+    debug!("deleting cron job with id: {id}");
+    let txn = conn.begin().await?;
+
+    cron_job_variables::delete_by_cron_job_id(&txn, id).await?;
+    cron_job_environment_variables::delete_by_cron_job_id(&txn, id).await?;
+
+    CronJobEntity::delete_many()
+        .filter(cron_jobs::Column::Id.eq(id))
+        .exec(&txn)
+        .await
+        .map(|_| {
+            debug!("deleted cron job successfully");
+        })
+        .map_err(|e| {
+            error!("couldn't delete cron job due to {e}");
+            anyhow!(e)
+        })?;
+
+    txn.commit().await?;
+    Ok(())
 }
 
-pub fn delete_by_pipeline(conn: &mut SqliteConnection, cj_pipeline_id: &str) -> Result<()> {
+pub async fn delete_by_pipeline<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    cj_pipeline_id: &str,
+) -> Result<()> {
     debug!("deleting cron jobs associated with pipeline id: {cj_pipeline_id}");
-    select_by_pipeline(conn, cj_pipeline_id).map(|entries| {
-        for entry in entries {
-            let _ = cron_job_variables::delete_by_cron_job_id(conn, &entry.id)
-                .and_then(|_| {
-                    cron_job_environment_variables::delete_by_cron_job_id(conn, &entry.id)
-                })
-                .and_then(|_| {
-                    diesel::delete(cron_jobs::table)
-                        .filter(id.eq(&entry.id))
-                        .execute(conn)
-                        .map(|_| {
-                            debug!("deleted cron job successfully");
-                        })
-                        .map_err(|e| {
-                            error!("couldn't delete cron job due to {e}");
-                            anyhow!(e)
-                        })
-                });
-        }
-    })
+    let txn = conn.begin().await?;
+    let models = select_by_pipeline(&txn, cj_pipeline_id).await?;
+    for model in models {
+        cron_job_variables::delete_by_cron_job_id(&txn, &model.id).await?;
+        cron_job_environment_variables::delete_by_cron_job_id(&txn, &model.id).await?;
+        model
+            .into_active_model()
+            .delete(&txn)
+            .await
+            .map(|_| {
+                debug!("deleted cron job successfully");
+            })
+            .map_err(|e| {
+                error!("couldn't delete cron job due to {e}");
+                anyhow!(e)
+            })?;
+    }
+    txn.commit().await?;
+    Ok(())
 }

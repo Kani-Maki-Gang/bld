@@ -1,21 +1,23 @@
 use std::sync::Arc;
 
-use crate::extractors::User;
-use crate::supervisor::channel::SupervisorMessageSender;
-use crate::supervisor::helpers::enqueue_worker;
-use actix_web::web::{Data, Json};
-use actix_web::{post, HttpResponse, Responder};
-use bld_core::messages::ExecClientMessage;
-use bld_core::proxies::PipelineFileSystemProxy;
-use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::SqliteConnection;
+use crate::{
+    extractors::User,
+    supervisor::{channel::SupervisorMessageSender, helpers::enqueue_worker},
+};
+use actix_web::{
+    post,
+    web::{Data, Json},
+    HttpResponse, Responder,
+};
+use bld_core::{messages::ExecClientMessage, proxies::PipelineFileSystemProxy};
+use sea_orm::DatabaseConnection;
 use tracing::info;
 
 #[post("/run")]
 pub async fn post(
     user: User,
     proxy: Data<PipelineFileSystemProxy>,
-    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    conn: Data<DatabaseConnection>,
     supervisor: Data<SupervisorMessageSender>,
     data: Json<ExecClientMessage>,
 ) -> impl Responder {
@@ -24,7 +26,7 @@ pub async fn post(
     let result = enqueue_worker(
         &user.name,
         Arc::clone(&proxy),
-        Arc::clone(&pool),
+        Arc::clone(&conn),
         Arc::clone(&supervisor),
         data.into_inner(),
     )

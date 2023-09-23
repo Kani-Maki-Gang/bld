@@ -41,7 +41,7 @@ impl Default for RunnerBuilder {
     fn default() -> Self {
         Self {
             run_id: Uuid::new_v4().to_string(),
-            run_start_time: Utc::now().format("%F %X").to_string(),
+            run_start_time: Utc::now().naive_utc().format("%F %X").to_string(),
             config: None,
             signals: None,
             logger: LoggerSender::default().into_arc(),
@@ -132,8 +132,10 @@ impl RunnerBuilder {
             .pipeline
             .ok_or_else(|| anyhow!("no pipeline provided"))?;
 
-        let pipeline = Yaml::load(&self.proxy.read(&pipeline_name)?)?;
-        pipeline.validate(config.clone(), self.proxy.clone())?;
+        let pipeline = Yaml::load(&self.proxy.read(&pipeline_name).await?)?;
+        pipeline
+            .validate(config.clone(), self.proxy.clone())
+            .await?;
 
         let env = self
             .env

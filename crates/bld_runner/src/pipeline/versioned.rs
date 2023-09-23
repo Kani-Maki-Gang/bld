@@ -6,11 +6,12 @@ use crate::validator::v2 as validator_v2;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
+use futures::Future;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fmt::Write;
-use std::sync::Arc;
+use std::{collections::HashMap, fmt::Write, pin::Pin, sync::Arc};
 use tracing::debug;
+
+type DependenciesRecursiveFuture = Pin<Box<dyn Future<Output = Result<HashMap<String, String>>>>>;
 
 pub struct Yaml;
 
@@ -58,44 +59,51 @@ impl VersionedPipeline {
         }
     }
 
-    pub fn dependencies(
-        config: &BldConfig,
-        proxy: &PipelineFileSystemProxy,
-        name: &str,
+    pub async fn dependencies(
+        config: Arc<BldConfig>,
+        proxy: Arc<PipelineFileSystemProxy>,
+        name: String,
     ) -> Result<HashMap<String, String>> {
-        Self::dependencies_recursive(config, proxy, name).map(|mut hs| {
-            hs.remove(name);
-            hs.into_iter().collect()
-        })
+        let mut hs = Self::dependencies_recursive(config, proxy, name.clone())
+            .await
+            .await?;
+        hs.remove(&name);
+        Ok(hs)
     }
 
-    fn dependencies_recursive(
-        config: &BldConfig,
-        proxy: &PipelineFileSystemProxy,
-        name: &str,
-    ) -> Result<HashMap<String, String>> {
-        debug!("Parsing pipeline {name}");
+    async fn dependencies_recursive(
+        config: Arc<BldConfig>,
+        proxy: Arc<PipelineFileSystemProxy>,
+        name: String,
+    ) -> DependenciesRecursiveFuture {
+        Box::pin(async move {
+            debug!("Parsing pipeline {name}");
 
-        let src = proxy
-            .read(name)
-            .map_err(|_| anyhow!("Pipeline {name} not found"))?;
+            let src = proxy
+                .read(&name)
+                .await
+                .map_err(|_| anyhow!("Pipeline {name} not found"))?;
 
-        let pipeline = Yaml::load(&src).map_err(|e| anyhow!("{e} ({name})"))?;
-        let mut set = HashMap::new();
-        set.insert(name.to_string(), src);
+            let pipeline = Yaml::load(&src).map_err(|e| anyhow!("{e} ({name})"))?;
+            let mut set = HashMap::new();
+            set.insert(name.to_string(), src);
 
-        let local_pipelines = match pipeline {
-            Self::Version1(pip) => pip.local_dependencies(config),
-            Self::Version2(pip) => pip.local_dependencies(config),
-        };
+            let local_pipelines = match pipeline {
+                Self::Version1(pip) => pip.local_dependencies(config.as_ref()),
+                Self::Version2(pip) => pip.local_dependencies(config.as_ref()),
+            };
 
-        for pipeline in local_pipelines.iter() {
-            for (k, v) in Self::dependencies_recursive(config, proxy, pipeline)? {
-                set.insert(k, v);
+            for pipeline in local_pipelines.into_iter() {
+                for (k, v) in Self::dependencies_recursive(config.clone(), proxy.clone(), pipeline)
+                    .await
+                    .await?
+                {
+                    set.insert(k, v);
+                }
             }
-        }
 
-        Ok(set)
+            Ok(set)
+        })
     }
 
     pub fn cron(&self) -> Option<&str> {
@@ -106,28 +114,33 @@ impl VersionedPipeline {
         }
     }
 
-    pub fn validate_with_verbose_errors(
+    pub async fn validate_with_verbose_errors(
         &self,
         config: Arc<BldConfig>,
         proxy: Arc<PipelineFileSystemProxy>,
     ) -> Result<()> {
         match self {
             Self::Version1(pip) => {
-                validator_v1::PipelineValidator::new(pip, config, proxy).validate()
+                validator_v1::PipelineValidator::new(pip, config, proxy)
+                    .validate()
+                    .await
             }
             Self::Version2(pip) => {
-                validator_v2::PipelineValidator::new(pip, config, proxy)?.validate()
+                validator_v2::PipelineValidator::new(pip, config, proxy)?
+                    .validate()
+                    .await
             }
         }
         .map_err(|e| anyhow!("Expression errors\r\n\r\n{e}"))
     }
 
-    pub fn validate(
+    pub async fn validate(
         &self,
         config: Arc<BldConfig>,
         proxy: Arc<PipelineFileSystemProxy>,
     ) -> Result<()> {
         self.validate_with_verbose_errors(config, proxy)
+            .await
             .map_err(|_| anyhow!("Pipeline has expression errors"))
     }
 }

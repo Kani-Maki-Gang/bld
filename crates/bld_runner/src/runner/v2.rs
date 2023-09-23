@@ -97,7 +97,9 @@ impl Job {
     async fn artifacts(&self, name: Option<&str>) -> Result<()> {
         debug!("executing artifact operation related for {:?}", name);
 
-        let Some(platform) = self.platform.as_ref() else {bail!("no platform instance for runner");};
+        let Some(platform) = self.platform.as_ref() else {
+            bail!("no platform instance for runner");
+        };
 
         for artifact in self
             .pipeline
@@ -139,14 +141,10 @@ impl Job {
     async fn external(&self, value: &str) -> Result<()> {
         debug!("starting execution of external section {value}");
 
-        let Some(external) = self
-            .pipeline
-            .external
-            .iter()
-            .find(|i| i.is(value)) else {
-                self.local_external(&External::local(value)).await?;
-                return Ok(());
-            };
+        let Some(external) = self.pipeline.external.iter().find(|i| i.is(value)) else {
+            self.local_external(&External::local(value)).await?;
+            return Ok(());
+        };
 
         match external.server.as_ref() {
             Some(server) => self.server_external(server, external).await?,
@@ -233,7 +231,9 @@ impl Job {
 
     async fn shell(&self, working_dir: &Option<String>, command: &str) -> Result<()> {
         debug!("start execution of exec section for step");
-        let Some(platform) = self.platform.as_ref() else {bail!("no platform instance for runner");};
+        let Some(platform) = self.platform.as_ref() else {
+            bail!("no platform instance for runner");
+        };
 
         debug!("executing shell command {}", command);
         platform
@@ -339,7 +339,9 @@ impl Runner {
     }
 
     async fn dispose_platform(&self) -> Result<()> {
-        let Some(platform) = self.platform.as_ref() else {bail!("no platform instance for runner");};
+        let Some(platform) = self.platform.as_ref() else {
+            bail!("no platform instance for runner");
+        };
         if self.pipeline.dispose {
             debug!("executing dispose operations for platform");
             platform.dispose(self.is_child).await?;
@@ -441,7 +443,9 @@ impl Runner {
                     .unwrap_or_default();
 
                 if is_finished {
-                    let Some(running_job) = job.take() else {continue};
+                    let Some(running_job) = job.take() else {
+                        continue;
+                    };
 
                     let handle_result = running_job.handle.await.map_err(|e| anyhow!(e))?;
 

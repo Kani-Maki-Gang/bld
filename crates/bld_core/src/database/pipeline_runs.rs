@@ -1,11 +1,14 @@
-use crate::database::schema::pipeline_runs;
-use crate::database::schema::pipeline_runs::dsl::*;
 use anyhow::{anyhow, Result};
-use diesel::prelude::*;
-use diesel::query_dsl::RunQueryDsl;
-use diesel::sqlite::SqliteConnection;
-use diesel::Queryable;
+use bld_entities::pipeline_runs::{self, Entity as PipelineRunsEntity};
+use bld_migrations::Expr;
+use chrono::Utc;
+use sea_orm::{
+    prelude::DateTime, ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait,
+    EntityTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+};
 use tracing::{debug, error};
+
+pub use bld_entities::pipeline_runs::Model as PipelineRuns;
 
 pub const PR_STATE_INITIAL: &str = "initial";
 pub const PR_STATE_QUEUED: &str = "queued";
@@ -13,123 +16,124 @@ pub const PR_STATE_RUNNING: &str = "running";
 pub const PR_STATE_FINISHED: &str = "finished";
 pub const PR_STATE_FAULTED: &str = "faulted";
 
-#[derive(Debug, Identifiable, Queryable)]
-#[diesel(table_name = pipeline_runs)]
-pub struct PipelineRuns {
+pub struct InsertPipelineRun {
     pub id: String,
     pub name: String,
-    pub state: String,
-    pub user: String,
-    pub start_date_time: String,
-    pub end_date_time: Option<String>,
+    pub app_user: String,
 }
 
-#[derive(Insertable)]
-#[diesel(table_name = pipeline_runs)]
-struct InsertPipelineRun<'a> {
-    pub id: &'a str,
-    pub name: &'a str,
-    pub state: &'a str,
-    pub user: &'a str,
-}
-
-pub fn select_all(conn: &mut SqliteConnection) -> Result<Vec<PipelineRuns>> {
-    debug!("loading all pipeline runs from the database");
-    pipeline_runs
-        .order(start_date_time)
-        .load(conn)
-        .map(|p| {
-            debug!("loaded all pipeline runs successfully");
-            p
-        })
-        .map_err(|e| {
-            error!("could not load pipeline runs due to: {e}");
-            anyhow!(e)
-        })
-}
-
-pub fn select_running_by_id(conn: &mut SqliteConnection, run_id: &str) -> Result<PipelineRuns> {
+pub async fn select_running_by_id<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    run_id: &str,
+) -> Result<PipelineRuns> {
     debug!("loading pipeline run with id: {run_id} that is in a running state");
-    pipeline_runs
-        .filter(id.eq(run_id).and(state.eq(PR_STATE_RUNNING)))
-        .first(conn)
-        .map(|p| {
-            debug!("loaded pipeline runs successfully");
-            p
-        })
+
+    let model = PipelineRunsEntity::find()
+        .filter(pipeline_runs::Column::Id.eq(run_id))
+        .filter(pipeline_runs::Column::State.eq(PR_STATE_RUNNING))
+        .one(conn)
+        .await
         .map_err(|e| {
-            error!("could not load pipeline run due to: {e}");
+            error!("couldn't load pipeline run due to: {e}");
             anyhow!(e)
-        })
+        })?
+        .ok_or_else(|| {
+            error!("couldn't load pipeline run due to: not found");
+            anyhow!("pipeline run not found")
+        })?;
+
+    debug!("loaded pipeline runs successfully");
+    Ok(model)
 }
 
-pub fn select_by_id(conn: &mut SqliteConnection, pip_id: &str) -> Result<PipelineRuns> {
+pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    pip_id: &str,
+) -> Result<PipelineRuns> {
     debug!("loading pipeline with id: {pip_id} from the database");
-    pipeline_runs
-        .filter(id.eq(pip_id))
-        .first(conn)
-        .map(|p| {
-            debug!("loaded pipeline successfully");
-            p
-        })
+
+    let model = PipelineRunsEntity::find_by_id(pip_id)
+        .one(conn)
+        .await
         .map_err(|e| {
             error!("could not load pipeline run due to: {e}");
             anyhow!(e)
-        })
+        })?
+        .ok_or_else(|| {
+            error!("couldn't load pipeline run due to: not found");
+            anyhow!("pipeline run not found")
+        })?;
+
+    debug!("loaded pipeline successfully");
+    Ok(model)
 }
 
-pub fn select_by_name(conn: &mut SqliteConnection, pip_name: &str) -> Result<PipelineRuns> {
+pub async fn select_by_name<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    pip_name: &str,
+) -> Result<PipelineRuns> {
     debug!("loading pipeline with name: {pip_name} from the database");
-    pipeline_runs
-        .filter(name.eq(pip_name))
-        .first(conn)
-        .map(|p| {
-            debug!("loaded pipeline successfully");
-            p
-        })
+
+    let model = PipelineRunsEntity::find()
+        .filter(pipeline_runs::Column::Name.eq(pip_name))
+        .order_by_desc(pipeline_runs::Column::DateCreated)
+        .one(conn)
+        .await
         .map_err(|e| {
             error!("could not load pipeline run due to: {e}");
             anyhow!(e)
-        })
+        })?
+        .ok_or_else(|| {
+            error!("couldn't load pipeline run due to: not found");
+            anyhow!("pipeline run not found")
+        })?;
+
+    debug!("loaded pipeline successfully");
+    Ok(model)
 }
 
-pub fn select_last(conn: &mut SqliteConnection) -> Result<PipelineRuns> {
+pub async fn select_last<C: ConnectionTrait + TransactionTrait>(conn: &C) -> Result<PipelineRuns> {
     debug!("loading the last invoked pipeline from the database");
-    pipeline_runs
-        .order(start_date_time.desc())
-        .first(conn)
-        .map(|p| {
-            debug!("loaded pipeline successfully");
-            p
-        })
+
+    let model = PipelineRunsEntity::find()
+        .order_by_desc(pipeline_runs::Column::DateCreated)
+        .one(conn)
+        .await
         .map_err(|e| {
-            error!("could not load pipeline run due to: {e}");
+            error!("couldn't load pipeline run due to: {e}");
             anyhow!(e)
-        })
+        })?
+        .ok_or_else(|| {
+            error!("couldn't load pipeline run due to: not found");
+            anyhow!("pipeline run not found")
+        })?;
+
+    debug!("loaded pipeline successfully");
+    Ok(model)
 }
 
-pub fn select_with_filters(
-    conn: &mut SqliteConnection,
+pub async fn select_with_filters<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
     flt_state: &Option<String>,
     flt_name: &Option<String>,
-    limit_by: i64,
+    limit_by: u64,
 ) -> anyhow::Result<Vec<PipelineRuns>> {
     debug!("loading pipeline runs from the database with filters:");
 
-    let mut select_statement = pipeline_runs.into_boxed();
+    let mut find = PipelineRunsEntity::find();
 
     if let Some(flt_state) = flt_state {
-        select_statement = select_statement.filter(state.eq(flt_state));
+        find = find.filter(pipeline_runs::Column::State.eq(flt_state));
     }
 
     if let Some(flt_name) = flt_name {
-        select_statement = select_statement.filter(name.eq(flt_name));
+        find = find.filter(pipeline_runs::Column::Name.eq(flt_name));
     }
 
-    select_statement
-        .limit(limit_by)
-        .order(start_date_time.desc())
-        .load(conn)
+    find.limit(limit_by)
+        .order_by_desc(pipeline_runs::Column::DateCreated)
+        .all(conn)
+        .await
         .map(|mut p| {
             debug!("loaded all pipeline runs successfully");
             p.reverse();
@@ -141,54 +145,82 @@ pub fn select_with_filters(
         })
 }
 
-pub fn insert(
-    conn: &mut SqliteConnection,
-    pip_id: &str,
-    pip_name: &str,
-    pip_user: &str,
-) -> Result<PipelineRuns> {
+pub async fn insert<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    model: InsertPipelineRun,
+) -> Result<()> {
     debug!("inserting new pipeline to the database");
-    let run = InsertPipelineRun {
-        id: pip_id,
-        name: pip_name,
-        state: PR_STATE_INITIAL,
-        user: pip_user,
+
+    let active_model = pipeline_runs::ActiveModel {
+        id: Set(model.id.to_owned()),
+        name: Set(model.name.to_owned()),
+        app_user: Set(model.app_user.to_owned()),
+        state: Set(PR_STATE_INITIAL.to_owned()),
+        ..Default::default()
     };
-    conn.transaction(|conn| {
-        diesel::insert_into(pipeline_runs::table)
-            .values(&run)
-            .execute(conn)
-            .map_err(|e| {
-                error!("could not insert pipeline due to: {e}");
-                anyhow!(e)
-            })
-            .and_then(|_| {
-                debug!(
-                    "created new pipeline run entry for id: {}, name: {}, user: {}",
-                    pip_id, pip_name, pip_user
-                );
-                select_by_id(conn, pip_id)
-            })
-    })
+
+    active_model.insert(conn).await.map_err(|e| {
+        error!("could not insert pipeline due to: {e}");
+        anyhow!(e)
+    })?;
+
+    debug!(
+        "created new pipeline run entry for id: {}, name: {}, user: {}",
+        model.id, model.name, model.app_user
+    );
+    Ok(())
 }
 
-pub fn update_state(
-    conn: &mut SqliteConnection,
-    pip_id: &str,
-    pip_state: &str,
+pub async fn update_state<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    id: &str,
+    state: &str,
 ) -> Result<PipelineRuns> {
-    debug!("updating pipeline id: {pip_id} with values state: {pip_state}");
-    conn.transaction(|conn| {
-        diesel::update(pipeline_runs.filter(id.eq(pip_id)))
-            .set(state.eq(pip_state))
-            .execute(conn)
-            .map_err(|e| {
-                error!("could not update pipeline run due to: {e}");
-                anyhow!(e)
-            })
-            .and_then(|_| {
-                debug!("updated pipeline successfully");
-                select_by_id(conn, pip_id)
-            })
-    })
+    debug!("updating pipeline id: {id} with values state: {state}");
+    let current_date = Utc::now().naive_utc();
+    let mut update_statement = PipelineRunsEntity::update_many()
+        .col_expr(pipeline_runs::Column::State, Expr::value(state))
+        .col_expr(
+            pipeline_runs::Column::DateUpdated,
+            Expr::value(current_date),
+        );
+
+    if state == PR_STATE_FINISHED || state == PR_STATE_FAULTED {
+        update_statement =
+            update_statement.col_expr(pipeline_runs::Column::EndDate, Expr::value(current_date));
+    }
+
+    update_statement
+        .filter(pipeline_runs::Column::Id.eq(id))
+        .exec(conn)
+        .await
+        .map(|_| {
+            debug!("updated pipeline successfully");
+        })
+        .map_err(|e| {
+            error!("could not update pipeline run due to: {e}");
+            anyhow!(e)
+        })?;
+
+    select_by_id(conn, id).await
+}
+
+pub async fn update_start_date<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    id: &str,
+    start_date: &DateTime,
+) -> Result<()> {
+    debug!("updating pipeline run {id} with state_date {start_date}");
+    PipelineRunsEntity::update_many()
+        .col_expr(pipeline_runs::Column::StartDate, Expr::value(*start_date))
+        .filter(pipeline_runs::Column::Id.eq(id))
+        .exec(conn)
+        .await
+        .map(|_| {
+            debug!("update pipeline run start date successfully");
+        })
+        .map_err(|e| {
+            debug!("couldn't update pipeline run's start date due to {e}");
+            anyhow!(e)
+        })
 }

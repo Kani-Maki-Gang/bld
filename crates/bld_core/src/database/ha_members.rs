@@ -1,25 +1,16 @@
-use crate::database::ha_snapshot::HighAvailSnapshot;
-use crate::database::schema::ha_members;
-use crate::database::schema::ha_members::dsl::*;
 use anyhow::{anyhow, Result};
-use diesel::prelude::*;
-use diesel::query_dsl::RunQueryDsl;
-use diesel::sqlite::SqliteConnection;
-use diesel::{Associations, Identifiable, Insertable, Queryable};
+use bld_entities::{
+    high_availability_members::{self, Entity as HighAvailMembersEntity},
+    high_availability_snapshot,
+};
+use sea_orm::{
+    ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, QueryFilter, QueryOrder,
+    QuerySelect, RelationTrait, TransactionTrait,
+};
 use tracing::{debug, error};
 
-#[derive(Debug, Associations, Identifiable, Queryable)]
-#[diesel(belongs_to(HighAvailSnapshot, foreign_key = snapshot_id))]
-#[diesel(table_name = ha_members)]
-pub struct HighAvailMembers {
-    pub id: i32,
-    pub snapshot_id: i32,
-    pub date_created: String,
-    pub date_updated: String,
-}
+pub use bld_entities::high_availability_members::Model as HighAvailMembers;
 
-#[derive(Debug, Insertable)]
-#[diesel(table_name = ha_members)]
 pub struct InsertHighAvailMembers {
     pub id: i32,
     pub snapshot_id: i32,
@@ -34,20 +25,26 @@ impl InsertHighAvailMembers {
     }
 }
 
-pub fn select(
-    conn: &mut SqliteConnection,
-    sn: &HighAvailSnapshot,
+pub async fn select<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    sn_id: i32,
 ) -> Result<Vec<HighAvailMembers>> {
     debug!(
         "loading high availability members of snapshot with id: {}",
-        sn.id
+        sn_id
     );
-    HighAvailMembers::belonging_to(sn)
-        .load(conn)
+    HighAvailMembersEntity::find()
+        .join(
+            JoinType::InnerJoin,
+            high_availability_members::Relation::HighAvailabilitySnapshot.def(),
+        )
+        .filter(high_availability_snapshot::Column::Id.eq(sn_id))
+        .all(conn)
+        .await
         .map(|m| {
             debug!(
                 "loaded high availability members of snapshot with id: {} successfully",
-                sn.id
+                sn_id
             );
             m
         })
@@ -57,12 +54,16 @@ pub fn select(
         })
 }
 
-pub fn select_last_rows(conn: &mut SqliteConnection, rows: i64) -> Result<Vec<HighAvailMembers>> {
+pub async fn select_last_rows<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    rows: u64,
+) -> Result<Vec<HighAvailMembers>> {
     debug!("loading last {} rows of high availability members", rows);
-    ha_members
-        .order(id.desc())
+    HighAvailMembersEntity::find()
+        .order_by_desc(high_availability_members::Column::Id)
         .limit(rows)
-        .load(conn)
+        .all(conn)
+        .await
         .map(|m| {
             debug!("loaded high availability members successfully");
             m
@@ -73,22 +74,29 @@ pub fn select_last_rows(conn: &mut SqliteConnection, rows: i64) -> Result<Vec<Hi
         })
 }
 
-pub fn insert_many(
-    conn: &mut SqliteConnection,
+pub async fn insert_many<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
     models: Vec<InsertHighAvailMembers>,
-) -> Result<Vec<HighAvailMembers>> {
+) -> Result<()> {
     debug!("inserting multiple high availability members");
-    conn.transaction(|conn| {
-        diesel::insert_into(ha_members)
-            .values(&models)
-            .execute(conn)
-            .map_err(|e| {
-                error!("could not insert high availability members due to: {}", e);
-                anyhow!(e)
-            })
-            .and_then(|rows| {
-                debug!("inserted multiple high availability members successfully");
-                select_last_rows(conn, rows as i64)
-            })
-    })
+
+    let models: Vec<high_availability_members::ActiveModel> = models
+        .into_iter()
+        .map(|m| high_availability_members::ActiveModel {
+            id: Set(m.id),
+            snapshot_id: Set(m.snapshot_id),
+            ..Default::default()
+        })
+        .collect();
+
+    HighAvailMembersEntity::insert_many(models)
+        .exec(conn)
+        .await
+        .map_err(|e| {
+            error!("could not insert high availability members due to: {}", e);
+            anyhow!(e)
+        })?;
+
+    debug!("inserted multiple high availability members successfully");
+    Ok(())
 }

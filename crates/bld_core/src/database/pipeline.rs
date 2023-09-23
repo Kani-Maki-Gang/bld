@@ -1,47 +1,47 @@
-#![allow(dead_code)]
-use crate::database::schema::pipeline::dsl::*;
-use crate::database::{cron_jobs, schema::pipeline};
 use anyhow::{anyhow, Result};
-use diesel::prelude::*;
-use diesel::query_dsl::RunQueryDsl;
-use diesel::sqlite::SqliteConnection;
-use diesel::Queryable;
+use bld_entities::pipeline::{self, Entity as PipelineEntity};
+use bld_migrations::Expr;
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, ModelTrait,
+    QueryFilter, QueryOrder, TransactionTrait,
+};
 use tracing::{debug, error};
 
-#[derive(Debug, Queryable)]
-pub struct Pipeline {
+use crate::database::cron_jobs;
+
+pub use bld_entities::pipeline::Model as Pipeline;
+
+pub struct InsertPipeline {
     pub id: String,
     pub name: String,
-    pub date_created: String,
 }
 
-#[derive(Insertable)]
-#[diesel(table_name = pipeline)]
-struct InsertPipeline<'a> {
-    pub id: &'a str,
-    pub name: &'a str,
-}
-
-pub fn select_all(conn: &mut SqliteConnection) -> Result<Vec<Pipeline>> {
+pub async fn select_all<C: ConnectionTrait + TransactionTrait>(conn: &C) -> Result<Vec<Pipeline>> {
     debug!("loading all pipelines from the database");
-    pipeline
-        .order_by(name)
-        .load(conn)
+    let models = PipelineEntity::find()
+        .order_by_asc(pipeline::Column::Name)
+        .all(conn)
+        .await
         .map(|p| {
             debug!("loaded all pipelines successfully");
             p
         })
         .map_err(|e| {
-            error!("could not load pipelines due to {e}");
-            anyhow!(e)
-        })
+            error!("couldn't load pipelines due to {e}");
+            anyhow!(e.to_string())
+        })?;
+    Ok(models)
 }
 
-pub fn select_by_id(conn: &mut SqliteConnection, pip_id: &str) -> Result<Pipeline> {
+pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    pip_id: &str,
+) -> Result<Pipeline> {
     debug!("loading pipeline with id: {pip_id} from the database");
-    pipeline
-        .filter(id.eq(pip_id))
-        .first(conn)
+
+    let model = PipelineEntity::find_by_id(pip_id)
+        .one(conn)
+        .await
         .map(|p| {
             debug!("loaded pipeline successfully");
             p
@@ -49,30 +49,51 @@ pub fn select_by_id(conn: &mut SqliteConnection, pip_id: &str) -> Result<Pipelin
         .map_err(|e| {
             error!("could not load pipeline due to {e}");
             anyhow!(e)
-        })
+        })?;
+
+    model.ok_or_else(|| {
+        error!("couldn't load pipeline due to not found");
+        anyhow!("pipeline not found")
+    })
 }
 
-pub fn select_by_name(conn: &mut SqliteConnection, pip_name: &str) -> Result<Pipeline> {
+pub async fn select_by_name<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    pip_name: &str,
+) -> Result<Pipeline> {
     debug!("loading pipeline with name: {pip_name} from the database");
-    pipeline
-        .filter(name.eq(pip_name))
-        .first(conn)
+
+    let model = PipelineEntity::find()
+        .filter(pipeline::Column::Name.eq(pip_name))
+        .one(conn)
+        .await
+        .map_err(|e| {
+            error!("couldn't load pipeline due to {e}");
+            anyhow!(e)
+        })?;
+
+    model
+        .ok_or_else(|| {
+            error!("couldn't load pipeline due to not found");
+            anyhow!("pipeline not found")
+        })
         .map(|p| {
             debug!("loaded pipeline successfully");
             p
         })
-        .map_err(|e| {
-            error!("could not load pipeline due to {e}");
-            anyhow!(e)
-        })
 }
 
-pub fn update_name(conn: &mut SqliteConnection, pip_id: &str, pip_name: &str) -> Result<()> {
+pub async fn update_name<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    pip_id: &str,
+    pip_name: &str,
+) -> Result<()> {
     debug!("updating pipeline with id: {pip_id} with new name: {pip_name}");
-    diesel::update(pipeline)
-        .set(name.eq(pip_name))
-        .filter(id.eq(pip_id))
-        .execute(conn)
+    PipelineEntity::update_many()
+        .col_expr(pipeline::Column::Name, Expr::value(pip_name))
+        .filter(pipeline::Column::Id.eq(pip_id))
+        .exec(conn)
+        .await
         .map(|_| debug!("pipeline updated successfully"))
         .map_err(|e| {
             error!("could not update pipeline due to {e}");
@@ -80,42 +101,48 @@ pub fn update_name(conn: &mut SqliteConnection, pip_id: &str, pip_name: &str) ->
         })
 }
 
-pub fn insert(conn: &mut SqliteConnection, pip_id: &str, pip_name: &str) -> Result<Pipeline> {
+pub async fn insert<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    model: InsertPipeline,
+) -> Result<()> {
     debug!("inserting new pipeline to the database");
-    let model = InsertPipeline {
-        id: pip_id,
-        name: pip_name,
+
+    let active_model = pipeline::ActiveModel {
+        id: Set(model.id),
+        name: Set(model.name),
+        ..Default::default()
     };
-    conn.transaction(|conn| {
-        diesel::insert_into(pipeline::table)
-            .values(&model)
-            .execute(conn)
-            .map_err(|e| {
-                error!("could not insert pipeline due to: {e}");
-                anyhow!(e)
-            })
-            .and_then(|_| {
-                debug!("created new pipeline entry with id: {pip_id}, name: {pip_name}");
-                select_by_id(conn, pip_id)
-            })
-    })
+
+    active_model
+        .insert(conn)
+        .await
+        .map(|_| {
+            debug!("created new pipeline entry successfully");
+        })
+        .map_err(|e| {
+            error!("could not insert pipeline due to: {e}");
+            anyhow!(e)
+        })
 }
 
-pub fn delete_by_name(conn: &mut SqliteConnection, pip_name: &str) -> Result<()> {
+pub async fn delete_by_name<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    pip_name: &str,
+) -> Result<()> {
     debug!("deleting pipeline with name: {pip_name} from the database");
-    conn.transaction(|conn| {
-        select_by_name(conn, pip_name)
-            .and_then(|pip| cron_jobs::delete_by_pipeline(conn, &pip.id))
-            .and_then(|_| {
-                diesel::delete(pipeline.filter(name.eq(pip_name)))
-                    .execute(conn)
-                    .map_err(|e| {
-                        error!("could not delete pipeline due to {e}");
-                        anyhow!(e)
-                    })
-                    .map(|_| {
-                        debug!("pipeline deleted successfully");
-                    })
-            })
-    })
+    let txn = conn.begin().await?;
+    let model = select_by_name(&txn, pip_name).await?;
+    cron_jobs::delete_by_pipeline(&txn, &model.id).await?;
+    model
+        .delete(&txn)
+        .await
+        .map(|_| {
+            debug!("pipeline deleted successfully");
+        })
+        .map_err(|e| {
+            error!("could not delete pipeline due to {e}");
+            anyhow!(e)
+        })?;
+    txn.commit().await?;
+    Ok(())
 }

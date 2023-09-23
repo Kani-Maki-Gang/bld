@@ -27,6 +27,6 @@ async fn do_remove(
     params: &PipelineQueryParams,
 ) -> Result<()> {
     cron.remove_scheduled_jobs(&params.pipeline).await?;
-    prx.remove(&params.pipeline)?;
+    prx.remove(&params.pipeline).await?;
     Ok(())
 }

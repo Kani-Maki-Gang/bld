@@ -74,14 +74,14 @@ impl<'a> PipelineValidator<'a> {
         symbols
     }
 
-    pub fn validate(mut self) -> Result<()> {
+    pub async fn validate(mut self) -> Result<()> {
         self.validate_runs_on();
         self.validate_cron();
         self.validate_variables(None, &self.pipeline.variables);
         self.validate_environment(None, &self.pipeline.environment);
-        self.validate_external();
+        self.validate_external().await;
         self.validate_artifacts();
-        self.validate_jobs();
+        self.validate_jobs().await;
 
         if !self.errors.is_empty() {
             bail!(self.errors)
@@ -166,10 +166,10 @@ impl<'a> PipelineValidator<'a> {
         }
     }
 
-    fn validate_external(&mut self) {
+    async fn validate_external(&mut self) {
         for entry in &self.pipeline.external {
             self.validate_external_name(entry.name.as_deref());
-            self.validate_external_pipeline(&entry.pipeline);
+            self.validate_external_pipeline(&entry.pipeline).await;
             self.validate_external_server(entry.server.as_deref());
             self.validate_variables(Some("external"), &entry.variables);
             self.validate_environment(Some("external"), &entry.environment);
@@ -183,10 +183,10 @@ impl<'a> PipelineValidator<'a> {
         self.validate_symbols("external > name", name)
     }
 
-    fn validate_external_pipeline(&mut self, pipeline: &'a str) {
+    async fn validate_external_pipeline(&mut self, pipeline: &'a str) {
         self.validate_symbols("external > pipeline", pipeline);
 
-        match self.proxy.path(pipeline) {
+        match self.proxy.path(pipeline).await {
             Ok(path) if !path.is_yaml() => {
                 let _ = writeln!(
                     self.errors,
@@ -246,20 +246,20 @@ impl<'a> PipelineValidator<'a> {
         }
     }
 
-    fn validate_jobs(&mut self) {
+    async fn validate_jobs(&mut self) {
         for (job, steps) in self.pipeline.jobs.iter() {
             for step in steps.iter() {
-                self.validate_step(job, step);
+                self.validate_step(job, step).await;
             }
         }
     }
 
-    fn validate_step(&mut self, job: &str, step: &'a BuildStep) {
+    async fn validate_step(&mut self, job: &str, step: &'a BuildStep) {
         let mut section = format!("jobs > {job} > steps");
 
         match step {
             BuildStep::One(exec) => {
-                self.validate_exec(&section, exec);
+                self.validate_exec(&section, exec).await;
             }
             BuildStep::Many {
                 exec,
@@ -275,25 +275,25 @@ impl<'a> PipelineValidator<'a> {
                 }
 
                 for exec in exec.iter() {
-                    self.validate_exec(&section, exec);
+                    self.validate_exec(&section, exec).await;
                 }
             }
         }
     }
 
-    fn validate_exec(&mut self, section: &str, step: &'a BuildStepExec) {
+    async fn validate_exec(&mut self, section: &str, step: &'a BuildStepExec) {
         match step {
             BuildStepExec::Shell(value) => {
                 self.validate_symbols(section, value);
             }
             BuildStepExec::External { value } => {
                 self.validate_symbols(section, value);
-                self.validate_exec_ext(section, value);
+                self.validate_exec_ext(section, value).await;
             }
         }
     }
 
-    fn validate_exec_ext(&mut self, section: &str, value: &str) {
+    async fn validate_exec_ext(&mut self, section: &str, value: &str) {
         if self.pipeline.external.iter().any(|e| e.is(value)) {
             return;
         }
@@ -301,6 +301,7 @@ impl<'a> PipelineValidator<'a> {
         let found_path = self
             .proxy
             .path(value)
+            .await
             .map(|x| x.is_yaml())
             .unwrap_or_default();
 

@@ -1,19 +1,17 @@
-use actix_web::rt::spawn;
-use actix_web::web::Data;
+use actix_web::{rt::spawn, web::Data};
 use anyhow::{anyhow, Error, Result};
 use bld_config::BldConfig;
-use bld_core::database::pipeline_run_containers::{self, PRC_STATE_REMOVED};
-use bld_core::database::pipeline_runs::{
-    self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED,
+use bld_core::{
+    database::{
+        pipeline_run_containers::{self, PRC_STATE_REMOVED},
+        pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED},
+    },
+    workers::PipelineWorker,
 };
-use bld_core::workers::PipelineWorker;
-use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::sqlite::SqliteConnection;
-use shiplift::errors::Error as ShipliftError;
-use shiplift::{Docker, RmContainerOptions};
+use sea_orm::DatabaseConnection;
+use shiplift::{errors::Error as ShipliftError, Docker, RmContainerOptions};
 use std::collections::VecDeque;
-use tokio::sync::mpsc;
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info};
 
 fn oneshot_send_err<T>(_: T) -> Error {
@@ -48,7 +46,7 @@ struct WorkerQueueReceiver {
     active: Vec<PipelineWorker>,
     backlog: VecDeque<PipelineWorker>,
     config: Data<BldConfig>,
-    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    conn: Data<DatabaseConnection>,
     rx: mpsc::Receiver<WorkerQueueMessage>,
 }
 
@@ -56,14 +54,14 @@ impl WorkerQueueReceiver {
     pub fn new(
         capacity: usize,
         config: Data<BldConfig>,
-        pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+        conn: Data<DatabaseConnection>,
         rx: mpsc::Receiver<WorkerQueueMessage>,
     ) -> Self {
         let config_clone = config.clone();
-        let pool_clone = pool.clone();
+        let conn_clone = conn.clone();
 
         spawn(async move {
-            if let Err(e) = try_cleanup_containers(config_clone, pool_clone).await {
+            if let Err(e) = try_cleanup_containers(config_clone, conn_clone).await {
                 error!("error while cleaning up containers, {e}");
             }
         });
@@ -73,7 +71,7 @@ impl WorkerQueueReceiver {
             active: Vec::with_capacity(capacity),
             backlog: VecDeque::new(),
             config,
-            pool,
+            conn,
             rx,
         }
     }
@@ -82,15 +80,15 @@ impl WorkerQueueReceiver {
         while let Some(msg) = self.rx.recv().await {
             match msg {
                 WorkerQueueMessage::Enqueue { worker, resp_tx } => {
-                    let result = self.enqueue(worker);
+                    let result = self.enqueue(worker).await;
                     resp_tx.send(result).map_err(oneshot_send_err)?;
                 }
                 WorkerQueueMessage::Dequeue { pid, resp_tx } => {
-                    let result = self.dequeue(pid);
+                    let result = self.dequeue(pid).await;
                     resp_tx.send(result).map_err(oneshot_send_err)?;
                 }
                 WorkerQueueMessage::Stop { run_id, resp_tx } => {
-                    let result = self.stop(run_id);
+                    let result = self.stop(run_id).await;
                     resp_tx.send(result).map_err(oneshot_send_err)?;
                 }
                 WorkerQueueMessage::Contains { pid, resp_tx } => {
@@ -111,9 +109,9 @@ impl WorkerQueueReceiver {
         Ok(())
     }
 
-    fn add_backlog(&mut self, worker: PipelineWorker) -> Result<()> {
-        let mut conn = self.pool.get()?;
-        pipeline_runs::update_state(&mut conn, worker.get_run_id(), PR_STATE_QUEUED)?;
+    async fn add_backlog(&mut self, worker: PipelineWorker) -> Result<()> {
+        pipeline_runs::update_state(self.conn.as_ref(), worker.get_run_id(), PR_STATE_QUEUED)
+            .await?;
         self.backlog.push_back(worker);
         Ok(())
     }
@@ -126,9 +124,9 @@ impl WorkerQueueReceiver {
         }
 
         let config = self.config.clone();
-        let pool = self.pool.clone();
+        let conn = self.conn.clone();
         spawn(async move {
-            if let Err(e) = try_cleanup_containers(config, pool).await {
+            if let Err(e) = try_cleanup_containers(config, conn).await {
                 error!("error while cleaning up containers, {e}");
             }
         });
@@ -137,11 +135,11 @@ impl WorkerQueueReceiver {
     }
 
     /// Used to spawn the child process of the worker and add it to the active workers vector.
-    fn enqueue(&mut self, item: PipelineWorker) -> Result<()> {
+    async fn enqueue(&mut self, item: PipelineWorker) -> Result<()> {
         if self.active.len() < self.capacity {
             self.activate(item)?;
         } else {
-            self.add_backlog(item)?;
+            self.add_backlog(item).await?;
         }
         Ok(())
     }
@@ -149,40 +147,57 @@ impl WorkerQueueReceiver {
     /// This method will check for a worker that have finished executing and will remove them from
     /// the active workers collection. It will pop the appropriate amount of workers from the
     /// backlog vector, spawn them and add them as active.
-    fn dequeue(&mut self, pid: u32) -> Result<()> {
-        self.active.retain_mut(|w| {
-            let found = w
+    async fn dequeue(&mut self, pid: u32) -> Result<()> {
+        let mut cleanup = vec![];
+        let mut i = 0;
+
+        while i < self.active.len() {
+            if self.active[i]
                 .get_pid()
                 .as_ref()
                 .map(|wpid| pid == *wpid)
-                .unwrap_or(false);
-            if found {
-                if let Err(e) = try_cleanup_process(self.pool.clone(), w) {
-                    error!("error while cleaning up worker process, {e}");
-                }
+                .unwrap_or(false)
+            {
+                let worker = self.active.remove(i);
+                cleanup.push(worker);
+            } else {
+                i += 1;
             }
-            !found
-        });
+        }
+
+        for entry in cleanup.iter_mut() {
+            if let Err(e) = try_cleanup_process(self.conn.clone(), entry).await {
+                error!("error while cleaning up worker process, {e}");
+            }
+        }
+
         self.after_removal()?;
         Ok(())
     }
 
-    fn stop(&mut self, run_id: String) -> Result<()> {
+    async fn stop(&mut self, run_id: String) -> Result<()> {
         let mut found_in_active = false;
+        let mut stopped = vec![];
+        let mut i = 0;
 
-        self.active.retain_mut(|w| {
-            let found = w.has_run_id(&run_id);
-            if found {
+        while i < self.active.len() {
+            if self.active[i].has_run_id(&run_id) {
+                let worker = self.active.remove(i);
                 found_in_active = true;
-                if let Err(e) = w
-                    .stop()
-                    .and_then(|_| try_cleanup_process(self.pool.clone(), w))
-                {
-                    error!("error while stopping worker process, {e}");
-                }
+                stopped.push(worker);
+            } else {
+                i += 1;
             }
-            !found
-        });
+        }
+
+        for entry in stopped.iter_mut() {
+            if let Err(e) = entry.stop() {
+                error!("error while stopping worker process: {e}");
+            }
+            if let Err(e) = try_cleanup_process(self.conn.clone(), entry).await {
+                error!("error while cleaning up worker process, {e}");
+            }
+        }
 
         if found_in_active {
             self.after_removal()?;
@@ -254,10 +269,10 @@ impl WorkerQueueSender {
 pub fn worker_queue_channel(
     capacity: usize,
     config: Data<BldConfig>,
-    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    conn: Data<DatabaseConnection>,
 ) -> WorkerQueueSender {
     let (tx, rx) = mpsc::channel(4096);
-    let receiver = WorkerQueueReceiver::new(capacity, config, pool, rx);
+    let receiver = WorkerQueueReceiver::new(capacity, config, conn, rx);
 
     spawn(async move {
         if let Err(e) = receiver.receive().await {
@@ -272,25 +287,26 @@ pub fn worker_queue_channel(
 /// the current state of the run id. If its set as running, the worker did not
 /// complete successfully so it will be set to finished and all of its associated
 /// containers will be set as faulted in order to be cleaned up later.
-fn try_cleanup_process(
-    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+async fn try_cleanup_process(
+    conn: Data<DatabaseConnection>,
     worker: &mut PipelineWorker,
 ) -> Result<()> {
     debug!("starting worker process cleanup");
+
+    let conn = conn.as_ref();
 
     if let Err(e) = worker.cleanup() {
         error!("error when trying to cleanup the worker process, {e}");
     }
 
     let run_id = worker.get_run_id();
-    let mut conn = pool.get()?;
-    let run = pipeline_runs::select_running_by_id(&mut conn, run_id)?;
+    let run = pipeline_runs::select_running_by_id(conn, run_id).await?;
 
     if run.state != PR_STATE_FINISHED || run.state != PR_STATE_FAULTED {
-        let _ = pipeline_runs::update_state(&mut conn, run_id, PR_STATE_FAULTED);
+        let _ = pipeline_runs::update_state(conn, run_id, PR_STATE_FAULTED).await;
     }
 
-    let _ = pipeline_run_containers::update_running_containers_to_faulted(&mut conn, run_id);
+    let _ = pipeline_run_containers::update_running_containers_to_faulted(conn, run_id).await;
 
     Ok(())
 }
@@ -300,10 +316,9 @@ fn try_cleanup_process(
 /// engine API and then set their state as removed.
 pub async fn try_cleanup_containers(
     config: Data<BldConfig>,
-    pool: Data<Pool<ConnectionManager<SqliteConnection>>>,
+    conn: Data<DatabaseConnection>,
 ) -> Result<()> {
-    let mut conn = pool.get()?;
-    let run_containers = pipeline_run_containers::select_in_invalid_state(&mut conn)?;
+    let run_containers = pipeline_run_containers::select_in_invalid_state(conn.as_ref()).await?;
 
     info!("found {} containers in invalid state", run_containers.len());
 
@@ -336,7 +351,8 @@ pub async fn try_cleanup_containers(
             }
         }
 
-        let _ = pipeline_run_containers::update_state(&mut conn, &info.id, PRC_STATE_REMOVED);
+        let _ =
+            pipeline_run_containers::update_state(conn.as_ref(), &info.id, PRC_STATE_REMOVED).await;
     }
 
     Ok(())

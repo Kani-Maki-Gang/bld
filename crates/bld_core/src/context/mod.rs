@@ -8,8 +8,7 @@ use crate::request::Request;
 use actix_web::rt::spawn;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::sqlite::SqliteConnection;
+use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::oneshot;
@@ -52,7 +51,7 @@ pub enum Context {
         config: Arc<BldConfig>,
         run_id: String,
         remote_runs: Vec<RemoteRun>,
-        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        conn: Arc<DatabaseConnection>,
         platforms: Vec<Arc<TargetPlatform>>,
     },
     Local {
@@ -63,16 +62,12 @@ pub enum Context {
 }
 
 impl Context {
-    pub fn server(
-        config: Arc<BldConfig>,
-        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
-        run_id: &str,
-    ) -> Self {
+    pub fn server(config: Arc<BldConfig>, conn: Arc<DatabaseConnection>, run_id: &str) -> Self {
         Self::Server {
             config,
             run_id: run_id.to_owned(),
             remote_runs: vec![],
-            pool,
+            conn,
             platforms: vec![],
         }
     }
@@ -85,10 +80,11 @@ impl Context {
         }
     }
 
-    pub fn update_pipeline_state(&self, run_id: &str, state: &str) -> Result<()> {
-        if let Self::Server { pool, .. } = self {
-            let mut conn = pool.get()?;
-            pipeline_runs::update_state(&mut conn, run_id, state).map(|_| ())?;
+    pub async fn update_pipeline_state(&self, run_id: &str, state: &str) -> Result<()> {
+        if let Self::Server { conn, .. } = self {
+            pipeline_runs::update_state(conn.as_ref(), run_id, state)
+                .await
+                .map(|_| ())?;
         }
         Ok(())
     }
@@ -105,32 +101,32 @@ impl Context {
                 ContextMessage::RemovePlatform(platform_id) => self.remove_platform(&platform_id),
 
                 ContextMessage::SetPipelineAsRunning(run_id) => {
-                    self.set_pipeline_as_running(&run_id)?
+                    self.set_pipeline_as_running(&run_id).await?;
                 }
 
                 ContextMessage::SetPipelineAsFinished(run_id) => {
-                    self.set_pipeline_as_finished(&run_id)?
+                    self.set_pipeline_as_finished(&run_id).await?;
                 }
 
                 ContextMessage::SetPipelineAsFaulted(run_id) => {
-                    self.set_pipeline_as_faulted(&run_id)?
+                    self.set_pipeline_as_faulted(&run_id).await?;
                 }
 
                 ContextMessage::AddContainer {
                     container_id,
                     resp_tx,
-                } => self.add_container(&container_id, resp_tx)?,
+                } => self.add_container(&container_id, resp_tx).await?,
 
                 ContextMessage::SetContainerAsRemoved(entity_id) => {
-                    self.set_container_as_removed(&entity_id)?
+                    self.set_container_as_removed(&entity_id).await?;
                 }
 
                 ContextMessage::SetContainerAsFaulted(entity_id) => {
-                    self.set_container_as_faulted(&entity_id)?
+                    self.set_container_as_faulted(&entity_id).await?;
                 }
 
                 ContextMessage::KeepAliveContainer(entity_id) => {
-                    self.keep_alive_container(&entity_id)?
+                    self.keep_alive_container(&entity_id).await?;
                 }
 
                 ContextMessage::DoCleanup(resp_tx) => self.do_cleanup(resp_tx).await?,
@@ -172,37 +168,36 @@ impl Context {
         }
     }
 
-    fn set_pipeline_as_running(&self, run_id: &str) -> Result<()> {
-        self.update_pipeline_state(run_id, PR_STATE_RUNNING)
+    async fn set_pipeline_as_running(&self, run_id: &str) -> Result<()> {
+        self.update_pipeline_state(run_id, PR_STATE_RUNNING).await
     }
 
-    fn set_pipeline_as_finished(&self, run_id: &str) -> Result<()> {
-        self.update_pipeline_state(run_id, PR_STATE_FINISHED)
+    async fn set_pipeline_as_finished(&self, run_id: &str) -> Result<()> {
+        self.update_pipeline_state(run_id, PR_STATE_FINISHED).await
     }
 
-    fn set_pipeline_as_faulted(&self, run_id: &str) -> Result<()> {
-        self.update_pipeline_state(run_id, PRC_STATE_FAULTED)
+    async fn set_pipeline_as_faulted(&self, run_id: &str) -> Result<()> {
+        self.update_pipeline_state(run_id, PRC_STATE_FAULTED).await
     }
 
-    fn add_container(
+    async fn add_container(
         &mut self,
         container_id: &str,
         resp_tx: oneshot::Sender<Option<PipelineRunContainers>>,
     ) -> Result<()> {
         let mut entity = None;
 
-        if let Self::Server { run_id, pool, .. } = self {
-            let mut conn = pool.get()?;
-
+        if let Self::Server { run_id, conn, .. } = self {
             entity = pipeline_run_containers::insert(
-                &mut conn,
+                conn.as_ref(),
                 InsertPipelineRunContainer {
-                    id: &Uuid::new_v4().to_string(),
-                    run_id,
-                    container_id,
-                    state: "active",
+                    id: Uuid::new_v4().to_string(),
+                    run_id: run_id.to_owned(),
+                    container_id: container_id.to_owned(),
+                    state: "active".to_owned(),
                 },
             )
+            .await
             .map_err(|e| error!("{e}"))
             .ok();
         }
@@ -214,27 +209,27 @@ impl Context {
         Ok(())
     }
 
-    fn set_container_as_removed(&mut self, entity_id: &str) -> Result<()> {
-        if let Self::Server { pool, .. } = self {
-            let mut conn = pool.get()?;
-            pipeline_run_containers::update_state(&mut conn, entity_id, PRC_STATE_REMOVED)?;
+    async fn set_container_as_removed(&mut self, entity_id: &str) -> Result<()> {
+        if let Self::Server { conn, .. } = self {
+            pipeline_run_containers::update_state(conn.as_ref(), entity_id, PRC_STATE_REMOVED)
+                .await?;
         }
         Ok(())
     }
 
-    fn set_container_as_faulted(&mut self, entity_id: &str) -> Result<()> {
-        if let Self::Server { pool, .. } = self {
-            let mut conn = pool.get()?;
-            pipeline_run_containers::update_state(&mut conn, entity_id, PRC_STATE_FAULTED)?;
+    async fn set_container_as_faulted(&mut self, entity_id: &str) -> Result<()> {
+        if let Self::Server { conn, .. } = self {
+            pipeline_run_containers::update_state(conn.as_ref(), entity_id, PRC_STATE_FAULTED)
+                .await?;
         };
 
         Ok(())
     }
 
-    fn keep_alive_container(&mut self, entity_id: &str) -> Result<()> {
-        if let Self::Server { pool, .. } = self {
-            let mut conn = pool.get()?;
-            pipeline_run_containers::update_state(&mut conn, entity_id, PRC_STATE_KEEP_ALIVE)?;
+    async fn keep_alive_container(&mut self, entity_id: &str) -> Result<()> {
+        if let Self::Server { conn, .. } = self {
+            pipeline_run_containers::update_state(conn.as_ref(), entity_id, PRC_STATE_KEEP_ALIVE)
+                .await?;
         }
         Ok(())
     }
@@ -248,7 +243,7 @@ impl Context {
                 platforms,
                 ..
             } => {
-                self.set_pipeline_as_faulted(run_id)?;
+                self.set_pipeline_as_faulted(run_id).await?;
 
                 for run in remote_runs.iter() {
                     let _ = Self::cleanup_remote_run(config.clone(), run)
@@ -301,11 +296,7 @@ pub struct ContextSender {
 }
 
 impl ContextSender {
-    pub fn server(
-        config: Arc<BldConfig>,
-        pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
-        run_id: &str,
-    ) -> Self {
+    pub fn server(config: Arc<BldConfig>, pool: Arc<DatabaseConnection>, run_id: &str) -> Self {
         let (tx, rx) = channel(4096);
         let context = Context::server(config, pool, run_id);
 

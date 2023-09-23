@@ -1,55 +1,42 @@
 use anyhow::{anyhow, Result};
-use diesel::{
-    prelude::*, query_dsl::RunQueryDsl, sqlite::SqliteConnection, Connection, Insertable, Queryable,
+use bld_entities::cron_job_variables::{self, Entity as CronJobVariableEntity};
+use sea_orm::{
+    ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait,
 };
 use tracing::{debug, error};
 use uuid::Uuid;
 
-use crate::database::schema::cron_job_variables;
-use crate::database::schema::cron_job_variables::dsl::*;
+pub use bld_entities::cron_job_variables::Model as CronJobVariable;
 
-#[derive(Debug, Queryable)]
-#[diesel(belongs_to(CronJob, foreign_key = cron_job_id))]
-#[diesel(table_name = cron_job_variables)]
-pub struct CronJobVariable {
+pub struct InsertCronJobVariable {
     pub id: String,
     pub name: String,
     pub value: String,
     pub cron_job_id: String,
-    pub date_created: String,
-    pub date_updated: Option<String>,
 }
 
-#[derive(Insertable)]
-#[diesel(table_name = cron_job_variables)]
-pub struct InsertCronJobVariable<'a> {
-    pub id: String,
-    pub name: &'a str,
-    pub value: &'a str,
-    pub cron_job_id: &'a str,
-}
-
-impl<'a> InsertCronJobVariable<'a> {
-    pub fn new(kv: (&'a String, &'a String), job_id: &'a str) -> Self {
+impl InsertCronJobVariable {
+    pub fn new(kv: (&String, &String), job_id: &str) -> Self {
         let cv_id = Uuid::new_v4().to_string();
         let (cv_name, cv_value) = kv;
         Self {
             id: cv_id,
-            name: cv_name,
-            value: cv_value,
-            cron_job_id: job_id,
+            name: cv_name.to_owned(),
+            value: cv_value.to_owned(),
+            cron_job_id: job_id.to_owned(),
         }
     }
 }
 
-pub fn select_by_cron_job_id(
-    conn: &mut SqliteConnection,
+pub async fn select_by_cron_job_id<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
     cv_cron_job_id: &str,
 ) -> Result<Vec<CronJobVariable>> {
     debug!("loading all variables for cron job with id: {cv_cron_job_id}");
-    cron_job_variables
-        .filter(cron_job_id.eq(cv_cron_job_id))
-        .load(conn)
+    CronJobVariableEntity::find()
+        .filter(cron_job_variables::Column::CronJobId.eq(cv_cron_job_id))
+        .all(conn)
+        .await
         .map(|cev| {
             debug!("loaded cron job variables successfully");
             cev
@@ -60,26 +47,46 @@ pub fn select_by_cron_job_id(
         })
 }
 
-pub fn insert_many(conn: &mut SqliteConnection, models: &[InsertCronJobVariable]) -> Result<()> {
-    conn.transaction(|conn| {
-        diesel::insert_into(cron_job_variables::table)
-            .values(models)
-            .execute(conn)
-            .map(|_| {
-                debug!("created new cron job environment variables successfully");
-            })
-            .map_err(|e| {
-                error!("couldn't insert cron job environment variables due to {e}");
-                anyhow!(e)
-            })
-    })
+pub async fn insert_many<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    models: &[InsertCronJobVariable],
+) -> Result<()> {
+    if models.is_empty() {
+        return Ok(());
+    }
+
+    let models: Vec<cron_job_variables::ActiveModel> = models
+        .iter()
+        .map(|m| cron_job_variables::ActiveModel {
+            id: Set(m.id.to_owned()),
+            name: Set(m.name.to_owned()),
+            value: Set(m.value.to_owned()),
+            cron_job_id: Set(m.cron_job_id.to_owned()),
+            ..Default::default()
+        })
+        .collect();
+
+    CronJobVariableEntity::insert_many(models)
+        .exec(conn)
+        .await
+        .map(|_| {
+            debug!("created new cron job environment variable successfully");
+        })
+        .map_err(|e| {
+            error!("couldn't insert cron job environment variable due to {e}");
+            anyhow!(e)
+        })
 }
 
-pub fn delete_by_cron_job_id(conn: &mut SqliteConnection, cev_cron_job_id: &str) -> Result<()> {
+pub async fn delete_by_cron_job_id<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    cev_cron_job_id: &str,
+) -> Result<()> {
     debug!("deleting cron job variables associated with cron job id: {cev_cron_job_id}");
-    diesel::delete(cron_job_variables::table)
-        .filter(cron_job_id.eq(cev_cron_job_id))
-        .execute(conn)
+    CronJobVariableEntity::delete_many()
+        .filter(cron_job_variables::Column::CronJobId.eq(cev_cron_job_id))
+        .exec(conn)
+        .await
         .map(|_| {
             debug!("deleted all cron job variables successfully");
         })
