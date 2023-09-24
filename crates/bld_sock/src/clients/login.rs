@@ -5,7 +5,7 @@ use std::{
 };
 
 use actix::{
-    fut::{ready, WrapFuture},
+    fut::WrapFuture,
     io::{SinkWrite, WriteHandler},
     Actor, ActorContext, ActorFutureExt, AsyncContext, Context, Handler, StreamHandler, System,
 };
@@ -22,6 +22,7 @@ use bld_core::{
     messages::{LoginClientMessage, LoginServerMessage},
 };
 use futures::stream::SplitSink;
+use futures_util::future::ready;
 use tokio::process::Command;
 use tracing::error;
 
@@ -85,12 +86,20 @@ impl LoginClient {
 
             LoginServerMessage::Completed(tokens) => {
                 let auth_path = self.config.auth_full_path(&self.server);
-                if let Err(e) = write_tokens(&auth_path, tokens) {
-                    println!("Login failed, {e}");
-                } else {
-                    println!("Login completed successfully!");
+                let write_fut = async move {
+                    if let Err(e) = write_tokens(&auth_path, tokens).await {
+                        println!("Login failed, {e}");
+                    } else {
+                        println!("Login completed successfully!");
+                    }
                 }
-                ctx.stop();
+                .into_actor(self)
+                .then(|_, _, ctx| {
+                    ctx.stop();
+                    ready(())
+                });
+
+                ctx.spawn(write_fut);
             }
 
             LoginServerMessage::Failed { reason } => {
