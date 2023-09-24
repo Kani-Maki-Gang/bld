@@ -36,6 +36,7 @@ impl AuthCommand {
 
         let (_, framed) = WebSocket::new(&url)?
             .auth(&auth_path)
+            .await
             .request()
             .connect()
             .await
@@ -63,13 +64,15 @@ impl BldCommand for AuthCommand {
     }
 
     fn exec(self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
-        let server = self.server.to_owned();
-
-        debug!("running login subcommand with --server: {}", self.server);
-
         let system = System::new();
-        let res = system.block_on(async move { Self::login(config, server).await });
+        let res = system.block_on(async move {
+            let config = BldConfig::load().await?.into_arc();
+            let server = self.server.to_owned();
+
+            debug!("running login subcommand with --server: {}", self.server);
+
+            Self::login(config, server).await
+        });
 
         let _ = system.run();
         res

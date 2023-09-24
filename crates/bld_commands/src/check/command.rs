@@ -27,7 +27,7 @@ pub struct CheckCommand {
 
 impl CheckCommand {
     async fn local_check(&self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config.clone()).into_arc();
         let content = proxy.read(&self.pipeline).await?;
         let pipeline = Yaml::load_with_verbose_errors(&content)?;
@@ -35,7 +35,7 @@ impl CheckCommand {
     }
 
     async fn remote_check(&self, server: &str) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         HttpClient::new(config, server)?.check(&self.pipeline).await
     }
 }

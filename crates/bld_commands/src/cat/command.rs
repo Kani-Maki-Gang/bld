@@ -30,7 +30,7 @@ pub struct CatCommand {
 
 impl CatCommand {
     async fn local_print(&self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config);
         let pipeline = proxy.read(&self.pipeline).await?;
         println!("{pipeline}");
@@ -38,7 +38,7 @@ impl CatCommand {
     }
 
     async fn remote_print(&self, server: &str) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         HttpClient::new(config, server)?
             .print(&self.pipeline)
             .await

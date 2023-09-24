@@ -22,7 +22,7 @@ pub struct ListCommand {
 
 impl ListCommand {
     async fn local_list(&self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config);
         let content = proxy.list().await?.join("\n");
         println!("{content}");
@@ -30,7 +30,7 @@ impl ListCommand {
     }
 
     async fn remote_list(&self, server: &str) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         HttpClient::new(config, server)?
             .list()
             .await

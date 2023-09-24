@@ -50,11 +50,13 @@ impl BldCommand for CronUpdateCommand {
     }
 
     fn exec(self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
-        let client = HttpClient::new(config, &self.server)?;
-        let variables = Some(parse_variables(&self.variables));
-        let environment = Some(parse_variables(&self.environment));
-        let update_job = UpdateJobRequest::new(self.id, self.schedule, variables, environment);
-        System::new().block_on(async move { client.cron_update(&update_job).await })
+        System::new().block_on(async move {
+            let config = BldConfig::load().await?.into_arc();
+            let client = HttpClient::new(config, &self.server)?;
+            let variables = Some(parse_variables(&self.variables));
+            let environment = Some(parse_variables(&self.environment));
+            let update_job = UpdateJobRequest::new(self.id, self.schedule, variables, environment);
+            client.cron_update(&update_job).await
+        })
     }
 }

@@ -1,4 +1,5 @@
 use crate::command::BldCommand;
+use actix::System;
 use anyhow::Result;
 use bld_config::{BldConfig, BldLocalConfig, BldRemoteServerConfig};
 use bld_core::proxies::PipelineFileSystemProxy;
@@ -26,16 +27,16 @@ impl ConfigCommand {
         Ok(())
     }
 
-    fn list_all() -> Result<()> {
-        let config = BldConfig::load()?;
+    async fn list_all() -> Result<()> {
+        let config = BldConfig::load().await?;
         Self::list_locals(&config.local)?;
         Self::list_remote(&config.remote)
     }
 
-    fn edit() -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+    async fn edit() -> Result<()> {
+        let config = BldConfig::load().await?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config);
-        proxy.edit_config()
+        proxy.edit_config().await
     }
 }
 
@@ -49,10 +50,12 @@ impl BldCommand for ConfigCommand {
     }
 
     fn exec(self) -> Result<()> {
-        if self.edit {
-            Self::edit()
-        } else {
-            Self::list_all()
-        }
+        System::new().block_on(async move {
+            if self.edit {
+                Self::edit().await
+            } else {
+                Self::list_all().await
+            }
+        })
     }
 }

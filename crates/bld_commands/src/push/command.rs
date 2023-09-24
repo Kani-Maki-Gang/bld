@@ -38,7 +38,7 @@ pub struct PushCommand {
 
 impl PushCommand {
     async fn push(self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         let client = HttpClient::new(config.clone(), &self.server)?;
         let proxy = PipelineFileSystemProxy::local(config.clone()).into_arc();
 

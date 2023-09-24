@@ -52,7 +52,7 @@ impl BldCommand for HistCommand {
 
     fn exec(self) -> Result<()> {
         System::new().block_on(async move {
-            let config = BldConfig::load()?.into_arc();
+            let config = BldConfig::load().await?.into_arc();
 
             let state = if self.state != "all" {
                 Some(self.state.to_string())

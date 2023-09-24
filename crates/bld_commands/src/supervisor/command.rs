@@ -21,11 +21,9 @@ impl BldCommand for SupervisorCommand {
     }
 
     fn exec(self) -> Result<()> {
-        let config = BldConfig::load()?;
-
-        debug!("starting supervisor");
-
         System::new().block_on(async move {
+            let config = BldConfig::load().await?;
+            debug!("starting supervisor");
             if let Err(e) = supervisor::start(config).await {
                 error!("{e}");
                 bail!("")

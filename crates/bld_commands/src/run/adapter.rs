@@ -1,5 +1,4 @@
 use actix::{io::SinkWrite, Actor, StreamHandler};
-use actix_web::rt::System;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::context::ContextSender;
@@ -229,7 +228,7 @@ impl RunAdapter {
             variables: Some(mode.variables),
         };
 
-        let web_socket = WebSocket::new(&url)?.auth(&auth_path);
+        let web_socket = WebSocket::new(&url)?.auth(&auth_path).await;
 
         let (_, framed) = web_socket
             .request()
@@ -266,13 +265,11 @@ impl RunAdapter {
             .map(|_| println!("pipeline has been scheduled to run"))
     }
 
-    pub fn run(self) -> Result<()> {
-        System::new().block_on(async move {
-            match self.config {
-                RunConfiguration::Local(run) => Self::run_local(run).await,
-                RunConfiguration::Http(http) => Self::run_http(http).await,
-                RunConfiguration::WebSocket(socket) => Self::run_web_socket(socket).await,
-            }
-        })
+    pub async fn run(self) -> Result<()> {
+        match self.config {
+            RunConfiguration::Local(run) => Self::run_local(run).await,
+            RunConfiguration::Http(http) => Self::run_http(http).await,
+            RunConfiguration::WebSocket(socket) => Self::run_web_socket(socket).await,
+        }
     }
 }

@@ -26,13 +26,13 @@ pub struct RemoveCommand {
 
 impl RemoveCommand {
     async fn local_remove(&self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config);
         proxy.remove(&self.pipeline).await
     }
 
     async fn remote_remove(&self, server: &str) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         let client = HttpClient::new(config, server)?;
 
         debug!(
