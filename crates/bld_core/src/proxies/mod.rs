@@ -2,13 +2,11 @@ use anyhow::{anyhow, bail, Result};
 use bld_config::{path, BldConfig};
 use bld_utils::{fs::IsYaml, sync::IntoArc};
 use sea_orm::DatabaseConnection;
-use std::{
-    fmt::Write as FmtWrite,
+use std::{fmt::Write as FmtWrite, path::PathBuf, process::ExitStatus, sync::Arc};
+use tokio::{
     fs::{copy, create_dir_all, read_to_string, remove_file, rename, File},
-    io::Write,
-    path::PathBuf,
-    process::{Command, ExitStatus},
-    sync::Arc,
+    io::AsyncWriteExt,
+    process::Command,
 };
 use uuid::Uuid;
 use walkdir::WalkDir;
@@ -71,9 +69,9 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    fn read_internal(&self, path: &PathBuf) -> Result<String> {
+    async fn read_internal(&self, path: &PathBuf) -> Result<String> {
         if path.is_yaml() {
-            read_to_string(path).map_err(|e| anyhow!(e))
+            read_to_string(path).await.map_err(|e| anyhow!(e))
         } else {
             bail!("pipeline not found")
         }
@@ -81,27 +79,27 @@ impl PipelineFileSystemProxy {
 
     pub async fn read(&self, name: &str) -> Result<String> {
         let path = self.path(name).await?;
-        self.read_internal(&path)
+        self.read_internal(&path).await
     }
 
-    pub fn read_tmp(&self, name: &str) -> Result<String> {
+    pub async fn read_tmp(&self, name: &str) -> Result<String> {
         let path = self.config().tmp_full_path(name);
-        self.read_internal(&path)
+        self.read_internal(&path).await
     }
 
-    fn create_internal(&self, path: &PathBuf, content: &str, overwrite: bool) -> Result<()> {
+    async fn create_internal(&self, path: &PathBuf, content: &str, overwrite: bool) -> Result<()> {
         if path.is_yaml() && !overwrite {
             bail!("pipeline already exists");
         } else if path.is_yaml() && overwrite {
-            remove_file(path)?;
+            remove_file(path).await?;
         }
 
         if let Some(parent) = path.parent() {
-            create_dir_all(parent)?;
+            create_dir_all(parent).await?;
         }
 
-        let mut handle = File::create(path)?;
-        handle.write_all(content.as_bytes())?;
+        let mut handle = File::create(path).await?;
+        handle.write_all(content.as_bytes()).await?;
 
         Ok(())
     }
@@ -127,12 +125,12 @@ impl PipelineFileSystemProxy {
 
         let path = self.path(name).await?;
 
-        self.create_internal(&path, content, overwrite)
+        self.create_internal(&path, content, overwrite).await
     }
 
-    pub fn create_tmp(&self, name: &str, content: &str, overwrite: bool) -> Result<String> {
+    pub async fn create_tmp(&self, name: &str, content: &str, overwrite: bool) -> Result<String> {
         let path = self.config().tmp_full_path(name);
-        self.create_internal(&path, content, overwrite)?;
+        self.create_internal(&path, content, overwrite).await?;
         Ok(path.display().to_string())
     }
 
@@ -141,33 +139,35 @@ impl PipelineFileSystemProxy {
         match self {
             Self::Local { .. } => {
                 if path.is_yaml() {
-                    remove_file(&path)?;
+                    remove_file(&path).await?;
                     Ok(())
                 } else {
                     bail!("pipeline not found")
                 }
             }
+            Self::Server { .. } if !path.is_yaml() => {
+                bail!("pipeline not found")
+            }
             Self::Server { conn, .. } => {
-                if path.is_yaml() {
-                    pipeline::delete_by_name(conn.as_ref(), name)
-                        .await
-                        .and_then(|_| remove_file(path).map_err(|e| anyhow!(e)))
-                        .map_err(|_| anyhow!("unable to remove pipeline"))
-                } else {
-                    bail!("pipeline not found")
-                }
+                pipeline::delete_by_name(conn.as_ref(), name)
+                    .await
+                    .map_err(|_| anyhow!("unable to remove pipeline"))?;
+                remove_file(path)
+                    .await
+                    .map_err(|_| anyhow!("unable to remove pipeline"))
             }
         }
     }
 
-    pub fn remove_tmp(&self, name: &str) -> Result<()> {
+    pub async fn remove_tmp(&self, name: &str) -> Result<()> {
         let path = self.config().tmp_full_path(name);
-        if path.is_yaml() {
-            remove_file(path)?;
-            Ok(())
-        } else {
+
+        if !path.is_yaml() {
             bail!("pipeline not found");
         }
+
+        remove_file(path).await?;
+        Ok(())
     }
 
     pub async fn copy(&self, source: &str, target: &str) -> Result<()> {
@@ -185,9 +185,9 @@ impl PipelineFileSystemProxy {
                     bail!("target pipeline already exists");
                 }
                 if let Some(parent) = target_path.parent() {
-                    create_dir_all(parent)?;
+                    create_dir_all(parent).await?;
                 }
-                copy(source_path, target_path)?;
+                copy(source_path, target_path).await?;
                 Ok(())
             }
             Self::Server { .. } => {
@@ -214,9 +214,9 @@ impl PipelineFileSystemProxy {
                     bail!("target pipeline already exist");
                 }
                 if let Some(parent) = target_path.parent() {
-                    create_dir_all(parent)?;
+                    create_dir_all(parent).await?;
                 }
-                rename(source_path, target_path)?;
+                rename(source_path, target_path).await?;
                 Ok(())
             }
             Self::Server { conn, .. } => {
@@ -264,7 +264,7 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    fn edit_internal(&self, path: &PathBuf, check_path: bool) -> Result<()> {
+    async fn edit_internal(&self, path: &PathBuf, check_path: bool) -> Result<()> {
         let Self::Local { config } = self else {
             bail!("server pipelines dont support direct editing");
         };
@@ -276,10 +276,10 @@ impl PipelineFileSystemProxy {
         let mut editor = Command::new("/bin/bash");
         editor.args(["-c", &format!("{} {}", config.local.editor, path.display())]);
 
-        let status = editor.status()?;
+        let status = editor.status().await?;
         if !ExitStatus::success(&status) {
             let mut error = String::new();
-            let output = editor.output()?;
+            let output = editor.output().await?;
             writeln!(error, "editor process finished with {}", status)?;
             write!(error, "{}", String::from_utf8_lossy(&output.stderr))?;
             bail!(error);
@@ -289,15 +289,16 @@ impl PipelineFileSystemProxy {
 
     pub async fn edit(&self, name: &str) -> Result<()> {
         let path = self.path(name).await?;
-        self.edit_internal(&path, true)
+        self.edit_internal(&path, true).await
     }
 
-    pub fn edit_tmp(&self, name: &str) -> Result<()> {
+    pub async fn edit_tmp(&self, name: &str) -> Result<()> {
         let path = self.config().tmp_full_path(name);
-        self.edit_internal(&path, true)
+        self.edit_internal(&path, true).await
     }
 
-    pub fn edit_config(&self) -> Result<()> {
+    pub async fn edit_config(&self) -> Result<()> {
         self.edit_internal(&self.config().config_full_path(), false)
+            .await
     }
 }
