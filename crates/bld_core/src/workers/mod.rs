@@ -3,7 +3,7 @@ use std::process::ExitStatus;
 use anyhow::{anyhow, Result};
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
-use tokio::process::{Command, Child};
+use tokio::process::{Child, Command};
 
 #[derive(Debug)]
 pub struct PipelineWorker {
@@ -56,7 +56,8 @@ impl PipelineWorker {
     pub async fn cleanup(&mut self) -> Result<ExitStatus> {
         self.try_wait()
             .map_err(|_| anyhow!("command is still running. cannot cleanup"))?;
-        let child = self.child
+        let child = self
+            .child
             .as_mut()
             .ok_or_else(|| anyhow!("worker has not spawned"))?;
         child.wait().await.map_err(|e| anyhow!(e))
