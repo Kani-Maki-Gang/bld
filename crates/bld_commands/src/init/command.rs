@@ -12,7 +12,6 @@ use bld_config::{
 use bld_utils::term::print_info;
 use clap::Args;
 use std::env::current_dir;
-use std::fs::{create_dir, read_dir, write, File};
 use std::path::Component::Normal;
 use std::path::{Path, PathBuf};
 use tracing::debug;

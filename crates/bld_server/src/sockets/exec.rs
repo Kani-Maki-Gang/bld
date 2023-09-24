@@ -17,6 +17,7 @@ use bld_core::{
     proxies::PipelineFileSystemProxy,
     scanner::FileScanner,
 };
+use bld_utils::sync::IntoArc;
 use futures_util::future::ready;
 use sea_orm::DatabaseConnection;
 use std::{sync::Arc, time::Duration};
@@ -28,7 +29,7 @@ pub struct ExecutePipelineSocket {
     conn: Data<DatabaseConnection>,
     proxy: Data<PipelineFileSystemProxy>,
     user: User,
-    scanner: Option<FileScanner>,
+    scanner: Option<Arc<FileScanner>>,
     run_id: Option<String>,
 }
 
@@ -52,15 +53,24 @@ impl ExecutePipelineSocket {
     }
 
     fn scan(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
-        if let Some(scanner) = act.scanner.as_mut() {
-            let content = scanner.scan();
-            for line in content.iter() {
-                let message = ExecServerMessage::Log {
-                    content: line.to_string(),
-                };
-                let _ = serde_json::to_string(&message).map(|data| ctx.text(data));
-            }
-        }
+        let Some(scanner) = act.scanner.as_ref() else {
+            return;
+        };
+        let scanner = scanner.clone();
+        let scan_fut = async move { scanner.scan().await }
+            .into_actor(act)
+            .then(|res, _, ctx| {
+                if let Ok(lines) = res {
+                    for line in lines.iter() {
+                        let message = ExecServerMessage::Log {
+                            content: line.to_string(),
+                        };
+                        let _ = serde_json::to_string(&message).map(|data| ctx.text(data));
+                    }
+                }
+                ready(())
+            });
+        ctx.spawn(scan_fut);
     }
 
     fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
@@ -109,7 +119,7 @@ impl ExecutePipelineSocket {
                 .into_actor(self)
                 .then(|res, act, ctx| match res {
                     Ok(run_id) => {
-                        act.scanner = Some(FileScanner::new(Arc::clone(&act.config), &run_id));
+                        act.scanner = Some(FileScanner::new(Arc::clone(&act.config), &run_id).into_arc());
                         act.run_id = Some(run_id.to_owned());
                         let message = ExecServerMessage::QueuedRun { run_id };
                         if let Ok(data) = serde_json::to_string(&message) {

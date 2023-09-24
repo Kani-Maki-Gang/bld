@@ -196,6 +196,7 @@ impl Job {
 
         let (_, framed) = WebSocket::new(&url)?
             .auth(&auth_path)
+            .await
             .request()
             .connect()
             .await

@@ -5,6 +5,7 @@ use bld_config::BldConfig;
 use futures::{StreamExt, TryStreamExt};
 use shiplift::{tty::TtyChunk, ContainerOptions, Docker, Exec, ExecContainerOptions};
 use tar::Archive;
+use tokio::fs::read;
 use tracing::error;
 
 use crate::{
@@ -103,7 +104,7 @@ impl Container {
     pub async fn copy_into(&self, from: &str, to: &str) -> Result<()> {
         let client = self.get_client()?;
         let container = client.containers().get(self.get_id()?);
-        let content = std::fs::read(from)?;
+        let content = read(from).await?;
         container.copy_file_into(to, &content).await?;
         Ok(())
     }

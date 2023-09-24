@@ -13,6 +13,7 @@ use bld_core::{
     messages::MonitInfo,
     scanner::FileScanner,
 };
+use bld_utils::sync::IntoArc;
 use futures_util::future::ready;
 use sea_orm::DatabaseConnection;
 use std::{sync::Arc, time::Duration};
@@ -22,7 +23,7 @@ pub struct MonitorPipelineSocket {
     id: String,
     conn: Data<DatabaseConnection>,
     config: Data<BldConfig>,
-    scanner: Option<FileScanner>,
+    scanner: Option<Arc<FileScanner>>,
 }
 
 impl MonitorPipelineSocket {
@@ -36,12 +37,21 @@ impl MonitorPipelineSocket {
     }
 
     fn scan(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
-        if let Some(scanner) = act.scanner.as_mut() {
-            let content = scanner.scan();
-            for line in content.iter() {
-                ctx.text(line.to_string());
-            }
-        }
+        let Some(scanner) = act.scanner.as_ref() else {
+            return;
+        };
+        let scanner = scanner.clone();
+        let scan_fut = async move { scanner.scan().await }
+            .into_actor(act)
+            .then(|res, _, ctx| {
+                if let Ok(lines) = res {
+                    for line in lines.iter() {
+                        ctx.text(line.to_string());
+                    }
+                }
+                ready(())
+            });
+        ctx.spawn(scan_fut);
     }
 
     fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
@@ -84,7 +94,7 @@ impl MonitorPipelineSocket {
             Ok(run) => {
                 debug!("starting scan for run");
                 act.id = run.id.clone();
-                act.scanner = Some(FileScanner::new(Arc::clone(&act.config), &run.id));
+                act.scanner = Some(FileScanner::new(Arc::clone(&act.config), &run.id).into_arc());
                 ready(())
             }
             Err(e) => {

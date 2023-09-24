@@ -874,6 +874,7 @@ dependencies = [
  "bld_config",
  "bld_core",
  "futures",
+ "futures-util",
  "rustls 0.20.9",
  "serde",
  "serde_derive",

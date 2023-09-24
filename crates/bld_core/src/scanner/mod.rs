@@ -98,7 +98,7 @@ impl FileScanner {
         Self { tx }
     }
 
-    pub async fn scan(&mut self) -> Result<Vec<String>> {
+    pub async fn scan(&self) -> Result<Vec<String>> {
         let (resp_tx, resp_rx) = oneshot::channel();
         self.tx.send(FileScannerMessage::Next(resp_tx)).await?;
         resp_rx.await.map_err(|e| anyhow!(e))

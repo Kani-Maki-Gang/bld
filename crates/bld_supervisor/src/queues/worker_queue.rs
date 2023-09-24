@@ -295,7 +295,7 @@ async fn try_cleanup_process(
 
     let conn = conn.as_ref();
 
-    if let Err(e) = worker.cleanup() {
+    if let Err(e) = worker.cleanup().await {
         error!("error when trying to cleanup the worker process, {e}");
     }
 
