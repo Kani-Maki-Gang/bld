@@ -11,4 +11,5 @@ tracing = "0.1.36"
 serde = "1.0.126"
 serde_derive = "1.0.126"
 serde_yaml = "0.9.14"
+tokio = { version = "1.24.2", features = ["full"] }
 openidconnect = "3.1.1"

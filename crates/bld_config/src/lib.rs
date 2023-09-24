@@ -18,8 +18,8 @@ pub use tls::*;
 use anyhow::{anyhow, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::env::current_dir;
-use std::fs::read_to_string;
 use std::path::PathBuf;
+use tokio::fs::read_to_string;
 use tracing::debug;
 
 use crate::definitions::{
@@ -72,7 +72,7 @@ impl BldConfig {
         }
     }
 
-    pub fn load() -> Result<Self> {
+    pub async fn load() -> Result<Self> {
         let path = Self::path()?;
 
         let root_dir = path
@@ -85,8 +85,8 @@ impl BldConfig {
 
         debug!("loading config file from: {}", &path.display());
 
-        let mut instance: Self =
-            serde_yaml::from_str(&read_to_string(&path)?).map_err(|e| anyhow!(e))?;
+        let content = read_to_string(&path).await?;
+        let mut instance: Self = serde_yaml::from_str(&content).map_err(|e| anyhow!(e))?;
 
         instance.root_dir = root_dir
             .to_str()
