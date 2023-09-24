@@ -59,7 +59,9 @@ impl FileScannerReceiver {
 
         let mut content: Vec<String> = vec![];
         let Some(file_handle) = self.file_handle.as_mut() else {
-            resp_tx.send(content).map_err(|_| anyhow!("oneshot response sender dropped"))?;
+            resp_tx
+                .send(content)
+                .map_err(|_| anyhow!("oneshot response sender dropped"))?;
             return Ok(());
         };
 
@@ -71,7 +73,9 @@ impl FileScannerReceiver {
             next = lines.next_line().await?;
         }
 
-        resp_tx.send(content).map_err(|_| anyhow!("oneshot response sender dropped"))?;
+        resp_tx
+            .send(content)
+            .map_err(|_| anyhow!("oneshot response sender dropped"))?;
         Ok(())
     }
 }
