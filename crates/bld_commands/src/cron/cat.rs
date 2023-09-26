@@ -31,43 +31,46 @@ impl BldCommand for CronCatCommand {
     }
 
     fn exec(self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
-        let client = HttpClient::new(config, &self.server)?;
-        let filters = JobFiltersParams::new(Some(self.id), None, None, None, None);
-        let response = System::new().block_on(async move { client.cron_list(&filters).await })?;
+        System::new().block_on(async move {
+            let config = BldConfig::load().await?.into_arc();
+            let client = HttpClient::new(config, &self.server)?;
+            let filters = JobFiltersParams::new(Some(self.id), None, None, None, None);
+            let response =
+                System::new().block_on(async move { client.cron_list(&filters).await })?;
 
-        if !response.is_empty() {
-            let entry = &response[0];
-            let mut message = String::new();
+            if !response.is_empty() {
+                let entry = &response[0];
+                let mut message = String::new();
 
-            writeln!(message, "{:<13}: {}", "id", entry.id)?;
-            writeln!(message, "{:<13}: {}", "schedule", entry.schedule)?;
-            writeln!(message, "{:<13}: {}", "pipeline", entry.pipeline)?;
-            writeln!(message, "{:<13}: {}", "is_default", entry.is_default)?;
-            writeln!(message, "{:<13}: {:?}", "variables", entry.variables)?;
-            writeln!(message, "{:<13}: {:?}", "environment", entry.environment)?;
-            writeln!(message)?;
-            write!(
-                message,
-                "bld cron update -s {} -i {} -S '{}'",
-                self.server, entry.id, entry.schedule
-            )?;
+                writeln!(message, "{:<13}: {}", "id", entry.id)?;
+                writeln!(message, "{:<13}: {}", "schedule", entry.schedule)?;
+                writeln!(message, "{:<13}: {}", "pipeline", entry.pipeline)?;
+                writeln!(message, "{:<13}: {}", "is_default", entry.is_default)?;
+                writeln!(message, "{:<13}: {:?}", "variables", entry.variables)?;
+                writeln!(message, "{:<13}: {:?}", "environment", entry.environment)?;
+                writeln!(message)?;
+                write!(
+                    message,
+                    "bld cron update -s {} -i {} -S '{}'",
+                    self.server, entry.id, entry.schedule
+                )?;
 
-            if let Some(variables) = &entry.variables {
-                for (k, v) in variables {
-                    write!(message, " -v {}='{}'", k, v)?;
+                if let Some(variables) = &entry.variables {
+                    for (k, v) in variables {
+                        write!(message, " -v {}='{}'", k, v)?;
+                    }
                 }
+
+                if let Some(environment) = &entry.environment {
+                    for (k, v) in environment {
+                        write!(message, " -e {}='{}'", k, v)?;
+                    }
+                }
+
+                print!("{message}");
             }
 
-            if let Some(environment) = &entry.environment {
-                for (k, v) in environment {
-                    write!(message, " -e {}='{}'", k, v)?;
-                }
-            }
-
-            print!("{message}");
-        }
-
-        Ok(())
+            Ok(())
+        })
     }
 }

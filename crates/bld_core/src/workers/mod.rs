@@ -1,7 +1,9 @@
+use std::process::ExitStatus;
+
 use anyhow::{anyhow, Result};
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
-use std::process::{Child, Command, ExitStatus};
+use tokio::process::{Child, Command};
 
 #[derive(Debug)]
 pub struct PipelineWorker {
@@ -28,11 +30,11 @@ impl PipelineWorker {
     }
 
     pub fn get_pid(&self) -> Option<u32> {
-        self.child.as_ref().map(|c| c.id())
+        self.child.as_ref().map(|c| c.id()).unwrap_or(None)
     }
 
     pub fn has_pid(&self, pid: u32) -> bool {
-        self.child.as_ref().map(|c| c.id() == pid).unwrap_or(false)
+        self.get_pid().map(|id| id == pid).unwrap_or(false)
     }
 
     fn try_wait(&mut self) -> Result<Option<ExitStatus>> {
@@ -51,15 +53,14 @@ impl PipelineWorker {
         self.try_wait().is_ok()
     }
 
-    pub fn cleanup(&mut self) -> Result<ExitStatus> {
+    pub async fn cleanup(&mut self) -> Result<ExitStatus> {
         self.try_wait()
-            .map_err(|_| anyhow!("command is still running. cannot cleanup"))
-            .and_then(|_| {
-                self.child
-                    .as_mut()
-                    .ok_or_else(|| anyhow!("worker has not spawned"))
-                    .and_then(|c| c.wait().map_err(|e| anyhow!(e)))
-            })
+            .map_err(|_| anyhow!("command is still running. cannot cleanup"))?;
+        let child = self
+            .child
+            .as_mut()
+            .ok_or_else(|| anyhow!("worker has not spawned"))?;
+        child.wait().await.map_err(|e| anyhow!(e))
     }
 
     pub fn stop(&mut self) -> Result<()> {

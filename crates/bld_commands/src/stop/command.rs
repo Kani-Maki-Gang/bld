@@ -34,8 +34,10 @@ impl BldCommand for StopCommand {
     }
 
     fn exec(self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
-        let client = HttpClient::new(config, &self.server)?;
-        System::new().block_on(async move { client.stop(&self.pipeline_id).await })
+        System::new().block_on(async move {
+            let config = BldConfig::load().await?.into_arc();
+            let client = HttpClient::new(config, &self.server)?;
+            client.stop(&self.pipeline_id).await
+        })
     }
 }

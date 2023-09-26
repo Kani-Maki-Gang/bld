@@ -41,7 +41,7 @@ pub struct AddCommand {
 
 impl AddCommand {
     async fn local_add(&self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config);
 
         proxy
@@ -56,30 +56,32 @@ impl AddCommand {
     }
 
     async fn remote_add(&self, server: &str) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config.clone());
         let client = HttpClient::new(config, server)?;
         let tmp_name = format!("{}.yaml", Uuid::new_v4());
 
         println!("Creating temporary local pipeline {}", tmp_name);
         debug!("creating temporary pipeline file: {tmp_name}");
-        proxy.create_tmp(&tmp_name, DEFAULT_V2_PIPELINE_CONTENT, true)?;
+        proxy
+            .create_tmp(&tmp_name, DEFAULT_V2_PIPELINE_CONTENT, true)
+            .await?;
 
         if self.edit {
             println!("Editing temporary local pipeline {}", tmp_name);
             debug!("starting editor for temporary pipeline file: {tmp_name}");
-            proxy.edit_tmp(&tmp_name)?;
+            proxy.edit_tmp(&tmp_name).await?;
         }
 
         debug!("reading content of temporary pipeline file: {tmp_name}");
-        let tmp_content = proxy.read_tmp(&tmp_name)?;
+        let tmp_content = proxy.read_tmp(&tmp_name).await?;
 
         println!("Pushing updated content for {}", self.pipeline);
 
         client.push(&self.pipeline, &tmp_content).await?;
 
         debug!("deleting temporary pipeline file: {tmp_name}");
-        proxy.remove_tmp(&tmp_name)?;
+        proxy.remove_tmp(&tmp_name).await?;
 
         Ok(())
     }

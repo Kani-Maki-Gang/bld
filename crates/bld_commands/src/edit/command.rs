@@ -28,13 +28,13 @@ pub struct EditCommand {
 
 impl EditCommand {
     async fn local_edit(&self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config);
         proxy.edit(&self.pipeline).await
     }
 
     async fn remote_edit(&self, server: &str) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         let client = HttpClient::new(config.clone(), server)?;
         let proxy = PipelineFileSystemProxy::local(config);
         println!("Pulling pipline {}", self.pipeline);
@@ -46,20 +46,20 @@ impl EditCommand {
         println!("Editing temporary local pipeline {}", tmp_name);
 
         debug!("creating temporary pipeline file: {tmp_name}");
-        proxy.create_tmp(&tmp_name, &data.content, true)?;
+        proxy.create_tmp(&tmp_name, &data.content, true).await?;
 
         debug!("starting editor for temporary pipeline file: {tmp_name}");
-        proxy.edit_tmp(&tmp_name)?;
+        proxy.edit_tmp(&tmp_name).await?;
 
         debug!("reading content of temporary pipeline file: {tmp_name}");
-        let tmp_content = proxy.read_tmp(&tmp_name)?;
+        let tmp_content = proxy.read_tmp(&tmp_name).await?;
 
         println!("Pushing updated content for {}", self.pipeline);
 
         client.push(&self.pipeline, &tmp_content).await?;
 
         debug!("deleting temporary pipeline file: {tmp_name}");
-        proxy.remove_tmp(&tmp_name)?;
+        proxy.remove_tmp(&tmp_name).await?;
 
         Ok(())
     }

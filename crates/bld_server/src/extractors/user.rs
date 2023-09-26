@@ -33,6 +33,7 @@ impl FromRequest for User {
         let config = req.app_data::<Data<BldConfig>>().cloned();
         let client = req.app_data::<Data<Option<CoreClient>>>().cloned();
         let access_token = get_access_token(req);
+        dbg!(&access_token);
 
         async move {
             let config = config.unwrap();

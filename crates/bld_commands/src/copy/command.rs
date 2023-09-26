@@ -29,13 +29,13 @@ pub struct CopyCommand {
 
 impl CopyCommand {
     async fn local_copy(&self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config);
         proxy.copy(&self.pipeline, &self.target).await
     }
 
     async fn remote_copy(&self, server: &str) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         let client = HttpClient::new(config, server)?;
         client.copy(&self.pipeline, &self.target).await
     }

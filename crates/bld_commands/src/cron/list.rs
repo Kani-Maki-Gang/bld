@@ -64,33 +64,35 @@ impl BldCommand for CronListCommand {
     }
 
     fn exec(self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
-        let client = HttpClient::new(config, &self.server)?;
-        let filters = JobFiltersParams::new(
-            self.id,
-            self.pipeline,
-            self.schedule,
-            self.is_default,
-            self.limit.map(|x| x as u64),
-        );
-        let response = System::new().block_on(async move { client.cron_list(&filters).await })?;
+        System::new().block_on(async move {
+            let config = BldConfig::load().await?.into_arc();
+            let client = HttpClient::new(config, &self.server)?;
+            let filters = JobFiltersParams::new(
+                self.id,
+                self.pipeline,
+                self.schedule,
+                self.is_default,
+                self.limit.map(|x| x as u64),
+            );
+            let response = client.cron_list(&filters).await?;
 
-        if !response.is_empty() {
-            let data: Vec<JobInfoRow> = response
-                .iter()
-                .map(|j| JobInfoRow {
-                    id: &j.id,
-                    schedule: &j.schedule,
-                    pipeline: &j.pipeline,
-                    is_default: j.is_default,
-                    date_created: &j.date_created,
-                    date_updated: j.date_updated.as_deref().unwrap_or(""),
-                })
-                .collect();
-            let table = Table::new(data).with(Style::modern()).to_string();
-            println!("{table}");
-        }
+            if !response.is_empty() {
+                let data: Vec<JobInfoRow> = response
+                    .iter()
+                    .map(|j| JobInfoRow {
+                        id: &j.id,
+                        schedule: &j.schedule,
+                        pipeline: &j.pipeline,
+                        is_default: j.is_default,
+                        date_created: &j.date_created,
+                        date_updated: j.date_updated.as_deref().unwrap_or(""),
+                    })
+                    .collect();
+                let table = Table::new(data).with(Style::modern()).to_string();
+                println!("{table}");
+            }
 
-        Ok(())
+            Ok(())
+        })
     }
 }

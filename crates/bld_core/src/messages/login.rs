@@ -13,5 +13,5 @@ pub enum LoginClientMessage {
 pub enum LoginServerMessage {
     AuthorizationUrl(String),
     Completed(AuthTokens),
-    Failed { reason: String },
+    Failed(String),
 }

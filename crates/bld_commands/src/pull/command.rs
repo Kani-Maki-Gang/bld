@@ -38,7 +38,7 @@ pub struct PullCommand {
 
 impl PullCommand {
     async fn request(self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         let client = HttpClient::new(config.clone(), &self.server)?;
         let proxy = PipelineFileSystemProxy::local(config);
 

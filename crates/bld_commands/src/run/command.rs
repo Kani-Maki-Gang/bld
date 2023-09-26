@@ -1,5 +1,6 @@
 use crate::command::BldCommand;
 use crate::run::adapter::RunBuilder;
+use actix::System;
 use anyhow::Result;
 use bld_config::definitions::TOOL_DEFAULT_PIPELINE_FILE;
 use bld_config::BldConfig;
@@ -50,14 +51,16 @@ impl BldCommand for RunCommand {
     }
 
     fn exec(self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
-        let variables = parse_variables(&self.variables);
-        let environment = parse_variables(&self.environment);
-        let adapter = RunBuilder::new(config, self.pipeline, variables, environment)
-            .server(self.server.as_ref())
-            .detach(self.detach)
-            .build();
+        System::new().block_on(async move {
+            let config = BldConfig::load().await?.into_arc();
+            let variables = parse_variables(&self.variables);
+            let environment = parse_variables(&self.environment);
+            let adapter = RunBuilder::new(config, self.pipeline, variables, environment)
+                .server(self.server.as_ref())
+                .detach(self.detach)
+                .build();
 
-        adapter.run()
+            adapter.run().await
+        })
     }
 }

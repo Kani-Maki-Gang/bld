@@ -49,14 +49,14 @@ impl TargetPlatform {
 
     pub async fn push(&self, from: &str, to: &str) -> Result<()> {
         match self {
-            Self::Machine { machine, .. } => machine.copy_into(from, to),
+            Self::Machine { machine, .. } => machine.copy_into(from, to).await,
             Self::Container { container, .. } => container.copy_into(from, to).await,
         }
     }
 
     pub async fn get(&self, from: &str, to: &str) -> Result<()> {
         match self {
-            Self::Machine { machine, .. } => machine.copy_from(from, to),
+            Self::Machine { machine, .. } => machine.copy_from(from, to).await,
             Self::Container { container, .. } => container.copy_from(from, to).await,
         }
     }
@@ -83,7 +83,7 @@ impl TargetPlatform {
     pub async fn dispose(&self, in_child_runner: bool) -> Result<()> {
         match self {
             // checking if the runner is a child in order to not cleanup the temp dir for the whole run
-            Self::Machine { machine, .. } if !in_child_runner => machine.dispose(),
+            Self::Machine { machine, .. } if !in_child_runner => machine.dispose().await,
             Self::Machine { .. } => Ok(()),
             Self::Container { container, .. } => container.dispose().await,
         }

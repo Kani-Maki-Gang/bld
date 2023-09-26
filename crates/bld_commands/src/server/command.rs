@@ -32,11 +32,13 @@ impl BldCommand for ServerCommand {
     }
 
     fn exec(self) -> Result<()> {
-        let config = BldConfig::load()?;
-        let host = self
-            .host
-            .unwrap_or_else(|| config.local.server.host.to_owned());
-        let port = self.port.unwrap_or(config.local.server.port);
-        System::new().block_on(bld_server::start(config, host, port))
+        System::new().block_on(async move {
+            let config = BldConfig::load().await?;
+            let host = self
+                .host
+                .unwrap_or_else(|| config.local.server.host.to_owned());
+            let port = self.port.unwrap_or(config.local.server.port);
+            bld_server::start(config, host, port).await
+        })
     }
 }

@@ -89,8 +89,8 @@ impl Request {
         self
     }
 
-    pub fn auth(mut self, path: &Path) -> Self {
-        if let Ok(tokens) = read_tokens(path) {
+    pub async fn auth(mut self, path: &Path) -> Self {
+        if let Ok(tokens) = read_tokens(path).await {
             self.request = self
                 .request
                 .insert_header(("Authorization", format!("Bearer {}", tokens.access_token)));
@@ -156,8 +156,8 @@ impl WebSocket {
         })
     }
 
-    pub fn auth(mut self, path: &Path) -> Self {
-        if let Ok(tokens) = read_tokens(path) {
+    pub async fn auth(mut self, path: &Path) -> Self {
+        if let Ok(tokens) = read_tokens(path).await {
             self.request = self
                 .request
                 .header("Authorization", format!("Bearer {}", tokens.access_token));
@@ -188,14 +188,14 @@ impl HttpClient {
 
     async fn refresh(&self) -> Result<()> {
         let url = format!("{}/refresh", self.base_url);
-        let tokens = read_tokens(&self.auth_path)?;
+        let tokens = read_tokens(&self.auth_path).await?;
         let Some(refresh_token) = tokens.refresh_token else {
             error!("no refresh token found");
             bail!("request failed with status code: 401 Unauthorized");
         };
         let params = RefreshTokenParams::new(&refresh_token);
         let tokens: AuthTokens = Request::get(&url).query(&params)?.send().await?;
-        write_tokens(&self.auth_path, tokens)
+        write_tokens(&self.auth_path, tokens).await
     }
 
     fn unauthorized<T>(response: &Result<T>) -> bool {
@@ -214,6 +214,7 @@ impl HttpClient {
         Request::get(&url)
             .query(&params)?
             .auth(&self.auth_path)
+            .await
             .send()
             .await
             .map(|_: String| ())
@@ -234,6 +235,7 @@ impl HttpClient {
         let url = format!("{}/deps", self.base_url);
         Request::get(&url)
             .auth(&self.auth_path)
+            .await
             .query(params)?
             .send()
             .await
@@ -256,6 +258,7 @@ impl HttpClient {
         Request::get(&url)
             .query(params)?
             .auth(&self.auth_path)
+            .await
             .send()
             .await
     }
@@ -281,6 +284,7 @@ impl HttpClient {
         let url = format!("{}/print", self.base_url);
         Request::get(&url)
             .auth(&self.auth_path)
+            .await
             .query(params)?
             .send()
             .await
@@ -300,7 +304,7 @@ impl HttpClient {
 
     async fn list_inner(&self) -> Result<String> {
         let url = format!("{}/list", self.base_url);
-        Request::get(&url).auth(&self.auth_path).send().await
+        Request::get(&url).auth(&self.auth_path).await.send().await
     }
 
     pub async fn list(&self) -> Result<String> {
@@ -318,6 +322,7 @@ impl HttpClient {
         let url = format!("{}/pull", self.base_url);
         Request::get(&url)
             .auth(&self.auth_path)
+            .await
             .query(params)?
             .send()
             .await
@@ -339,6 +344,7 @@ impl HttpClient {
         let url = format!("{}/push", self.base_url);
         Request::post(&url)
             .auth(&self.auth_path)
+            .await
             .send_json(json)
             .await
             .map(|_: String| ())
@@ -363,6 +369,7 @@ impl HttpClient {
         let url = format!("{}/remove", self.base_url);
         Request::delete(&url)
             .auth(&self.auth_path)
+            .await
             .query(params)?
             .send()
             .await
@@ -385,6 +392,7 @@ impl HttpClient {
         let url = format!("{}/run", self.base_url);
         Request::post(&url)
             .auth(&self.auth_path)
+            .await
             .send_json(json)
             .await
             .map(|_: String| ())
@@ -415,6 +423,7 @@ impl HttpClient {
         let url = format!("{}/stop", self.base_url);
         Request::post(&url)
             .auth(&self.auth_path)
+            .await
             .send_json(json)
             .await
             .map(|_: String| ())
@@ -436,6 +445,7 @@ impl HttpClient {
         let url = format!("{}/cron", self.base_url);
         Request::get(&url)
             .auth(&self.auth_path)
+            .await
             .query(filters)?
             .send()
             .await
@@ -456,6 +466,7 @@ impl HttpClient {
         let url = format!("{}/cron", self.base_url);
         Request::post(&url)
             .auth(&self.auth_path)
+            .await
             .send_json(body)
             .await
             .map(|_: String| ())
@@ -476,6 +487,7 @@ impl HttpClient {
         let url = format!("{}/cron", self.base_url);
         Request::patch(&url)
             .auth(&self.auth_path)
+            .await
             .send_json(body)
             .await
             .map(|_: String| ())
@@ -496,6 +508,7 @@ impl HttpClient {
         let url = format!("{}/cron/{id}", self.base_url);
         Request::delete(&url)
             .auth(&self.auth_path)
+            .await
             .send()
             .await
             .map(|_: String| ())
@@ -516,6 +529,7 @@ impl HttpClient {
         let url = format!("{}/copy", self.base_url);
         Request::post(&url)
             .auth(&self.auth_path)
+            .await
             .send_json(data)
             .await
             .map(|_: String| ())
@@ -537,6 +551,7 @@ impl HttpClient {
         let url = format!("{}/move", self.base_url);
         Request::patch(&url)
             .auth(&self.auth_path)
+            .await
             .send_json(data)
             .await
             .map(|_: String| ())

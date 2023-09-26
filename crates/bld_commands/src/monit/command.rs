@@ -45,7 +45,7 @@ pub struct MonitCommand {
 
 impl MonitCommand {
     async fn request(self) -> Result<()> {
-        let config = BldConfig::load()?;
+        let config = BldConfig::load().await?;
         let server = config.server(&self.server)?;
         let auth_path = config.auth_full_path(&server.name);
         let url = format!("{}/ws-monit/", server.base_url_ws());
@@ -54,6 +54,7 @@ impl MonitCommand {
 
         let (_, framed) = WebSocket::new(&url)?
             .auth(&auth_path)
+            .await
             .request()
             .connect()
             .await

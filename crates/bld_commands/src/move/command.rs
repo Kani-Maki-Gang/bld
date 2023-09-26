@@ -29,13 +29,13 @@ pub struct MoveCommand {
 
 impl MoveCommand {
     async fn local_move(&self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         let proxy = PipelineFileSystemProxy::local(config);
         proxy.mv(&self.pipeline, &self.target).await
     }
 
     async fn remote_move(&self, server: &str) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
+        let config = BldConfig::load().await?.into_arc();
         HttpClient::new(config, server)?
             .mv(&self.pipeline, &self.target)
             .await

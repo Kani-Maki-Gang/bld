@@ -4,10 +4,13 @@ use bld_config::{os_name, path, BldConfig, OSname};
 use std::{
     collections::HashMap,
     fmt::Write,
-    fs::{copy, create_dir_all, remove_dir_all},
     path::{Path, PathBuf},
-    process::{Command, ExitStatus},
+    process::ExitStatus,
     sync::Arc,
+};
+use tokio::{
+    fs::{copy, create_dir_all, remove_dir_all},
+    process::Command,
 };
 
 pub struct Machine {
@@ -16,7 +19,7 @@ pub struct Machine {
 }
 
 impl Machine {
-    pub fn new(
+    pub async fn new(
         id: &str,
         config: Arc<BldConfig>,
         pipeline_env: &HashMap<String, String>,
@@ -24,7 +27,7 @@ impl Machine {
     ) -> Result<Self> {
         let tmp_path = config.tmp_full_path(id);
         if !tmp_path.is_dir() {
-            create_dir_all(&tmp_path)?;
+            create_dir_all(&tmp_path).await?;
         }
         Ok(Self {
             tmp_dir: tmp_path.display().to_string(),
@@ -49,17 +52,17 @@ impl Machine {
         map
     }
 
-    fn copy(&self, from: &str, to: &str) -> Result<()> {
-        copy(Path::new(from), Path::new(to))?;
+    async fn copy(&self, from: &str, to: &str) -> Result<()> {
+        copy(Path::new(from), Path::new(to)).await?;
         Ok(())
     }
 
-    pub fn copy_from(&self, from: &str, to: &str) -> Result<()> {
-        self.copy(from, to)
+    pub async fn copy_from(&self, from: &str, to: &str) -> Result<()> {
+        self.copy(from, to).await
     }
 
-    pub fn copy_into(&self, from: &str, to: &str) -> Result<()> {
-        self.copy(from, to)
+    pub async fn copy_into(&self, from: &str, to: &str) -> Result<()> {
+        self.copy(from, to).await
     }
 
     pub async fn sh(
@@ -89,7 +92,7 @@ impl Machine {
         command.args(&args);
         command.current_dir(current_dir);
 
-        let process = command.output()?;
+        let process = command.output().await?;
         let mut output = String::new();
 
         if !process.stderr.is_empty() {
@@ -109,8 +112,8 @@ impl Machine {
         Ok(())
     }
 
-    pub fn dispose(&self) -> Result<()> {
-        remove_dir_all(&self.tmp_dir)?;
+    pub async fn dispose(&self) -> Result<()> {
+        remove_dir_all(&self.tmp_dir).await?;
         Ok(())
     }
 }

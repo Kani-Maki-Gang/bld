@@ -54,12 +54,14 @@ impl BldCommand for CronAddCommand {
     }
 
     fn exec(self) -> Result<()> {
-        let config = BldConfig::load()?.into_arc();
-        let client = HttpClient::new(config, &self.server)?;
-        let variables = Some(parse_variables(&self.variables));
-        let environment = Some(parse_variables(&self.environment));
-        let request =
-            AddJobRequest::new(self.schedule, self.pipeline, variables, environment, false);
-        System::new().block_on(async move { client.cron_add(&request).await })
+        System::new().block_on(async move {
+            let config = BldConfig::load().await?.into_arc();
+            let client = HttpClient::new(config, &self.server)?;
+            let variables = Some(parse_variables(&self.variables));
+            let environment = Some(parse_variables(&self.environment));
+            let request =
+                AddJobRequest::new(self.schedule, self.pipeline, variables, environment, false);
+            client.cron_add(&request).await
+        })
     }
 }
