@@ -12,10 +12,10 @@ use bld_config::{
 };
 use bld_utils::term::print_info;
 use clap::Args;
-use tokio::fs::{read_dir, create_dir, File, write};
 use std::env::current_dir;
 use std::path::Component::Normal;
 use std::path::{Path, PathBuf};
+use tokio::fs::{create_dir, read_dir, write, File};
 use tracing::debug;
 
 #[derive(Args)]
@@ -103,7 +103,7 @@ async fn create_db(is_server: bool) -> Result<()> {
     Ok(())
 }
 
-async  fn create_server_pipelines_dir(is_server: bool) -> Result<()> {
+async fn create_server_pipelines_dir(is_server: bool) -> Result<()> {
     if is_server {
         let path = path![TOOL_DIR, LOCAL_SERVER_PIPELINES];
         create_dir(path).await?;

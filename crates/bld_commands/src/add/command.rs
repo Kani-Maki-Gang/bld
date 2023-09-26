@@ -63,7 +63,9 @@ impl AddCommand {
 
         println!("Creating temporary local pipeline {}", tmp_name);
         debug!("creating temporary pipeline file: {tmp_name}");
-        proxy.create_tmp(&tmp_name, DEFAULT_V2_PIPELINE_CONTENT, true).await?;
+        proxy
+            .create_tmp(&tmp_name, DEFAULT_V2_PIPELINE_CONTENT, true)
+            .await?;
 
         if self.edit {
             println!("Editing temporary local pipeline {}", tmp_name);

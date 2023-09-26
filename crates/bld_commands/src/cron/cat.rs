@@ -35,7 +35,8 @@ impl BldCommand for CronCatCommand {
             let config = BldConfig::load().await?.into_arc();
             let client = HttpClient::new(config, &self.server)?;
             let filters = JobFiltersParams::new(Some(self.id), None, None, None, None);
-            let response = System::new().block_on(async move { client.cron_list(&filters).await })?;
+            let response =
+                System::new().block_on(async move { client.cron_list(&filters).await })?;
 
             if !response.is_empty() {
                 let entry = &response[0];

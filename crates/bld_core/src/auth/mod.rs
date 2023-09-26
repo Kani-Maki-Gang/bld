@@ -4,8 +4,8 @@ use actix_web::rt::spawn;
 use anyhow::{anyhow, bail, Result};
 use serde_derive::{Deserialize, Serialize};
 use tokio::{
-    fs::{create_dir_all, remove_file, File},
-    io::{AsyncReadExt, AsyncWriteExt},
+    fs::{create_dir_all, read_to_string, remove_file, File},
+    io::AsyncWriteExt,
     sync::{
         mpsc::{channel, Receiver, Sender},
         oneshot,
@@ -132,9 +132,8 @@ pub async fn read_tokens(path: &Path) -> Result<AuthTokens> {
         bail!("file not found");
     }
 
-    let mut buf = Vec::new();
-    File::open(path).await?.read_to_end(&mut buf).await?;
-    serde_json::from_slice(&buf).map_err(|e| anyhow!(e))
+    let content = read_to_string(path).await?;
+    serde_json::from_str(&content).map_err(|e| anyhow!(e))
 }
 
 pub async fn write_tokens(path: &Path, tokens: AuthTokens) -> Result<()> {

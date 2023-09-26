@@ -8,8 +8,8 @@ use actix_web::{
 use actix_web_actors::ws;
 use anyhow::Result;
 use bld_core::{messages::ServerMessages, workers::PipelineWorker};
-use tokio::process::Command;
 use std::env::current_exe;
+use tokio::process::Command;
 use tracing::{debug, error, info};
 
 pub struct ServerSocket {

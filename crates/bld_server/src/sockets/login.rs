@@ -21,14 +21,12 @@ use openidconnect::{
     AccessTokenHash, AuthorizationCode, CsrfToken, Nonce, OAuth2TokenResponse, PkceCodeChallenge,
     PkceCodeVerifier, TokenResponse,
 };
-use tokio::sync::oneshot::{self, error::TryRecvError};
+use tokio::sync::oneshot;
 use tracing::error;
 
 pub struct LoginSocket {
     csrf_token: CsrfToken,
     nonce: Nonce,
-    pkce_verifier: Option<PkceCodeVerifier>,
-    code_rx: Option<oneshot::Receiver<String>>,
     config: Data<BldConfig>,
     client: Data<Option<CoreClient>>,
     logins: Data<LoginProcess>,
@@ -44,9 +42,7 @@ impl LoginSocket {
     ) -> Self {
         Self {
             csrf_token,
-            pkce_verifier: None,
             nonce,
-            code_rx: None,
             config,
             client,
             logins,
@@ -69,7 +65,6 @@ impl LoginSocket {
         let nonce_fn = || nonce;
 
         let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
-        self.pkce_verifier = Some(verifier);
 
         let mut auth_url = client
             .authorize_url(
@@ -86,124 +81,38 @@ impl LoginSocket {
         let (url, _, _) = auth_url.url();
 
         let (code_tx, code_rx) = oneshot::channel();
-        self.code_rx = Some(code_rx);
 
         let csrf_token = self.csrf_token.clone();
+        let client = self.client.clone();
+        let nonce = self.nonce.clone();
         let logins = self.logins.clone();
-        let login_add_fut =
-            async move { logins.add(csrf_token.secret().to_owned(), code_tx).await }
-                .into_actor(self)
-                .then(|res, _, ctx| {
-                    if let Err(e) = res {
-                        error!("{e}");
-                        ctx.stop();
-                    }
-                    ready(())
-                });
-        ctx.wait(login_add_fut);
+
+        let login_fut = async move {
+            logins.add(csrf_token.secret().to_owned(), code_tx).await?;
+            let code_res = openid_authorize_code(code_rx, client, verifier, nonce).await;
+            let message = match code_res {
+                Ok(tokens) => serde_json::to_string(&LoginServerMessage::Completed(tokens))?,
+                Err(e) => serde_json::to_string(&LoginServerMessage::Failed(e.to_string()))?,
+            };
+            Ok(message)
+        }
+        .into_actor(self)
+        .then(|res: Result<String>, _, ctx| {
+            match res {
+                Ok(msg) => {
+                    ctx.text(msg);
+                }
+                Err(e) => {
+                    error!("{e}");
+                    ctx.stop();
+                }
+            }
+            ready(())
+        });
+        ctx.spawn(login_fut);
 
         let message = LoginServerMessage::AuthorizationUrl(url.to_string());
         ctx.text(serde_json::to_string(&message)?);
-
-        Ok(())
-    }
-
-    async fn openid_authorize_code(
-        client: Data<Option<CoreClient>>,
-        pkce_verifier: PkceCodeVerifier,
-        nonce: Nonce,
-        code: String,
-    ) -> Result<AuthTokens> {
-        let Some(client) = client.get_ref() else {
-            bail!("openid core client hasn't been registered for the server");
-        };
-
-        let authorization_code = AuthorizationCode::new(code);
-
-        let token_response = client
-            .exchange_code(authorization_code)
-            .set_pkce_verifier(pkce_verifier)
-            .request_async(async_http_client)
-            .await;
-
-        let Ok(token_response) = token_response else {
-            bail!("unable to exhange authorization code");
-        };
-
-        let id_token = token_response
-            .id_token()
-            .ok_or_else(|| anyhow!("server didn't return an ID token"))?;
-
-        let claims = id_token.claims(&client.id_token_verifier(), &nonce)?;
-
-        if let Some(access_token_hash) = claims.access_token_hash() {
-            let actual_access_token_hash = AccessTokenHash::from_token(
-                token_response.access_token(),
-                &id_token.signing_alg()?,
-            )?;
-            if actual_access_token_hash != *access_token_hash {
-                bail!("invalid access token");
-            }
-        }
-
-        let access_token = token_response.access_token().secret().to_owned();
-
-        let refresh_token = token_response
-            .refresh_token()
-            .map(|x| x.secret().to_owned());
-
-        Ok(AuthTokens::new(access_token, refresh_token))
-    }
-
-    fn code_recv_interval(&mut self, ctx: &mut <Self as Actor>::Context) -> Result<()> {
-        let Some(code_rx) = self.code_rx.as_mut() else {
-            bail!("code receiver hasnt been registered");
-        };
-
-        match code_rx.try_recv() {
-            Ok(code) => {
-                let Some(pkce_verifier) = self.pkce_verifier.take() else {
-                    bail!("pkce verifier hasn't been set by the login socket instance");
-                };
-                let nonce = self.nonce.clone();
-                let client = self.client.clone();
-
-                let exchange_code_fut =
-                    Self::openid_authorize_code(client, pkce_verifier, nonce, code)
-                        .into_actor(self)
-                        .then(|res, _, ctx| {
-                            let res = res
-                                .and_then(|r| {
-                                    let message = LoginServerMessage::Completed(r);
-                                    serde_json::to_string(&message).map_err(|e| anyhow!(e))
-                                })
-                                .or_else(|e| {
-                                    let message = LoginServerMessage::Failed {
-                                        reason: e.to_string(),
-                                    };
-                                    serde_json::to_string(&message).map_err(|e| anyhow!(e))
-                                });
-                            match res {
-                                Ok(message) => ctx.text(message),
-                                Err(e) => ctx.text(e.to_string()),
-                            }
-                            ctx.stop();
-                            ready(())
-                        });
-
-                ctx.wait(exchange_code_fut);
-            }
-
-            Err(TryRecvError::Closed) => {
-                let message = LoginServerMessage::Failed {
-                    reason: "unable to verify authentication code".to_string(),
-                };
-                ctx.text(serde_json::to_string(&message)?);
-                ctx.stop();
-            }
-
-            Err(TryRecvError::Empty) => {}
-        }
 
         Ok(())
     }
@@ -229,18 +138,11 @@ impl Actor for LoginSocket {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         ctx.run_later(Duration::from_secs(600), |_, ctx| {
-            let message = LoginServerMessage::Failed {
-                reason: "Operation timeout".to_string(),
-            };
+            let message = LoginServerMessage::Failed("Operation timeout".to_string());
             if let Ok(text) = serde_json::to_string(&message) {
                 ctx.text(text)
             }
             ctx.stop();
-        });
-        ctx.run_interval(Duration::from_millis(100), |act, ctx| {
-            if let Err(e) = act.code_recv_interval(ctx) {
-                error!("{e}");
-            }
         });
     }
 
@@ -278,9 +180,58 @@ impl StreamHandler<Result<Message, ProtocolError>> for LoginSocket {
                 ctx.close(reason);
                 ctx.stop();
             }
-            _ => ctx.stop(),
+            _ => {}
         }
     }
+}
+
+async fn openid_authorize_code(
+    code_rx: oneshot::Receiver<String>,
+    client: Data<Option<CoreClient>>,
+    pkce_verifier: PkceCodeVerifier,
+    nonce: Nonce,
+) -> Result<AuthTokens> {
+    let Ok(code) = code_rx.await else {
+        bail!("unable to verify authentication code");
+    };
+
+    let Some(client) = client.get_ref() else {
+        bail!("openid core client hasn't been registered for the server");
+    };
+
+    let authorization_code = AuthorizationCode::new(code);
+
+    let token_response = client
+        .exchange_code(authorization_code)
+        .set_pkce_verifier(pkce_verifier)
+        .request_async(async_http_client)
+        .await;
+
+    let Ok(token_response) = token_response else {
+        bail!("unable to exhange authorization code");
+    };
+
+    let id_token = token_response
+        .id_token()
+        .ok_or_else(|| anyhow!("server didn't return an ID token"))?;
+
+    let claims = id_token.claims(&client.id_token_verifier(), &nonce)?;
+
+    if let Some(access_token_hash) = claims.access_token_hash() {
+        let actual_access_token_hash =
+            AccessTokenHash::from_token(token_response.access_token(), &id_token.signing_alg()?)?;
+        if actual_access_token_hash != *access_token_hash {
+            bail!("invalid access token");
+        }
+    }
+
+    let access_token = token_response.access_token().secret().to_owned();
+
+    let refresh_token = token_response
+        .refresh_token()
+        .map(|x| x.secret().to_owned());
+
+    Ok(AuthTokens::new(access_token, refresh_token))
 }
 
 pub async fn ws(

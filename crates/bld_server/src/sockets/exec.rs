@@ -119,7 +119,8 @@ impl ExecutePipelineSocket {
                 .into_actor(self)
                 .then(|res, act, ctx| match res {
                     Ok(run_id) => {
-                        act.scanner = Some(FileScanner::new(Arc::clone(&act.config), &run_id).into_arc());
+                        act.scanner =
+                            Some(FileScanner::new(Arc::clone(&act.config), &run_id).into_arc());
                         act.run_id = Some(run_id.to_owned());
                         let message = ExecServerMessage::QueuedRun { run_id };
                         if let Ok(data) = serde_json::to_string(&message) {

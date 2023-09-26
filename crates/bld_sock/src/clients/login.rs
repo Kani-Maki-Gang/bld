@@ -24,7 +24,7 @@ use bld_core::{
 use futures::stream::SplitSink;
 use futures_util::future::ready;
 use tokio::process::Command;
-use tracing::error;
+use tracing::{debug, error};
 
 pub struct LoginClient {
     config: Arc<BldConfig>,
@@ -53,6 +53,7 @@ impl LoginClient {
         let message: LoginServerMessage = serde_json::from_str(message)?;
         match message {
             LoginServerMessage::AuthorizationUrl(url) => {
+                debug!("received message to open url for the login process to begin");
                 println!("Opening a new browser tab to start the login process.");
 
                 let mut command = match os_name() {
@@ -68,8 +69,10 @@ impl LoginClient {
                     .into_actor(self)
                     .then(move |res, _, _| {
                         let success = res
-                            .map(|x| ExitStatus::success(&x))
+                            .as_ref()
+                            .map(ExitStatus::success)
                             .unwrap_or_default();
+                        debug!("browser process was closed with exit status: {res:?}");
                         if !success {
                             let mut message = String::new();
                             let _ = writeln!(
@@ -85,24 +88,26 @@ impl LoginClient {
             }
 
             LoginServerMessage::Completed(tokens) => {
+                debug!("login process completed writing tokens to disk");
                 let auth_path = self.config.auth_full_path(&self.server);
-                let write_fut = async move {
-                    if let Err(e) = write_tokens(&auth_path, tokens).await {
-                        println!("Login failed, {e}");
-                    } else {
-                        println!("Login completed successfully!");
-                    }
-                }
-                .into_actor(self)
-                .then(|_, _, ctx| {
-                    ctx.stop();
-                    ready(())
-                });
+                let write_fut = async move { write_tokens(&auth_path, tokens).await }
+                    .into_actor(self)
+                    .then(|res, _, ctx| {
+                        if let Err(e) = res {
+                            error!("unable to write tokens to disk due to: {e}");
+                            println!("Login failed, {e}");
+                        } else {
+                            debug!("wrote tokens to disk successfully");
+                            println!("Login completed successfully!");
+                        }
+                        ctx.stop();
+                        ready(())
+                    });
 
                 ctx.spawn(write_fut);
             }
 
-            LoginServerMessage::Failed { reason } => {
+            LoginServerMessage::Failed(reason) => {
                 println!("Login failed, {reason}");
                 ctx.stop();
             }
@@ -115,6 +120,7 @@ impl Actor for LoginClient {
     type Context = Context<Self>;
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
+        debug!("web socket connection stopped");
         if let Some(system) = System::try_current() {
             system.stop();
         }
@@ -135,12 +141,14 @@ impl StreamHandler<Result<Frame, WsProtocolError>> for LoginClient {
     fn handle(&mut self, item: Result<Frame, WsProtocolError>, ctx: &mut Self::Context) {
         match item {
             Ok(Frame::Text(bt)) => {
+                debug!("received test message from server");
                 let message = String::from_utf8_lossy(&bt[..]);
                 let _ = self
                     .handle_server_message(&message, ctx)
                     .map_err(|e| error!("{e}"));
             }
             Ok(Frame::Close(_)) => {
+                debug!("received close message from server");
                 ctx.stop();
             }
             _ => {}

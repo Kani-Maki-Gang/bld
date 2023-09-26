@@ -89,7 +89,9 @@ impl BldCommand for WorkerCommand {
 
             let (worker_tx, worker_rx) = channel(4096);
             let worker_tx = Some(worker_tx).into_arc();
-            let logger = LoggerSender::file(config.clone(), &run_id).await?.into_arc();
+            let logger = LoggerSender::file(config.clone(), &run_id)
+                .await?
+                .into_arc();
             let context = ContextSender::server(config.clone(), conn, &run_id).into_arc();
             let (cmd_signals, signals_rx) = CommandSignals::new()?;
 
