@@ -100,7 +100,7 @@ impl LoggerReceiver {
             }
             Self::File { handle } => {
                 let bytes = text.as_bytes();
-                handle.write(&bytes).await?;
+                handle.write_all(bytes).await?;
             }
             Self::InMemory { output } => {
                 write!(output, "{text}")?;
@@ -120,7 +120,7 @@ impl LoggerReceiver {
             Self::File { handle } => {
                 let text = format!("{text}\n");
                 let bytes = text.as_bytes();
-                handle.write(&bytes).await?;
+                handle.write_all(bytes).await?;
             }
             Self::InMemory { output } => {
                 writeln!(output, "{text}")?;
@@ -142,7 +142,7 @@ impl LoggerReceiver {
             }
             Self::File { handle } => {
                 let bytes = text.as_bytes();
-                handle.write(&bytes).await?;
+                handle.write_all(bytes).await?;
             }
             Self::InMemory { output } => {
                 write!(output, "{text}")?;
@@ -165,7 +165,7 @@ impl LoggerReceiver {
             Self::File { handle } => {
                 let text = format!("{text}\n");
                 let bytes = text.as_bytes();
-                handle.write(&bytes).await?;
+                handle.write_all(bytes).await?;
             }
             Self::InMemory { output } => {
                 writeln!(output, "{text}")?;
@@ -187,7 +187,7 @@ impl LoggerReceiver {
             }
             Self::File { handle } => {
                 let bytes = text.as_bytes();
-                handle.write(&bytes).await?;
+                handle.write_all(bytes).await?;
             }
             Self::InMemory { output } => {
                 write!(output, "{text}")?;
@@ -210,7 +210,7 @@ impl LoggerReceiver {
             Self::File { handle } => {
                 let text = format!("{text}\n");
                 let bytes = text.as_bytes();
-                handle.write(&bytes).await?;
+                handle.write_all(bytes).await?;
             }
             Self::InMemory { output } => {
                 writeln!(output, "{text}")?;
