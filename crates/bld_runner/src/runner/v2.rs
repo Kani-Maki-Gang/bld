@@ -10,7 +10,7 @@ use bld_core::{
     context::ContextSender,
     logger::LoggerSender,
     messages::{ExecClientMessage, WorkerMessages},
-    platform::{Image, TargetPlatform},
+    platform::{Image, SshConnectOptions, TargetPlatform},
     proxies::PipelineFileSystemProxy,
     regex::RegexCache,
     request::WebSocket,
@@ -25,7 +25,10 @@ use tracing::debug;
 use crate::{
     external::v2::External,
     pipeline::v2::Pipeline,
-    platform::{builder::TargetPlatformBuilder, v2::Platform},
+    platform::{
+        builder::{TargetPlatformBuilder, TargetPlatformOptions},
+        v2::Platform,
+    },
     step::v2::{BuildStep, BuildStepExec},
     RunnerBuilder,
 };
@@ -306,27 +309,47 @@ impl Runner {
     }
 
     async fn create_platform(&mut self) -> Result<()> {
-        let image = match &self.pipeline.runs_on {
-            Platform::ContainerOrMachine(image) if image == "machine" => None,
-            Platform::ContainerOrMachine(image) | Platform::Pull { image, pull: false } => {
-                Some(Image::Use(image.to_owned()))
+        let options = match &self.pipeline.runs_on {
+            Platform::ContainerOrMachine(image) if image == "machine" => {
+                TargetPlatformOptions::Machine
             }
-            Platform::Pull { image, pull: true } => Some(Image::Pull(image.to_owned())),
+
+            Platform::ContainerOrMachine(image) | Platform::Pull { image, pull: false } => {
+                TargetPlatformOptions::Container(Image::Use(image.to_owned()))
+            }
+
+            Platform::Pull { image, pull: true } => {
+                TargetPlatformOptions::Container(Image::Pull(image.to_owned()))
+            }
+
             Platform::Build {
                 name,
                 tag,
                 dockerfile,
-            } => Some(Image::Build {
+            } => TargetPlatformOptions::Container(Image::Build {
                 name: name.to_owned(),
                 dockerfile: dockerfile.to_owned(),
                 tag: tag.to_owned(),
             }),
+
+            Platform::Libvirt { .. } => TargetPlatformOptions::Machine,
+
+            Platform::Ssh {
+                host,
+                port,
+                user,
+                public_key,
+                private_key,
+            } => {
+                let port = port.parse::<u16>()?;
+                TargetPlatformOptions::Ssh(SshConnectOptions::new(host, port, user, public_key, private_key))
+            }
         };
 
         let platform = TargetPlatformBuilder::default()
             .run_id(&self.run_id)
             .config(self.config.clone())
-            .image(image)
+            .options(options)
             .pipeline_environment(&self.pipeline.environment)
             .environment(self.env.clone())
             .logger(self.logger.clone())

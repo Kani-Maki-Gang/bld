@@ -124,6 +124,28 @@ impl<'a> PipelineValidator<'a> {
             }
             Platform::Pull { image, .. } => self.validate_symbols("runs_on > image", image),
             Platform::ContainerOrMachine(value) => self.validate_symbols("runs_on", value),
+            Platform::Libvirt {
+                vm,
+                start_before_run,
+                shutdown_after_run,
+            } => {
+                self.validate_symbols("runs_on > vm", vm);
+                self.validate_symbols("runs_on > start_before_run", start_before_run);
+                self.validate_symbols("runs_on > shutdown_after_run", shutdown_after_run);
+            }
+            Platform::Ssh {
+                host,
+                port,
+                user,
+                public_key,
+                private_key,
+            } => {
+                self.validate_symbols("runs_on > host", host);
+                self.validate_symbols("runs_on > port", port);
+                self.validate_symbols("runs_on > user", user);
+                self.validate_symbols("runs_on > public_key", public_key);
+                self.validate_symbols("runs_on > private_key", private_key);
+            }
         }
     }
 

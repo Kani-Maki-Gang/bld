@@ -18,6 +18,19 @@ pub enum Platform {
         tag: String,
         dockerfile: String,
     },
+    Libvirt {
+        vm: String,
+        start_before_run: String,
+        shutdown_after_run: String,
+    },
+    Ssh {
+        host: String,
+        #[serde(default = "Platform::default_ssh_port")]
+        port: String,
+        user: String,
+        public_key: String,
+        private_key: String,
+    },
 }
 
 impl Display for Platform {
@@ -27,11 +40,17 @@ impl Display for Platform {
             Self::ContainerOrMachine(image) => write!(f, "{image}"),
             Self::Pull { image, .. } => write!(f, "{image}"),
             Self::Build { name, tag, .. } => write!(f, "{name}:{tag}"),
+            Self::Libvirt { vm, .. } => write!(f, "{vm}"),
+            Self::Ssh { host, port, .. } => write!(f, "{host}:{port}"),
         }
     }
 }
 
 impl Platform {
+    pub fn default_ssh_port() -> String {
+        String::from("22")
+    }
+
     pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
         match self {
             Platform::Pull { image, .. } => {
@@ -48,6 +67,28 @@ impl Platform {
             }
             Platform::ContainerOrMachine(image) if image != "machine" => {
                 *image = context.transform(image.to_owned()).await?;
+            }
+            Platform::Libvirt {
+                vm,
+                start_before_run,
+                shutdown_after_run,
+            } => {
+                *vm = context.transform(vm.to_owned()).await?;
+                *start_before_run = context.transform(start_before_run.to_owned()).await?;
+                *shutdown_after_run = context.transform(shutdown_after_run.to_owned()).await?;
+            }
+            Platform::Ssh {
+                host,
+                port,
+                user,
+                public_key,
+                private_key,
+            } => {
+                *host = context.transform(host.to_owned()).await?;
+                *port = context.transform(port.to_owned()).await?;
+                *user = context.transform(user.to_owned()).await?;
+                *public_key = context.transform(public_key.to_owned()).await?;
+                *private_key = context.transform(private_key.to_owned()).await?;
             }
             _ => {}
         }
