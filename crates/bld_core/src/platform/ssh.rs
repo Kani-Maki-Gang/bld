@@ -173,9 +173,21 @@ impl Ssh {
         channel.exec(&command).await?;
 
         let mut output = String::new();
-        channel.read_to_string(&mut output).await?;
+
+        let mut stdout = String::new();
+        channel.read_to_string(&mut stdout).await?;
+        output.push_str(&stdout);
+
+        let mut stderr = String::new();
+        channel.stderr().read_to_string(&mut stderr).await?;
+        output.push_str(&stderr);
 
         logger.write(output).await?;
+
+        let exit_status = channel.exit_status()?;
+        if exit_status != 0 {
+            bail!("command finished with status {exit_status}");
+        }
 
         channel.close().await?;
 
