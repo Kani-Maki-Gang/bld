@@ -16,7 +16,7 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 use uuid::Uuid;
 
 use actix::spawn;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use tracing::error;
 
 use crate::logger::LoggerSender;
@@ -39,7 +39,7 @@ pub enum TargetPlatformMessage {
         resp_tx: oneshot::Sender<Result<()>>,
     },
     Dispose {
-        resp_tx: oneshot::Sender<Result<()>>
+        resp_tx: oneshot::Sender<Result<()>>,
     },
 }
 
@@ -58,27 +58,35 @@ impl TargetPlatformReceiver {
             match msg {
                 TargetPlatformMessage::Push { from, to, resp_tx } => {
                     let res = self.push(from, to).await;
-                    resp_tx.send(res).map_err(|_| anyhow!("oneshot channel closed"))?;
+                    resp_tx
+                        .send(res)
+                        .map_err(|_| anyhow!("oneshot channel closed"))?;
                 }
 
                 TargetPlatformMessage::Get { from, to, resp_tx } => {
                     let res = self.get(from, to).await;
-                    resp_tx.send(res).map_err(|_| anyhow!("oneshot channel closed"))?;
+                    resp_tx
+                        .send(res)
+                        .map_err(|_| anyhow!("oneshot channel closed"))?;
                 }
 
                 TargetPlatformMessage::Shell {
                     logger,
                     working_dir,
                     command,
-                    resp_tx
+                    resp_tx,
                 } => {
                     let res = self.shell(logger, working_dir, command).await;
-                    resp_tx.send(res).map_err(|_| anyhow!("oneshot channel closed"))?;
+                    resp_tx
+                        .send(res)
+                        .map_err(|_| anyhow!("oneshot channel closed"))?;
                 }
 
                 TargetPlatformMessage::Dispose { resp_tx } => {
                     let res = self.dispose().await;
-                    resp_tx.send(res).map_err(|_| anyhow!("oneshot channel closed"))?;
+                    resp_tx
+                        .send(res)
+                        .map_err(|_| anyhow!("oneshot channel closed"))?;
                 }
             }
         }
@@ -181,7 +189,7 @@ impl TargetPlatform {
                     .send(TargetPlatformMessage::Push {
                         from: from.to_string(),
                         to: to.to_string(),
-                        resp_tx
+                        resp_tx,
                     })
                     .await?;
 
@@ -202,7 +210,7 @@ impl TargetPlatform {
                     .send(TargetPlatformMessage::Get {
                         from: from.to_string(),
                         to: to.to_string(),
-                        resp_tx
+                        resp_tx,
                     })
                     .await?;
 
@@ -229,7 +237,7 @@ impl TargetPlatform {
                         logger,
                         working_dir: working_dir.clone(),
                         command: command.to_string(),
-                        resp_tx
+                        resp_tx,
                     })
                     .await?;
 
@@ -254,7 +262,9 @@ impl TargetPlatform {
             Self::Libvirt { .. } => unimplemented!(),
             Self::Ssh { ssh_tx, .. } => {
                 let (resp_tx, resp_rx) = oneshot::channel();
-                ssh_tx.send(TargetPlatformMessage::Dispose { resp_tx }).await?;
+                ssh_tx
+                    .send(TargetPlatformMessage::Dispose { resp_tx })
+                    .await?;
                 resp_rx.await?
             }
         }

@@ -10,28 +10,31 @@ use tokio::{
 
 use crate::logger::LoggerSender;
 
+pub enum SshAuthOptions<'a> {
+    Keys {
+        public_key: Option<&'a str>,
+        private_key: &'a str,
+    },
+    Password {
+        password: &'a str,
+    },
+    Agent,
+}
+
 pub struct SshConnectOptions<'a> {
     pub host: &'a str,
     pub port: u16,
     pub user: &'a str,
-    pub public_key: &'a str,
-    pub private_key: &'a str,
+    pub auth: SshAuthOptions<'a>,
 }
 
 impl<'a> SshConnectOptions<'a> {
-    pub fn new(
-        host: &'a str,
-        port: u16,
-        user: &'a str,
-        public_key: &'a str,
-        private_key: &'a str,
-    ) -> Self {
+    pub fn new(host: &'a str, port: u16, user: &'a str, auth: SshAuthOptions<'a>) -> Self {
         Self {
             host,
             port,
             user,
-            public_key,
-            private_key,
+            auth,
         }
     }
 }
@@ -70,16 +73,36 @@ impl Ssh {
         let mut session = AsyncSession::<TokioTcpStream>::connect(addr, None).await?;
         session.handshake().await?;
 
-        let public_key = path![connect.public_key];
-        let private_key = path![connect.private_key];
-        session
-            .userauth_pubkey_file(connect.user, Some(&public_key), &private_key, None)
-            .await?;
-
-        let mut instance = Self { session, env: HashMap::new() };
+        let mut instance = Self {
+            session,
+            env: HashMap::new(),
+        };
+        instance.set_auth(connect.user, &connect.auth).await?;
         instance.set_environment(execution.pipeline_env, execution.env);
 
         Ok(instance)
+    }
+
+    async fn set_auth<'a>(&mut self, user: &'a str, auth: &SshAuthOptions<'a>) -> Result<()> {
+        match auth {
+            SshAuthOptions::Agent => {
+                self.session.userauth_agent(user).await?;
+            }
+            SshAuthOptions::Password { password } => {
+                self.session.userauth_password(user, password).await?;
+            }
+            SshAuthOptions::Keys {
+                public_key,
+                private_key,
+            } => {
+                let public_key = public_key.map(|p| path![p]);
+                let private_key = path![private_key];
+                self.session
+                    .userauth_pubkey_file(user, public_key.as_deref(), &private_key, None)
+                    .await?;
+            }
+        }
+        Ok(())
     }
 
     fn set_environment(

@@ -6,6 +6,19 @@ use serde::{Deserialize, Serialize};
 use crate::token_context::v2::PipelineContext;
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum PlatformSshAuth {
+    Keys {
+        public_key: Option<String>,
+        private_key: String,
+    },
+    Password {
+        password: String,
+    },
+    Agent,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Platform {
     ContainerOrMachine(String),
@@ -28,8 +41,7 @@ pub enum Platform {
         #[serde(default = "Platform::default_ssh_port")]
         port: String,
         user: String,
-        public_key: String,
-        private_key: String,
+        userauth: PlatformSshAuth,
     },
 }
 
@@ -81,14 +93,26 @@ impl Platform {
                 host,
                 port,
                 user,
-                public_key,
-                private_key,
+                userauth: auth,
             } => {
                 *host = context.transform(host.to_owned()).await?;
                 *port = context.transform(port.to_owned()).await?;
                 *user = context.transform(user.to_owned()).await?;
-                *public_key = context.transform(public_key.to_owned()).await?;
-                *private_key = context.transform(private_key.to_owned()).await?;
+                match auth {
+                    PlatformSshAuth::Agent => {}
+                    PlatformSshAuth::Keys {
+                        public_key,
+                        private_key,
+                    } => {
+                        if let Some(pubkey) = public_key {
+                            *public_key = Some(context.transform(pubkey.to_owned()).await?);
+                        }
+                        *private_key = context.transform(private_key.to_owned()).await?;
+                    }
+                    PlatformSshAuth::Password { password } => {
+                        *password = context.transform(password.to_owned()).await?;
+                    }
+                }
             }
             _ => {}
         }

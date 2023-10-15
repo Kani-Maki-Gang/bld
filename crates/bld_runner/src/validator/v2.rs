@@ -1,5 +1,5 @@
 use crate::pipeline::v2::Pipeline;
-use crate::platform::v2::Platform;
+use crate::platform::v2::{Platform, PlatformSshAuth};
 use crate::step::v2::{BuildStep, BuildStepExec};
 use anyhow::{bail, Result};
 use bld_config::definitions::{
@@ -137,14 +137,26 @@ impl<'a> PipelineValidator<'a> {
                 host,
                 port,
                 user,
-                public_key,
-                private_key,
+                userauth: auth,
             } => {
                 self.validate_symbols("runs_on > host", host);
                 self.validate_symbols("runs_on > port", port);
                 self.validate_symbols("runs_on > user", user);
-                self.validate_symbols("runs_on > public_key", public_key);
-                self.validate_symbols("runs_on > private_key", private_key);
+                match auth {
+                    PlatformSshAuth::Agent => {}
+                    PlatformSshAuth::Keys {
+                        public_key,
+                        private_key,
+                    } => {
+                        if let Some(pubkey) = public_key {
+                            self.validate_symbols("runs_on > auth > public_key", pubkey);
+                        }
+                        self.validate_symbols("runs_on > auth > private_key", private_key);
+                    }
+                    PlatformSshAuth::Password { password } => {
+                        self.validate_symbols("runs_on > auth > password", password);
+                    }
+                }
             }
         }
     }

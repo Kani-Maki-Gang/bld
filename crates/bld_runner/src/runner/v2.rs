@@ -10,7 +10,7 @@ use bld_core::{
     context::ContextSender,
     logger::LoggerSender,
     messages::{ExecClientMessage, WorkerMessages},
-    platform::{Image, SshConnectOptions, TargetPlatform},
+    platform::{Image, SshAuthOptions, SshConnectOptions, TargetPlatform},
     proxies::PipelineFileSystemProxy,
     regex::RegexCache,
     request::WebSocket,
@@ -27,7 +27,7 @@ use crate::{
     pipeline::v2::Pipeline,
     platform::{
         builder::{TargetPlatformBuilder, TargetPlatformOptions},
-        v2::Platform,
+        v2::{Platform, PlatformSshAuth},
     },
     step::v2::{BuildStep, BuildStepExec},
     RunnerBuilder,
@@ -338,11 +338,23 @@ impl Runner {
                 host,
                 port,
                 user,
-                public_key,
-                private_key,
+                userauth: auth,
             } => {
                 let port = port.parse::<u16>()?;
-                TargetPlatformOptions::Ssh(SshConnectOptions::new(host, port, user, public_key, private_key))
+                let auth = match auth {
+                    PlatformSshAuth::Agent => SshAuthOptions::Agent,
+                    PlatformSshAuth::Password { password } => SshAuthOptions::Password {
+                        password: &password,
+                    },
+                    PlatformSshAuth::Keys {
+                        public_key,
+                        private_key,
+                    } => SshAuthOptions::Keys {
+                        public_key: public_key.as_deref(),
+                        private_key: &private_key,
+                    },
+                };
+                TargetPlatformOptions::Ssh(SshConnectOptions::new(host, port, user, auth))
             }
         };
 
