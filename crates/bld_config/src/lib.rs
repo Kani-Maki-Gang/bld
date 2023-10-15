@@ -3,6 +3,7 @@ pub mod definitions;
 mod local;
 mod path;
 mod server;
+mod ssh;
 mod supervisor;
 mod tls;
 
@@ -12,6 +13,7 @@ pub use local::*;
 use openidconnect::core::CoreClient;
 pub use path::*;
 pub use server::*;
+pub use ssh::*;
 pub use supervisor::*;
 pub use tls::*;
 
@@ -138,6 +140,10 @@ impl BldConfig {
 
     pub fn nth_server(&self, i: usize) -> Result<&BldRemoteServerConfig> {
         self.remote.get(i).ok_or_else(err_no_server_in_config)
+    }
+
+    pub fn ssh(&self, name: &str) -> Result<&SshConfig> {
+        self.local.ssh.get(name).ok_or_else(|| anyhow!("ssh configuration with name '{name}' wasn't found"))
     }
 
     pub async fn openid_core_client(&self) -> Result<Option<CoreClient>> {

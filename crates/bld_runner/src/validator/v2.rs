@@ -1,12 +1,12 @@
 use crate::pipeline::v2::Pipeline;
-use crate::platform::v2::{Platform, PlatformSshAuth};
+use crate::platform::v2::Platform;
 use crate::step::v2::{BuildStep, BuildStepExec};
 use anyhow::{bail, Result};
 use bld_config::definitions::{
     KEYWORD_BLD_DIR_V2, KEYWORD_PROJECT_DIR_V2, KEYWORD_RUN_PROPS_ID_V2,
     KEYWORD_RUN_PROPS_START_TIME_V2,
 };
-use bld_config::BldConfig;
+use bld_config::{BldConfig, SshUserAuth};
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_utils::fs::IsYaml;
 use cron::Schedule;
@@ -133,18 +133,16 @@ impl<'a> PipelineValidator<'a> {
                 self.validate_symbols("runs_on > start_before_run", start_before_run);
                 self.validate_symbols("runs_on > shutdown_after_run", shutdown_after_run);
             }
-            Platform::Ssh {
-                host,
-                port,
-                user,
-                userauth: auth,
-            } => {
-                self.validate_symbols("runs_on > host", host);
-                self.validate_symbols("runs_on > port", port);
-                self.validate_symbols("runs_on > user", user);
-                match auth {
-                    PlatformSshAuth::Agent => {}
-                    PlatformSshAuth::Keys {
+            Platform::SshFromGlobalConfig { ssh_server } => {
+                self.validate_symbols("runs_on > ssh_server", ssh_server);
+            }
+            Platform::Ssh(config) => {
+                self.validate_symbols("runs_on > host", &config.host);
+                self.validate_symbols("runs_on > port", &config.port);
+                self.validate_symbols("runs_on > user", &config.user);
+                match &config.userauth {
+                    SshUserAuth::Agent => {}
+                    SshUserAuth::Keys {
                         public_key,
                         private_key,
                     } => {
@@ -153,7 +151,7 @@ impl<'a> PipelineValidator<'a> {
                         }
                         self.validate_symbols("runs_on > auth > private_key", private_key);
                     }
-                    PlatformSshAuth::Password { password } => {
+                    SshUserAuth::Password { password } => {
                         self.validate_symbols("runs_on > auth > password", password);
                     }
                 }

@@ -1,22 +1,10 @@
 use std::fmt::Display;
 
 use anyhow::Result;
+use bld_config::{SshConfig, SshUserAuth};
 use serde::{Deserialize, Serialize};
 
 use crate::token_context::v2::PipelineContext;
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum PlatformSshAuth {
-    Keys {
-        public_key: Option<String>,
-        private_key: String,
-    },
-    Password {
-        password: String,
-    },
-    Agent,
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -36,12 +24,9 @@ pub enum Platform {
         start_before_run: String,
         shutdown_after_run: String,
     },
-    Ssh {
-        host: String,
-        #[serde(default = "Platform::default_ssh_port")]
-        port: String,
-        user: String,
-        userauth: PlatformSshAuth,
+    Ssh(SshConfig),
+    SshFromGlobalConfig {
+        ssh_server: String,
     },
 }
 
@@ -53,7 +38,8 @@ impl Display for Platform {
             Self::Pull { image, .. } => write!(f, "{image}"),
             Self::Build { name, tag, .. } => write!(f, "{name}:{tag}"),
             Self::Libvirt { vm, .. } => write!(f, "{vm}"),
-            Self::Ssh { host, port, .. } => write!(f, "{host}:{port}"),
+            Self::SshFromGlobalConfig { ssh_server } => write!(f, "{}", ssh_server),
+            Self::Ssh(config) => write!(f, "{}:{}", config.host, config.port),
         }
     }
 }
@@ -89,28 +75,30 @@ impl Platform {
                 *start_before_run = context.transform(start_before_run.to_owned()).await?;
                 *shutdown_after_run = context.transform(shutdown_after_run.to_owned()).await?;
             }
-            Platform::Ssh {
-                host,
-                port,
-                user,
-                userauth: auth,
-            } => {
-                *host = context.transform(host.to_owned()).await?;
-                *port = context.transform(port.to_owned()).await?;
-                *user = context.transform(user.to_owned()).await?;
-                match auth {
-                    PlatformSshAuth::Agent => {}
-                    PlatformSshAuth::Keys {
+            Platform::Ssh(ref mut config) => {
+                config.host = context.transform(config.host.to_owned()).await?;
+                config.port = context.transform(config.port.to_owned()).await?;
+                config.user = context.transform(config.user.to_owned()).await?;
+                config.userauth = match &config.userauth {
+                    SshUserAuth::Agent => SshUserAuth::Agent,
+                    SshUserAuth::Keys {
                         public_key,
                         private_key,
                     } => {
-                        if let Some(pubkey) = public_key {
-                            *public_key = Some(context.transform(pubkey.to_owned()).await?);
+                        let public_key = if let Some(pubkey) = public_key {
+                            Some(context.transform(pubkey.to_owned()).await?)
+                        } else {
+                            None
+                        };
+                        let private_key = context.transform(private_key.to_owned()).await?;
+                        SshUserAuth::Keys {
+                            public_key,
+                            private_key,
                         }
-                        *private_key = context.transform(private_key.to_owned()).await?;
                     }
-                    PlatformSshAuth::Password { password } => {
-                        *password = context.transform(password.to_owned()).await?;
+                    SshUserAuth::Password { password } => {
+                        let password = context.transform(password.to_owned()).await?;
+                        SshUserAuth::Password { password }
                     }
                 }
             }

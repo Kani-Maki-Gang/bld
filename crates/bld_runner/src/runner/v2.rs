@@ -4,7 +4,7 @@ use actix::{clock::sleep, io::SinkWrite, spawn, Actor, StreamHandler};
 use anyhow::{anyhow, bail, Result};
 use bld_config::{
     definitions::{GET, PUSH},
-    BldConfig,
+    BldConfig, SshUserAuth,
 };
 use bld_core::{
     context::ContextSender,
@@ -27,7 +27,7 @@ use crate::{
     pipeline::v2::Pipeline,
     platform::{
         builder::{TargetPlatformBuilder, TargetPlatformOptions},
-        v2::{Platform, PlatformSshAuth},
+        v2::Platform,
     },
     step::v2::{BuildStep, BuildStepExec},
     RunnerBuilder,
@@ -334,19 +334,15 @@ impl Runner {
 
             Platform::Libvirt { .. } => TargetPlatformOptions::Machine,
 
-            Platform::Ssh {
-                host,
-                port,
-                user,
-                userauth: auth,
-            } => {
-                let port = port.parse::<u16>()?;
-                let auth = match auth {
-                    PlatformSshAuth::Agent => SshAuthOptions::Agent,
-                    PlatformSshAuth::Password { password } => SshAuthOptions::Password {
+            Platform::SshFromGlobalConfig { ssh_server } => {
+                let config = self.config.ssh(ssh_server)?;
+                let port = config.port.parse::<u16>()?;
+                let auth = match &config.userauth {
+                    SshUserAuth::Agent => SshAuthOptions::Agent,
+                    SshUserAuth::Password { password } => SshAuthOptions::Password {
                         password: &password,
                     },
-                    PlatformSshAuth::Keys {
+                    SshUserAuth::Keys {
                         public_key,
                         private_key,
                     } => SshAuthOptions::Keys {
@@ -354,7 +350,25 @@ impl Runner {
                         private_key: &private_key,
                     },
                 };
-                TargetPlatformOptions::Ssh(SshConnectOptions::new(host, port, user, auth))
+                TargetPlatformOptions::Ssh(SshConnectOptions::new(&config.host, port, &config.user, auth))
+            }
+
+            Platform::Ssh(config) => {
+                let port = config.port.parse::<u16>()?;
+                let auth = match &config.userauth {
+                    SshUserAuth::Agent => SshAuthOptions::Agent,
+                    SshUserAuth::Password { password } => SshAuthOptions::Password {
+                        password: &password,
+                    },
+                    SshUserAuth::Keys {
+                        public_key,
+                        private_key,
+                    } => SshAuthOptions::Keys {
+                        public_key: public_key.as_deref(),
+                        private_key: &private_key,
+                    },
+                };
+                TargetPlatformOptions::Ssh(SshConnectOptions::new(&config.host, port, &config.user, auth))
             }
         };
 

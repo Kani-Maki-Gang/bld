@@ -1,4 +1,6 @@
-use crate::{definitions, Auth, BldLocalServerConfig, BldLocalSupervisorConfig};
+use std::collections::HashMap;
+
+use crate::{definitions, ssh::SshConfig, Auth, BldLocalServerConfig, BldLocalSupervisorConfig};
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
@@ -15,6 +17,9 @@ pub struct BldLocalConfig {
 
     #[serde(default = "BldLocalConfig::default_editor")]
     pub editor: String,
+
+    #[serde(default)]
+    pub ssh: HashMap<String, SshConfig>,
 }
 
 impl BldLocalConfig {
@@ -71,6 +76,7 @@ impl Default for BldLocalConfig {
             supervisor: BldLocalSupervisorConfig::default(),
             docker_url: Self::default_docker_url(),
             editor: Self::default_editor(),
+            ssh: Default::default(),
         }
     }
 }
