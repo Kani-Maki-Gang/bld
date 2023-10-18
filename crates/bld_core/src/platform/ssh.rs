@@ -1,12 +1,15 @@
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc};
 
-use anyhow::{bail, Result};
-use async_ssh2_lite::{AsyncSession, TokioTcpStream};
+use anyhow::{anyhow, bail, Result};
+use async_ssh2_lite::{AsyncSession, AsyncSftp, TokioTcpStream};
 use bld_config::{path, BldConfig};
+use futures_util::AsyncWriteExt as FuturesUtilAsyncWriteExt;
 use tokio::{
-    fs::File,
+    fs::{create_dir, File},
     io::{AsyncReadExt, AsyncWriteExt},
 };
+use tracing::{debug, error};
+use walkdir::WalkDir;
 
 use crate::logger::LoggerSender;
 
@@ -121,34 +124,99 @@ impl Ssh {
 
     pub async fn copy_from(&self, from: &str, to: &str) -> Result<()> {
         let path = path![from];
-        let (mut scp_channel, _scp_stat) = self.session.scp_recv(&path).await?;
+        let (mut scp_channel, scp_stat) = self.session.scp_recv(&path).await?;
         let mut content = String::new();
         scp_channel.read_to_string(&mut content).await?;
 
+        if scp_stat.is_dir() {
+            let to = path![to];
+            create_dir(to).await?;
+        } else {
+            let bytes = content.as_bytes();
+            File::create(to).await?.write_all(bytes).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn copy_file_into(
+        &self,
+        sftp: &AsyncSftp<TokioTcpStream>,
+        from: &str,
+        to: &str,
+    ) -> Result<()> {
+        let mut source_file = File::open(&from).await?;
+        let mut content = String::new();
+        source_file.read_to_string(&mut content).await?;
         let bytes = content.as_bytes();
-        File::create(to).await?.write_all(&bytes).await?;
+
+        let to = path![to];
+        let mut target_path_iter = to.iter().peekable();
+        let mut target_path = path![];
+        while let Some(node) = target_path_iter.next() {
+            target_path.push(node);
+            if target_path_iter.peek().is_none() {
+                break;
+            }
+            if let Err(e) = sftp.mkdir(&target_path, 0o777).await {
+                debug!(
+                    "tried to create remote directory {} but encountered error {e}",
+                    target_path.display()
+                );
+            } else {
+                debug!("created remote directory {}", target_path.display());
+            }
+        }
+
+        debug!("creating target file {} using sftp", target_path.display());
+        let mut target_file = sftp.create(&target_path).await?;
+        debug!("writing content to remote file");
+        target_file.write_all(bytes).await?;
+        debug!("flushing remote file");
+        target_file.flush().await?;
 
         Ok(())
     }
 
     pub async fn copy_into(&self, from: &str, to: &str) -> Result<()> {
-        let from = path![from];
+        debug!("creating sftp channel for {to}");
+        let sftp = self.session.sftp().await?;
+        let from_path = path![from];
 
-        if from.is_dir() {
-            bail!("unable to transfer an entire directory");
+        if from_path.is_file() {
+            debug!("starting copy of file {}", from_path.display());
+            self.copy_file_into(&sftp, &from, &to).await?;
+            return Ok(());
         }
 
-        let to = path![to];
-        let mut file = File::open(&from).await?;
-        let metadata = file.metadata().await?;
-        let size = metadata.len();
-        let mut scp_channel = self.session.scp_send(&to, 777, size, None).await?;
+        debug!("starting copy of directory {}", from_path.display());
+        for dir_entry in WalkDir::new(from) {
+            let Ok(dir_entry) = dir_entry.map(|e| e.into_path()).map_err(|e| error!("{e}")) else {
+                continue;
+            };
 
-        let mut content = String::new();
-        file.read_to_string(&mut content).await?;
-        let bytes = content.as_bytes();
-        scp_channel.write_all(&bytes).await?;
+            if dir_entry.is_dir() {
+                continue;
+            }
 
+            let to = path![to, dir_entry.display().to_string().replace(&from, "")];
+
+            debug!(
+                "copying file {} to remote path {}",
+                dir_entry.display(),
+                to.display()
+            );
+
+            let from = dir_entry
+                .to_str()
+                .ok_or_else(|| anyhow!("unable to construct source path (from)"))?;
+
+            let to = to
+                .to_str()
+                .ok_or_else(|| anyhow!("unable to construct destination path (to)"))?;
+
+            self.copy_file_into(&sftp, &from, &to).await?;
+        }
         Ok(())
     }
 

@@ -143,7 +143,10 @@ impl BldConfig {
     }
 
     pub fn ssh(&self, name: &str) -> Result<&SshConfig> {
-        self.local.ssh.get(name).ok_or_else(|| anyhow!("ssh configuration with name '{name}' wasn't found"))
+        self.local
+            .ssh
+            .get(name)
+            .ok_or_else(|| anyhow!("ssh configuration with name '{name}' wasn't found"))
     }
 
     pub async fn openid_core_client(&self) -> Result<Option<CoreClient>> {

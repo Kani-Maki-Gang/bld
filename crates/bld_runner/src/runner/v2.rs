@@ -339,36 +339,42 @@ impl Runner {
                 let port = config.port.parse::<u16>()?;
                 let auth = match &config.userauth {
                     SshUserAuth::Agent => SshAuthOptions::Agent,
-                    SshUserAuth::Password { password } => SshAuthOptions::Password {
-                        password: &password,
-                    },
+                    SshUserAuth::Password { password } => SshAuthOptions::Password { password },
                     SshUserAuth::Keys {
                         public_key,
                         private_key,
                     } => SshAuthOptions::Keys {
                         public_key: public_key.as_deref(),
-                        private_key: &private_key,
+                        private_key,
                     },
                 };
-                TargetPlatformOptions::Ssh(SshConnectOptions::new(&config.host, port, &config.user, auth))
+                TargetPlatformOptions::Ssh(SshConnectOptions::new(
+                    &config.host,
+                    port,
+                    &config.user,
+                    auth,
+                ))
             }
 
             Platform::Ssh(config) => {
                 let port = config.port.parse::<u16>()?;
                 let auth = match &config.userauth {
                     SshUserAuth::Agent => SshAuthOptions::Agent,
-                    SshUserAuth::Password { password } => SshAuthOptions::Password {
-                        password: &password,
-                    },
+                    SshUserAuth::Password { password } => SshAuthOptions::Password { password },
                     SshUserAuth::Keys {
                         public_key,
                         private_key,
                     } => SshAuthOptions::Keys {
                         public_key: public_key.as_deref(),
-                        private_key: &private_key,
+                        private_key,
                     },
                 };
-                TargetPlatformOptions::Ssh(SshConnectOptions::new(&config.host, port, &config.user, auth))
+                TargetPlatformOptions::Ssh(SshConnectOptions::new(
+                    &config.host,
+                    port,
+                    &config.user,
+                    auth,
+                ))
             }
         };
 

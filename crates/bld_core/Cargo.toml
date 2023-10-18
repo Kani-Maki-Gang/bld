@@ -33,6 +33,7 @@ tracing = "0.1.36"
 uuid = { version = "1.3.4", features = ["v4"] }
 nix = { version = "0.26.1", features = ["process"] }
 regex = "1.8.1"
+virt = "0.3.1"
 walkdir = "2.3.3"
 openidconnect = "3.1.1"
 rustls = "0.20.7"

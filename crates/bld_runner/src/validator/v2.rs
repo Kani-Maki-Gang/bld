@@ -174,9 +174,7 @@ impl<'a> PipelineValidator<'a> {
         variables: &'a HashMap<String, String>,
     ) {
         for (k, v) in variables.iter() {
-            let section = section
-                .map(|x| format!("{x} > "))
-                .unwrap_or_else(String::new);
+            let section = section.map(|x| format!("{x} > ")).unwrap_or_default();
             let section = format!("{section}variables > {k}");
             self.validate_keywords(&section, k);
             self.validate_symbols(&section, v);
@@ -189,9 +187,7 @@ impl<'a> PipelineValidator<'a> {
         environment: &'a HashMap<String, String>,
     ) {
         for (k, v) in environment.iter() {
-            let section = section
-                .map(|x| format!("{x} > "))
-                .unwrap_or_else(String::new);
+            let section = section.map(|x| format!("{x} > ")).unwrap_or_default();
             let section = format!("{section}environment > {k}");
             self.validate_keywords(&section, k);
             self.validate_symbols(&section, v);

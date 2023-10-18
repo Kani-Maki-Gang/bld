@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use actix::spawn;
 use anyhow::{anyhow, Result};
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::logger::LoggerSender;
 
@@ -57,6 +57,7 @@ impl TargetPlatformReceiver {
         while let Some(msg) = self.receiver.recv().await {
             match msg {
                 TargetPlatformMessage::Push { from, to, resp_tx } => {
+                    debug!("executing push operation");
                     let res = self.push(from, to).await;
                     resp_tx
                         .send(res)
@@ -64,6 +65,7 @@ impl TargetPlatformReceiver {
                 }
 
                 TargetPlatformMessage::Get { from, to, resp_tx } => {
+                    debug!("executing get operation");
                     let res = self.get(from, to).await;
                     resp_tx
                         .send(res)
