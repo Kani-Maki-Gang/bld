@@ -1,13 +1,16 @@
-use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc, pin::Pin, future::Future};
+use std::{
+    collections::HashMap, future::Future, net::SocketAddr, path::PathBuf, pin::Pin, sync::Arc,
+};
 
 use anyhow::{anyhow, bail, Result};
 use async_ssh2_lite::{AsyncSession, AsyncSftp, TokioTcpStream};
 use bld_config::{path, BldConfig};
+use bld_utils::sync::IntoArc;
 use futures_util::{
-    AsyncReadExt as FuturesUtilAsyncReadExt, AsyncWriteExt as FuturesUtilAsyncWriteExt
+    AsyncReadExt as FuturesUtilAsyncReadExt, AsyncWriteExt as FuturesUtilAsyncWriteExt,
 };
 use tokio::{
-    fs::{create_dir, File},
+    fs::{create_dir, File, OpenOptions},
     io::{AsyncReadExt, AsyncWriteExt},
 };
 use tracing::{debug, error};
@@ -127,20 +130,26 @@ impl Ssh {
     }
 
     async fn copy_file_from(
-        &self,
-        sftp: &AsyncSftp<TokioTcpStream>,
-        from: &str,
-        to: &str,
+        sftp: Arc<AsyncSftp<TokioTcpStream>>,
+        from: PathBuf,
+        to: PathBuf,
     ) -> Result<()> {
-        debug!("fetching content of remote file {from}");
-        let from = path![from];
+        debug!("fetching content of remote file {}", from.display());
         let mut remote_file = sftp.open(&from).await?;
         let mut content = String::new();
         remote_file.read_to_string(&mut content).await?;
 
-        debug!("writing content to local file {to}");
+        debug!("writing content to local file {}", to.display());
         let to = path![to];
-        let mut local_file = File::open(to).await?;
+        let mut local_file = if to.exists() {
+            OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .open(to)
+                .await?
+        } else {
+            File::create(to).await?
+        };
         let bytes = content.as_bytes();
         local_file.write_all(bytes).await?;
         local_file.flush().await?;
@@ -150,32 +159,46 @@ impl Ssh {
     }
 
     async fn traverse_and_copy_from_remote_directory(
-        &self,
-        sftp: &AsyncSftp<TokioTcpStream>,
-        from: &str,
-        to: &str,
+        sftp: Arc<AsyncSftp<TokioTcpStream>>,
+        from: PathBuf,
+        to: PathBuf,
     ) -> RecursiveFuture {
+        debug!(
+            "starting copying contents from remote path {} to local path {}",
+            from.display(),
+            to.display()
+        );
         Box::pin(async move {
-            let from_path = path![from];
-            let remote_path = sftp.realpath(&from_path).await?;
+            let remote_path = sftp.realpath(&from).await?;
             let remote_dir = sftp.readdir(&remote_path).await?;
 
-            for (path, stat) in remote_dir.iter() {
+            for (path, stat) in remote_dir.into_iter() {
                 let file_name = path
                     .file_name()
                     .ok_or_else(|| anyhow!("unable to look up remote file name"))?;
 
-                let to = path![to, file_name];
-                let to = to
-                    .to_str()
-                    .ok_or_else(|| anyhow!("unable to construct destination path (to)"))?;
+                let to = path![&to, file_name];
 
                 if stat.is_file() {
-                    self.copy_file_from(sftp, &from, to).await?;
+                    debug!(
+                        "copying remote file {} to local path {}",
+                        path.display(),
+                        to.display()
+                    );
+                    Self::copy_file_from(sftp.clone(), path, to).await?;
                 } else {
-                    create_dir(to).await?;
-                    let from = path.display().to_string();
-                    self.traverse_and_copy_from_remote_directory(sftp, &from, to).await.await?;
+                    debug!("creating new local directory on path {}", to.display());
+                    if let Err(e) = create_dir(&to).await {
+                        debug!(
+                            "tried to create local directory {} but encountered error {e}",
+                            remote_path.display()
+                        );
+                    }
+
+                    debug!("traversing remote path {}", path.display());
+                    Self::traverse_and_copy_from_remote_directory(sftp.clone(), path, to)
+                        .await
+                        .await?;
                 }
             }
 
@@ -184,28 +207,28 @@ impl Ssh {
     }
 
     pub async fn copy_from(&self, from: &str, to: &str) -> Result<()> {
-        let sftp = self.session.sftp().await?;
-        let from_path = path![from];
-        let remote_path = sftp.realpath(&from_path).await?;
+        let sftp = self.session.sftp().await?.into_arc();
+        let from = path![from];
+        let to = path![to];
+        let remote_path = sftp.realpath(&from).await?;
 
+        debug!("remote path {} is a file", from.display());
         if remote_path.is_file() {
-            self.copy_file_from(&sftp, from, to).await?;
+            Self::copy_file_from(sftp, from, to).await?;
             return Ok(());
         }
 
-        // let remote_dir = sftp.readdir(&remote_path).await?;
+        debug!("creating new local directory on path {}", to.display());
+        if let Err(e) = create_dir(&to).await {
+            debug!(
+                "tried to create local directory {} but encountered error {e}",
+                remote_path.display()
+            );
+        }
 
-        // let (mut scp_channel, scp_stat) = self.session.scp_recv(&path).await?;
-        // let mut content = String::new();
-        // scp_channel.read_to_string(&mut content).await?;
-
-        // if scp_stat.is_dir() {
-        //     let to = path![to];
-        //     create_dir(to).await?;
-        // } else {
-        //     let bytes = content.as_bytes();
-        //     File::create(to).await?.write_all(bytes).await?;
-        // }
+        Self::traverse_and_copy_from_remote_directory(sftp, from, to)
+            .await
+            .await?;
 
         Ok(())
     }
