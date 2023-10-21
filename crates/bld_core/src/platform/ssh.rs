@@ -294,7 +294,7 @@ impl Ssh {
                 continue;
             }
 
-            let to = path![to, dir_entry.display().to_string().replace(&from, "")];
+            let to = path![to, dir_entry.strip_prefix(&from_path)?];
 
             debug!(
                 "copying file {} to remote path {}",
