@@ -334,6 +334,8 @@ impl Runner {
 
             Platform::Libvirt { .. } => TargetPlatformOptions::Machine,
 
+            Platform::LibvirtFromGlobalConfig { .. } => TargetPlatformOptions::Machine,
+
             Platform::SshFromGlobalConfig { ssh_server } => {
                 let config = self.config.ssh(ssh_server)?;
                 let port = config.port.parse::<u16>()?;

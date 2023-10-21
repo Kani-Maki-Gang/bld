@@ -122,20 +122,54 @@ impl<'a> PipelineValidator<'a> {
                 self.validate_symbols("runs_on > tag", tag);
                 self.validate_symbols("runs_on > dockerfile", dockerfile);
             }
+
             Platform::Pull { image, .. } => self.validate_symbols("runs_on > image", image),
+
             Platform::ContainerOrMachine(value) => self.validate_symbols("runs_on", value),
-            Platform::Libvirt {
-                vm,
+
+            Platform::LibvirtFromGlobalConfig {
+                libvirt_config,
+                domain,
                 start_before_run,
                 shutdown_after_run,
             } => {
-                self.validate_symbols("runs_on > vm", vm);
-                self.validate_symbols("runs_on > start_before_run", start_before_run);
-                self.validate_symbols("runs_on > shutdown_after_run", shutdown_after_run);
+                self.validate_symbols("runs_on > libvirt_config", libvirt_config);
+                self.validate_symbols("runs_on > domain", domain);
+                if let Some(start_before_run) = start_before_run {
+                    self.validate_symbols("runs_on > start_before_run", start_before_run);
+                }
+                if let Some(shutdown_after_run) = shutdown_after_run {
+                    self.validate_symbols("runs_on > shutdown_after_run", shutdown_after_run);
+                }
             }
+
+            Platform::Libvirt {
+                libvirt_conn,
+                domain,
+                start_before_run,
+                shutdown_after_run,
+            } => {
+                self.validate_symbols("runs_on > libvirt_conn > uri", &libvirt_conn.uri);
+                if let Some(auth) = &libvirt_conn.auth {
+                    self.validate_symbols("runs_on > libvirt_conn > auth > user", &auth.user);
+                    self.validate_symbols(
+                        "runs_on > libvirt_conn > auth > password",
+                        &auth.password,
+                    );
+                }
+                self.validate_symbols("runs_on > domain", domain);
+                if let Some(start_before_run) = start_before_run {
+                    self.validate_symbols("runs_on > start_before_run", start_before_run);
+                }
+                if let Some(shutdown_after_run) = shutdown_after_run {
+                    self.validate_symbols("runs_on > shutdown_after_run", shutdown_after_run);
+                }
+            }
+
             Platform::SshFromGlobalConfig { ssh_server } => {
                 self.validate_symbols("runs_on > ssh_server", ssh_server);
             }
+
             Platform::Ssh(config) => {
                 self.validate_symbols("runs_on > host", &config.host);
                 self.validate_symbols("runs_on > port", &config.port);

@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use anyhow::Result;
-use bld_config::{SshConfig, SshUserAuth};
+use bld_config::{LibvirtAuth, LibvirtConfig, SshConfig, SshUserAuth};
 use serde::{Deserialize, Serialize};
 
 use crate::token_context::v2::PipelineContext;
@@ -20,9 +20,16 @@ pub enum Platform {
         dockerfile: String,
     },
     Libvirt {
-        vm: String,
-        start_before_run: String,
-        shutdown_after_run: String,
+        libvirt_conn: LibvirtConfig,
+        domain: String,
+        start_before_run: Option<String>,
+        shutdown_after_run: Option<String>,
+    },
+    LibvirtFromGlobalConfig {
+        libvirt_config: String,
+        domain: String,
+        start_before_run: Option<String>,
+        shutdown_after_run: Option<String>,
     },
     Ssh(SshConfig),
     SshFromGlobalConfig {
@@ -37,7 +44,8 @@ impl Display for Platform {
             Self::ContainerOrMachine(image) => write!(f, "{image}"),
             Self::Pull { image, .. } => write!(f, "{image}"),
             Self::Build { name, tag, .. } => write!(f, "{name}:{tag}"),
-            Self::Libvirt { vm, .. } => write!(f, "{vm}"),
+            Self::Libvirt { domain, .. } => write!(f, "{domain}"),
+            Self::LibvirtFromGlobalConfig { domain, .. } => write!(f, "{domain}"),
             Self::SshFromGlobalConfig { ssh_server } => write!(f, "{}", ssh_server),
             Self::Ssh(config) => write!(f, "{}:{}", config.host, config.port),
         }
@@ -54,6 +62,7 @@ impl Platform {
             Platform::Pull { image, .. } => {
                 *image = context.transform(image.to_owned()).await?;
             }
+
             Platform::Build {
                 name,
                 tag,
@@ -63,18 +72,56 @@ impl Platform {
                 *tag = context.transform(tag.to_owned()).await?;
                 *dockerfile = context.transform(dockerfile.to_owned()).await?;
             }
+
             Platform::ContainerOrMachine(image) if image != "machine" => {
                 *image = context.transform(image.to_owned()).await?;
             }
+
+            Platform::ContainerOrMachine(_) => {}
+
             Platform::Libvirt {
-                vm,
+                ref mut libvirt_conn,
+                domain,
                 start_before_run,
                 shutdown_after_run,
             } => {
-                *vm = context.transform(vm.to_owned()).await?;
-                *start_before_run = context.transform(start_before_run.to_owned()).await?;
-                *shutdown_after_run = context.transform(shutdown_after_run.to_owned()).await?;
+                libvirt_conn.uri = context.transform(libvirt_conn.uri.to_owned()).await?;
+                libvirt_conn.auth = match &libvirt_conn.auth {
+                    Some(auth) => Some(LibvirtAuth {
+                        user: context.transform(auth.user.to_owned()).await?,
+                        password: context.transform(auth.user.to_owned()).await?,
+                    }),
+                    None => None,
+                };
+                *domain = context.transform(domain.to_owned()).await?;
+                *start_before_run = match start_before_run {
+                    Some(value) => Some(context.transform(value.to_owned()).await?),
+                    None => None,
+                };
+                *shutdown_after_run = match shutdown_after_run {
+                    Some(value) => Some(context.transform(value.to_owned()).await?),
+                    None => None,
+                };
             }
+
+            Platform::LibvirtFromGlobalConfig {
+                libvirt_config,
+                domain,
+                start_before_run,
+                shutdown_after_run,
+            } => {
+                *libvirt_config = context.transform(libvirt_config.to_owned()).await?;
+                *domain = context.transform(domain.to_owned()).await?;
+                *start_before_run = match start_before_run {
+                    Some(value) => Some(context.transform(value.to_owned()).await?),
+                    None => None,
+                };
+                *shutdown_after_run = match shutdown_after_run {
+                    Some(value) => Some(context.transform(value.to_owned()).await?),
+                    None => None,
+                };
+            }
+
             Platform::Ssh(ref mut config) => {
                 config.host = context.transform(config.host.to_owned()).await?;
                 config.port = context.transform(config.port.to_owned()).await?;
@@ -102,7 +149,10 @@ impl Platform {
                     }
                 }
             }
-            _ => {}
+
+            Platform::SshFromGlobalConfig { ssh_server } => {
+                *ssh_server = context.transform(ssh_server.to_owned()).await?;
+            }
         }
         Ok(())
     }

@@ -280,7 +280,7 @@ impl Ssh {
 
         if from_path.is_file() {
             debug!("starting copy of file {}", from_path.display());
-            self.copy_file_into(&sftp, &from, &to).await?;
+            self.copy_file_into(&sftp, from, to).await?;
             return Ok(());
         }
 
@@ -310,7 +310,7 @@ impl Ssh {
                 .to_str()
                 .ok_or_else(|| anyhow!("unable to construct destination path (to)"))?;
 
-            self.copy_file_into(&sftp, &from, &to).await?;
+            self.copy_file_into(&sftp, from, to).await?;
         }
         Ok(())
     }
