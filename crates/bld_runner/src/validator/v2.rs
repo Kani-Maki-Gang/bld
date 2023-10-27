@@ -127,41 +127,17 @@ impl<'a> PipelineValidator<'a> {
 
             Platform::ContainerOrMachine(value) => self.validate_symbols("runs_on", value),
 
-            Platform::LibvirtFromGlobalConfig {
-                libvirt_config,
-                domain,
-                start_before_run,
-                shutdown_after_run,
-            } => {
+            Platform::LibvirtFromGlobalConfig { libvirt_config } => {
                 self.validate_symbols("runs_on > libvirt_config", libvirt_config);
-                self.validate_symbols("runs_on > domain", domain);
-                if let Some(start_before_run) = start_before_run {
-                    self.validate_symbols("runs_on > start_before_run", start_before_run);
-                }
-                if let Some(shutdown_after_run) = shutdown_after_run {
-                    self.validate_symbols("runs_on > shutdown_after_run", shutdown_after_run);
-                }
             }
 
-            Platform::Libvirt {
-                libvirt_conn,
-                domain,
-                start_before_run,
-                shutdown_after_run,
-            } => {
-                self.validate_symbols("runs_on > libvirt_conn > uri", &libvirt_conn.uri);
-                if let Some(auth) = &libvirt_conn.auth {
-                    self.validate_symbols("runs_on > libvirt_conn > auth > user", &auth.user);
-                    self.validate_symbols(
-                        "runs_on > libvirt_conn > auth > password",
-                        &auth.password,
-                    );
-                }
-                self.validate_symbols("runs_on > domain", domain);
-                if let Some(start_before_run) = start_before_run {
+            Platform::Libvirt(config) => {
+                self.validate_symbols("runs_on > uri", &config.uri);
+                self.validate_symbols("runs_on > domain", &config.domain);
+                if let Some(start_before_run) = &config.start_before_run {
                     self.validate_symbols("runs_on > start_before_run", start_before_run);
                 }
-                if let Some(shutdown_after_run) = shutdown_after_run {
+                if let Some(shutdown_after_run) = &config.shutdown_after_run {
                     self.validate_symbols("runs_on > shutdown_after_run", shutdown_after_run);
                 }
             }

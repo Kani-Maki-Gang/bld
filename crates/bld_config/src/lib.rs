@@ -151,6 +151,13 @@ impl BldConfig {
             .ok_or_else(|| anyhow!("ssh configuration with name '{name}' wasn't found"))
     }
 
+    pub fn libvirt(&self, name: &str) -> Result<&LibvirtConfig> {
+        self.local
+            .libvirt
+            .get(name)
+            .ok_or_else(|| anyhow!("libvirt configuration with name '{name}' wasn't found"))
+    }
+
     pub async fn openid_core_client(&self) -> Result<Option<CoreClient>> {
         if let Some(auth) = &self.local.server.auth {
             auth.core_client().await.map(Some)

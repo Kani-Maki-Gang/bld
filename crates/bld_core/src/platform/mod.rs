@@ -147,6 +147,11 @@ impl TargetPlatform {
         Self::Container { id, container }
     }
 
+    pub fn libvirt(libvirt: Box<Libvirt>) -> Self {
+        let id = Uuid::new_v4().to_string();
+        Self::Libvirt { id, libvirt }
+    }
+
     pub fn ssh(ssh: Box<Ssh>) -> Self {
         let id = Uuid::new_v4().to_string();
         let (tx, rx) = channel(4096);
@@ -230,7 +235,7 @@ impl TargetPlatform {
         match self {
             Self::Machine { machine, .. } => machine.sh(logger, working_dir, command).await,
             Self::Container { container, .. } => container.sh(logger, working_dir, command).await,
-            Self::Libvirt { .. } => unimplemented!(),
+            Self::Libvirt { libvirt, .. } => libvirt.sh(logger, working_dir, command).await,
             Self::Ssh { ssh_tx, .. } => {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
@@ -261,7 +266,7 @@ impl TargetPlatform {
             Self::Machine { machine, .. } if !in_child_runner => machine.dispose().await,
             Self::Machine { .. } => Ok(()),
             Self::Container { container, .. } => container.dispose().await,
-            Self::Libvirt { .. } => unimplemented!(),
+            Self::Libvirt { libvirt, .. } => libvirt.dispose(),
             Self::Ssh { ssh_tx, .. } => {
                 let (resp_tx, resp_rx) = oneshot::channel();
                 ssh_tx

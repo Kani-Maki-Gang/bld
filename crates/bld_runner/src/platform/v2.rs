@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use anyhow::Result;
-use bld_config::{LibvirtAuth, LibvirtConfig, SshConfig, SshUserAuth};
+use bld_config::{LibvirtConfig, SshConfig, SshUserAuth};
 use serde::{Deserialize, Serialize};
 
 use crate::token_context::v2::PipelineContext;
@@ -19,17 +19,9 @@ pub enum Platform {
         tag: String,
         dockerfile: String,
     },
-    Libvirt {
-        libvirt_conn: LibvirtConfig,
-        domain: String,
-        start_before_run: Option<String>,
-        shutdown_after_run: Option<String>,
-    },
+    Libvirt(LibvirtConfig),
     LibvirtFromGlobalConfig {
         libvirt_config: String,
-        domain: String,
-        start_before_run: Option<String>,
-        shutdown_after_run: Option<String>,
     },
     Ssh(SshConfig),
     SshFromGlobalConfig {
@@ -44,8 +36,8 @@ impl Display for Platform {
             Self::ContainerOrMachine(image) => write!(f, "{image}"),
             Self::Pull { image, .. } => write!(f, "{image}"),
             Self::Build { name, tag, .. } => write!(f, "{name}:{tag}"),
-            Self::Libvirt { domain, .. } => write!(f, "{domain}"),
-            Self::LibvirtFromGlobalConfig { domain, .. } => write!(f, "{domain}"),
+            Self::Libvirt(config) => write!(f, "{} - {}", config.uri, config.domain),
+            Self::LibvirtFromGlobalConfig { libvirt_config } => write!(f, "{libvirt_config}"),
             Self::SshFromGlobalConfig { ssh_server } => write!(f, "{}", ssh_server),
             Self::Ssh(config) => write!(f, "{}:{}", config.host, config.port),
         }
@@ -79,47 +71,21 @@ impl Platform {
 
             Platform::ContainerOrMachine(_) => {}
 
-            Platform::Libvirt {
-                ref mut libvirt_conn,
-                domain,
-                start_before_run,
-                shutdown_after_run,
-            } => {
-                libvirt_conn.uri = context.transform(libvirt_conn.uri.to_owned()).await?;
-                libvirt_conn.auth = match &libvirt_conn.auth {
-                    Some(auth) => Some(LibvirtAuth {
-                        user: context.transform(auth.user.to_owned()).await?,
-                        password: context.transform(auth.user.to_owned()).await?,
-                    }),
-                    None => None,
-                };
-                *domain = context.transform(domain.to_owned()).await?;
-                *start_before_run = match start_before_run {
+            Platform::Libvirt(ref mut config) => {
+                config.uri = context.transform(config.uri.to_owned()).await?;
+                config.domain = context.transform(config.domain.to_owned()).await?;
+                config.start_before_run = match &config.start_before_run {
                     Some(value) => Some(context.transform(value.to_owned()).await?),
                     None => None,
                 };
-                *shutdown_after_run = match shutdown_after_run {
+                config.shutdown_after_run = match &config.shutdown_after_run {
                     Some(value) => Some(context.transform(value.to_owned()).await?),
                     None => None,
                 };
             }
 
-            Platform::LibvirtFromGlobalConfig {
-                libvirt_config,
-                domain,
-                start_before_run,
-                shutdown_after_run,
-            } => {
+            Platform::LibvirtFromGlobalConfig { libvirt_config } => {
                 *libvirt_config = context.transform(libvirt_config.to_owned()).await?;
-                *domain = context.transform(domain.to_owned()).await?;
-                *start_before_run = match start_before_run {
-                    Some(value) => Some(context.transform(value.to_owned()).await?),
-                    None => None,
-                };
-                *shutdown_after_run = match shutdown_after_run {
-                    Some(value) => Some(context.transform(value.to_owned()).await?),
-                    None => None,
-                };
             }
 
             Platform::Ssh(ref mut config) => {

@@ -10,7 +10,7 @@ use bld_core::{
     context::ContextSender,
     logger::LoggerSender,
     messages::{ExecClientMessage, WorkerMessages},
-    platform::{Image, SshAuthOptions, SshConnectOptions, TargetPlatform},
+    platform::{Image, LibvirtConnectOptions, SshAuthOptions, SshConnectOptions, TargetPlatform},
     proxies::PipelineFileSystemProxy,
     regex::RegexCache,
     request::WebSocket,
@@ -332,9 +332,46 @@ impl Runner {
                 tag: tag.to_owned(),
             }),
 
-            Platform::Libvirt { .. } => TargetPlatformOptions::Machine,
+            Platform::Libvirt(config) => {
+                let start_before_run = config
+                    .start_before_run
+                    .as_deref()
+                    .unwrap_or("false")
+                    .parse::<bool>()?;
+                let shutdown_after_run = config
+                    .shutdown_after_run
+                    .as_deref()
+                    .unwrap_or("false")
+                    .parse::<bool>()?;
+                let connect = LibvirtConnectOptions::new(
+                    &config.uri,
+                    &config.domain,
+                    start_before_run,
+                    shutdown_after_run,
+                );
+                TargetPlatformOptions::Libvirt(connect)
+            }
 
-            Platform::LibvirtFromGlobalConfig { .. } => TargetPlatformOptions::Machine,
+            Platform::LibvirtFromGlobalConfig { libvirt_config } => {
+                let config = self.config.libvirt(libvirt_config)?;
+                let start_before_run = config
+                    .start_before_run
+                    .as_deref()
+                    .unwrap_or("false")
+                    .parse::<bool>()?;
+                let shutdown_after_run = config
+                    .shutdown_after_run
+                    .as_deref()
+                    .unwrap_or("false")
+                    .parse::<bool>()?;
+                let connect = LibvirtConnectOptions::new(
+                    &config.uri,
+                    &config.domain,
+                    start_before_run,
+                    shutdown_after_run,
+                );
+                TargetPlatformOptions::Libvirt(connect)
+            }
 
             Platform::SshFromGlobalConfig { ssh_server } => {
                 let config = self.config.ssh(ssh_server)?;
