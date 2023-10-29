@@ -157,17 +157,17 @@ impl TargetPlatform {
 
     pub fn id(&self) -> String {
         match self {
-            Self::Machine { id, .. }
-            | Self::Container { id, .. }
-            | Self::Ssh { id, .. } => id.to_owned(),
+            Self::Machine { id, .. } | Self::Container { id, .. } | Self::Ssh { id, .. } => {
+                id.to_owned()
+            }
         }
     }
 
     pub fn is(&self, pid: &str) -> bool {
         match self {
-            Self::Machine { id, .. }
-            | Self::Container { id, .. }
-            | Self::Ssh { id, .. } => pid == id,
+            Self::Machine { id, .. } | Self::Container { id, .. } | Self::Ssh { id, .. } => {
+                pid == id
+            }
         }
     }
 

@@ -72,7 +72,10 @@ impl BldLocalConfig {
             debug!("ssh > {key} > port: {}", config.port);
             debug!("ssh > {key} > user: {}", config.user);
             match &config.userauth {
-                SshUserAuth::Keys { public_key, private_key }=> {
+                SshUserAuth::Keys {
+                    public_key,
+                    private_key,
+                } => {
                     debug!("ssh > {key} > userauth > type: keys");
                     debug!("ssh > {key} > userauth > public_key: {public_key:?}");
                     debug!("ssh > {key} > userauth > private_key: {private_key}");

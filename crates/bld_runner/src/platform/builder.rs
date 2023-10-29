@@ -6,8 +6,7 @@ use bld_core::{
     context::ContextSender,
     logger::LoggerSender,
     platform::{
-        Container, Image, Machine, Ssh, SshConnectOptions,
-        SshExecutionOptions, TargetPlatform,
+        Container, Image, Machine, Ssh, SshConnectOptions, SshExecutionOptions, TargetPlatform,
     },
 };
 use bld_utils::sync::IntoArc;

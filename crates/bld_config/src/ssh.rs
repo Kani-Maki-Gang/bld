@@ -9,9 +9,7 @@ pub enum SshUserAuth {
         private_key: String,
     },
     #[serde(rename = "password")]
-    Password {
-        password: String,
-    },
+    Password { password: String },
     #[serde(rename = "agent")]
     Agent,
 }
