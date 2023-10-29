@@ -52,13 +52,6 @@ pub enum VersionedPipeline {
 }
 
 impl VersionedPipeline {
-    pub fn runs_on(&self) -> &str {
-        match self {
-            Self::Version1(pipeline) => &pipeline.runs_on,
-            Self::Version2(_) => unimplemented!(),
-        }
-    }
-
     pub async fn dependencies(
         config: Arc<BldConfig>,
         proxy: Arc<PipelineFileSystemProxy>,

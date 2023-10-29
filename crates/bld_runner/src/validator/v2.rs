@@ -6,7 +6,7 @@ use bld_config::definitions::{
     KEYWORD_BLD_DIR_V2, KEYWORD_PROJECT_DIR_V2, KEYWORD_RUN_PROPS_ID_V2,
     KEYWORD_RUN_PROPS_START_TIME_V2,
 };
-use bld_config::BldConfig;
+use bld_config::{BldConfig, SshUserAuth};
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_utils::fs::IsYaml;
 use cron::Schedule;
@@ -122,8 +122,35 @@ impl<'a> PipelineValidator<'a> {
                 self.validate_symbols("runs_on > tag", tag);
                 self.validate_symbols("runs_on > dockerfile", dockerfile);
             }
+
             Platform::Pull { image, .. } => self.validate_symbols("runs_on > image", image),
+
             Platform::ContainerOrMachine(value) => self.validate_symbols("runs_on", value),
+
+            Platform::SshFromGlobalConfig { ssh_server } => {
+                self.validate_symbols("runs_on > ssh_server", ssh_server);
+            }
+
+            Platform::Ssh(config) => {
+                self.validate_symbols("runs_on > host", &config.host);
+                self.validate_symbols("runs_on > port", &config.port);
+                self.validate_symbols("runs_on > user", &config.user);
+                match &config.userauth {
+                    SshUserAuth::Agent => {}
+                    SshUserAuth::Keys {
+                        public_key,
+                        private_key,
+                    } => {
+                        if let Some(pubkey) = public_key {
+                            self.validate_symbols("runs_on > auth > public_key", pubkey);
+                        }
+                        self.validate_symbols("runs_on > auth > private_key", private_key);
+                    }
+                    SshUserAuth::Password { password } => {
+                        self.validate_symbols("runs_on > auth > password", password);
+                    }
+                }
+            }
         }
     }
 
@@ -142,9 +169,7 @@ impl<'a> PipelineValidator<'a> {
         variables: &'a HashMap<String, String>,
     ) {
         for (k, v) in variables.iter() {
-            let section = section
-                .map(|x| format!("{x} > "))
-                .unwrap_or_else(String::new);
+            let section = section.map(|x| format!("{x} > ")).unwrap_or_default();
             let section = format!("{section}variables > {k}");
             self.validate_keywords(&section, k);
             self.validate_symbols(&section, v);
@@ -157,9 +182,7 @@ impl<'a> PipelineValidator<'a> {
         environment: &'a HashMap<String, String>,
     ) {
         for (k, v) in environment.iter() {
-            let section = section
-                .map(|x| format!("{x} > "))
-                .unwrap_or_else(String::new);
+            let section = section.map(|x| format!("{x} > ")).unwrap_or_default();
             let section = format!("{section}environment > {k}");
             self.validate_keywords(&section, k);
             self.validate_symbols(&section, v);

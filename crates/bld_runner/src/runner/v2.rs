@@ -4,13 +4,13 @@ use actix::{clock::sleep, io::SinkWrite, spawn, Actor, StreamHandler};
 use anyhow::{anyhow, bail, Result};
 use bld_config::{
     definitions::{GET, PUSH},
-    BldConfig,
+    BldConfig, SshUserAuth,
 };
 use bld_core::{
     context::ContextSender,
     logger::LoggerSender,
     messages::{ExecClientMessage, WorkerMessages},
-    platform::{Image, TargetPlatform},
+    platform::{Image, SshAuthOptions, SshConnectOptions, TargetPlatform},
     proxies::PipelineFileSystemProxy,
     regex::RegexCache,
     request::WebSocket,
@@ -25,7 +25,10 @@ use tracing::debug;
 use crate::{
     external::v2::External,
     pipeline::v2::Pipeline,
-    platform::{builder::TargetPlatformBuilder, v2::Platform},
+    platform::{
+        builder::{TargetPlatformBuilder, TargetPlatformOptions},
+        v2::Platform,
+    },
     step::v2::{BuildStep, BuildStepExec},
     RunnerBuilder,
 };
@@ -306,27 +309,77 @@ impl Runner {
     }
 
     async fn create_platform(&mut self) -> Result<()> {
-        let image = match &self.pipeline.runs_on {
-            Platform::ContainerOrMachine(image) if image == "machine" => None,
-            Platform::ContainerOrMachine(image) | Platform::Pull { image, pull: false } => {
-                Some(Image::Use(image.to_owned()))
+        let options = match &self.pipeline.runs_on {
+            Platform::ContainerOrMachine(image) if image == "machine" => {
+                TargetPlatformOptions::Machine
             }
-            Platform::Pull { image, pull: true } => Some(Image::Pull(image.to_owned())),
+
+            Platform::ContainerOrMachine(image) | Platform::Pull { image, pull: false } => {
+                TargetPlatformOptions::Container(Image::Use(image.to_owned()))
+            }
+
+            Platform::Pull { image, pull: true } => {
+                TargetPlatformOptions::Container(Image::Pull(image.to_owned()))
+            }
+
             Platform::Build {
                 name,
                 tag,
                 dockerfile,
-            } => Some(Image::Build {
+            } => TargetPlatformOptions::Container(Image::Build {
                 name: name.to_owned(),
                 dockerfile: dockerfile.to_owned(),
                 tag: tag.to_owned(),
             }),
+
+            Platform::SshFromGlobalConfig { ssh_server } => {
+                let config = self.config.ssh(ssh_server)?;
+                let port = config.port.parse::<u16>()?;
+                let auth = match &config.userauth {
+                    SshUserAuth::Agent => SshAuthOptions::Agent,
+                    SshUserAuth::Password { password } => SshAuthOptions::Password { password },
+                    SshUserAuth::Keys {
+                        public_key,
+                        private_key,
+                    } => SshAuthOptions::Keys {
+                        public_key: public_key.as_deref(),
+                        private_key,
+                    },
+                };
+                TargetPlatformOptions::Ssh(SshConnectOptions::new(
+                    &config.host,
+                    port,
+                    &config.user,
+                    auth,
+                ))
+            }
+
+            Platform::Ssh(config) => {
+                let port = config.port.parse::<u16>()?;
+                let auth = match &config.userauth {
+                    SshUserAuth::Agent => SshAuthOptions::Agent,
+                    SshUserAuth::Password { password } => SshAuthOptions::Password { password },
+                    SshUserAuth::Keys {
+                        public_key,
+                        private_key,
+                    } => SshAuthOptions::Keys {
+                        public_key: public_key.as_deref(),
+                        private_key,
+                    },
+                };
+                TargetPlatformOptions::Ssh(SshConnectOptions::new(
+                    &config.host,
+                    port,
+                    &config.user,
+                    auth,
+                ))
+            }
         };
 
         let platform = TargetPlatformBuilder::default()
             .run_id(&self.run_id)
             .config(self.config.clone())
-            .image(image)
+            .options(options)
             .pipeline_environment(&self.pipeline.environment)
             .environment(self.env.clone())
             .logger(self.logger.clone())
