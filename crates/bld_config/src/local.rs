@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use crate::{
     definitions, ssh::SshConfig, Auth, BldLocalServerConfig, BldLocalSupervisorConfig,
-    LibvirtConfig,
 };
 use serde::{Deserialize, Serialize};
 use tracing::debug;
@@ -23,9 +22,6 @@ pub struct BldLocalConfig {
 
     #[serde(default)]
     pub ssh: HashMap<String, SshConfig>,
-
-    #[serde(default)]
-    pub libvirt: HashMap<String, LibvirtConfig>,
 }
 
 impl BldLocalConfig {
@@ -83,7 +79,6 @@ impl Default for BldLocalConfig {
             docker_url: Self::default_docker_url(),
             editor: Self::default_editor(),
             ssh: Default::default(),
-            libvirt: Default::default(),
         }
     }
 }

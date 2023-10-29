@@ -1,6 +1,5 @@
 mod auth;
 pub mod definitions;
-mod libvirt;
 mod local;
 mod path;
 mod server;
@@ -10,7 +9,6 @@ mod tls;
 
 pub use auth::*;
 use definitions::{LOCAL_SERVER_HOST, LOCAL_SERVER_PORT, TOOL_DIR};
-pub use libvirt::*;
 pub use local::*;
 use openidconnect::core::CoreClient;
 pub use path::*;
@@ -149,13 +147,6 @@ impl BldConfig {
             .ssh
             .get(name)
             .ok_or_else(|| anyhow!("ssh configuration with name '{name}' wasn't found"))
-    }
-
-    pub fn libvirt(&self, name: &str) -> Result<&LibvirtConfig> {
-        self.local
-            .libvirt
-            .get(name)
-            .ok_or_else(|| anyhow!("libvirt configuration with name '{name}' wasn't found"))
     }
 
     pub async fn openid_core_client(&self) -> Result<Option<CoreClient>> {

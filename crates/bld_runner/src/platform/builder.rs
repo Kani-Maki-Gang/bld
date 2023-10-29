@@ -6,7 +6,7 @@ use bld_core::{
     context::ContextSender,
     logger::LoggerSender,
     platform::{
-        Container, Image, Libvirt, LibvirtConnectOptions, Machine, Ssh, SshConnectOptions,
+        Container, Image, Machine, Ssh, SshConnectOptions,
         SshExecutionOptions, TargetPlatform,
     },
 };
@@ -14,7 +14,6 @@ use bld_utils::sync::IntoArc;
 
 pub enum TargetPlatformOptions<'a> {
     Container(Image),
-    Libvirt(LibvirtConnectOptions<'a>),
     Ssh(SshConnectOptions<'a>),
     Machine,
 }
@@ -109,11 +108,6 @@ impl<'a> TargetPlatformBuilder<'a> {
                 )
                 .await?;
                 TargetPlatform::container(Box::new(container))
-            }
-
-            TargetPlatformOptions::Libvirt(connect) => {
-                let libvirt = Libvirt::new(connect)?;
-                TargetPlatform::libvirt(Box::new(libvirt))
             }
 
             TargetPlatformOptions::Ssh(connect) => {

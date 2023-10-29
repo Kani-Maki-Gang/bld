@@ -1,6 +1,5 @@
 mod container;
 mod image;
-mod libvirt;
 mod machine;
 mod ssh;
 
@@ -9,7 +8,6 @@ use std::sync::Arc;
 pub use container::*;
 use futures::channel::oneshot;
 pub use image::*;
-pub use libvirt::*;
 pub use machine::*;
 pub use ssh::*;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
@@ -126,10 +124,6 @@ pub enum TargetPlatform {
         id: String,
         container: Box<Container>,
     },
-    Libvirt {
-        id: String,
-        libvirt: Box<Libvirt>,
-    },
     Ssh {
         id: String,
         ssh_tx: Sender<TargetPlatformMessage>,
@@ -145,11 +139,6 @@ impl TargetPlatform {
     pub fn container(container: Box<Container>) -> Self {
         let id = Uuid::new_v4().to_string();
         Self::Container { id, container }
-    }
-
-    pub fn libvirt(libvirt: Box<Libvirt>) -> Self {
-        let id = Uuid::new_v4().to_string();
-        Self::Libvirt { id, libvirt }
     }
 
     pub fn ssh(ssh: Box<Ssh>) -> Self {
@@ -170,7 +159,6 @@ impl TargetPlatform {
         match self {
             Self::Machine { id, .. }
             | Self::Container { id, .. }
-            | Self::Libvirt { id, .. }
             | Self::Ssh { id, .. } => id.to_owned(),
         }
     }
@@ -179,7 +167,6 @@ impl TargetPlatform {
         match self {
             Self::Machine { id, .. }
             | Self::Container { id, .. }
-            | Self::Libvirt { id, .. }
             | Self::Ssh { id, .. } => pid == id,
         }
     }
@@ -188,7 +175,6 @@ impl TargetPlatform {
         match self {
             Self::Machine { machine, .. } => machine.copy_into(from, to).await,
             Self::Container { container, .. } => container.copy_into(from, to).await,
-            Self::Libvirt { .. } => unimplemented!(),
             Self::Ssh { ssh_tx, .. } => {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
@@ -209,7 +195,6 @@ impl TargetPlatform {
         match self {
             Self::Machine { machine, .. } => machine.copy_from(from, to).await,
             Self::Container { container, .. } => container.copy_from(from, to).await,
-            Self::Libvirt { .. } => unimplemented!(),
             Self::Ssh { ssh_tx, .. } => {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
@@ -235,7 +220,6 @@ impl TargetPlatform {
         match self {
             Self::Machine { machine, .. } => machine.sh(logger, working_dir, command).await,
             Self::Container { container, .. } => container.sh(logger, working_dir, command).await,
-            Self::Libvirt { libvirt, .. } => libvirt.sh(logger, working_dir, command).await,
             Self::Ssh { ssh_tx, .. } => {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
@@ -266,7 +250,6 @@ impl TargetPlatform {
             Self::Machine { machine, .. } if !in_child_runner => machine.dispose().await,
             Self::Machine { .. } => Ok(()),
             Self::Container { container, .. } => container.dispose().await,
-            Self::Libvirt { libvirt, .. } => libvirt.dispose(),
             Self::Ssh { ssh_tx, .. } => {
                 let (resp_tx, resp_rx) = oneshot::channel();
                 ssh_tx

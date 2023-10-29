@@ -127,21 +127,6 @@ impl<'a> PipelineValidator<'a> {
 
             Platform::ContainerOrMachine(value) => self.validate_symbols("runs_on", value),
 
-            Platform::LibvirtFromGlobalConfig { libvirt_config } => {
-                self.validate_symbols("runs_on > libvirt_config", libvirt_config);
-            }
-
-            Platform::Libvirt(config) => {
-                self.validate_symbols("runs_on > uri", &config.uri);
-                self.validate_symbols("runs_on > domain", &config.domain);
-                if let Some(start_before_run) = &config.start_before_run {
-                    self.validate_symbols("runs_on > start_before_run", start_before_run);
-                }
-                if let Some(shutdown_after_run) = &config.shutdown_after_run {
-                    self.validate_symbols("runs_on > shutdown_after_run", shutdown_after_run);
-                }
-            }
-
             Platform::SshFromGlobalConfig { ssh_server } => {
                 self.validate_symbols("runs_on > ssh_server", ssh_server);
             }

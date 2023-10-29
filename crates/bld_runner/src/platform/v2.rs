@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use anyhow::Result;
-use bld_config::{LibvirtConfig, SshConfig, SshUserAuth};
+use bld_config::{SshConfig, SshUserAuth};
 use serde::{Deserialize, Serialize};
 
 use crate::token_context::v2::PipelineContext;
@@ -19,10 +19,6 @@ pub enum Platform {
         tag: String,
         dockerfile: String,
     },
-    Libvirt(LibvirtConfig),
-    LibvirtFromGlobalConfig {
-        libvirt_config: String,
-    },
     Ssh(SshConfig),
     SshFromGlobalConfig {
         ssh_server: String,
@@ -36,8 +32,6 @@ impl Display for Platform {
             Self::ContainerOrMachine(image) => write!(f, "{image}"),
             Self::Pull { image, .. } => write!(f, "{image}"),
             Self::Build { name, tag, .. } => write!(f, "{name}:{tag}"),
-            Self::Libvirt(config) => write!(f, "{} - {}", config.uri, config.domain),
-            Self::LibvirtFromGlobalConfig { libvirt_config } => write!(f, "{libvirt_config}"),
             Self::SshFromGlobalConfig { ssh_server } => write!(f, "{}", ssh_server),
             Self::Ssh(config) => write!(f, "{}:{}", config.host, config.port),
         }
@@ -70,23 +64,6 @@ impl Platform {
             }
 
             Platform::ContainerOrMachine(_) => {}
-
-            Platform::Libvirt(ref mut config) => {
-                config.uri = context.transform(config.uri.to_owned()).await?;
-                config.domain = context.transform(config.domain.to_owned()).await?;
-                config.start_before_run = match &config.start_before_run {
-                    Some(value) => Some(context.transform(value.to_owned()).await?),
-                    None => None,
-                };
-                config.shutdown_after_run = match &config.shutdown_after_run {
-                    Some(value) => Some(context.transform(value.to_owned()).await?),
-                    None => None,
-                };
-            }
-
-            Platform::LibvirtFromGlobalConfig { libvirt_config } => {
-                *libvirt_config = context.transform(libvirt_config.to_owned()).await?;
-            }
 
             Platform::Ssh(ref mut config) => {
                 config.host = context.transform(config.host.to_owned()).await?;
