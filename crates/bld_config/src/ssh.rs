@@ -3,13 +3,16 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum SshUserAuth {
+    #[serde(rename = "keys")]
     Keys {
         public_key: Option<String>,
         private_key: String,
     },
+    #[serde(rename = "password")]
     Password {
         password: String,
     },
+    #[serde(rename = "agent")]
     Agent,
 }
 

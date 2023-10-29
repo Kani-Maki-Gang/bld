@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    definitions, ssh::SshConfig, Auth, BldLocalServerConfig, BldLocalSupervisorConfig,
+    definitions, ssh::SshConfig, Auth, BldLocalServerConfig, BldLocalSupervisorConfig, SshUserAuth,
 };
 use serde::{Deserialize, Serialize};
 use tracing::debug;
@@ -66,6 +66,25 @@ impl BldLocalConfig {
         if let Some(tls) = &self.supervisor.tls {
             debug!("supervisor > tls > cert-chain: {}", tls.cert_chain);
             debug!("supervisor > tls > private-key: {}", tls.private_key);
+        }
+        for (key, config) in &self.ssh {
+            debug!("ssh > {key} > host: {}", config.host);
+            debug!("ssh > {key} > port: {}", config.port);
+            debug!("ssh > {key} > user: {}", config.user);
+            match &config.userauth {
+                SshUserAuth::Keys { public_key, private_key }=> {
+                    debug!("ssh > {key} > userauth > type: keys");
+                    debug!("ssh > {key} > userauth > public_key: {public_key:?}");
+                    debug!("ssh > {key} > userauth > private_key: {private_key}");
+                }
+                SshUserAuth::Password { .. } => {
+                    debug!("ssh > {key} > userauth > type: password");
+                    debug!("ssh > {key} > userauth > password: ********");
+                }
+                SshUserAuth::Agent => {
+                    debug!("ssh > {key} > userauth > type: agent");
+                }
+            }
         }
         debug!("docker-url: {}", self.docker_url);
     }
