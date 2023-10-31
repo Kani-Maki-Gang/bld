@@ -1,20 +1,25 @@
-use crate::pipeline::v2::Pipeline;
-use crate::platform::v2::Platform;
-use crate::step::v2::{BuildStep, BuildStepExec};
+use crate::{
+    pipeline::v2::Pipeline,
+    platform::v2::Platform,
+    step::v2::{BuildStep, BuildStepExec}
+};
 use anyhow::{bail, Result};
 use bld_config::definitions::{
     KEYWORD_BLD_DIR_V2, KEYWORD_PROJECT_DIR_V2, KEYWORD_RUN_PROPS_ID_V2,
     KEYWORD_RUN_PROPS_START_TIME_V2,
 };
-use bld_config::{BldConfig, SshUserAuth};
+use bld_config::{BldConfig, SshUserAuth, path};
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_utils::fs::IsYaml;
 use cron::Schedule;
 use regex::Regex;
-use std::collections::{HashMap, HashSet};
-use std::fmt::Write;
-use std::str::FromStr;
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Write,
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc
+};
 
 pub struct PipelineValidator<'a> {
     pipeline: &'a Pipeline,
@@ -111,6 +116,10 @@ impl<'a> PipelineValidator<'a> {
         }
     }
 
+    fn contains_symbols(&mut self, value: &str) -> bool {
+        self.regex.find(value).is_some()
+    }
+
     fn validate_runs_on(&mut self) {
         match &self.pipeline.runs_on {
             Platform::Build {
@@ -143,14 +152,26 @@ impl<'a> PipelineValidator<'a> {
                     } => {
                         if let Some(pubkey) = public_key {
                             self.validate_symbols("runs_on > auth > public_key", pubkey);
+                            self.validate_file_path("runs_on > auth > public_key", pubkey);
                         }
                         self.validate_symbols("runs_on > auth > private_key", private_key);
+                        self.validate_file_path("runs_on > auth > private_key", private_key);
                     }
                     SshUserAuth::Password { password } => {
                         self.validate_symbols("runs_on > auth > password", password);
                     }
                 }
             }
+        }
+    }
+
+    fn validate_file_path(&mut self, section: &str, value: &str) {
+        if self.contains_symbols(value) {
+            return;
+        }
+        let path = path![value];
+        if !path.is_file() {
+            let _ = writeln!(self.errors, "[{section} > {value}] File not found");
         }
     }
 
@@ -208,6 +229,10 @@ impl<'a> PipelineValidator<'a> {
 
     async fn validate_external_pipeline(&mut self, pipeline: &'a str) {
         self.validate_symbols("external > pipeline", pipeline);
+
+        if self.contains_symbols(pipeline) {
+            return;
+        }
 
         match self.proxy.path(pipeline).await {
             Ok(path) if !path.is_yaml() => {
@@ -311,6 +336,9 @@ impl<'a> PipelineValidator<'a> {
             }
             BuildStepExec::External { value } => {
                 self.validate_symbols(section, value);
+                if self.contains_symbols(value) {
+                    return;
+                }
                 self.validate_exec_ext(section, value).await;
             }
         }
