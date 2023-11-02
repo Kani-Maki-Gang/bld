@@ -1,14 +1,14 @@
 use crate::{
     pipeline::v2::Pipeline,
     platform::v2::Platform,
-    step::v2::{BuildStep, BuildStepExec}
+    step::v2::{BuildStep, BuildStepExec},
 };
 use anyhow::{bail, Result};
 use bld_config::definitions::{
     KEYWORD_BLD_DIR_V2, KEYWORD_PROJECT_DIR_V2, KEYWORD_RUN_PROPS_ID_V2,
     KEYWORD_RUN_PROPS_START_TIME_V2,
 };
-use bld_config::{BldConfig, SshUserAuth, path};
+use bld_config::{path, BldConfig, SshUserAuth};
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_utils::fs::IsYaml;
 use cron::Schedule;
@@ -18,7 +18,7 @@ use std::{
     fmt::Write,
     path::PathBuf,
     str::FromStr,
-    sync::Arc
+    sync::Arc,
 };
 
 pub struct PipelineValidator<'a> {
