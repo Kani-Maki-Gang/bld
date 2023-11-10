@@ -17,6 +17,7 @@ use bld_core::{
 };
 use sea_orm::DatabaseConnection;
 use tokio_cron_scheduler::{Job, JobScheduler};
+use tracing::error;
 use uuid::Uuid;
 
 use crate::supervisor::{channel::SupervisorMessageSender, helpers::enqueue_worker};
@@ -91,7 +92,7 @@ impl CronScheduler {
             let scheduled_job = self.create_scheduled_job(
                 &job_id,
                 &job.schedule,
-                &pipeline.name,
+                &pipeline.id,
                 variables,
                 environment,
             )?;
@@ -164,7 +165,7 @@ impl CronScheduler {
         &self,
         job_id: &Uuid,
         schedule: &str,
-        pipeline: &str,
+        pipeline_id: &str,
         variables: Option<HashMap<String, String>>,
         environment: Option<HashMap<String, String>>,
     ) -> Result<Job> {
@@ -173,19 +174,30 @@ impl CronScheduler {
         let proxy = self.proxy.clone();
         let conn = self.conn.clone();
         let supervisor = self.supervisor.clone();
-        let data = ExecClientMessage::EnqueueRun {
-            name: pipeline.to_owned(),
-            environment,
-            variables,
-        };
+        let pipeline_id = pipeline_id.to_owned();
+        let variables = variables.clone();
+        let environment = environment.clone();
 
         let mut job = Job::new_cron_job_async(schedule, move |_uuid, _l| {
             let proxy = proxy.clone();
             let conn = conn.clone();
             let supervisor = supervisor.clone();
-            let data = data.clone();
+            let pipeline_id = pipeline_id.to_owned();
+            let variables = variables.clone();
+            let environment = environment.clone();
             Box::pin(async move {
-                let _ = enqueue_worker("Cron", proxy, conn, supervisor, data).await;
+                let Ok(pipeline) = pipeline::select_by_id(conn.as_ref(), &pipeline_id).await else {
+                    error!("unable to find pipeline with id: {pipeline_id}");
+                    return;
+                };
+                let data = ExecClientMessage::EnqueueRun {
+                    name: pipeline.name.to_owned(),
+                    environment,
+                    variables,
+                };
+                if let Err(e) = enqueue_worker("Cron", proxy, conn, supervisor, data).await {
+                    error!("unable to enqueue cron run due to: {e}");
+                }
             })
         })
         .map_err(|e| anyhow!(e))?;
@@ -210,7 +222,7 @@ impl CronScheduler {
         let scheduled_job = self.create_scheduled_job(
             &job_id,
             &add_job.schedule,
-            &pipeline.name,
+            &pipeline.id,
             variables,
             environment,
         )?;
@@ -244,7 +256,7 @@ impl CronScheduler {
         let scheduled_job = self.create_scheduled_job(
             &job_id,
             &update_job.schedule,
-            &pipeline.name,
+            &pipeline.id,
             variables,
             environment,
         )?;
