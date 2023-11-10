@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use bld_entities::high_availability_log::{self, Entity as HighAvailLogEntity};
+use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
     QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
@@ -224,6 +225,7 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
         term: Set(model.term),
         payload: Set(model.payload),
         payload_type: Set(model.payload_type),
+        date_created: Set(Utc::now().naive_utc()),
         ..Default::default()
     };
 

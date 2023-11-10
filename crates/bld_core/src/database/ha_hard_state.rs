@@ -110,6 +110,7 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
     let active_model = high_availability_hard_state::ActiveModel {
         current_term: Set(model.current_term),
         voted_for: Set(model.voted_for),
+        date_created: Set(Utc::now().naive_utc()),
         ..Default::default()
     };
 

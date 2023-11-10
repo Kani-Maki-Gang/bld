@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use bld_entities::high_availability_client_serial_responses::{
     self, Entity as HighAvailClientSerialResponsesEntity,
 };
+use chrono::Utc;
 use sea_orm::{ActiveValue::Set, ConnectionTrait, EntityTrait, QueryOrder, TransactionTrait};
 use tracing::{debug, error};
 
@@ -99,6 +100,7 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
         state_machine_id: Set(model.state_machine_id),
         serial: Set(model.serial),
         response: Set(model.response),
+        date_created: Set(Utc::now().naive_utc()),
         ..Default::default()
     };
 

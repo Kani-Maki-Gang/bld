@@ -17,12 +17,7 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(ColumnDef::new(Pipeline::Name).string().not_null())
-                    .col(
-                        ColumnDef::new(Pipeline::DateCreated)
-                            .date_time()
-                            .default(SimpleExpr::Keyword(Keyword::CurrentDate))
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(Pipeline::DateCreated).date_time().not_null())
                     .to_owned(),
             )
             .await?;
