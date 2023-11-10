@@ -111,7 +111,7 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
     let active_model = pipeline::ActiveModel {
         id: Set(model.id),
         name: Set(model.name),
-        date_created: Set(Utc::now().naive_utc())
+        date_created: Set(Utc::now().naive_utc()),
     };
 
     active_model
