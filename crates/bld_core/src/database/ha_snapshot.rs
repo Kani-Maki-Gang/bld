@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use bld_entities::high_availability_snapshot::{self, Entity as HighAvailSnapshotEntity};
+use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ConnectionTrait, EntityTrait, QueryOrder, TransactionTrait,
 };
@@ -59,6 +60,7 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
         id: Set(model.id),
         term: Set(model.term),
         data: Set(model.data),
+        date_created: Set(Utc::now().naive_utc()),
         ..Default::default()
     };
 

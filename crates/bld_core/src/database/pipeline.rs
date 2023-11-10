@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use bld_entities::pipeline::{self, Entity as PipelineEntity};
 use bld_migrations::Expr;
+use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, ModelTrait,
     QueryFilter, QueryOrder, TransactionTrait,
@@ -110,7 +111,7 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
     let active_model = pipeline::ActiveModel {
         id: Set(model.id),
         name: Set(model.name),
-        ..Default::default()
+        date_created: Set(Utc::now().naive_utc())
     };
 
     active_model
