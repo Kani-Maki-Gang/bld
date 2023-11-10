@@ -190,6 +190,7 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
         pipeline_id: Set(cj_model.pipeline_id.to_owned()),
         schedule: Set(cj_model.schedule.to_owned()),
         is_default: Set(cj_model.is_default),
+        date_created: Set(Utc::now().naive_utc()),
         ..Default::default()
     };
 

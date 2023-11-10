@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use bld_entities::cron_job_environment_variables::{
     self, Entity as CronJobEnvironmentVariableEntity,
 };
+use chrono::Utc;
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait,
 };
@@ -64,6 +65,7 @@ pub async fn insert_many<C: ConnectionTrait + TransactionTrait>(
             name: Set(m.name.to_owned()),
             value: Set(m.value.to_owned()),
             cron_job_id: Set(m.cron_job_id.to_owned()),
+            date_created: Set(Utc::now().naive_utc()),
             ..Default::default()
         })
         .collect();

@@ -5,6 +5,7 @@ use bld_entities::{
     },
     high_availability_snapshot,
 };
+use chrono::Utc;
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, QueryFilter, QueryOrder,
     QuerySelect, RelationTrait, TransactionTrait,
@@ -97,6 +98,7 @@ pub async fn insert_many<C: ConnectionTrait + TransactionTrait>(
         .map(|m| high_availability_members_after_consensus::ActiveModel {
             id: Set(m.id),
             snapshot_id: Set(m.snapshot_id),
+            date_created: Set(Utc::now().naive_utc()),
             ..Default::default()
         })
         .collect();

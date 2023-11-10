@@ -156,6 +156,7 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
         name: Set(model.name.to_owned()),
         app_user: Set(model.app_user.to_owned()),
         state: Set(PR_STATE_INITIAL.to_owned()),
+        date_created: Set(Utc::now().naive_utc()),
         ..Default::default()
     };
 

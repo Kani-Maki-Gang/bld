@@ -48,9 +48,11 @@ impl BldCommand for InitCommand {
                 create_server_pipelines_dir(self.is_server).await?;
                 create_default_yaml().await?;
                 create_config_yaml(self.is_server).await?;
+                Ok(())
+            } else {
+                let message = format!("{} dir already exists in the current directory", TOOL_DIR);
+                bail!(message)
             }
-            let message = format!("{} dir already exists in the current directory", TOOL_DIR);
-            bail!(message)
         })
     }
 }

@@ -24,7 +24,6 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(PipelineRuns::DateCreated)
                             .date_time()
-                            .default(SimpleExpr::Keyword(Keyword::CurrentDate))
                             .not_null(),
                     )
                     .col(ColumnDef::new(PipelineRuns::DateUpdated).date_time())

@@ -104,6 +104,7 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
 
     let model = high_availability_state_machine::ActiveModel {
         last_applied_log: Set(sm_last_applied_log),
+        date_created: Set(Utc::now().naive_utc()),
         ..Default::default()
     };
 
