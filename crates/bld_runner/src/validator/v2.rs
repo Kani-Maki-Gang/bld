@@ -130,6 +130,7 @@ impl<'a> PipelineValidator<'a> {
                 self.validate_symbols("runs_on > name", name);
                 self.validate_symbols("runs_on > tag", tag);
                 self.validate_symbols("runs_on > dockerfile", dockerfile);
+                self.validate_file_path("runs_on > dockerfile", dockerfile);
             }
 
             Platform::Pull { image, .. } => self.validate_symbols("runs_on > image", image),
@@ -248,7 +249,7 @@ impl<'a> PipelineValidator<'a> {
             Ok(path) if !path.is_yaml() => {
                 let _ = writeln!(
                     self.errors,
-                    "[external > pipeline > {}] Not found",
+                    "[external > pipeline > {}] Pipeline not found",
                     pipeline
                 );
             }
@@ -265,6 +266,10 @@ impl<'a> PipelineValidator<'a> {
         };
 
         self.validate_symbols("external > server", server);
+
+        if self.contains_symbols(server) {
+            return;
+        }
 
         if self.config.server(server).is_err() {
             let _ = writeln!(
@@ -289,6 +294,10 @@ impl<'a> PipelineValidator<'a> {
         };
 
         self.validate_symbols("artifacts > after", after);
+
+        if self.contains_symbols(after) {
+            return;
+        }
 
         let is_job_or_step = self
             .pipeline
