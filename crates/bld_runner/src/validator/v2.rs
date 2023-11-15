@@ -354,16 +354,18 @@ impl<'a> PipelineValidator<'a> {
                 self.validate_symbols(section, value);
             }
             BuildStepExec::External { value } => {
-                self.validate_symbols(section, value);
-                if self.contains_symbols(value) {
-                    return;
-                }
                 self.validate_exec_ext(section, value).await;
             }
         }
     }
 
     async fn validate_exec_ext(&mut self, section: &str, value: &str) {
+        self.validate_symbols(section, value);
+
+        if self.contains_symbols(value) {
+            return;
+        }
+
         if self.pipeline.external.iter().any(|e| e.is(value)) {
             return;
         }
