@@ -332,8 +332,8 @@ impl Runner {
                 tag: tag.to_owned(),
             }),
 
-            Platform::SshFromGlobalConfig { ssh_server } => {
-                let config = self.config.ssh(ssh_server)?;
+            Platform::SshFromGlobalConfig { ssh_config } => {
+                let config = self.config.ssh(ssh_config)?;
                 let port = config.port.parse::<u16>()?;
                 let auth = match &config.userauth {
                     SshUserAuth::Agent => SshAuthOptions::Agent,
