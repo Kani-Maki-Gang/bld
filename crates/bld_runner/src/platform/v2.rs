@@ -21,7 +21,7 @@ pub enum Platform {
     },
     Ssh(SshConfig),
     SshFromGlobalConfig {
-        ssh_server: String,
+        ssh_config: String,
     },
 }
 
@@ -32,7 +32,7 @@ impl Display for Platform {
             Self::ContainerOrMachine(image) => write!(f, "{image}"),
             Self::Pull { image, .. } => write!(f, "{image}"),
             Self::Build { name, tag, .. } => write!(f, "{name}:{tag}"),
-            Self::SshFromGlobalConfig { ssh_server } => write!(f, "{}", ssh_server),
+            Self::SshFromGlobalConfig { ssh_config } => write!(f, "{}", ssh_config),
             Self::Ssh(config) => write!(f, "{}:{}", config.host, config.port),
         }
     }
@@ -93,8 +93,8 @@ impl Platform {
                 }
             }
 
-            Platform::SshFromGlobalConfig { ssh_server } => {
-                *ssh_server = context.transform(ssh_server.to_owned()).await?;
+            Platform::SshFromGlobalConfig { ssh_config } => {
+                *ssh_config = context.transform(ssh_config.to_owned()).await?;
             }
         }
         Ok(())

@@ -136,8 +136,9 @@ impl<'a> PipelineValidator<'a> {
 
             Platform::ContainerOrMachine(value) => self.validate_symbols("runs_on", value),
 
-            Platform::SshFromGlobalConfig { ssh_server } => {
-                self.validate_symbols("runs_on > ssh_server", ssh_server);
+            Platform::SshFromGlobalConfig { ssh_config } => {
+                self.validate_symbols("runs_on > ssh_config", ssh_config);
+                self.validate_global_ssh_config("runs_on > ssh_config", ssh_config);
             }
 
             Platform::Ssh(config) => {
@@ -172,6 +173,15 @@ impl<'a> PipelineValidator<'a> {
         let path = path![value];
         if !path.is_file() {
             let _ = writeln!(self.errors, "[{section} > {value}] File not found");
+        }
+    }
+
+    fn validate_global_ssh_config(&mut self, section: &str, value: &str) {
+        if self.contains_symbols(value) {
+            return;
+        }
+        if let Err(e) = self.config.ssh(value) {
+            let _ = writeln!(self.errors, "[{section}] {e}");
         }
     }
 
