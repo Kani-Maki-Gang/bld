@@ -9,8 +9,10 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.invoke().map_err(|e| e.to_string()) {
-        Err(e) if !e.is_empty() => {
-            print_error(&e)?;
+        Err(e) => {
+            if !e.is_empty() {
+                print_error(&e)?;
+            }
             exit(1)
         }
         _ => Ok(()),
