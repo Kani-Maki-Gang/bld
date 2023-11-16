@@ -175,10 +175,36 @@ jobs:
 # Graceful shutdown
 Since each run could create and run container as well as issue remote runs to bld servers, the cli handles the SIGINT and SIGTERM signals in order to properly cleanup all of the external components. To be noted that the stop command which stops a pipeline running on a server, can be used for a graceful early shutdown of a pipeline.
 
+# Gihub action
+Bld has an alpha version of a github action called [bld-action](https://github.com/marketplace/actions/bld-action) and you can access the repository [here](https://github.com/Kani-Maki-Gang/bld-github-action).
+
+The action will look inside a repository to find the `.bld` directory in order to run the bld binary. An example that runs a pipeline with one variable is shown below:
+```yaml
+name: Demo workflow
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build_musl:
+    runs-on: ubuntu-latest
+    name: Run demo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Run pipeline
+        uses: Kani-Maki-Gang/bld-github-action@v0.2.1-alpha
+        with:
+          pipeline: 'demo_pipeline.yaml'
+          variables: |-
+            branch=main
+```
+
 # The bld book
 A more indepth look on bld's features can be found in the [bld book](https://kani-maki-gang.github.io/bld-book/) where you can find more topics such as:
-- [Pipeline syntax](https://kani-maki-gang.github.io/bld-book/pipelines/version2.html)
-- [Configuration](https://kani-maki-gang.github.io/bld-book/configuration/preface.html)
+- [Configuration](https://kani-maki-gang.github.io/bld-book/configuration.html)
+- [Pipeline syntax](https://kani-maki-gang.github.io/bld-book/pipelines/preface.html)
 - [How to run a server](https://kani-maki-gang.github.io/bld-book/configuration/server/running_a_server.html)
 - [Cli information](https://kani-maki-gang.github.io/bld-book/cli/preface.html)
 - [Examples](https://kani-maki-gang.github.io/bld-book/examples/preface.html)
