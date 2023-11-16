@@ -359,7 +359,7 @@ impl<'a> PipelineValidator<'a> {
         }
     }
 
-    async fn validate_exec_ext(&mut self, section: &str, value: &str) {
+    async fn validate_exec_ext(&mut self, section: &str, value: &'a str) {
         self.validate_symbols(section, value);
 
         if self.contains_symbols(value) {
