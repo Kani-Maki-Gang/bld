@@ -8,9 +8,15 @@ use bld_core::{
     },
     workers::PipelineWorker,
 };
+use bld_docker::apis::{
+    configuration::Configuration,
+    container_api::{container_delete, ContainerDeleteError},
+    Error as DockerError, ResponseContent,
+};
+use bld_utils::sync::IntoArc;
+use reqwest::Client;
 use sea_orm::DatabaseConnection;
-use shiplift::{errors::Error as ShipliftError, Docker, RmContainerOptions};
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::Arc};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info};
 
@@ -45,7 +51,7 @@ struct WorkerQueueReceiver {
     capacity: usize,
     active: Vec<PipelineWorker>,
     backlog: VecDeque<PipelineWorker>,
-    config: Data<BldConfig>,
+    docker: Arc<Configuration>,
     conn: Data<DatabaseConnection>,
     rx: mpsc::Receiver<WorkerQueueMessage>,
 }
@@ -57,11 +63,19 @@ impl WorkerQueueReceiver {
         conn: Data<DatabaseConnection>,
         rx: mpsc::Receiver<WorkerQueueMessage>,
     ) -> Self {
-        let config_clone = config.clone();
         let conn_clone = conn.clone();
+        let base_path = config.local.docker_url.to_owned();
+        let client = Client::new();
+        let docker = Configuration {
+            base_path,
+            client,
+            ..Default::default()
+        }
+        .into_arc();
+        let docker_clone = docker.clone();
 
         spawn(async move {
-            if let Err(e) = try_cleanup_containers(config_clone, conn_clone).await {
+            if let Err(e) = try_cleanup_containers(docker_clone, conn_clone).await {
                 error!("error while cleaning up containers, {e}");
             }
         });
@@ -70,7 +84,7 @@ impl WorkerQueueReceiver {
             capacity,
             active: Vec::with_capacity(capacity),
             backlog: VecDeque::new(),
-            config,
+            docker,
             conn,
             rx,
         }
@@ -123,10 +137,10 @@ impl WorkerQueueReceiver {
             }
         }
 
-        let config = self.config.clone();
+        let docker = self.docker.clone();
         let conn = self.conn.clone();
         spawn(async move {
-            if let Err(e) = try_cleanup_containers(config, conn).await {
+            if let Err(e) = try_cleanup_containers(docker, conn).await {
                 error!("error while cleaning up containers, {e}");
             }
         });
@@ -315,39 +329,23 @@ async fn try_cleanup_process(
 /// with runs that have either finished or faulted, and try to stop and remove them using the docker
 /// engine API and then set their state as removed.
 pub async fn try_cleanup_containers(
-    config: Data<BldConfig>,
+    docker: Arc<Configuration>,
     conn: Data<DatabaseConnection>,
 ) -> Result<()> {
     let run_containers = pipeline_run_containers::select_in_invalid_state(conn.as_ref()).await?;
 
     info!("found {} containers in invalid state", run_containers.len());
 
-    let url = config.local.docker_url.parse()?;
-    let client = Docker::host(url);
-
     for info in run_containers {
-        let container = client.containers().get(&info.container_id);
-
-        let container_found = match container.stop(None).await {
-            // container doesn't exist, move to the next part
-            Err(ShipliftError::Fault { code, .. }) if code.as_u16() == 404 => false,
+        match container_delete(docker.as_ref(), &info.container_id, None, Some(true), None).await {
+            Ok(_)
+            | Err(DockerError::ResponseError(ResponseContent {
+                entity: Some(ContainerDeleteError::Status404(_)),
+                ..
+            })) => {}
             Err(e) => {
                 error!("could not stop container {}, {:?}", info.container_id, e);
-                true
-            }
-            _ => true,
-        };
-
-        if container_found {
-            let options = RmContainerOptions::builder().force(true).build();
-            match container.remove(options).await {
-                // container doesn't exist, move to the next part
-                Err(ShipliftError::Fault { code, .. }) if code.as_u16() == 404 => {}
-                Err(e) => {
-                    error!("could not remove container {}, {:?}", info.container_id, e);
-                    continue;
-                }
-                _ => {}
+                continue;
             }
         }
 

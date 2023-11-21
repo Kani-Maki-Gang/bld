@@ -1,12 +1,8 @@
-use std::{path::Path, sync::Arc};
+use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
-use futures::TryStreamExt;
+use anyhow::Result;
+use bld_docker::apis::{configuration::Configuration, image_api::image_build};
 use serde::{Deserialize, Serialize};
-use shiplift::{
-    builder::{BuildOptionsBuilder, PullOptionsBuilder},
-    Docker,
-};
 
 use crate::logger::LoggerSender;
 
@@ -42,33 +38,52 @@ pub enum Image {
 }
 
 impl Image {
-    async fn pull(client: &Docker, image: &str, logger: Arc<LoggerSender>) -> Result<String> {
+    async fn pull(
+        docker: &Configuration,
+        image: &str,
+        logger: Arc<LoggerSender>,
+    ) -> Result<String> {
         logger
             .write_line(format!("{:<15}: {image}", "Pull"))
             .await?;
 
-        let pull_opts = PullOptionsBuilder::default().image(image).build();
-
-        let mut stream = client.images().pull(&pull_opts);
-
-        loop {
-            match stream.try_next().await {
-                Ok(Some(output)) => {
-                    let Ok(data) = serde_json::from_value::<StatusData>(output) else {
-                        continue;
-                    };
-                    logger.write_line(data.to_string()).await?
-                }
-                Ok(None) => break,
-                Err(_) => continue,
-            }
-        }
+        image_build(
+            docker,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(image),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await?;
 
         Ok(image.to_owned())
     }
 
     async fn build(
-        client: &Docker,
+        docker: &Configuration,
         name: &str,
         dockerfile: &str,
         tag: &str,
@@ -80,56 +95,50 @@ impl Image {
 
         let image = format!("{name}:{tag}");
 
-        let path = Path::new(dockerfile);
-
-        let filename = path
-            .file_name()
-            .and_then(|x| x.to_str())
-            .ok_or_else(|| anyhow!("couldn't deduce the file for the dockerfile"))?
-            .to_string();
-
-        let parent_dir: String = path
-            .parent()
-            .and_then(|x| x.to_str())
-            .ok_or_else(|| anyhow!("couldn't deduce parent directory of dockerfile"))?
-            .to_string();
-
-        let mut build_opts = BuildOptionsBuilder::default()
-            .dockerfile(filename)
-            .tag(image.to_owned())
-            .build();
-
-        build_opts.path = parent_dir;
-
-        let mut stream = client.images().build(&build_opts);
-
-        loop {
-            match stream.try_next().await {
-                Ok(Some(output)) => {
-                    let Ok(data) = serde_json::from_value::<StreamData>(output) else {
-                        continue;
-                    };
-                    logger.write(data.stream).await?
-                }
-                Ok(None) => break,
-                _ => continue,
-            }
-        }
-
-        logger.write_line(String::new()).await?;
+        image_build(
+            docker,
+            Some(dockerfile),
+            Some(&image),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await?;
 
         Ok(image)
     }
 
-    pub async fn create(self, client: &Docker, logger: Arc<LoggerSender>) -> Result<String> {
+    pub async fn create(self, docker: &Configuration, logger: Arc<LoggerSender>) -> Result<String> {
         match self {
             Self::Use(image) => Ok(image),
-            Self::Pull(image) => Self::pull(client, &image, logger).await,
+            Self::Pull(image) => Self::pull(docker, &image, logger).await,
             Self::Build {
                 name,
                 dockerfile,
                 tag,
-            } => Self::build(client, &name, &dockerfile, &tag, logger).await,
+            } => Self::build(docker, &name, &dockerfile, &tag, logger).await,
         }
     }
 }
