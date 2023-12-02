@@ -8,7 +8,7 @@ use bollard::{
         StartContainerOptions, UploadToContainerOptions,
     },
     exec::{CreateExecOptions, StartExecResults},
-    Docker, API_DEFAULT_VERSION,
+    Docker,
 };
 use futures::StreamExt;
 use tar::{Archive, Builder};
@@ -20,7 +20,7 @@ use crate::{
     logger::LoggerSender,
 };
 
-use super::Image;
+use super::{docker, Image};
 
 pub struct Container {
     pub id: String,
@@ -34,22 +34,6 @@ pub struct Container {
 }
 
 impl Container {
-    fn uses_http(url: &str) -> bool {
-        url.starts_with("http://") || url.starts_with("tcp://")
-    }
-
-    fn docker(config: &Arc<BldConfig>) -> Result<Docker> {
-        let url = &config.local.docker_url;
-
-        let docker = if Self::uses_http(url) {
-            Docker::connect_with_http(url, 120, API_DEFAULT_VERSION)?
-        } else {
-            Docker::connect_with_socket(url, 120, API_DEFAULT_VERSION)?
-        };
-
-        Ok(docker)
-    }
-
     async fn create(client: &Docker, image: &str, env: Vec<&str>) -> Result<(String, String)> {
         let name = Uuid::new_v4().to_string();
         let options = CreateContainerOptions {
@@ -96,7 +80,7 @@ impl Container {
         logger: Arc<LoggerSender>,
         context: Arc<ContextSender>,
     ) -> Result<Self> {
-        let client = Container::docker(&config)?;
+        let client = docker(config.as_ref())?;
         let env = Self::create_environment(pipeline_env, env);
         let container_env = env.iter().map(AsRef::as_ref).collect();
         image.create(&client, logger.clone()).await?;

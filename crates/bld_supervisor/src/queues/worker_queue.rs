@@ -6,12 +6,11 @@ use bld_core::{
         pipeline_run_containers::{self, PRC_STATE_REMOVED},
         pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED},
     },
+    platform::docker,
     workers::PipelineWorker,
 };
 use bld_utils::sync::IntoArc;
-use bollard::{
-    container::RemoveContainerOptions, errors::Error as BollardError, Docker, API_DEFAULT_VERSION,
-};
+use bollard::{container::RemoveContainerOptions, errors::Error as BollardError, Docker};
 use sea_orm::DatabaseConnection;
 use std::{collections::VecDeque, sync::Arc};
 use tokio::sync::{mpsc, oneshot};
@@ -54,29 +53,13 @@ struct WorkerQueueReceiver {
 }
 
 impl WorkerQueueReceiver {
-    fn uses_http(url: &str) -> bool {
-        url.starts_with("http://") || url.starts_with("tcp://")
-    }
-
-    fn docker(config: &BldConfig) -> Result<Docker> {
-        let url = &config.local.docker_url;
-
-        let docker = if Self::uses_http(url) {
-            Docker::connect_with_http(url, 120, API_DEFAULT_VERSION)?
-        } else {
-            Docker::connect_with_local(url, 120, API_DEFAULT_VERSION)?
-        };
-
-        Ok(docker)
-    }
-
     pub fn new(
         capacity: usize,
         config: Data<BldConfig>,
         conn: Data<DatabaseConnection>,
         rx: mpsc::Receiver<WorkerQueueMessage>,
     ) -> Result<Self> {
-        let docker = Self::docker(config.as_ref())?.into_arc();
+        let docker = docker(config.as_ref())?.into_arc();
         let docker_clone = docker.clone();
         let conn_clone = conn.clone();
 
