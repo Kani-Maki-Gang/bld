@@ -23,7 +23,7 @@ pub async fn start(config: BldConfig) -> Result<()> {
         config.local.supervisor.workers.try_into()?,
         config.clone(),
         conn.clone(),
-    );
+    )?;
     let worker_queue_sender = worker_queue_sender.into_data();
 
     let mut server = HttpServer::new(move || {

@@ -11,8 +11,8 @@ actix-web = "4.0.1"
 anyhow = "1.0.40"
 async-trait = "0.1.50"
 awc = { version = "3.0.0", features = ["rustls"] }
+bollard = { version = "0.15.0", features = ["ssl"] }
 bld_config = { path = "../bld_config" }
-bld_docker = { path = "../bld_docker" }
 bld_entities = { path = "../bld_entities" }
 bld_utils = { path = "../bld_utils" }
 bld_migrations = { path = "../bld_migrations" }
@@ -32,8 +32,8 @@ tokio = { version = "1.24.2", features = ["full"] }
 tracing = "0.1.36"
 uuid = { version = "1.3.4", features = ["v4"] }
 nix = { version = "0.26.1", features = ["process"] }
-reqwest = { version = "^0.11", features = ["json", "multipart"]}
 regex = "1.8.1"
 walkdir = "2.3.3"
 openidconnect = "3.1.1"
 rustls = "0.20.7"
+bytes = "1.5.0"

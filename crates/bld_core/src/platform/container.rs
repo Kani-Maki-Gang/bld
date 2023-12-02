@@ -1,24 +1,19 @@
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{collections::HashMap, path::Path, path::PathBuf, sync::Arc};
 
 use anyhow::{bail, Result};
 use bld_config::{path, BldConfig};
-use bld_docker::{
-    apis::{
-        configuration::Configuration,
-        container_api::{
-            container_archive, container_create, container_delete, container_start,
-            put_container_archive,
-        }, exec_api::container_exec,
+use bollard::{
+    container::{
+        Config as ContainerConfig, CreateContainerOptions, DownloadFromContainerOptions, LogOutput,
+        StartContainerOptions, UploadToContainerOptions,
     },
-    models::{ContainerCreateRequest, ExecConfig},
+    exec::{CreateExecOptions, StartExecResults},
+    Docker, API_DEFAULT_VERSION,
 };
-use reqwest::Client;
-use tar::Archive;
+use futures::StreamExt;
+use tar::{Archive, Builder};
 use tracing::error;
+use uuid::Uuid;
 
 use crate::{
     context::ContextSender, database::pipeline_run_containers::PipelineRunContainers,
@@ -29,37 +24,51 @@ use super::Image;
 
 pub struct Container {
     pub id: String,
-    pub docker: Configuration,
+    pub name: String,
+    pub config: Option<Arc<BldConfig>>,
     pub image: String,
-    pub config: Arc<BldConfig>,
+    pub client: Docker,
     pub context: Arc<ContextSender>,
     pub entity: Option<PipelineRunContainers>,
     pub environment: Vec<String>,
 }
 
 impl Container {
-    fn docker(config: &Arc<BldConfig>) -> Result<Configuration> {
-        let base_path = config.local.docker_url.to_owned();
-        let client = Client::new();
-        let configuration = Configuration {
-            base_path,
-            client,
-            ..Default::default()
-        };
-        Ok(configuration)
+    fn uses_http(url: &str) -> bool {
+        url.starts_with("http://") || url.starts_with("tcp://")
     }
 
-    async fn create(docker: &Configuration, image: String, env: Vec<String>) -> Result<String> {
-        let mut request = ContainerCreateRequest::new();
-        request.image = Some(image);
-        request.env = Some(env);
-        request.tty = Some(true);
+    fn docker(config: &Arc<BldConfig>) -> Result<Docker> {
+        let url = &config.local.docker_url;
 
-        let response = container_create(docker, request, None, None).await?;
+        let docker = if Self::uses_http(url) {
+            Docker::connect_with_http(url, 120, API_DEFAULT_VERSION)?
+        } else {
+            Docker::connect_with_socket(url, 120, API_DEFAULT_VERSION)?
+        };
 
-        container_start(docker, &response.id, None).await?;
+        Ok(docker)
+    }
 
-        Ok(response.id)
+    async fn create(client: &Docker, image: &str, env: Vec<&str>) -> Result<(String, String)> {
+        let name = Uuid::new_v4().to_string();
+        let options = CreateContainerOptions {
+            name: &name,
+            platform: None,
+        };
+        let config = ContainerConfig {
+            image: Some(image),
+            tty: Some(true),
+            env: Some(env),
+            ..Default::default()
+        };
+
+        let create_resp = client.create_container(Some(options), config).await?;
+        client
+            .start_container(&name, None::<StartContainerOptions<String>>)
+            .await?;
+
+        Ok((create_resp.id, name))
     }
 
     fn create_environment(
@@ -87,38 +96,67 @@ impl Container {
         logger: Arc<LoggerSender>,
         context: Arc<ContextSender>,
     ) -> Result<Self> {
-        let docker = Container::docker(&config)?;
-        let environment = Self::create_environment(pipeline_env, env);
-        let image = image.create(&docker, logger.clone()).await?;
-        let id = Container::create(&docker, image.clone(), environment.clone()).await?;
+        let client = Container::docker(&config)?;
+        let env = Self::create_environment(pipeline_env, env);
+        let container_env = env.iter().map(AsRef::as_ref).collect();
+        image.create(&client, logger.clone()).await?;
+        let image = image.name();
+        let (id, name) = Container::create(&client, &image, container_env).await?;
         let entity = context.add_container(id.clone()).await?;
         Ok(Self {
             id,
-            docker,
-            config,
+            name,
+            config: Some(config),
             image,
+            client,
             context,
             entity,
-            environment,
+            environment: env,
         })
     }
 
     pub async fn copy_from(&self, from: &str, to: &str) -> Result<()> {
-        let data = container_archive(&self.docker, &self.id, from).await?;
-        let mut archive = Archive::new(&data[..]);
+        let options = DownloadFromContainerOptions { path: from };
+        let mut stream = self
+            .client
+            .download_from_container(&self.name, Some(options));
+
+        let mut bytes = vec![];
+        while let Some(item) = stream.next().await {
+            let mut item: Vec<u8> = item?.into();
+            bytes.append(&mut item);
+        }
+
+        let mut archive = Archive::new(&bytes[..]);
         archive.unpack(Path::new(to))?;
         Ok(())
     }
 
     pub async fn copy_into(&self, from: &str, to: &str) -> Result<()> {
-        let from_path = path![from];
-        put_container_archive(&self.docker, &self.id, to, from_path, None, None).await?;
+        let mut tar = Builder::new(Vec::new());
+        let path = path![from];
+
+        if path.is_file() {
+            tar.append_path(from)?;
+        } else {
+            tar.append_dir(from, from)?;
+        }
+        let content = tar.into_inner()?;
+
+        let options = UploadToContainerOptions {
+            path: to,
+            ..Default::default()
+        };
+        self.client
+            .upload_to_container(&self.name, Some(options), content.into())
+            .await?;
+
         Ok(())
     }
 
     pub async fn sh(
         &self,
-        _logger: Arc<LoggerSender>,
+        logger: Arc<LoggerSender>,
         working_dir: &Option<String>,
         input: &str,
     ) -> Result<()> {
@@ -128,50 +166,68 @@ impl Container {
             .or_else(|| Some(input.to_string()))
             .unwrap();
 
-        let env = self.environment.iter().map(String::clone).collect();
-        let mut exec_config = ExecConfig::new();
-        exec_config.cmd = Some(vec!["bash".to_string(), "-c".to_string(), input]);
-        exec_config.env = Some(env);
-        exec_config.attach_stdout = Some(true);
-        exec_config.attach_stderr = Some(true);
-        let _ = container_exec(&self.docker, &self.id, exec_config).await?;
+        let env = self.environment.iter().map(String::as_str).collect();
+        let options = CreateExecOptions {
+            cmd: Some(vec!["bash", "-c", &input]),
+            env: Some(env),
+            attach_stdout: Some(true),
+            attach_stderr: Some(true),
+            ..Default::default()
+        };
 
-        // let options = ExecContainerOptions::builder()
-        //     .cmd(vec!["bash", "-c", &input])
-        //     .env(env)
-        //     .attach_stdout(true)
-        //     .attach_stderr(true)
-        //     .build();
+        let exec = self.client.create_exec(&self.name, options).await?;
+        let exec_stream = self.client.start_exec(&exec.id, None).await?;
 
-        // let exec = Exec::create(client, id, &options).await?;
-        // let mut exec_stream = exec.start();
+        let StartExecResults::Attached { mut output, .. } = exec_stream else {
+            return Ok(());
+        };
 
-        // while let Some(result) = exec_stream.next().await {
-        //     let chunk = match result {
-        //         Ok(TtyChunk::StdOut(bytes)) => String::from_utf8(bytes)?,
-        //         Ok(TtyChunk::StdErr(bytes)) => String::from_utf8(bytes)?,
-        //         Ok(TtyChunk::StdIn(_)) => unreachable!(),
-        //         Err(e) => bail!(e),
-        //     };
+        while let Some(result) = output.next().await {
+            let Ok(output) = result else {
+                continue;
+            };
 
-        //     logger.write(chunk).await?;
-        // }
+            let chunk: Vec<u8> = match output {
+                LogOutput::StdOut { message } => message.into(),
+                LogOutput::StdErr { message } => message.into(),
+                LogOutput::StdIn { .. } | LogOutput::Console { .. } => continue,
+            };
 
-        // let inspect = exec.inspect().await?;
-        // match inspect.exit_code {
-        //     Some(code) if code > 0 => bail!("command finished with exit code: {code}"),
-        //     _ => {}
-        // }
+            let chunk_str = String::from_utf8(chunk)?;
+
+            logger.write(chunk_str).await?;
+        }
+
+        let inspect = self.client.inspect_exec(&exec.id).await?;
+        let Some(exit_code) = inspect.exit_code else {
+            bail!("unable to confirm exit code");
+        };
+
+        if exit_code != 0 {
+            bail!("command finished with exit code: {exit_code}");
+        }
 
         Ok(())
     }
 
     pub async fn keep_alive(&self) -> Result<()> {
-        self.context.keep_alive(self.id.to_owned()).await
+        self.context.keep_alive(self.id.clone()).await
     }
 
     pub async fn dispose(&self) -> Result<()> {
-        if let Err(e) = container_delete(&self.docker, &self.id, None, Some(true), None).await {
+        if let Err(e) = self.client.stop_container(&self.name, None).await {
+            error!("could not stop container, {e}");
+            if let Some(entity) = &self.entity {
+                let _ = self
+                    .context
+                    .set_container_as_faulted(entity.id.to_owned())
+                    .await
+                    .map_err(|e| error!("could not set container as faulted, {e}"));
+            }
+            bail!(e);
+        }
+
+        if let Err(e) = self.client.remove_container(&self.name, None).await {
             error!("could not stop container, {e}");
             if let Some(entity) = &self.entity {
                 let _ = self

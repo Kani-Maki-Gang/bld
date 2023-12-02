@@ -8,13 +8,10 @@ use bld_core::{
     },
     workers::PipelineWorker,
 };
-use bld_docker::apis::{
-    configuration::Configuration,
-    container_api::{container_delete, ContainerDeleteError},
-    Error as DockerError, ResponseContent,
-};
 use bld_utils::sync::IntoArc;
-use reqwest::Client;
+use bollard::{
+    container::RemoveContainerOptions, errors::Error as BollardError, Docker, API_DEFAULT_VERSION,
+};
 use sea_orm::DatabaseConnection;
 use std::{collections::VecDeque, sync::Arc};
 use tokio::sync::{mpsc, oneshot};
@@ -51,28 +48,37 @@ struct WorkerQueueReceiver {
     capacity: usize,
     active: Vec<PipelineWorker>,
     backlog: VecDeque<PipelineWorker>,
-    docker: Arc<Configuration>,
     conn: Data<DatabaseConnection>,
+    docker: Arc<Docker>,
     rx: mpsc::Receiver<WorkerQueueMessage>,
 }
 
 impl WorkerQueueReceiver {
+    fn uses_http(url: &str) -> bool {
+        url.starts_with("http://") || url.starts_with("tcp://")
+    }
+
+    fn docker(config: &BldConfig) -> Result<Docker> {
+        let url = &config.local.docker_url;
+
+        let docker = if Self::uses_http(url) {
+            Docker::connect_with_http(url, 120, API_DEFAULT_VERSION)?
+        } else {
+            Docker::connect_with_local(url, 120, API_DEFAULT_VERSION)?
+        };
+
+        Ok(docker)
+    }
+
     pub fn new(
         capacity: usize,
         config: Data<BldConfig>,
         conn: Data<DatabaseConnection>,
         rx: mpsc::Receiver<WorkerQueueMessage>,
-    ) -> Self {
-        let conn_clone = conn.clone();
-        let base_path = config.local.docker_url.to_owned();
-        let client = Client::new();
-        let docker = Configuration {
-            base_path,
-            client,
-            ..Default::default()
-        }
-        .into_arc();
+    ) -> Result<Self> {
+        let docker = Self::docker(config.as_ref())?.into_arc();
         let docker_clone = docker.clone();
+        let conn_clone = conn.clone();
 
         spawn(async move {
             if let Err(e) = try_cleanup_containers(docker_clone, conn_clone).await {
@@ -80,14 +86,14 @@ impl WorkerQueueReceiver {
             }
         });
 
-        Self {
+        Ok(Self {
             capacity,
             active: Vec::with_capacity(capacity),
             backlog: VecDeque::new(),
-            docker,
             conn,
+            docker,
             rx,
-        }
+        })
     }
 
     pub async fn receive(mut self) -> Result<()> {
@@ -284,9 +290,9 @@ pub fn worker_queue_channel(
     capacity: usize,
     config: Data<BldConfig>,
     conn: Data<DatabaseConnection>,
-) -> WorkerQueueSender {
+) -> Result<WorkerQueueSender> {
     let (tx, rx) = mpsc::channel(4096);
-    let receiver = WorkerQueueReceiver::new(capacity, config, conn, rx);
+    let receiver = WorkerQueueReceiver::new(capacity, config, conn, rx)?;
 
     spawn(async move {
         if let Err(e) = receiver.receive().await {
@@ -294,7 +300,7 @@ pub fn worker_queue_channel(
         }
     });
 
-    WorkerQueueSender::new(tx)
+    Ok(WorkerQueueSender::new(tx))
 }
 
 /// This function will call the clean up method for the worker and check
@@ -329,7 +335,7 @@ async fn try_cleanup_process(
 /// with runs that have either finished or faulted, and try to stop and remove them using the docker
 /// engine API and then set their state as removed.
 pub async fn try_cleanup_containers(
-    docker: Arc<Configuration>,
+    docker: Arc<Docker>,
     conn: Data<DatabaseConnection>,
 ) -> Result<()> {
     let run_containers = pipeline_run_containers::select_in_invalid_state(conn.as_ref()).await?;
@@ -337,15 +343,36 @@ pub async fn try_cleanup_containers(
     info!("found {} containers in invalid state", run_containers.len());
 
     for info in run_containers {
-        match container_delete(docker.as_ref(), &info.container_id, None, Some(true), None).await {
-            Ok(_)
-            | Err(DockerError::ResponseError(ResponseContent {
-                entity: Some(ContainerDeleteError::Status404(_)),
-                ..
-            })) => {}
+        let container_found = match docker.stop_container(&info.container_id, None).await {
+            // container doesn't exist, move to the next part
+            Err(BollardError::DockerResponseServerError {
+                status_code: 404, ..
+            }) => false,
             Err(e) => {
                 error!("could not stop container {}, {:?}", info.container_id, e);
-                continue;
+                true
+            }
+            _ => true,
+        };
+
+        if container_found {
+            let remove_opts = RemoveContainerOptions {
+                force: true,
+                ..Default::default()
+            };
+            match docker
+                .remove_container(&info.container_id, Some(remove_opts))
+                .await
+            {
+                // container doesn't exist, move to the next part
+                Err(BollardError::DockerResponseServerError {
+                    status_code: 404, ..
+                }) => {}
+                Err(e) => {
+                    error!("could not remove container {}, {:?}", info.container_id, e);
+                    continue;
+                }
+                _ => {}
             }
         }
 

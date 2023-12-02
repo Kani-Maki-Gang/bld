@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use bld_docker::apis::{configuration::Configuration, image_api::image_build};
+use bollard::{image::BuildImageOptions, service::BuildInfo, Docker};
+use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 
 use crate::logger::LoggerSender;
@@ -38,107 +39,54 @@ pub enum Image {
 }
 
 impl Image {
-    async fn pull(
-        docker: &Configuration,
-        image: &str,
-        logger: Arc<LoggerSender>,
-    ) -> Result<String> {
-        logger
-            .write_line(format!("{:<15}: {image}", "Pull"))
-            .await?;
-
-        image_build(
-            docker,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(image),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-        .await?;
-
-        Ok(image.to_owned())
-    }
-
-    async fn build(
-        docker: &Configuration,
-        name: &str,
-        dockerfile: &str,
-        tag: &str,
-        logger: Arc<LoggerSender>,
-    ) -> Result<String> {
-        logger
-            .write_line(format!("{:<15}: {dockerfile} to {tag}", "Build"))
-            .await?;
-
-        let image = format!("{name}:{tag}");
-
-        image_build(
-            docker,
-            Some(dockerfile),
-            Some(&image),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-        .await?;
-
-        Ok(image)
-    }
-
-    pub async fn create(self, docker: &Configuration, logger: Arc<LoggerSender>) -> Result<String> {
+    pub fn name(&self) -> String {
         match self {
-            Self::Use(image) => Ok(image),
-            Self::Pull(image) => Self::pull(docker, &image, logger).await,
+            Self::Use(image) | Self::Pull(image) => image.to_owned(),
+            Self::Build { name, tag, .. } => format!("{name}:{tag}"),
+        }
+    }
+
+    pub async fn create(&self, client: &Docker, logger: Arc<LoggerSender>) -> Result<()> {
+        let mut build_opts = BuildImageOptions::default();
+
+        let mut stream = match &self {
+            Self::Use(_) => return Ok(()),
+
+            Self::Pull(image) => {
+                build_opts.t = image.to_owned();
+                build_opts.pull = true;
+                client.build_image(build_opts, None, None)
+            }
+
             Self::Build {
                 name,
                 dockerfile,
                 tag,
-            } => Self::build(docker, &name, &dockerfile, &tag, logger).await,
+            } => {
+                let image = format!("{name}:{tag}");
+                build_opts.dockerfile = dockerfile.to_owned();
+                build_opts.t = image.to_owned();
+                client.build_image(build_opts, None, None)
+            }
+        };
+
+        loop {
+            let Ok(item) = stream.try_next().await else {
+                continue;
+            };
+
+            match item {
+                Some(BuildInfo {
+                    progress: Some(value),
+                    ..
+                }) => {
+                    logger.write_line(value).await?;
+                }
+                Some(_) => continue,
+                None => break,
+            }
         }
+
+        Ok(())
     }
 }
