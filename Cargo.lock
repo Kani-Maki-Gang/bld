@@ -761,7 +761,7 @@ dependencies = [
 
 [[package]]
 name = "bld"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "bld_commands",
@@ -772,7 +772,7 @@ dependencies = [
 
 [[package]]
 name = "bld_commands"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "actix",
  "actix-codec",
@@ -805,7 +805,7 @@ dependencies = [
 
 [[package]]
 name = "bld_config"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "openidconnect",
@@ -818,7 +818,7 @@ dependencies = [
 
 [[package]]
 name = "bld_core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "actix",
  "actix-web",
@@ -855,14 +855,14 @@ dependencies = [
 
 [[package]]
 name = "bld_entities"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "sea-orm",
 ]
 
 [[package]]
 name = "bld_migrations"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "async-std",
  "chrono",
@@ -871,7 +871,7 @@ dependencies = [
 
 [[package]]
 name = "bld_runner"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "actix",
  "actix-codec",
@@ -901,7 +901,7 @@ dependencies = [
 
 [[package]]
 name = "bld_server"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "actix",
  "actix-codec",
@@ -931,7 +931,7 @@ dependencies = [
 
 [[package]]
 name = "bld_sock"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "actix",
  "actix-codec",
@@ -954,7 +954,7 @@ dependencies = [
 
 [[package]]
 name = "bld_supervisor"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "actix",
  "actix-codec",
@@ -981,7 +981,7 @@ dependencies = [
 
 [[package]]
 name = "bld_utils"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "actix-web",
  "anyhow",

@@ -18,7 +18,7 @@ jobs:
         shell: bash
         run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
       - name: Run bld pipeline
-        uses: Kani-Maki-Gang/bld-github-action@v0.3-alpha
+        uses: Kani-Maki-Gang/bld-github-action@v0.3.1-alpha
         with:
           pipeline: 'build-musl.yaml'
           variables: |-

@@ -1,6 +1,6 @@
 [package]
 name = "bld"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Kostas Vlachos <kvl_93@outlook.com>"]
 edition = "2021"
 
