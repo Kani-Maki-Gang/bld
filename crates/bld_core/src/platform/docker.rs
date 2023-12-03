@@ -7,11 +7,7 @@ fn uses_http(url: &str) -> bool {
 }
 
 fn sanitize_socket_path(url: &str) -> &str {
-    if url.starts_with("unix:/") {
-        &url[6..]
-    } else {
-        url
-    }
+    url.strip_prefix("unix:/").unwrap_or(url)
 }
 
 pub fn docker(config: &BldConfig) -> Result<Docker> {
