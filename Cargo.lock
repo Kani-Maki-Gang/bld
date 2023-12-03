@@ -831,7 +831,6 @@ dependencies = [
  "bld_migrations",
  "bld_utils",
  "bollard",
- "bytes",
  "chrono",
  "futures",
  "futures-util",
