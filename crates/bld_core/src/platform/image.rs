@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{io::Write, sync::Arc};
 
 use anyhow::{bail, Result};
 use bollard::{
@@ -6,8 +6,11 @@ use bollard::{
     service::{BuildInfo, CreateImageInfo},
     Docker,
 };
+use flate2::{write::GzEncoder, Compression};
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
+use tar::{Builder, Header};
+use tokio::fs::{read_to_string, File};
 
 use crate::logger::LoggerSender;
 
@@ -102,14 +105,29 @@ impl Image {
             bail!("building image isn't allowed with current pipeline configuration");
         };
 
+        let content = read_to_string(dockerfile).await?;
+
+        let mut header = Header::new_gnu();
+        header.set_path("Dockerfile")?;
+        header.set_size(content.len() as u64);
+        header.set_mode(0o755);
+        header.set_cksum();
+
+        let mut tar = Builder::new(vec![]);
+        tar.append(&header, content.as_bytes())?;
+
+        let uncompressed = tar.into_inner()?;
+        let mut gz = GzEncoder::new(vec![], Compression::default());
+        gz.write_all(&uncompressed)?;
+        let compressed = gz.finish()?;
+
         let image = format!("{name}:{tag}");
         let opts = BuildImageOptions {
-            dockerfile: dockerfile.as_str(),
             t: image.as_str(),
             ..Default::default()
         };
 
-        let mut stream = client.build_image(opts, None, None);
+        let mut stream = client.build_image(opts, None, Some(compressed.into()));
 
         loop {
             let item = stream.try_next().await?;
@@ -119,6 +137,13 @@ impl Image {
                     error: Some(error), ..
                 }) => {
                     bail!(error);
+                }
+
+                Some(BuildInfo {
+                    stream: Some(stream),
+                    ..
+                }) => {
+                    logger.write(stream).await?;
                 }
 
                 Some(BuildInfo {
