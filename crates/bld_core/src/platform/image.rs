@@ -10,7 +10,7 @@ use flate2::{write::GzEncoder, Compression};
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use tar::{Builder, Header};
-use tokio::fs::{read_to_string, File};
+use tokio::fs::read_to_string;
 
 use crate::logger::LoggerSender;
 

@@ -11,7 +11,7 @@ actix-web = "4.0.1"
 anyhow = "1.0.40"
 async-trait = "0.1.50"
 awc = { version = "3.0.0", features = ["rustls"] }
-bollard = { version = "0.15.0", features = ["ssl", "buildkit"] }
+bollard = { version = "0.15.0", features = ["ssl"] }
 bld_config = { path = "../bld_config" }
 bld_entities = { path = "../bld_entities" }
 bld_utils = { path = "../bld_utils" }
