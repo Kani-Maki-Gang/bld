@@ -8,58 +8,18 @@ use bollard::{
 };
 use flate2::{write::GzEncoder, Compression};
 use futures::TryStreamExt;
-use serde::{Deserialize, Serialize};
 use tar::{Builder, Header};
 use tokio::fs::read_to_string;
 
 use crate::logger::LoggerSender;
 
-#[derive(Serialize, Deserialize)]
-pub struct StatusData {
-    id: String,
-    status: String,
-    progress: Option<String>,
-}
+pub struct PullImage(String);
 
-impl ToString for StatusData {
-    fn to_string(&self) -> String {
-        match &self.progress {
-            Some(progress) => format!("{} {} {progress}", self.id, self.status),
-            None => format!("{} {}", self.id, self.status),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct StreamData {
-    stream: String,
-}
-
-pub enum Image {
-    Use(String),
-    Pull(String),
-    Build {
-        name: String,
-        dockerfile: String,
-        tag: String,
-    },
-}
-
-impl Image {
-    pub fn name(&self) -> String {
-        match self {
-            Self::Use(image) | Self::Pull(image) => image.to_owned(),
-            Self::Build { name, tag, .. } => format!("{name}:{tag}"),
-        }
-    }
-
-    async fn pull_image(&self, client: &Docker, logger: &LoggerSender) -> Result<()> {
-        let Self::Pull(image) = self else {
-            bail!("pulling image isn't allowed with current pipeline configuration");
-        };
-
+impl PullImage {
+    pub async fn pull(&self, client: &Docker, logger: &LoggerSender) -> Result<()> {
+        let image = self.0.as_str();
         let opts = CreateImageOptions {
-            from_image: image.as_str(),
+            from_image: image,
             ..Default::default()
         };
 
@@ -94,18 +54,25 @@ impl Image {
 
         Ok(())
     }
+}
 
-    async fn build_image(&self, client: &Docker, logger: &LoggerSender) -> Result<()> {
-        let Self::Build {
+pub struct BuildImage {
+    name: String,
+    dockerfile: String,
+    tag: String,
+}
+
+impl BuildImage {
+    pub fn new(name: String, dockerfile: String, tag: String) -> Self {
+        Self {
             name,
             dockerfile,
             tag,
-        } = self
-        else {
-            bail!("building image isn't allowed with current pipeline configuration");
-        };
+        }
+    }
 
-        let content = read_to_string(dockerfile).await?;
+    pub async fn build(&self, client: &Docker, logger: &LoggerSender) -> Result<()> {
+        let content = read_to_string(&self.dockerfile).await?;
 
         let mut header = Header::new_gnu();
         header.set_path("Dockerfile")?;
@@ -121,7 +88,7 @@ impl Image {
         gz.write_all(&uncompressed)?;
         let compressed = gz.finish()?;
 
-        let image = format!("{name}:{tag}");
+        let image = format!("{}:{}", self.name, self.tag);
         let opts = BuildImageOptions {
             t: image.as_str(),
             ..Default::default()
@@ -165,12 +132,35 @@ impl Image {
 
         Ok(())
     }
+}
+
+pub enum Image {
+    Use(String),
+    Pull(PullImage),
+    Build(BuildImage),
+}
+
+impl Image {
+    pub fn pull(image: String) -> Self {
+        Self::Pull(PullImage(image))
+    }
+
+    pub fn build(name: String, dockerfile: String, tag: String) -> Self {
+        Self::Build(BuildImage::new(name, dockerfile, tag))
+    }
+
+    pub fn name(&self) -> String {
+        match self {
+            Self::Use(image) | Self::Pull(PullImage(image)) => image.to_owned(),
+            Self::Build(BuildImage { name, tag, .. }) => format!("{name}:{tag}"),
+        }
+    }
 
     pub async fn create(&self, client: &Docker, logger: Arc<LoggerSender>) -> Result<()> {
         match &self {
             Self::Use(_) => Ok(()),
-            Self::Pull(_) => self.pull_image(client, logger.as_ref()).await,
-            Self::Build { .. } => self.build_image(client, logger.as_ref()).await,
+            Self::Pull(instance) => instance.pull(client, logger.as_ref()).await,
+            Self::Build(instance) => instance.build(client, logger.as_ref()).await,
         }
     }
 }

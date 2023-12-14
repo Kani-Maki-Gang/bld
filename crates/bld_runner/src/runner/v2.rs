@@ -319,18 +319,18 @@ impl Runner {
             }
 
             Platform::Pull { image, pull: true } => {
-                TargetPlatformOptions::Container(Image::Pull(image.to_owned()))
+                TargetPlatformOptions::Container(Image::pull(image.to_owned()))
             }
 
             Platform::Build {
                 name,
                 tag,
                 dockerfile,
-            } => TargetPlatformOptions::Container(Image::Build {
-                name: name.to_owned(),
-                dockerfile: dockerfile.to_owned(),
-                tag: tag.to_owned(),
-            }),
+            } => TargetPlatformOptions::Container(Image::build(
+                name.to_owned(),
+                dockerfile.to_owned(),
+                tag.to_owned(),
+            )),
 
             Platform::SshFromGlobalConfig { ssh_config } => {
                 let config = self.config.ssh(ssh_config)?;
