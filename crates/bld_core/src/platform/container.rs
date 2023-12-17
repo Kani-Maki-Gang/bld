@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::Path, path::PathBuf, sync::Arc};
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use bld_config::{path, BldConfig};
 use bollard::{
     container::{
@@ -120,10 +120,14 @@ impl Container {
         let mut tar = Builder::new(Vec::new());
         let path = path![from];
 
+        let filename = path
+            .file_name()
+            .ok_or_else(|| anyhow!("unable to retrieve filename for path {from}"))?;
+
         if path.is_file() {
-            tar.append_path(from)?;
+            tar.append_path_with_name(from, filename)?;
         } else {
-            tar.append_dir(from, from)?;
+            tar.append_dir_all(filename, from)?;
         }
         let content = tar.into_inner()?;
 
