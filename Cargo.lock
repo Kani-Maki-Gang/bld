@@ -539,6 +539,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-signal"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e47d90f65a225c4527103a8d747001fc56e375203592b25ad103e1ca13124c5"
+dependencies = [
+ "async-io 2.2.1",
+ "async-lock 2.8.0",
+ "atomic-waker",
+ "cfg-if",
+ "futures-core",
+ "futures-io",
+ "rustix 0.38.26",
+ "signal-hook-registry",
+ "slab",
+ "windows-sys 0.48.0",
+]
+
+[[package]]
 name = "async-ssh2-lite"
 version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -778,6 +796,7 @@ dependencies = [
  "actix-codec",
  "actix-web",
  "anyhow",
+ "async-signal",
  "bld_config",
  "bld_core",
  "bld_runner",
@@ -795,7 +814,6 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "signal-hook",
- "signal-hook-tokio",
  "tabled",
  "tokio",
  "tracing",
@@ -3801,18 +3819,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8229b473baa5980ac72ef434c4415e70c4b5e71b423043adb4ba059f89c99a1"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "signal-hook-tokio"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "213241f76fb1e37e27de3b6aa1b068a2c333233b59cca6634f634b80a27ecf1e"
-dependencies = [
- "futures-core",
- "libc",
- "signal-hook",
- "tokio",
 ]
 
 [[package]]

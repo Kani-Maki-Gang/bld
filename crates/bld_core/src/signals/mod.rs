@@ -1,10 +1,25 @@
 use anyhow::{anyhow, Result};
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::{
+    mpsc::{Receiver, Sender},
+    oneshot,
+};
 
 #[derive(Debug)]
-pub enum UnixSignalMessage {
+pub enum UnixSignal {
     SIGINT,
     SIGTERM,
+    SIGQUIT,
+}
+
+pub struct UnixSignalMessage {
+    pub signal: UnixSignal,
+    pub resp_tx: oneshot::Sender<()>,
+}
+
+impl UnixSignalMessage {
+    pub fn new(signal: UnixSignal, resp_tx: oneshot::Sender<()>) -> Self {
+        Self { signal, resp_tx }
+    }
 }
 
 pub struct UnixSignalsSender {
@@ -17,13 +32,27 @@ impl UnixSignalsSender {
     }
 
     pub async fn sigint(&mut self) -> Result<()> {
-        self.tx.send(UnixSignalMessage::SIGINT).await?;
-        Ok(())
+        let (resp_tx, resp_rx) = oneshot::channel();
+        self.tx
+            .send(UnixSignalMessage::new(UnixSignal::SIGINT, resp_tx))
+            .await?;
+        resp_rx.await.map_err(|e| anyhow!(e))
     }
 
     pub async fn sigterm(&mut self) -> Result<()> {
-        self.tx.send(UnixSignalMessage::SIGTERM).await?;
-        Ok(())
+        let (resp_tx, resp_rx) = oneshot::channel();
+        self.tx
+            .send(UnixSignalMessage::new(UnixSignal::SIGTERM, resp_tx))
+            .await?;
+        resp_rx.await.map_err(|e| anyhow!(e))
+    }
+
+    pub async fn sigquit(&mut self) -> Result<()> {
+        let (resp_tx, resp_rx) = oneshot::channel();
+        self.tx
+            .send(UnixSignalMessage::new(UnixSignal::SIGQUIT, resp_tx))
+            .await?;
+        resp_rx.await.map_err(|e| anyhow!(e))
     }
 }
 
