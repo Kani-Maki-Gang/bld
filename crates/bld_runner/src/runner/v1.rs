@@ -17,7 +17,7 @@ use bld_core::messages::{ExecClientMessage, WorkerMessages};
 use bld_core::platform::TargetPlatform;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::request::WebSocket;
-use bld_core::signals::{UnixSignalMessage, UnixSignalsReceiver};
+use bld_core::signals::{UnixSignalMessage, UnixSignalsReceiver, UnixSignal};
 use bld_sock::clients::ExecClient;
 use bld_utils::sync::IntoArc;
 use futures::stream::StreamExt;
@@ -407,14 +407,31 @@ impl Runner {
 
                 if let Ok(signal) = signals.try_next() {
                     match signal {
-                        UnixSignalMessage::SIGINT | UnixSignalMessage::SIGTERM => {
+                        UnixSignalMessage {
+                            signal: UnixSignal::SIGINT,
+                            resp_tx,
+                        }
+                        | UnixSignalMessage {
+                            signal: UnixSignal::SIGTERM,
+                            resp_tx,
+                        }
+                        | UnixSignalMessage {
+                            signal: UnixSignal::SIGQUIT,
+                            resp_tx,
+                        } => {
                             runner_handle.abort();
+
                             logger
                                 .write_line(
                                     "Runner interruped. Starting graceful shutdown...".to_owned(),
                                 )
                                 .await?;
-                            break context.cleanup().await;
+
+                            context.cleanup().await?;
+
+                            break resp_tx
+                                .send(())
+                                .map_err(|_| anyhow!("oneshot response sender dropped"));
                         }
                     }
                 }

@@ -14,7 +14,7 @@ use bld_core::{
     proxies::PipelineFileSystemProxy,
     regex::RegexCache,
     request::WebSocket,
-    signals::{UnixSignalMessage, UnixSignalsReceiver},
+    signals::{UnixSignal, UnixSignalMessage, UnixSignalsReceiver},
 };
 use bld_sock::clients::ExecClient;
 use bld_utils::sync::IntoArc;
@@ -573,16 +573,33 @@ impl Runner {
                     break runner_handle.await?.map(|_| ());
                 }
 
-                if let Ok(signal) = signals.try_next() {
-                    match signal {
-                        UnixSignalMessage::SIGINT | UnixSignalMessage::SIGTERM => {
+                if let Ok(message) = signals.try_next() {
+                    match message {
+                        UnixSignalMessage {
+                            signal: UnixSignal::SIGINT,
+                            resp_tx,
+                        }
+                        | UnixSignalMessage {
+                            signal: UnixSignal::SIGTERM,
+                            resp_tx,
+                        }
+                        | UnixSignalMessage {
+                            signal: UnixSignal::SIGQUIT,
+                            resp_tx,
+                        } => {
                             runner_handle.abort();
+
                             logger
                                 .write_line(
                                     "Runner interruped. Starting graceful shutdown...".to_owned(),
                                 )
                                 .await?;
-                            break context.cleanup().await;
+
+                            context.cleanup().await?;
+
+                            break resp_tx
+                                .send(())
+                                .map_err(|_| anyhow!("oneshot response sender dropped"));
                         }
                     }
                 }
