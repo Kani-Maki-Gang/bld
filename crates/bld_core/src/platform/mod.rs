@@ -1,4 +1,5 @@
 mod container;
+mod docker;
 mod image;
 mod machine;
 mod ssh;
@@ -6,6 +7,7 @@ mod ssh;
 use std::sync::Arc;
 
 pub use container::*;
+pub use docker::*;
 use futures::channel::oneshot;
 pub use image::*;
 pub use machine::*;

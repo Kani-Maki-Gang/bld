@@ -1,135 +1,166 @@
-use std::{path::Path, sync::Arc};
+use std::{io::Write, sync::Arc};
 
-use anyhow::{anyhow, Result};
-use futures::TryStreamExt;
-use serde::{Deserialize, Serialize};
-use shiplift::{
-    builder::{BuildOptionsBuilder, PullOptionsBuilder},
+use anyhow::{bail, Result};
+use bollard::{
+    image::{BuildImageOptions, CreateImageOptions},
+    service::{BuildInfo, CreateImageInfo},
     Docker,
 };
+use flate2::{write::GzEncoder, Compression};
+use futures::TryStreamExt;
+use tar::{Builder, Header};
+use tokio::fs::read_to_string;
 
 use crate::logger::LoggerSender;
 
-#[derive(Serialize, Deserialize)]
-pub struct StatusData {
-    id: String,
-    status: String,
-    progress: Option<String>,
-}
+pub struct PullImage(String);
 
-impl ToString for StatusData {
-    fn to_string(&self) -> String {
-        match &self.progress {
-            Some(progress) => format!("{} {} {progress}", self.id, self.status),
-            None => format!("{} {}", self.id, self.status),
+impl PullImage {
+    pub async fn pull(&self, client: &Docker, logger: &LoggerSender) -> Result<()> {
+        let image = self.0.as_str();
+        let opts = CreateImageOptions {
+            from_image: image,
+            ..Default::default()
+        };
+
+        let mut stream = client.create_image(Some(opts), None, None);
+
+        loop {
+            let item = stream.try_next().await?;
+
+            match item {
+                Some(CreateImageInfo {
+                    error: Some(error), ..
+                }) => {
+                    bail!(error);
+                }
+
+                Some(CreateImageInfo {
+                    id,
+                    status,
+                    progress,
+                    ..
+                }) => {
+                    let id = id.unwrap_or_default();
+                    let status = status.unwrap_or_default();
+                    let progress = progress.unwrap_or_default();
+                    let msg = format!("{status} {id} {progress}");
+                    logger.write_line(msg).await?;
+                }
+
+                None => break,
+            }
         }
+
+        Ok(())
     }
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct StreamData {
-    stream: String,
+pub struct BuildImage {
+    name: String,
+    dockerfile: String,
+    tag: String,
+}
+
+impl BuildImage {
+    pub fn new(name: String, dockerfile: String, tag: String) -> Self {
+        Self {
+            name,
+            dockerfile,
+            tag,
+        }
+    }
+
+    pub async fn build(&self, client: &Docker, logger: &LoggerSender) -> Result<()> {
+        let content = read_to_string(&self.dockerfile).await?;
+
+        let mut header = Header::new_gnu();
+        header.set_path("Dockerfile")?;
+        header.set_size(content.len() as u64);
+        header.set_mode(0o755);
+        header.set_cksum();
+
+        let mut tar = Builder::new(vec![]);
+        tar.append(&header, content.as_bytes())?;
+
+        let uncompressed = tar.into_inner()?;
+        let mut gz = GzEncoder::new(vec![], Compression::default());
+        gz.write_all(&uncompressed)?;
+        let compressed = gz.finish()?;
+
+        let image = format!("{}:{}", self.name, self.tag);
+        let opts = BuildImageOptions {
+            t: image.as_str(),
+            ..Default::default()
+        };
+
+        let mut stream = client.build_image(opts, None, Some(compressed.into()));
+
+        loop {
+            let item = stream.try_next().await?;
+
+            match item {
+                Some(BuildInfo {
+                    error: Some(error), ..
+                }) => {
+                    bail!(error);
+                }
+
+                Some(BuildInfo {
+                    stream: Some(stream),
+                    ..
+                }) => {
+                    logger.write(stream).await?;
+                }
+
+                Some(BuildInfo {
+                    id,
+                    status,
+                    progress,
+                    ..
+                }) => {
+                    let id = id.unwrap_or_default();
+                    let status = status.unwrap_or_default();
+                    let progress = progress.unwrap_or_default();
+                    let msg = format!("{status} {id} {progress}");
+                    logger.write_line(msg).await?;
+                }
+
+                None => break,
+            }
+        }
+
+        Ok(())
+    }
 }
 
 pub enum Image {
     Use(String),
-    Pull(String),
-    Build {
-        name: String,
-        dockerfile: String,
-        tag: String,
-    },
+    Pull(PullImage),
+    Build(BuildImage),
 }
 
 impl Image {
-    async fn pull(client: &Docker, image: &str, logger: Arc<LoggerSender>) -> Result<String> {
-        logger
-            .write_line(format!("{:<15}: {image}", "Pull"))
-            .await?;
-
-        let pull_opts = PullOptionsBuilder::default().image(image).build();
-
-        let mut stream = client.images().pull(&pull_opts);
-
-        loop {
-            match stream.try_next().await {
-                Ok(Some(output)) => {
-                    let Ok(data) = serde_json::from_value::<StatusData>(output) else {
-                        continue;
-                    };
-                    logger.write_line(data.to_string()).await?
-                }
-                Ok(None) => break,
-                Err(_) => continue,
-            }
-        }
-
-        Ok(image.to_owned())
+    pub fn pull(image: String) -> Self {
+        Self::Pull(PullImage(image))
     }
 
-    async fn build(
-        client: &Docker,
-        name: &str,
-        dockerfile: &str,
-        tag: &str,
-        logger: Arc<LoggerSender>,
-    ) -> Result<String> {
-        logger
-            .write_line(format!("{:<15}: {dockerfile} to {tag}", "Build"))
-            .await?;
-
-        let image = format!("{name}:{tag}");
-
-        let path = Path::new(dockerfile);
-
-        let filename = path
-            .file_name()
-            .and_then(|x| x.to_str())
-            .ok_or_else(|| anyhow!("couldn't deduce the file for the dockerfile"))?
-            .to_string();
-
-        let parent_dir: String = path
-            .parent()
-            .and_then(|x| x.to_str())
-            .ok_or_else(|| anyhow!("couldn't deduce parent directory of dockerfile"))?
-            .to_string();
-
-        let mut build_opts = BuildOptionsBuilder::default()
-            .dockerfile(filename)
-            .tag(image.to_owned())
-            .build();
-
-        build_opts.path = parent_dir;
-
-        let mut stream = client.images().build(&build_opts);
-
-        loop {
-            match stream.try_next().await {
-                Ok(Some(output)) => {
-                    let Ok(data) = serde_json::from_value::<StreamData>(output) else {
-                        continue;
-                    };
-                    logger.write(data.stream).await?
-                }
-                Ok(None) => break,
-                _ => continue,
-            }
-        }
-
-        logger.write_line(String::new()).await?;
-
-        Ok(image)
+    pub fn build(name: String, dockerfile: String, tag: String) -> Self {
+        Self::Build(BuildImage::new(name, dockerfile, tag))
     }
 
-    pub async fn create(self, client: &Docker, logger: Arc<LoggerSender>) -> Result<String> {
+    pub fn name(&self) -> String {
         match self {
-            Self::Use(image) => Ok(image),
-            Self::Pull(image) => Self::pull(client, &image, logger).await,
-            Self::Build {
-                name,
-                dockerfile,
-                tag,
-            } => Self::build(client, &name, &dockerfile, &tag, logger).await,
+            Self::Use(image) | Self::Pull(PullImage(image)) => image.to_owned(),
+            Self::Build(BuildImage { name, tag, .. }) => format!("{name}:{tag}"),
+        }
+    }
+
+    pub async fn create(&self, client: &Docker, logger: Arc<LoggerSender>) -> Result<()> {
+        match &self {
+            Self::Use(_) => Ok(()),
+            Self::Pull(instance) => instance.pull(client, logger.as_ref()).await,
+            Self::Build(instance) => instance.build(client, logger.as_ref()).await,
         }
     }
 }
