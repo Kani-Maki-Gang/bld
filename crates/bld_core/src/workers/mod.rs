@@ -1,8 +1,8 @@
 use std::process::ExitStatus;
 
 use anyhow::{anyhow, Result};
-use nix::sys::signal::{self, Signal};
-use nix::unistd::Pid;
+#[cfg(target_family = "unix")]
+use nix::{sys::signal::{self, Signal}, unistd::Pid};
 use tokio::process::{Child, Command};
 
 #[derive(Debug)]
@@ -67,7 +67,13 @@ impl PipelineWorker {
         let pid = self
             .get_pid()
             .ok_or_else(|| anyhow!("child instance doesnt have a pid"))?;
-        signal::kill(Pid::from_raw(pid.try_into()?), Signal::SIGTERM)?;
+
+        if cfg!(target_family = "unix") {
+            signal::kill(Pid::from_raw(pid.try_into()?), Signal::SIGTERM)?;
+        } else if cfg!(target_family = "windows") {
+            unimplemented!()
+        }
+
         Ok(())
     }
 }
