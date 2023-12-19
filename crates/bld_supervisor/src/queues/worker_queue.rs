@@ -194,7 +194,7 @@ impl WorkerQueueReceiver {
         }
 
         for entry in stopped.iter_mut() {
-            if let Err(e) = entry.stop() {
+            if let Err(e) = entry.stop().await {
                 error!("error while stopping worker process: {e}");
             }
             if let Err(e) = try_cleanup_process(self.conn.clone(), entry).await {
