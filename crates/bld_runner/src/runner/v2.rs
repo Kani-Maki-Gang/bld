@@ -547,7 +547,7 @@ impl Runner {
         self.logger.write(e.to_string()).await?;
         self.has_faulted = true;
         self.stop().await?;
-        Err(anyhow!(""))
+        bail!("")
     }
 
     pub async fn run(mut self) -> RecursiveFuture {

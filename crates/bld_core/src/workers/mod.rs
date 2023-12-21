@@ -4,7 +4,10 @@ use anyhow::{anyhow, Result};
 use tokio::process::{Child, Command};
 
 #[cfg(target_family = "unix")]
-use nix::{sys::signal::{self, Signal}, unistd::Pid};
+use nix::{
+    sys::signal::{self, Signal},
+    unistd::Pid,
+};
 
 #[derive(Debug)]
 pub struct PipelineWorker {
@@ -75,7 +78,10 @@ impl PipelineWorker {
 
     #[cfg(target_family = "windows")]
     pub async fn stop(&mut self) -> Result<()> {
-        let child = self.child.as_mut().ok_or_else(|| anyhow!("worker has not spawned"))?;
+        let child = self
+            .child
+            .as_mut()
+            .ok_or_else(|| anyhow!("worker has not spawned"))?;
         child.kill().await.map_err(|e| anyhow!(e))
     }
 }

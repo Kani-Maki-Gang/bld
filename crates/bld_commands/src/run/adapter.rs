@@ -213,6 +213,7 @@ impl RunAdapter {
 
         debug!("starting run");
         let result = runner.run().await;
+        debug!("finished run");
 
         cmd_signals.stop().await?;
         result

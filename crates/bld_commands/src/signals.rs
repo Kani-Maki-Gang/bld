@@ -18,7 +18,12 @@ impl CommandSignals {
 
         let mut signals_tx = UnixSignalsSender::new(tx);
         let signals_rx = UnixSignalsReceiver::new(rx);
-        let mut signals = Signals::new(&[Signal::Term, Signal::Int, Signal::Quit])?;
+
+        let mut signals = if cfg!(target_family = "unix") {
+            Signals::new([Signal::Term, Signal::Int, Signal::Quit])?
+        } else {
+            Signals::new([Signal::Int])?
+        };
 
         let task = spawn(async move {
             while let Some(signal) = signals.next().await {
@@ -54,7 +59,7 @@ impl CommandSignals {
     }
 
     pub async fn stop(self) -> Result<()> {
-        self.task.await?;
+        self.task.abort();
         Ok(())
     }
 }

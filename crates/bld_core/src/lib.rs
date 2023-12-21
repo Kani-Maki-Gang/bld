@@ -10,5 +10,6 @@ pub mod request;
 pub mod requests;
 pub mod responses;
 pub mod scanner;
+pub mod shell;
 pub mod signals;
 pub mod workers;

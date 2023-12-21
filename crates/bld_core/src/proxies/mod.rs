@@ -6,12 +6,14 @@ use std::{fmt::Write as FmtWrite, path::PathBuf, process::ExitStatus, sync::Arc}
 use tokio::{
     fs::{copy, create_dir_all, read_to_string, remove_file, rename, File},
     io::AsyncWriteExt,
-    process::Command,
 };
 use uuid::Uuid;
 use walkdir::WalkDir;
 
-use crate::database::pipeline::{self, InsertPipeline, Pipeline};
+use crate::{
+    database::pipeline::{self, InsertPipeline, Pipeline},
+    shell::get_shell,
+};
 
 pub enum PipelineFileSystemProxy {
     Local {
@@ -273,8 +275,9 @@ impl PipelineFileSystemProxy {
             bail!("pipeline not found");
         }
 
-        let mut editor = Command::new("/bin/bash");
-        editor.args(["-c", &format!("{} {}", config.local.editor, path.display())]);
+        let path = path.display().to_string();
+        let mut args = vec![config.local.editor.as_str(), path.as_str()];
+        let mut editor = get_shell(&mut args)?;
 
         let status = editor.status().await?;
         if !ExitStatus::success(&status) {
