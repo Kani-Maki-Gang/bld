@@ -78,10 +78,11 @@ impl PipelineWorker {
 
     #[cfg(target_family = "windows")]
     pub async fn stop(&mut self) -> Result<()> {
-        let child = self
-            .child
+        self.child
             .as_mut()
-            .ok_or_else(|| anyhow!("worker has not spawned"))?;
-        child.kill().await.map_err(|e| anyhow!(e))
+            .ok_or_else(|| anyhow!("unable to get instance of worker process"))?
+            .kill()
+            .await?;
+        Ok(())
     }
 }

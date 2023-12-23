@@ -197,6 +197,11 @@ impl WorkerQueueReceiver {
             if let Err(e) = entry.stop().await {
                 error!("error while stopping worker process: {e}");
             }
+
+            if cfg!(target_family = "windows") {
+                self.set_faulted_worker(entry).await;
+            }
+
             if let Err(e) = try_cleanup_process(self.conn.clone(), entry).await {
                 error!("error while cleaning up worker process, {e}");
             }
@@ -217,6 +222,26 @@ impl WorkerQueueReceiver {
             .find(|w| w.has_pid(pid))
             .or_else(|| self.backlog.iter().find(|w| w.has_pid(pid)))
             .is_some()
+    }
+
+    #[cfg(target_family = "windows")]
+    async fn set_faulted_worker(&self, worker: &PipelineWorker) {
+        let conn = self.conn.get_ref();
+
+        if let Err(e) =
+            pipeline_runs::update_state(conn, worker.get_run_id(), PR_STATE_FAULTED).await
+        {
+            error!("{e}");
+        }
+
+        if let Err(e) = pipeline_run_containers::update_running_containers_to_faulted(
+            conn,
+            worker.get_run_id()
+        )
+        .await
+        {
+            error!("{e}");
+        }
     }
 }
 
