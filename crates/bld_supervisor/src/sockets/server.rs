@@ -1,13 +1,13 @@
 use crate::queues::WorkerQueueSender;
 use actix::prelude::*;
 use actix_web::{
-    rt::spawn,
     web::{Bytes, Data, Payload},
     Error, HttpRequest, HttpResponse,
 };
 use actix_web_actors::ws;
 use anyhow::Result;
 use bld_core::{messages::ServerMessages, workers::PipelineWorker};
+use futures_util::future::ready;
 use std::env::current_exe;
 use tokio::process::Command;
 use tracing::{debug, error, info};
@@ -21,7 +21,7 @@ impl ServerSocket {
         Self { worker_queue_tx }
     }
 
-    fn handle_message(&self, bytes: &Bytes) -> Result<()> {
+    fn handle_message(&self, ctx: &mut <Self as Actor>::Context, bytes: &Bytes) -> Result<()> {
         let msg: ServerMessages = serde_json::from_slice(&bytes[..])?;
         match msg {
             ServerMessages::Ack => info!("a new server connection was acknowledged"),
@@ -57,26 +57,39 @@ impl ServerSocket {
                 }
 
                 let tx = self.worker_queue_tx.clone();
-                spawn(async move {
-                    let _ = tx
-                        .enqueue(PipelineWorker::new(run_id, command))
-                        .await
-                        .map(|_| info!("worker for pipeline: {pipeline} has been queued"))
-                        .map_err(|e| error!("{e}"));
-                });
+
+                let success_msg = format!("worker for pipeline: {pipeline} has been queued");
+                let enqueque_fut =
+                    async move { tx.enqueue(PipelineWorker::new(run_id, command)).await }
+                        .into_actor(self)
+                        .then(move |res, _, _| {
+                            match res {
+                                Ok(_) => info!(success_msg),
+                                Err(e) => error!("{e}"),
+                            }
+                            ready(())
+                        });
+
+                ctx.spawn(enqueque_fut);
             }
 
             ServerMessages::Stop { run_id } => {
                 info!("server sent a stop message for run_id: {run_id}");
 
                 let tx = self.worker_queue_tx.clone();
-                spawn(async move {
-                    let _ = tx
-                        .stop(&run_id)
-                        .await
-                        .map(|_| info!("stop signal sent to worker for run_id: {run_id}"))
-                        .map_err(|e| error!("{e}"));
-                });
+
+                let success_msg = format!("stop signal sent to worker for run_id: {run_id}");
+                let stop_fut = async move { tx.stop(&run_id).await }.into_actor(self).then(
+                    move |res, _, _| {
+                        match res {
+                            Ok(_) => info!(success_msg),
+                            Err(e) => error!("{e}"),
+                        }
+                        ready(())
+                    },
+                );
+
+                ctx.spawn(stop_fut);
             }
         }
         Ok(())
@@ -100,7 +113,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ServerSocket {
         match msg {
             Ok(ws::Message::Binary(bytes)) => {
                 debug!("received binary message from server");
-                if let Err(e) = self.handle_message(&bytes) {
+                if let Err(e) = self.handle_message(ctx, &bytes) {
                     error!("handling message error. {e}");
                 }
             }

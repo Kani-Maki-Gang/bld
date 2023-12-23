@@ -198,9 +198,8 @@ impl WorkerQueueReceiver {
                 error!("error while stopping worker process: {e}");
             }
 
-            if cfg!(target_family = "windows") {
-                self.set_faulted_worker(entry).await;
-            }
+            #[cfg(target_family = "windows")]
+            self.set_faulted_worker(entry).await;
 
             if let Err(e) = try_cleanup_process(self.conn.clone(), entry).await {
                 error!("error while cleaning up worker process, {e}");
