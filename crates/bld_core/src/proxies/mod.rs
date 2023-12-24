@@ -275,9 +275,8 @@ impl PipelineFileSystemProxy {
             bail!("pipeline not found");
         }
 
-        let path = path.display().to_string();
-        let mut args = vec![config.local.editor.as_str(), path.as_str()];
-        let mut editor = get_shell(&mut args)?;
+        let args = format!("{} {}", config.local.editor, path.display());
+        let mut editor = get_shell(&mut vec![args.as_str()])?;
 
         let status = editor.status().await?;
         if !ExitStatus::success(&status) {
