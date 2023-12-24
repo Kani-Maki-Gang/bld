@@ -106,6 +106,7 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
         container_id: Set(model.container_id),
         state: Set(model.state),
         date_created: Set(Utc::now().naive_utc()),
+        date_updated: Set(Utc::now().naive_utc()),
         ..Default::default()
     };
 
