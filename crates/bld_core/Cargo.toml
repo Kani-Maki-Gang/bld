@@ -31,9 +31,11 @@ termcolor = "1.1.2"
 tokio = { version = "1.24.2", features = ["full"] }
 tracing = "0.1.36"
 uuid = { version = "1.3.4", features = ["v4"] }
-nix = { version = "0.26.1", features = ["process"] }
 regex = "1.8.1"
 walkdir = "2.3.3"
 openidconnect = "3.1.1"
 rustls = "0.20.7"
 flate2 = "1.0.28"
+
+[target.'cfg(target_family = "unix")'.dependencies]
+nix = { version = "0.26.1", features = ["process"] }

@@ -194,7 +194,7 @@ impl WorkerQueueReceiver {
         }
 
         for entry in stopped.iter_mut() {
-            if let Err(e) = entry.stop() {
+            if let Err(e) = entry.stop().await {
                 error!("error while stopping worker process: {e}");
             }
             if let Err(e) = try_cleanup_process(self.conn.clone(), entry).await {
@@ -287,9 +287,9 @@ pub fn worker_queue_channel(
 }
 
 /// This function will call the clean up method for the worker and check
-/// the current state of the run id. If its set as running, the worker did not
-/// complete successfully so it will be set to finished and all of its associated
-/// containers will be set as faulted in order to be cleaned up later.
+/// the current state of the run id. If the state isn't faulted or finished then
+/// the worker did not complete successfully so it will be set to faulted and all
+/// of its associated containers will be set as faulted in order to be cleaned up later.
 async fn try_cleanup_process(
     conn: Data<DatabaseConnection>,
     worker: &mut PipelineWorker,
@@ -303,7 +303,7 @@ async fn try_cleanup_process(
     }
 
     let run_id = worker.get_run_id();
-    let run = pipeline_runs::select_running_by_id(conn, run_id).await?;
+    let run = pipeline_runs::select_by_id(conn, run_id).await?;
 
     if run.state != PR_STATE_FINISHED || run.state != PR_STATE_FAULTED {
         let _ = pipeline_runs::update_state(conn, run_id, PR_STATE_FAULTED).await;

@@ -1,9 +1,13 @@
 use std::process::ExitStatus;
 
 use anyhow::{anyhow, Result};
-use nix::sys::signal::{self, Signal};
-use nix::unistd::Pid;
 use tokio::process::{Child, Command};
+
+#[cfg(target_family = "unix")]
+use nix::{
+    sys::signal::{self, Signal},
+    unistd::Pid,
+};
 
 #[derive(Debug)]
 pub struct PipelineWorker {
@@ -63,11 +67,22 @@ impl PipelineWorker {
         child.wait().await.map_err(|e| anyhow!(e))
     }
 
-    pub fn stop(&mut self) -> Result<()> {
+    #[cfg(target_family = "unix")]
+    pub async fn stop(&mut self) -> Result<()> {
         let pid = self
             .get_pid()
             .ok_or_else(|| anyhow!("child instance doesnt have a pid"))?;
         signal::kill(Pid::from_raw(pid.try_into()?), Signal::SIGTERM)?;
+        Ok(())
+    }
+
+    #[cfg(target_family = "windows")]
+    pub async fn stop(&mut self) -> Result<()> {
+        self.child
+            .as_mut()
+            .ok_or_else(|| anyhow!("unable to get instance of worker process"))?
+            .kill()
+            .await?;
         Ok(())
     }
 }

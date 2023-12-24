@@ -22,30 +22,6 @@ pub struct InsertPipelineRun {
     pub app_user: String,
 }
 
-pub async fn select_running_by_id<C: ConnectionTrait + TransactionTrait>(
-    conn: &C,
-    run_id: &str,
-) -> Result<PipelineRuns> {
-    debug!("loading pipeline run with id: {run_id} that is in a running state");
-
-    let model = PipelineRunsEntity::find()
-        .filter(pipeline_runs::Column::Id.eq(run_id))
-        .filter(pipeline_runs::Column::State.eq(PR_STATE_RUNNING))
-        .one(conn)
-        .await
-        .map_err(|e| {
-            error!("couldn't load pipeline run due to: {e}");
-            anyhow!(e)
-        })?
-        .ok_or_else(|| {
-            error!("couldn't load pipeline run due to: not found");
-            anyhow!("pipeline run not found")
-        })?;
-
-    debug!("loaded pipeline runs successfully");
-    Ok(model)
-}
-
 pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
     conn: &C,
     pip_id: &str,

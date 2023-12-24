@@ -987,6 +987,7 @@ dependencies = [
  "bld_utils",
  "bollard",
  "futures",
+ "futures-util",
  "rustls 0.20.9",
  "sea-orm",
  "serde",

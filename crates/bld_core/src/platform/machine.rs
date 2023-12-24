@@ -1,6 +1,6 @@
-use crate::logger::LoggerSender;
+use crate::{logger::LoggerSender, shell::get_shell};
 use anyhow::{bail, Result};
-use bld_config::{os_name, path, BldConfig, OSname};
+use bld_config::{path, BldConfig};
 use std::{
     collections::HashMap,
     fmt::Write,
@@ -8,10 +8,7 @@ use std::{
     process::ExitStatus,
     sync::Arc,
 };
-use tokio::{
-    fs::{copy, create_dir_all, remove_dir_all},
-    process::Command,
-};
+use tokio::fs::{copy, create_dir_all, remove_dir_all};
 
 pub struct Machine {
     tmp_dir: String,
@@ -71,7 +68,6 @@ impl Machine {
         working_dir: &Option<String>,
         input: &str,
     ) -> Result<()> {
-        let os_name = os_name();
         let current_dir = working_dir.as_ref().unwrap_or(&self.tmp_dir).to_string();
         let current_dir = if Path::new(&current_dir).is_relative() {
             path![&self.tmp_dir, current_dir].display().to_string()
@@ -79,20 +75,11 @@ impl Machine {
             current_dir
         };
 
-        let (shell, mut args) = match &os_name {
-            OSname::Windows => ("powershell.exe", Vec::<&str>::new()),
-            OSname::Linux => ("bash", vec!["-c"]),
-            OSname::Mac => ("sh", vec!["-c"]),
-            OSname::Unknown => bail!("could not spawn shell"),
-        };
-        args.push(input);
+        let mut shell = get_shell(&mut vec![input])?;
+        shell.envs(&self.env);
+        shell.current_dir(current_dir);
 
-        let mut command = Command::new(shell);
-        command.envs(&self.env);
-        command.args(&args);
-        command.current_dir(current_dir);
-
-        let process = command.output().await?;
+        let process = shell.output().await?;
         let mut output = String::new();
 
         if !process.stderr.is_empty() {
