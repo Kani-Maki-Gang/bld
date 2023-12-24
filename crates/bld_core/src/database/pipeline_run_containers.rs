@@ -67,7 +67,11 @@ pub async fn select_in_invalid_state<C: ConnectionTrait + TransactionTrait>(
                 .add(pipeline_runs::Column::State.eq(PR_STATE_FINISHED))
                 .add(pipeline_runs::Column::State.eq(PR_STATE_FAULTED)),
         )
-        .filter(pipeline_run_containers::Column::State.eq(PRC_STATE_ACTIVE))
+        .filter(
+            Condition::any()
+                .add(pipeline_run_containers::Column::State.eq(PRC_STATE_ACTIVE))
+                .add(pipeline_run_containers::Column::State.eq(PRC_STATE_FAULTED)),
+        )
         .all(conn)
         .await
         .map_err(|e| {
@@ -107,7 +111,6 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
         state: Set(model.state),
         date_created: Set(Utc::now().naive_utc()),
         date_updated: Set(Utc::now().naive_utc()),
-        ..Default::default()
     };
 
     PipelineRunContainersEntity::insert(model)
