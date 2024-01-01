@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    definitions, ssh::SshConfig, Auth, BldLocalServerConfig, BldLocalSupervisorConfig, SshUserAuth,
+    definitions, ssh::SshConfig, Auth, BldLocalServerConfig, BldLocalSupervisorConfig, DockerUrl,
+    SshUserAuth,
 };
 use serde::{Deserialize, Serialize};
 use tracing::debug;
@@ -14,8 +15,8 @@ pub struct BldLocalConfig {
     #[serde(default)]
     pub supervisor: BldLocalSupervisorConfig,
 
-    #[serde(default = "BldLocalConfig::default_docker_url")]
-    pub docker_url: String,
+    #[serde(default)]
+    pub docker_url: DockerUrl,
 
     #[serde(default = "BldLocalConfig::default_editor")]
     pub editor: String,
@@ -25,10 +26,6 @@ pub struct BldLocalConfig {
 }
 
 impl BldLocalConfig {
-    fn default_docker_url() -> String {
-        definitions::LOCAL_DOCKER_URL.to_owned()
-    }
-
     fn default_editor() -> String {
         definitions::DEFAULT_EDITOR.to_owned()
     }
@@ -89,16 +86,23 @@ impl BldLocalConfig {
                 }
             }
         }
-        debug!("docker-url: {}", self.docker_url);
+        match &self.docker_url {
+            DockerUrl::SingleUrl(url) => debug!("docker_url: {url}"),
+            DockerUrl::MultipleUrls(urls) => {
+                for (key, value) in urls {
+                    debug!("docker_url > {key}: {value}");
+                }
+            }
+        }
     }
 }
 
 impl Default for BldLocalConfig {
     fn default() -> Self {
         Self {
-            server: BldLocalServerConfig::default(),
-            supervisor: BldLocalSupervisorConfig::default(),
-            docker_url: Self::default_docker_url(),
+            server: Default::default(),
+            supervisor: Default::default(),
+            docker_url: Default::default(),
             editor: Self::default_editor(),
             ssh: Default::default(),
         }

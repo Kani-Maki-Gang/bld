@@ -12,7 +12,7 @@ use bollard::{
 };
 use futures::StreamExt;
 use tar::{Archive, Builder};
-use tracing::error;
+use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
@@ -80,7 +80,8 @@ impl Container {
         logger: Arc<LoggerSender>,
         context: Arc<ContextSender>,
     ) -> Result<Self> {
-        let client = docker(config.as_ref())?;
+        let client = docker(config.as_ref()).await?;
+        debug!("creating container environement");
         let env = Self::create_environment(pipeline_env, env);
         let container_env = env.iter().map(AsRef::as_ref).collect();
         image.create(&client, logger.clone()).await?;
