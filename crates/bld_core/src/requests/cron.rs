@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use serde_derive::{Deserialize, Serialize};
+use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AddJobRequest {

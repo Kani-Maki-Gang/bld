@@ -1,5 +1,6 @@
 mod auth;
 pub mod definitions;
+mod docker;
 mod local;
 mod path;
 mod server;
@@ -9,6 +10,7 @@ mod tls;
 
 pub use auth::*;
 use definitions::{LOCAL_SERVER_HOST, LOCAL_SERVER_PORT, TOOL_DIR};
+pub use docker::*;
 pub use local::*;
 use openidconnect::core::CoreClient;
 pub use path::*;

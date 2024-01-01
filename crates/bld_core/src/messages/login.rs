@@ -1,5 +1,5 @@
 use actix::Message;
-use serde_derive::{Deserialize, Serialize};
+use serde::{Serialize, Deserialize};
 
 use crate::auth::AuthTokens;
 
