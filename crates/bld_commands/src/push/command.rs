@@ -67,7 +67,6 @@ impl PushCommand {
                 anyhow!("")
             })?
             .into_iter()
-            .map(|(n, s)| (n, s))
             .collect();
 
             pipelines.append(&mut deps);

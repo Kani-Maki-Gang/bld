@@ -80,7 +80,7 @@ impl Container {
         logger: Arc<LoggerSender>,
         context: Arc<ContextSender>,
     ) -> Result<Self> {
-        let client = docker(config.as_ref()).await?;
+        let client = docker(config.as_ref(), None)?;
         debug!("creating container environement");
         let env = Self::create_environment(pipeline_env, env);
         let container_env = env.iter().map(AsRef::as_ref).collect();

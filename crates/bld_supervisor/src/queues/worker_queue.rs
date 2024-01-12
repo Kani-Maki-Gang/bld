@@ -59,7 +59,7 @@ impl WorkerQueueReceiver {
         conn: Data<DatabaseConnection>,
         rx: mpsc::Receiver<WorkerQueueMessage>,
     ) -> Result<Self> {
-        let docker = docker(config.as_ref()).await?.into_arc();
+        let docker = docker(config.as_ref(), None)?.into_arc();
         let docker_clone = docker.clone();
         let conn_clone = conn.clone();
 

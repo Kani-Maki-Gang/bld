@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     definitions, ssh::SshConfig, Auth, BldLocalServerConfig, BldLocalSupervisorConfig, DockerUrl,
-    SshUserAuth,
+    DockerUrlEntry, SshUserAuth,
 };
 use serde::{Deserialize, Serialize};
 use tracing::debug;
@@ -87,10 +87,15 @@ impl BldLocalConfig {
             }
         }
         match &self.docker_url {
-            DockerUrl::SingleUrl(url) => debug!("docker_url: {url}"),
-            DockerUrl::MultipleUrls(urls) => {
+            DockerUrl::Single(url) => debug!("docker_url: {url}"),
+            DockerUrl::Multiple(urls) => {
                 for (key, value) in urls {
-                    debug!("docker_url > {key}: {value}");
+                    match value {
+                        DockerUrlEntry::Url(value) => debug!("docker_url > {key}: {value}"),
+                        DockerUrlEntry::UrlWithDefault { url, default } => {
+                            debug!("docker_url > {key}: {url} ({default})");
+                        }
+                    }
                 }
             }
         }
