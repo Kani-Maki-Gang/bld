@@ -126,11 +126,15 @@ impl<'a> PipelineValidator<'a> {
                 name,
                 tag,
                 dockerfile,
+                docker_url,
             } => {
                 self.validate_symbols("runs_on > name", name);
                 self.validate_symbols("runs_on > tag", tag);
                 self.validate_symbols("runs_on > dockerfile", dockerfile);
                 self.validate_file_path("runs_on > dockerfile", dockerfile);
+                if let Some(docker_url) = docker_url {
+                    self.validate_symbols("runs_on > docker_url", docker_url);
+                }
             }
 
             Platform::Pull { image, .. } => self.validate_symbols("runs_on > image", image),

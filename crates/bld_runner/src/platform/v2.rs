@@ -13,11 +13,13 @@ pub enum Platform {
     Pull {
         image: String,
         pull: bool,
+        docker_url: Option<String>,
     },
     Build {
         name: String,
         tag: String,
         dockerfile: String,
+        docker_url: Option<String>,
     },
     Ssh(SshConfig),
     SshFromGlobalConfig {
@@ -53,10 +55,16 @@ impl Platform {
                 name,
                 tag,
                 dockerfile,
+                docker_url,
             } => {
                 *name = context.transform(name.to_owned()).await?;
                 *tag = context.transform(tag.to_owned()).await?;
                 *dockerfile = context.transform(dockerfile.to_owned()).await?;
+                *docker_url = if let Some(url) = docker_url {
+                    Some(context.transform(url.to_owned()).await?)
+                } else {
+                    None
+                };
             }
 
             Platform::ContainerOrMachine(image) if image != "machine" => {

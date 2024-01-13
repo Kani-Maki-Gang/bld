@@ -13,11 +13,11 @@ use tokio::fs::read_to_string;
 
 use crate::logger::LoggerSender;
 
-pub struct PullImage(String);
+pub struct PullImage<'a>(&'a str);
 
-impl PullImage {
+impl<'a> PullImage<'a> {
     pub async fn pull(&self, client: &Docker, logger: &LoggerSender) -> Result<()> {
-        let image = self.0.as_str();
+        let image = self.0;
         let opts = CreateImageOptions {
             from_image: image,
             ..Default::default()
@@ -56,19 +56,15 @@ impl PullImage {
     }
 }
 
-pub struct BuildImage {
+pub struct BuildImage<'a> {
     name: String,
-    dockerfile: String,
-    tag: String,
+    dockerfile: &'a str,
 }
 
-impl BuildImage {
-    pub fn new(name: String, dockerfile: String, tag: String) -> Self {
-        Self {
-            name,
-            dockerfile,
-            tag,
-        }
+impl<'a> BuildImage<'a> {
+    pub fn new(name: &str, dockerfile: &'a str, tag: &str) -> Self {
+        let name = format!("{name}:{tag}");
+        Self { name, dockerfile }
     }
 
     pub async fn build(&self, client: &Docker, logger: &LoggerSender) -> Result<()> {
@@ -88,9 +84,8 @@ impl BuildImage {
         gz.write_all(&uncompressed)?;
         let compressed = gz.finish()?;
 
-        let image = format!("{}:{}", self.name, self.tag);
         let opts = BuildImageOptions {
-            t: image.as_str(),
+            t: self.name.as_str(),
             ..Default::default()
         };
 
@@ -134,25 +129,25 @@ impl BuildImage {
     }
 }
 
-pub enum Image {
-    Use(String),
-    Pull(PullImage),
-    Build(BuildImage),
+pub enum Image<'a> {
+    Use(&'a str),
+    Pull(PullImage<'a>),
+    Build(BuildImage<'a>),
 }
 
-impl Image {
-    pub fn pull(image: String) -> Self {
+impl<'a> Image<'a> {
+    pub fn pull(image: &'a str) -> Self {
         Self::Pull(PullImage(image))
     }
 
-    pub fn build(name: String, dockerfile: String, tag: String) -> Self {
+    pub fn build(name: &str, dockerfile: &'a str, tag: &str) -> Self {
         Self::Build(BuildImage::new(name, dockerfile, tag))
     }
 
-    pub fn name(&self) -> String {
+    pub fn name(&self) -> &str {
         match self {
-            Self::Use(image) | Self::Pull(PullImage(image)) => image.to_owned(),
-            Self::Build(BuildImage { name, tag, .. }) => format!("{name}:{tag}"),
+            Self::Use(image) | Self::Pull(PullImage(image)) => image,
+            Self::Build(BuildImage { name, .. }) => name.as_str(),
         }
     }
 

@@ -1,7 +1,7 @@
 use super::versioned::VersionedRunner;
 use crate::pipeline::traits::Load;
 use crate::pipeline::versioned::{VersionedPipeline, Yaml};
-use crate::platform::builder::{TargetPlatformBuilder, TargetPlatformOptions};
+use crate::platform::builder::{TargetPlatformBuilder, PlatformOptions};
 use crate::runner::v1;
 use crate::runner::v2;
 use crate::token_context::v2::PipelineContextBuilder;
@@ -152,8 +152,11 @@ impl RunnerBuilder {
         let runner = match pipeline {
             VersionedPipeline::Version1(pipeline) => {
                 let options = match pipeline.runs_on.as_str() {
-                    "machine" => TargetPlatformOptions::Machine,
-                    image => TargetPlatformOptions::Container(Image::Use(image.to_owned())),
+                    "machine" => PlatformOptions::Machine,
+                    image => PlatformOptions::Container {
+                        image: Image::Use(image),
+                        docker_url: None
+                    }
                 };
 
                 let platform = TargetPlatformBuilder::default()

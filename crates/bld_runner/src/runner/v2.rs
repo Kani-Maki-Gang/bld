@@ -26,7 +26,7 @@ use crate::{
     external::v2::External,
     pipeline::v2::Pipeline,
     platform::{
-        builder::{TargetPlatformBuilder, TargetPlatformOptions},
+        builder::{TargetPlatformBuilder, PlatformOptions},
         v2::Platform,
     },
     step::v2::{BuildStep, BuildStepExec},
@@ -311,26 +311,48 @@ impl Runner {
     async fn create_platform(&mut self) -> Result<()> {
         let options = match &self.pipeline.runs_on {
             Platform::ContainerOrMachine(image) if image == "machine" => {
-                TargetPlatformOptions::Machine
+                PlatformOptions::Machine
             }
 
-            Platform::ContainerOrMachine(image) | Platform::Pull { image, pull: false } => {
-                TargetPlatformOptions::Container(Image::Use(image.to_owned()))
-            }
+            Platform::ContainerOrMachine(image) => PlatformOptions::Container {
+                image: Image::Use(image),
+                docker_url: None,
+            },
 
-            Platform::Pull { image, pull: true } => {
-                TargetPlatformOptions::Container(Image::pull(image.to_owned()))
+            Platform::Pull {
+                image,
+                pull: false,
+                docker_url,
+            } => PlatformOptions::Container {
+                image: Image::Use(image),
+                docker_url: docker_url.as_deref(),
+            },
+
+            Platform::Pull {
+                image,
+                pull,
+                docker_url,
+            } => {
+                let image = if *pull {
+                    Image::pull(image)
+                } else {
+                    Image::Use(image)
+                };
+                PlatformOptions::Container {
+                    docker_url: docker_url.as_deref(),
+                    image,
+                }
             }
 
             Platform::Build {
                 name,
                 tag,
                 dockerfile,
-            } => TargetPlatformOptions::Container(Image::build(
-                name.to_owned(),
-                dockerfile.to_owned(),
-                tag.to_owned(),
-            )),
+                docker_url,
+            } => PlatformOptions::Container {
+                image: Image::build(name, dockerfile, tag),
+                docker_url: docker_url.as_deref(),
+            },
 
             Platform::SshFromGlobalConfig { ssh_config } => {
                 let config = self.config.ssh(ssh_config)?;
@@ -346,7 +368,7 @@ impl Runner {
                         private_key,
                     },
                 };
-                TargetPlatformOptions::Ssh(SshConnectOptions::new(
+                PlatformOptions::Ssh(SshConnectOptions::new(
                     &config.host,
                     port,
                     &config.user,
@@ -367,7 +389,7 @@ impl Runner {
                         private_key,
                     },
                 };
-                TargetPlatformOptions::Ssh(SshConnectOptions::new(
+                PlatformOptions::Ssh(SshConnectOptions::new(
                     &config.host,
                     port,
                     &config.user,

@@ -11,13 +11,16 @@ use bld_core::{
 };
 use bld_utils::sync::IntoArc;
 
-pub enum TargetPlatformOptions<'a> {
-    Container(Image),
+pub enum PlatformOptions<'a> {
+    Container {
+        image: Image<'a>,
+        docker_url: Option<&'a str>,
+    },
     Ssh(SshConnectOptions<'a>),
     Machine,
 }
 
-impl Default for TargetPlatformOptions<'_> {
+impl Default for PlatformOptions<'_> {
     fn default() -> Self {
         Self::Machine
     }
@@ -26,7 +29,7 @@ impl Default for TargetPlatformOptions<'_> {
 #[derive(Default)]
 pub struct TargetPlatformBuilder<'a> {
     run_id: Option<&'a str>,
-    options: TargetPlatformOptions<'a>,
+    options: PlatformOptions<'a>,
     config: Option<Arc<BldConfig>>,
     pipeline_environment: Option<&'a HashMap<String, String>>,
     environment: Option<Arc<HashMap<String, String>>>,
@@ -40,7 +43,7 @@ impl<'a> TargetPlatformBuilder<'a> {
         self
     }
 
-    pub fn options(mut self, options: TargetPlatformOptions<'a>) -> Self {
+    pub fn options(mut self, options: PlatformOptions<'a>) -> Self {
         self.options = options;
         self
     }
@@ -96,7 +99,7 @@ impl<'a> TargetPlatformBuilder<'a> {
             .ok_or_else(|| anyhow!("no context provided for target platform builder"))?;
 
         let platform = match self.options {
-            TargetPlatformOptions::Container(image) => {
+            PlatformOptions::Container { image, .. } => {
                 let container = Container::new(
                     image,
                     config,
@@ -109,13 +112,13 @@ impl<'a> TargetPlatformBuilder<'a> {
                 TargetPlatform::container(Box::new(container))
             }
 
-            TargetPlatformOptions::Ssh(connect) => {
+            PlatformOptions::Ssh(connect) => {
                 let execution = SshExecutionOptions::new(config, pipeline_environment, environment);
                 let ssh = Ssh::new(connect, execution).await?;
                 TargetPlatform::ssh(Box::new(ssh))
             }
 
-            TargetPlatformOptions::Machine => {
+            PlatformOptions::Machine => {
                 let machine =
                     Machine::new(run_id, config, pipeline_environment, environment).await?;
                 TargetPlatform::machine(Box::new(machine))

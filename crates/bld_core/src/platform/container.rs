@@ -26,7 +26,6 @@ pub struct Container {
     pub id: String,
     pub name: String,
     pub config: Option<Arc<BldConfig>>,
-    pub image: String,
     pub client: Docker,
     pub context: Arc<ContextSender>,
     pub entity: Option<PipelineRunContainers>,
@@ -73,7 +72,7 @@ impl Container {
     }
 
     pub async fn new(
-        image: Image,
+        image: Image<'_>,
         config: Arc<BldConfig>,
         pipeline_env: &HashMap<String, String>,
         env: Arc<HashMap<String, String>>,
@@ -85,14 +84,12 @@ impl Container {
         let env = Self::create_environment(pipeline_env, env);
         let container_env = env.iter().map(AsRef::as_ref).collect();
         image.create(&client, logger.clone()).await?;
-        let image = image.name();
-        let (id, name) = Container::create(&client, &image, container_env).await?;
+        let (id, name) = Container::create(&client, image.name(), container_env).await?;
         let entity = context.add_container(id.clone()).await?;
         Ok(Self {
             id,
             name,
             config: Some(config),
-            image,
             client,
             context,
             entity,
