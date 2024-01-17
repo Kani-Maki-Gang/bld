@@ -1,7 +1,7 @@
 use super::versioned::VersionedRunner;
 use crate::pipeline::traits::Load;
 use crate::pipeline::versioned::{VersionedPipeline, Yaml};
-use crate::platform::builder::{TargetPlatformBuilder, PlatformOptions};
+use crate::platform::builder::{PlatformBuilder, PlatformOptions};
 use crate::runner::v1;
 use crate::runner::v2;
 use crate::token_context::v2::PipelineContextBuilder;
@@ -159,7 +159,7 @@ impl RunnerBuilder {
                     }
                 };
 
-                let platform = TargetPlatformBuilder::default()
+                let platform = PlatformBuilder::default()
                     .run_id(&self.run_id)
                     .options(options)
                     .config(config.clone())

@@ -10,7 +10,7 @@ use bld_core::{
     context::ContextSender,
     logger::LoggerSender,
     messages::{ExecClientMessage, WorkerMessages},
-    platform::{Image, SshAuthOptions, SshConnectOptions, TargetPlatform},
+    platform::{Image, SshAuthOptions, SshConnectOptions, Platform},
     proxies::PipelineFileSystemProxy,
     regex::RegexCache,
     request::WebSocket,
@@ -26,8 +26,8 @@ use crate::{
     external::v2::External,
     pipeline::v2::Pipeline,
     platform::{
-        builder::{TargetPlatformBuilder, PlatformOptions},
-        v2::Platform,
+        builder::{PlatformBuilder, PlatformOptions},
+        v2::RunsOn,
     },
     step::v2::{BuildStep, BuildStepExec},
     RunnerBuilder,
@@ -44,7 +44,7 @@ struct Job {
     pub proxy: Arc<PipelineFileSystemProxy>,
     pub pipeline: Arc<Pipeline>,
     pub context: Arc<ContextSender>,
-    pub platform: Option<Arc<TargetPlatform>>,
+    pub platform: Option<Arc<Platform>>,
 }
 
 impl Job {
@@ -276,7 +276,7 @@ pub struct Runner {
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
     pub env: Arc<HashMap<String, String>>,
     pub context: Arc<ContextSender>,
-    pub platform: Option<Arc<TargetPlatform>>,
+    pub platform: Option<Arc<Platform>>,
     pub is_child: bool,
     pub has_faulted: bool,
 }
@@ -310,16 +310,16 @@ impl Runner {
 
     async fn create_platform(&mut self) -> Result<()> {
         let options = match &self.pipeline.runs_on {
-            Platform::ContainerOrMachine(image) if image == "machine" => {
+            RunsOn::ContainerOrMachine(image) if image == "machine" => {
                 PlatformOptions::Machine
             }
 
-            Platform::ContainerOrMachine(image) => PlatformOptions::Container {
+            RunsOn::ContainerOrMachine(image) => PlatformOptions::Container {
                 image: Image::Use(image),
                 docker_url: None,
             },
 
-            Platform::Pull {
+            RunsOn::Pull {
                 image,
                 pull: false,
                 docker_url,
@@ -328,7 +328,7 @@ impl Runner {
                 docker_url: docker_url.as_deref(),
             },
 
-            Platform::Pull {
+            RunsOn::Pull {
                 image,
                 pull,
                 docker_url,
@@ -344,7 +344,7 @@ impl Runner {
                 }
             }
 
-            Platform::Build {
+            RunsOn::Build {
                 name,
                 tag,
                 dockerfile,
@@ -354,7 +354,7 @@ impl Runner {
                 docker_url: docker_url.as_deref(),
             },
 
-            Platform::SshFromGlobalConfig { ssh_config } => {
+            RunsOn::SshFromGlobalConfig { ssh_config } => {
                 let config = self.config.ssh(ssh_config)?;
                 let port = config.port.parse::<u16>()?;
                 let auth = match &config.userauth {
@@ -376,7 +376,7 @@ impl Runner {
                 ))
             }
 
-            Platform::Ssh(config) => {
+            RunsOn::Ssh(config) => {
                 let port = config.port.parse::<u16>()?;
                 let auth = match &config.userauth {
                     SshUserAuth::Agent => SshAuthOptions::Agent,
@@ -398,7 +398,7 @@ impl Runner {
             }
         };
 
-        let platform = TargetPlatformBuilder::default()
+        let platform = PlatformBuilder::default()
             .run_id(&self.run_id)
             .config(self.config.clone())
             .options(options)

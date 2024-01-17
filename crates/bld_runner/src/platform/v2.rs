@@ -8,7 +8,7 @@ use crate::token_context::v2::PipelineContext;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum Platform {
+pub enum RunsOn {
     ContainerOrMachine(String),
     Pull {
         image: String,
@@ -27,7 +27,7 @@ pub enum Platform {
     },
 }
 
-impl Display for Platform {
+impl Display for RunsOn {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::ContainerOrMachine(image) if image == "machine" => write!(f, "machine"),
@@ -40,18 +40,18 @@ impl Display for Platform {
     }
 }
 
-impl Platform {
+impl RunsOn {
     pub fn default_ssh_port() -> String {
         String::from("22")
     }
 
     pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
         match self {
-            Platform::Pull { image, .. } => {
+            RunsOn::Pull { image, .. } => {
                 *image = context.transform(image.to_owned()).await?;
             }
 
-            Platform::Build {
+            RunsOn::Build {
                 name,
                 tag,
                 dockerfile,
@@ -67,13 +67,13 @@ impl Platform {
                 };
             }
 
-            Platform::ContainerOrMachine(image) if image != "machine" => {
+            RunsOn::ContainerOrMachine(image) if image != "machine" => {
                 *image = context.transform(image.to_owned()).await?;
             }
 
-            Platform::ContainerOrMachine(_) => {}
+            RunsOn::ContainerOrMachine(_) => {}
 
-            Platform::Ssh(ref mut config) => {
+            RunsOn::Ssh(ref mut config) => {
                 config.host = context.transform(config.host.to_owned()).await?;
                 config.port = context.transform(config.port.to_owned()).await?;
                 config.user = context.transform(config.user.to_owned()).await?;
@@ -101,7 +101,7 @@ impl Platform {
                 }
             }
 
-            Platform::SshFromGlobalConfig { ssh_config } => {
+            RunsOn::SshFromGlobalConfig { ssh_config } => {
                 *ssh_config = context.transform(ssh_config.to_owned()).await?;
             }
         }

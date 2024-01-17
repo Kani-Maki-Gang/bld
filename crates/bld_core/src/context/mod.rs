@@ -3,7 +3,7 @@ use crate::database::pipeline_run_containers::{
     PRC_STATE_KEEP_ALIVE, PRC_STATE_REMOVED,
 };
 use crate::database::pipeline_runs::{self, PR_STATE_FINISHED, PR_STATE_RUNNING};
-use crate::platform::TargetPlatform;
+use crate::platform::Platform;
 use crate::request::Request;
 use actix_web::rt::spawn;
 use anyhow::{anyhow, Result};
@@ -18,7 +18,7 @@ use uuid::Uuid;
 pub enum ContextMessage {
     AddRemoteRun(RemoteRun),
     RemoveRemoteRun(String),
-    AddPlatform(Arc<TargetPlatform>),
+    AddPlatform(Arc<Platform>),
     RemovePlatform(String),
     SetPipelineAsRunning(String),
     SetPipelineAsFinished(String),
@@ -52,12 +52,12 @@ pub enum Context {
         run_id: String,
         remote_runs: Vec<RemoteRun>,
         conn: Arc<DatabaseConnection>,
-        platforms: Vec<Arc<TargetPlatform>>,
+        platforms: Vec<Arc<Platform>>,
     },
     Local {
         config: Arc<BldConfig>,
         remote_runs: Vec<RemoteRun>,
-        platforms: Vec<Arc<TargetPlatform>>,
+        platforms: Vec<Arc<Platform>>,
     },
 }
 
@@ -152,7 +152,7 @@ impl Context {
         }
     }
 
-    fn add_platform(&mut self, platform: Arc<TargetPlatform>) {
+    fn add_platform(&mut self, platform: Arc<Platform>) {
         match self {
             Self::Server { platforms, .. } | Self::Local { platforms, .. } => {
                 platforms.push(platform);
@@ -339,7 +339,7 @@ impl ContextSender {
             .map_err(|e| anyhow!("{e}"))
     }
 
-    pub async fn add_platform(&self, platform: Arc<TargetPlatform>) -> Result<()> {
+    pub async fn add_platform(&self, platform: Arc<Platform>) -> Result<()> {
         self.tx
             .send(ContextMessage::AddPlatform(platform))
             .await

@@ -1,6 +1,6 @@
 use crate::{
     pipeline::v2::Pipeline,
-    platform::v2::Platform,
+    platform::v2::RunsOn,
     step::v2::{BuildStep, BuildStepExec},
 };
 use anyhow::{bail, Result};
@@ -122,7 +122,7 @@ impl<'a> PipelineValidator<'a> {
 
     fn validate_runs_on(&mut self) {
         match &self.pipeline.runs_on {
-            Platform::Build {
+            RunsOn::Build {
                 name,
                 tag,
                 dockerfile,
@@ -137,16 +137,16 @@ impl<'a> PipelineValidator<'a> {
                 }
             }
 
-            Platform::Pull { image, .. } => self.validate_symbols("runs_on > image", image),
+            RunsOn::Pull { image, .. } => self.validate_symbols("runs_on > image", image),
 
-            Platform::ContainerOrMachine(value) => self.validate_symbols("runs_on", value),
+            RunsOn::ContainerOrMachine(value) => self.validate_symbols("runs_on", value),
 
-            Platform::SshFromGlobalConfig { ssh_config } => {
+            RunsOn::SshFromGlobalConfig { ssh_config } => {
                 self.validate_symbols("runs_on > ssh_config", ssh_config);
                 self.validate_global_ssh_config("runs_on > ssh_config", ssh_config);
             }
 
-            Platform::Ssh(config) => {
+            RunsOn::Ssh(config) => {
                 self.validate_symbols("runs_on > host", &config.host);
                 self.validate_symbols("runs_on > port", &config.port);
                 self.validate_symbols("runs_on > user", &config.user);

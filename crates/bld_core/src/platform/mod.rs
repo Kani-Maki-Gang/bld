@@ -117,7 +117,7 @@ impl TargetPlatformReceiver {
     }
 }
 
-pub enum TargetPlatform {
+pub enum Platform {
     Machine {
         id: String,
         machine: Box<Machine>,
@@ -132,7 +132,7 @@ pub enum TargetPlatform {
     },
 }
 
-impl TargetPlatform {
+impl Platform {
     pub fn machine(machine: Box<Machine>) -> Self {
         let id = Uuid::new_v4().to_string();
         Self::Machine { id, machine }

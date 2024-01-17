@@ -6,7 +6,7 @@ use bld_core::{
     context::ContextSender,
     logger::LoggerSender,
     platform::{
-        Container, Image, Machine, Ssh, SshConnectOptions, SshExecutionOptions, TargetPlatform,
+        Container, Image, Machine, Ssh, SshConnectOptions, SshExecutionOptions, Platform,
     },
 };
 use bld_utils::sync::IntoArc;
@@ -27,7 +27,7 @@ impl Default for PlatformOptions<'_> {
 }
 
 #[derive(Default)]
-pub struct TargetPlatformBuilder<'a> {
+pub struct PlatformBuilder<'a> {
     run_id: Option<&'a str>,
     options: PlatformOptions<'a>,
     config: Option<Arc<BldConfig>>,
@@ -37,7 +37,7 @@ pub struct TargetPlatformBuilder<'a> {
     context: Option<Arc<ContextSender>>,
 }
 
-impl<'a> TargetPlatformBuilder<'a> {
+impl<'a> PlatformBuilder<'a> {
     pub fn run_id(mut self, run_id: &'a str) -> Self {
         self.run_id = Some(run_id);
         self
@@ -73,7 +73,7 @@ impl<'a> TargetPlatformBuilder<'a> {
         self
     }
 
-    pub async fn build(self) -> Result<Arc<TargetPlatform>> {
+    pub async fn build(self) -> Result<Arc<Platform>> {
         let run_id = self
             .run_id
             .ok_or_else(|| anyhow!("no run id provided for target platform builder"))?;
@@ -109,19 +109,19 @@ impl<'a> TargetPlatformBuilder<'a> {
                     context,
                 )
                 .await?;
-                TargetPlatform::container(Box::new(container))
+                Platform::container(Box::new(container))
             }
 
             PlatformOptions::Ssh(connect) => {
                 let execution = SshExecutionOptions::new(config, pipeline_environment, environment);
                 let ssh = Ssh::new(connect, execution).await?;
-                TargetPlatform::ssh(Box::new(ssh))
+                Platform::ssh(Box::new(ssh))
             }
 
             PlatformOptions::Machine => {
                 let machine =
                     Machine::new(run_id, config, pipeline_environment, environment).await?;
-                TargetPlatform::machine(Box::new(machine))
+                Platform::machine(Box::new(machine))
             }
         }
         .into_arc();
