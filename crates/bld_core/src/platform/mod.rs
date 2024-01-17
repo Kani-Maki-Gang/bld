@@ -22,13 +22,14 @@ use tracing::{debug, error};
 
 use crate::logger::LoggerSender;
 
+pub enum PlatformArtifactsAction {
+    Push,
+    Get,
+}
+
 pub enum PlatformMessage {
-    Push {
-        from: String,
-        to: String,
-        resp_tx: oneshot::Sender<Result<()>>,
-    },
-    Get {
+    Artifacts {
+        action: PlatformArtifactsAction,
         from: String,
         to: String,
         resp_tx: oneshot::Sender<Result<()>>,
@@ -57,17 +58,16 @@ impl PlatformReceiver {
     pub async fn receive(mut self) -> Result<()> {
         while let Some(msg) = self.receiver.recv().await {
             match msg {
-                PlatformMessage::Push { from, to, resp_tx } => {
-                    debug!("executing push operation");
-                    let res = self.push(from, to).await;
-                    resp_tx
-                        .send(res)
-                        .map_err(|_| anyhow!("oneshot channel closed"))?;
-                }
-
-                PlatformMessage::Get { from, to, resp_tx } => {
-                    debug!("executing get operation");
-                    let res = self.get(from, to).await;
+                PlatformMessage::Artifacts {
+                    action,
+                    from,
+                    to,
+                    resp_tx,
+                } => {
+                    let res = match action {
+                        PlatformArtifactsAction::Push => self.push(from, to).await,
+                        PlatformArtifactsAction::Get => self.get(from, to).await,
+                    };
                     resp_tx
                         .send(res)
                         .map_err(|_| anyhow!("oneshot channel closed"))?;
@@ -97,20 +97,22 @@ impl PlatformReceiver {
     }
 
     pub async fn push(&mut self, from: String, to: String) -> Result<()> {
+        debug!("executing push operation");
         self.ssh.copy_into(&from, &to).await
     }
 
     pub async fn get(&mut self, from: String, to: String) -> Result<()> {
+        debug!("executing get operation");
         self.ssh.copy_from(&from, &to).await
     }
 
     pub async fn shell(
-        &mut self,
+        &self,
         logger: Arc<LoggerSender>,
         working_dir: Option<String>,
         command: String,
     ) -> Result<()> {
-        self.ssh.as_mut().sh(logger, &working_dir, &command).await
+        self.ssh.sh(logger, &working_dir, &command).await
     }
 
     pub async fn dispose(&mut self) -> Result<()> {
@@ -182,7 +184,8 @@ impl Platform {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
                 ssh_tx
-                    .send(PlatformMessage::Push {
+                    .send(PlatformMessage::Artifacts {
+                        action: PlatformArtifactsAction::Push,
                         from: from.to_string(),
                         to: to.to_string(),
                         resp_tx,
@@ -202,7 +205,8 @@ impl Platform {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
                 ssh_tx
-                    .send(PlatformMessage::Get {
+                    .send(PlatformMessage::Artifacts {
+                        action: PlatformArtifactsAction::Get,
                         from: from.to_string(),
                         to: to.to_string(),
                         resp_tx,
@@ -255,9 +259,7 @@ impl Platform {
             Self::Container { container, .. } => container.dispose().await,
             Self::Ssh { ssh_tx, .. } => {
                 let (resp_tx, resp_rx) = oneshot::channel();
-                ssh_tx
-                    .send(PlatformMessage::Dispose { resp_tx })
-                    .await?;
+                ssh_tx.send(PlatformMessage::Dispose { resp_tx }).await?;
                 resp_rx.await?
             }
         }

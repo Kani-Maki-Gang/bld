@@ -9,7 +9,10 @@ use bld_config::BldConfig;
 use bld_core::context::ContextSender;
 use bld_core::logger::LoggerSender;
 use bld_core::messages::WorkerMessages;
-use bld_core::platform::{Image, builder::{PlatformBuilder, PlatformOptions}};
+use bld_core::platform::{
+    builder::{PlatformBuilder, PlatformOptions},
+    Image,
+};
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::regex::RegexCache;
 use bld_core::signals::UnixSignalsReceiver;
@@ -154,8 +157,8 @@ impl RunnerBuilder {
                     "machine" => PlatformOptions::Machine,
                     image => PlatformOptions::Container {
                         image: Image::Use(image),
-                        docker_url: None
-                    }
+                        docker_url: None,
+                    },
                 };
 
                 let platform = PlatformBuilder::default()

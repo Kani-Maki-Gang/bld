@@ -10,7 +10,10 @@ use bld_core::{
     context::ContextSender,
     logger::LoggerSender,
     messages::{ExecClientMessage, WorkerMessages},
-    platform::{Image, SshAuthOptions, SshConnectOptions, Platform, builder::{PlatformBuilder, PlatformOptions}},
+    platform::{
+        builder::{PlatformBuilder, PlatformOptions},
+        Image, Platform, SshAuthOptions, SshConnectOptions,
+    },
     proxies::PipelineFileSystemProxy,
     regex::RegexCache,
     request::WebSocket,
@@ -307,9 +310,7 @@ impl Runner {
 
     async fn create_platform(&mut self) -> Result<()> {
         let options = match &self.pipeline.runs_on {
-            RunsOn::ContainerOrMachine(image) if image == "machine" => {
-                PlatformOptions::Machine
-            }
+            RunsOn::ContainerOrMachine(image) if image == "machine" => PlatformOptions::Machine,
 
             RunsOn::ContainerOrMachine(image) => PlatformOptions::Container {
                 image: Image::Use(image),

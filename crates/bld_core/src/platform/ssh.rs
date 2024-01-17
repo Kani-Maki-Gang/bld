@@ -316,7 +316,7 @@ impl Ssh {
     }
 
     pub async fn sh(
-        &mut self,
+        &self,
         logger: Arc<LoggerSender>,
         working_dir: &Option<String>,
         input: &str,
