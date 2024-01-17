@@ -1,3 +1,4 @@
+pub mod builder;
 mod container;
 mod docker;
 mod image;

@@ -1,7 +1,7 @@
 mod artifacts;
 mod external;
 mod pipeline;
-mod platform;
+mod runs_on;
 mod runner;
 mod step;
 mod sync;

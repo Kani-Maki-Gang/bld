@@ -1,7 +1,6 @@
 use super::versioned::VersionedRunner;
 use crate::pipeline::traits::Load;
 use crate::pipeline::versioned::{VersionedPipeline, Yaml};
-use crate::platform::builder::{PlatformBuilder, PlatformOptions};
 use crate::runner::v1;
 use crate::runner::v2;
 use crate::token_context::v2::PipelineContextBuilder;
@@ -10,7 +9,7 @@ use bld_config::BldConfig;
 use bld_core::context::ContextSender;
 use bld_core::logger::LoggerSender;
 use bld_core::messages::WorkerMessages;
-use bld_core::platform::Image;
+use bld_core::platform::{Image, builder::{PlatformBuilder, PlatformOptions}};
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::regex::RegexCache;
 use bld_core::signals::UnixSignalsReceiver;

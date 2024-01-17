@@ -10,7 +10,7 @@ use bld_core::{
     context::ContextSender,
     logger::LoggerSender,
     messages::{ExecClientMessage, WorkerMessages},
-    platform::{Image, SshAuthOptions, SshConnectOptions, Platform},
+    platform::{Image, SshAuthOptions, SshConnectOptions, Platform, builder::{PlatformBuilder, PlatformOptions}},
     proxies::PipelineFileSystemProxy,
     regex::RegexCache,
     request::WebSocket,
@@ -25,10 +25,7 @@ use tracing::debug;
 use crate::{
     external::v2::External,
     pipeline::v2::Pipeline,
-    platform::{
-        builder::{PlatformBuilder, PlatformOptions},
-        v2::RunsOn,
-    },
+    runs_on::v2::RunsOn,
     step::v2::{BuildStep, BuildStepExec},
     RunnerBuilder,
 };

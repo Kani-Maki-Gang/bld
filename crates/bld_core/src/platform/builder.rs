@@ -2,14 +2,15 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::{
+use bld_utils::sync::IntoArc;
+
+use crate::{
     context::ContextSender,
     logger::LoggerSender,
     platform::{
         Container, Image, Machine, Ssh, SshConnectOptions, SshExecutionOptions, Platform,
     },
 };
-use bld_utils::sync::IntoArc;
 
 pub enum PlatformOptions<'a> {
     Container {

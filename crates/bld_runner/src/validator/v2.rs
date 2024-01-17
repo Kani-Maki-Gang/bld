@@ -1,6 +1,6 @@
 use crate::{
     pipeline::v2::Pipeline,
-    platform::v2::RunsOn,
+    runs_on::v2::RunsOn,
     step::v2::{BuildStep, BuildStepExec},
 };
 use anyhow::{bail, Result};
