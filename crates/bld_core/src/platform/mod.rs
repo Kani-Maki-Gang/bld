@@ -22,7 +22,7 @@ use tracing::{debug, error};
 
 use crate::logger::LoggerSender;
 
-pub enum TargetPlatformMessage {
+pub enum PlatformMessage {
     Push {
         from: String,
         to: String,
@@ -44,20 +44,20 @@ pub enum TargetPlatformMessage {
     },
 }
 
-struct TargetPlatformReceiver {
+struct PlatformReceiver {
     ssh: Box<Ssh>,
-    receiver: Receiver<TargetPlatformMessage>,
+    receiver: Receiver<PlatformMessage>,
 }
 
-impl TargetPlatformReceiver {
-    pub fn new(ssh: Box<Ssh>, receiver: Receiver<TargetPlatformMessage>) -> Self {
+impl PlatformReceiver {
+    pub fn new(ssh: Box<Ssh>, receiver: Receiver<PlatformMessage>) -> Self {
         Self { ssh, receiver }
     }
 
     pub async fn receive(mut self) -> Result<()> {
         while let Some(msg) = self.receiver.recv().await {
             match msg {
-                TargetPlatformMessage::Push { from, to, resp_tx } => {
+                PlatformMessage::Push { from, to, resp_tx } => {
                     debug!("executing push operation");
                     let res = self.push(from, to).await;
                     resp_tx
@@ -65,7 +65,7 @@ impl TargetPlatformReceiver {
                         .map_err(|_| anyhow!("oneshot channel closed"))?;
                 }
 
-                TargetPlatformMessage::Get { from, to, resp_tx } => {
+                PlatformMessage::Get { from, to, resp_tx } => {
                     debug!("executing get operation");
                     let res = self.get(from, to).await;
                     resp_tx
@@ -73,7 +73,7 @@ impl TargetPlatformReceiver {
                         .map_err(|_| anyhow!("oneshot channel closed"))?;
                 }
 
-                TargetPlatformMessage::Shell {
+                PlatformMessage::Shell {
                     logger,
                     working_dir,
                     command,
@@ -85,7 +85,7 @@ impl TargetPlatformReceiver {
                         .map_err(|_| anyhow!("oneshot channel closed"))?;
                 }
 
-                TargetPlatformMessage::Dispose { resp_tx } => {
+                PlatformMessage::Dispose { resp_tx } => {
                     let res = self.dispose().await;
                     resp_tx
                         .send(res)
@@ -129,7 +129,7 @@ pub enum Platform {
     },
     Ssh {
         id: String,
-        ssh_tx: Sender<TargetPlatformMessage>,
+        ssh_tx: Sender<PlatformMessage>,
     },
 }
 
@@ -149,7 +149,7 @@ impl Platform {
         let (tx, rx) = channel(4096);
 
         spawn(async move {
-            let receiver = TargetPlatformReceiver::new(ssh, rx);
+            let receiver = PlatformReceiver::new(ssh, rx);
             if let Err(e) = receiver.receive().await {
                 error!("{e}");
             }
@@ -182,7 +182,7 @@ impl Platform {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
                 ssh_tx
-                    .send(TargetPlatformMessage::Push {
+                    .send(PlatformMessage::Push {
                         from: from.to_string(),
                         to: to.to_string(),
                         resp_tx,
@@ -202,7 +202,7 @@ impl Platform {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
                 ssh_tx
-                    .send(TargetPlatformMessage::Get {
+                    .send(PlatformMessage::Get {
                         from: from.to_string(),
                         to: to.to_string(),
                         resp_tx,
@@ -227,7 +227,7 @@ impl Platform {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
                 ssh_tx
-                    .send(TargetPlatformMessage::Shell {
+                    .send(PlatformMessage::Shell {
                         logger,
                         working_dir: working_dir.clone(),
                         command: command.to_string(),
@@ -256,7 +256,7 @@ impl Platform {
             Self::Ssh { ssh_tx, .. } => {
                 let (resp_tx, resp_rx) = oneshot::channel();
                 ssh_tx
-                    .send(TargetPlatformMessage::Dispose { resp_tx })
+                    .send(PlatformMessage::Dispose { resp_tx })
                     .await?;
                 resp_rx.await?
             }
