@@ -3,7 +3,7 @@ use crate::database::pipeline_run_containers::{
     PRC_STATE_KEEP_ALIVE, PRC_STATE_REMOVED,
 };
 use crate::database::pipeline_runs::{self, PR_STATE_FINISHED, PR_STATE_RUNNING};
-use crate::platform::Platform;
+use crate::platform::PlatformSender;
 use crate::request::Request;
 use actix_web::rt::spawn;
 use anyhow::{anyhow, Result};
@@ -18,7 +18,7 @@ use uuid::Uuid;
 pub enum ContextMessage {
     AddRemoteRun(RemoteRun),
     RemoveRemoteRun(String),
-    AddPlatform(Arc<Platform>),
+    AddPlatform(Arc<PlatformSender>),
     RemovePlatform(String),
     SetPipelineAsRunning(String),
     SetPipelineAsFinished(String),
@@ -52,12 +52,12 @@ pub enum Context {
         run_id: String,
         remote_runs: Vec<RemoteRun>,
         conn: Arc<DatabaseConnection>,
-        platforms: Vec<Arc<Platform>>,
+        platforms: Vec<Arc<PlatformSender>>,
     },
     Local {
         config: Arc<BldConfig>,
         remote_runs: Vec<RemoteRun>,
-        platforms: Vec<Arc<Platform>>,
+        platforms: Vec<Arc<PlatformSender>>,
     },
 }
 
@@ -152,7 +152,7 @@ impl Context {
         }
     }
 
-    fn add_platform(&mut self, platform: Arc<Platform>) {
+    fn add_platform(&mut self, platform: Arc<PlatformSender>) {
         match self {
             Self::Server { platforms, .. } | Self::Local { platforms, .. } => {
                 platforms.push(platform);
@@ -339,16 +339,16 @@ impl ContextSender {
             .map_err(|e| anyhow!("{e}"))
     }
 
-    pub async fn add_platform(&self, platform: Arc<Platform>) -> Result<()> {
+    pub async fn add_platform(&self, platform: Arc<PlatformSender>) -> Result<()> {
         self.tx
             .send(ContextMessage::AddPlatform(platform))
             .await
             .map_err(|e| anyhow!("{e}"))
     }
 
-    pub async fn remove_platform(&self, platform_id: String) -> Result<()> {
+    pub async fn remove_platform(&self, platform_id: &str) -> Result<()> {
         self.tx
-            .send(ContextMessage::RemovePlatform(platform_id))
+            .send(ContextMessage::RemovePlatform(platform_id.to_string()))
             .await
             .map_err(|e| anyhow!("{e}"))
     }

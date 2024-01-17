@@ -12,7 +12,7 @@ use bld_core::{
     messages::{ExecClientMessage, WorkerMessages},
     platform::{
         builder::{PlatformBuilder, PlatformOptions},
-        Image, Platform, SshAuthOptions, SshConnectOptions,
+        Image, SshAuthOptions, SshConnectOptions, PlatformSender,
     },
     proxies::PipelineFileSystemProxy,
     regex::RegexCache,
@@ -44,7 +44,7 @@ struct Job {
     pub proxy: Arc<PipelineFileSystemProxy>,
     pub pipeline: Arc<Pipeline>,
     pub context: Arc<ContextSender>,
-    pub platform: Option<Arc<Platform>>,
+    pub platform: Option<Arc<PlatformSender>>,
 }
 
 impl Job {
@@ -276,7 +276,7 @@ pub struct Runner {
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
     pub env: Arc<HashMap<String, String>>,
     pub context: Arc<ContextSender>,
-    pub platform: Option<Arc<Platform>>,
+    pub platform: Option<Arc<PlatformSender>>,
     pub is_child: bool,
     pub has_faulted: bool,
 }
