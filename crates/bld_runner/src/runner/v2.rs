@@ -12,7 +12,7 @@ use bld_core::{
     messages::{ExecClientMessage, WorkerMessages},
     platform::{
         builder::{PlatformBuilder, PlatformOptions},
-        Image, SshAuthOptions, SshConnectOptions, PlatformSender,
+        Image, PlatformSender, SshAuthOptions, SshConnectOptions,
     },
     proxies::PipelineFileSystemProxy,
     regex::RegexCache,

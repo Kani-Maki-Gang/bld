@@ -7,7 +7,9 @@ use bld_utils::sync::IntoArc;
 use crate::{
     context::ContextSender,
     logger::LoggerSender,
-    platform::{Container, Image, Machine, PlatformSender, Ssh, SshConnectOptions, SshExecutionOptions},
+    platform::{
+        Container, Image, Machine, PlatformSender, Ssh, SshConnectOptions, SshExecutionOptions,
+    },
 };
 
 pub enum PlatformOptions<'a> {
