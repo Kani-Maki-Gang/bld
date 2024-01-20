@@ -4,9 +4,12 @@ use crate::{
     step::v2::{BuildStep, BuildStepExec},
 };
 use anyhow::{bail, Result};
-use bld_config::definitions::{
-    KEYWORD_BLD_DIR_V2, KEYWORD_PROJECT_DIR_V2, KEYWORD_RUN_PROPS_ID_V2,
-    KEYWORD_RUN_PROPS_START_TIME_V2,
+use bld_config::{
+    definitions::{
+        KEYWORD_BLD_DIR_V2, KEYWORD_PROJECT_DIR_V2, KEYWORD_RUN_PROPS_ID_V2,
+        KEYWORD_RUN_PROPS_START_TIME_V2,
+    },
+    DockerUrl,
 };
 use bld_config::{path, BldConfig, SshUserAuth};
 use bld_core::proxies::PipelineFileSystemProxy;
@@ -134,10 +137,19 @@ impl<'a> PipelineValidator<'a> {
                 self.validate_file_path("runs_on > dockerfile", dockerfile);
                 if let Some(docker_url) = docker_url {
                     self.validate_symbols("runs_on > docker_url", docker_url);
+                    self.validate_docker_url(docker_url);
                 }
             }
 
-            RunsOn::Pull { image, .. } => self.validate_symbols("runs_on > image", image),
+            RunsOn::Pull {
+                image, docker_url, ..
+            } => {
+                self.validate_symbols("runs_on > image", image);
+                if let Some(docker_url) = docker_url {
+                    self.validate_symbols("runs_on > docker_url", docker_url);
+                    self.validate_docker_url(docker_url);
+                }
+            }
 
             RunsOn::ContainerOrMachine(value) => self.validate_symbols("runs_on", value),
 
@@ -178,6 +190,26 @@ impl<'a> PipelineValidator<'a> {
         let path = path![value];
         if !path.is_file() {
             let _ = writeln!(self.errors, "[{section} > {value}] File not found");
+        }
+    }
+
+    fn validate_docker_url(&mut self, value: &str) {
+        if self.contains_symbols(value) {
+            return;
+        }
+        match &self.config.local.docker_url {
+            DockerUrl::Single(_) => {
+                let _ = writeln!(
+                    self.errors,
+                    "[runs_on > docker_url] Only a single docker url is defined in the config file"
+                );
+            }
+            DockerUrl::Multiple(urls) => {
+                let url = urls.keys().find(|x| x.as_str() == value);
+                if url.is_none() {
+                    let _ = writeln!(self.errors, "[runs_on > docker_url] The defined docker url key wasn't found in the config file");
+                }
+            }
         }
     }
 

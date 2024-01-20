@@ -40,7 +40,7 @@ impl DockerUrl {
                 let (DockerUrlEntry::Url(url) | DockerUrlEntry::UrlWithDefault { url, .. }) = urls
                     .get(name)
                     .ok_or_else(|| anyhow!("unable to find docker url entry in config"))?;
-                Ok(&url)
+                Ok(url)
             }
 
             (DockerUrl::Multiple(urls), None) => {
