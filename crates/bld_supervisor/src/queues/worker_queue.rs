@@ -53,13 +53,13 @@ struct WorkerQueueReceiver {
 }
 
 impl WorkerQueueReceiver {
-    pub fn new(
+    pub async fn new(
         capacity: usize,
         config: Data<BldConfig>,
         conn: Data<DatabaseConnection>,
         rx: mpsc::Receiver<WorkerQueueMessage>,
     ) -> Result<Self> {
-        let docker = docker(config.as_ref())?.into_arc();
+        let docker = docker(config.as_ref(), None)?.into_arc();
         let docker_clone = docker.clone();
         let conn_clone = conn.clone();
 
@@ -269,13 +269,13 @@ impl WorkerQueueSender {
     }
 }
 
-pub fn worker_queue_channel(
+pub async fn worker_queue_channel(
     capacity: usize,
     config: Data<BldConfig>,
     conn: Data<DatabaseConnection>,
 ) -> Result<WorkerQueueSender> {
     let (tx, rx) = mpsc::channel(4096);
-    let receiver = WorkerQueueReceiver::new(capacity, config, conn, rx)?;
+    let receiver = WorkerQueueReceiver::new(capacity, config, conn, rx).await?;
 
     spawn(async move {
         if let Err(e) = receiver.receive().await {

@@ -10,7 +10,10 @@ use bld_core::{
     context::ContextSender,
     logger::LoggerSender,
     messages::{ExecClientMessage, WorkerMessages},
-    platform::{Image, SshAuthOptions, SshConnectOptions, TargetPlatform},
+    platform::{
+        builder::{PlatformBuilder, PlatformOptions},
+        Image, PlatformSender, SshAuthOptions, SshConnectOptions,
+    },
     proxies::PipelineFileSystemProxy,
     regex::RegexCache,
     request::WebSocket,
@@ -25,10 +28,7 @@ use tracing::debug;
 use crate::{
     external::v2::External,
     pipeline::v2::Pipeline,
-    platform::{
-        builder::{TargetPlatformBuilder, TargetPlatformOptions},
-        v2::Platform,
-    },
+    runs_on::v2::RunsOn,
     step::v2::{BuildStep, BuildStepExec},
     RunnerBuilder,
 };
@@ -44,7 +44,7 @@ struct Job {
     pub proxy: Arc<PipelineFileSystemProxy>,
     pub pipeline: Arc<Pipeline>,
     pub context: Arc<ContextSender>,
-    pub platform: Option<Arc<TargetPlatform>>,
+    pub platform: Option<Arc<PlatformSender>>,
 }
 
 impl Job {
@@ -276,7 +276,7 @@ pub struct Runner {
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
     pub env: Arc<HashMap<String, String>>,
     pub context: Arc<ContextSender>,
-    pub platform: Option<Arc<TargetPlatform>>,
+    pub platform: Option<Arc<PlatformSender>>,
     pub is_child: bool,
     pub has_faulted: bool,
 }
@@ -310,29 +310,40 @@ impl Runner {
 
     async fn create_platform(&mut self) -> Result<()> {
         let options = match &self.pipeline.runs_on {
-            Platform::ContainerOrMachine(image) if image == "machine" => {
-                TargetPlatformOptions::Machine
+            RunsOn::ContainerOrMachine(image) if image == "machine" => PlatformOptions::Machine,
+
+            RunsOn::ContainerOrMachine(image) => PlatformOptions::Container {
+                image: Image::Use(image),
+                docker_url: None,
+            },
+
+            RunsOn::Pull {
+                image,
+                pull,
+                docker_url,
+            } => {
+                let image = if pull.unwrap_or_default() {
+                    Image::pull(image)
+                } else {
+                    Image::Use(image)
+                };
+                PlatformOptions::Container {
+                    docker_url: docker_url.as_deref(),
+                    image,
+                }
             }
 
-            Platform::ContainerOrMachine(image) | Platform::Pull { image, pull: false } => {
-                TargetPlatformOptions::Container(Image::Use(image.to_owned()))
-            }
-
-            Platform::Pull { image, pull: true } => {
-                TargetPlatformOptions::Container(Image::pull(image.to_owned()))
-            }
-
-            Platform::Build {
+            RunsOn::Build {
                 name,
                 tag,
                 dockerfile,
-            } => TargetPlatformOptions::Container(Image::build(
-                name.to_owned(),
-                dockerfile.to_owned(),
-                tag.to_owned(),
-            )),
+                docker_url,
+            } => PlatformOptions::Container {
+                image: Image::build(name, dockerfile, tag),
+                docker_url: docker_url.as_deref(),
+            },
 
-            Platform::SshFromGlobalConfig { ssh_config } => {
+            RunsOn::SshFromGlobalConfig { ssh_config } => {
                 let config = self.config.ssh(ssh_config)?;
                 let port = config.port.parse::<u16>()?;
                 let auth = match &config.userauth {
@@ -346,7 +357,7 @@ impl Runner {
                         private_key,
                     },
                 };
-                TargetPlatformOptions::Ssh(SshConnectOptions::new(
+                PlatformOptions::Ssh(SshConnectOptions::new(
                     &config.host,
                     port,
                     &config.user,
@@ -354,7 +365,7 @@ impl Runner {
                 ))
             }
 
-            Platform::Ssh(config) => {
+            RunsOn::Ssh(config) => {
                 let port = config.port.parse::<u16>()?;
                 let auth = match &config.userauth {
                     SshUserAuth::Agent => SshAuthOptions::Agent,
@@ -367,7 +378,7 @@ impl Runner {
                         private_key,
                     },
                 };
-                TargetPlatformOptions::Ssh(SshConnectOptions::new(
+                PlatformOptions::Ssh(SshConnectOptions::new(
                     &config.host,
                     port,
                     &config.user,
@@ -376,7 +387,7 @@ impl Runner {
             }
         };
 
-        let platform = TargetPlatformBuilder::default()
+        let platform = PlatformBuilder::default()
             .run_id(&self.run_id)
             .config(self.config.clone())
             .options(options)

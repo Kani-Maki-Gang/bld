@@ -1,6 +1,6 @@
 use crate::artifacts::v2::Artifacts;
 use crate::external::v2::External;
-use crate::platform::v2::Platform;
+use crate::runs_on::v2::RunsOn;
 use crate::step::v2::BuildStep;
 use crate::token_context::v2::PipelineContext;
 use anyhow::Result;
@@ -11,7 +11,7 @@ use std::collections::HashMap;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Pipeline {
     pub name: Option<String>,
-    pub runs_on: Platform,
+    pub runs_on: RunsOn,
 
     pub cron: Option<String>,
 

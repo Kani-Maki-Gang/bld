@@ -17,8 +17,7 @@ bld_config = { path = "../bld_config" }
 bld_core = { path = "../bld_core" }
 futures = "0.3.15"
 futures-util = "0.3.15"
-serde = "1.0.126"
-serde_derive = "1.0.126"
+serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1.0.64"
 tokio = { version = "1.24.2", features = ["full"] }
 tracing = "0.1.36"

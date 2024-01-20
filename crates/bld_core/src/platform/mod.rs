@@ -1,3 +1,4 @@
+pub mod builder;
 mod container;
 mod docker;
 mod image;
@@ -21,13 +22,14 @@ use tracing::{debug, error};
 
 use crate::logger::LoggerSender;
 
-pub enum TargetPlatformMessage {
-    Push {
-        from: String,
-        to: String,
-        resp_tx: oneshot::Sender<Result<()>>,
-    },
-    Get {
+pub enum PlatformArtifactsAction {
+    Push,
+    Get,
+}
+
+pub enum PlatformMessage {
+    Artifacts {
+        action: PlatformArtifactsAction,
         from: String,
         to: String,
         resp_tx: oneshot::Sender<Result<()>>,
@@ -43,36 +45,41 @@ pub enum TargetPlatformMessage {
     },
 }
 
-struct TargetPlatformReceiver {
-    ssh: Box<Ssh>,
-    receiver: Receiver<TargetPlatformMessage>,
+pub enum Platform {
+    Machine(Box<Machine>),
+    Container(Box<Container>),
+    Ssh(Sender<PlatformMessage>),
 }
 
-impl TargetPlatformReceiver {
-    pub fn new(ssh: Box<Ssh>, receiver: Receiver<TargetPlatformMessage>) -> Self {
+struct PlatformReceiver {
+    ssh: Box<Ssh>,
+    receiver: Receiver<PlatformMessage>,
+}
+
+impl PlatformReceiver {
+    pub fn new(ssh: Box<Ssh>, receiver: Receiver<PlatformMessage>) -> Self {
         Self { ssh, receiver }
     }
 
     pub async fn receive(mut self) -> Result<()> {
         while let Some(msg) = self.receiver.recv().await {
             match msg {
-                TargetPlatformMessage::Push { from, to, resp_tx } => {
-                    debug!("executing push operation");
-                    let res = self.push(from, to).await;
+                PlatformMessage::Artifacts {
+                    action,
+                    from,
+                    to,
+                    resp_tx,
+                } => {
+                    let res = match action {
+                        PlatformArtifactsAction::Push => self.push(from, to).await,
+                        PlatformArtifactsAction::Get => self.get(from, to).await,
+                    };
                     resp_tx
                         .send(res)
                         .map_err(|_| anyhow!("oneshot channel closed"))?;
                 }
 
-                TargetPlatformMessage::Get { from, to, resp_tx } => {
-                    debug!("executing get operation");
-                    let res = self.get(from, to).await;
-                    resp_tx
-                        .send(res)
-                        .map_err(|_| anyhow!("oneshot channel closed"))?;
-                }
-
-                TargetPlatformMessage::Shell {
+                PlatformMessage::Shell {
                     logger,
                     working_dir,
                     command,
@@ -84,7 +91,7 @@ impl TargetPlatformReceiver {
                         .map_err(|_| anyhow!("oneshot channel closed"))?;
                 }
 
-                TargetPlatformMessage::Dispose { resp_tx } => {
+                PlatformMessage::Dispose { resp_tx } => {
                     let res = self.dispose().await;
                     resp_tx
                         .send(res)
@@ -96,20 +103,22 @@ impl TargetPlatformReceiver {
     }
 
     pub async fn push(&mut self, from: String, to: String) -> Result<()> {
+        debug!("executing push operation");
         self.ssh.copy_into(&from, &to).await
     }
 
     pub async fn get(&mut self, from: String, to: String) -> Result<()> {
+        debug!("executing get operation");
         self.ssh.copy_from(&from, &to).await
     }
 
     pub async fn shell(
-        &mut self,
+        &self,
         logger: Arc<LoggerSender>,
         working_dir: Option<String>,
         command: String,
     ) -> Result<()> {
-        self.ssh.as_mut().sh(logger, &working_dir, &command).await
+        self.ssh.sh(logger, &working_dir, &command).await
     }
 
     pub async fn dispose(&mut self) -> Result<()> {
@@ -117,30 +126,26 @@ impl TargetPlatformReceiver {
     }
 }
 
-pub enum TargetPlatform {
-    Machine {
-        id: String,
-        machine: Box<Machine>,
-    },
-    Container {
-        id: String,
-        container: Box<Container>,
-    },
-    Ssh {
-        id: String,
-        ssh_tx: Sender<TargetPlatformMessage>,
-    },
+pub struct PlatformSender {
+    id: String,
+    inner: Platform,
 }
 
-impl TargetPlatform {
+impl PlatformSender {
     pub fn machine(machine: Box<Machine>) -> Self {
         let id = Uuid::new_v4().to_string();
-        Self::Machine { id, machine }
+        Self {
+            id,
+            inner: Platform::Machine(machine),
+        }
     }
 
     pub fn container(container: Box<Container>) -> Self {
         let id = Uuid::new_v4().to_string();
-        Self::Container { id, container }
+        Self {
+            id,
+            inner: Platform::Container(container),
+        }
     }
 
     pub fn ssh(ssh: Box<Ssh>) -> Self {
@@ -148,45 +153,40 @@ impl TargetPlatform {
         let (tx, rx) = channel(4096);
 
         spawn(async move {
-            let receiver = TargetPlatformReceiver::new(ssh, rx);
+            let receiver = PlatformReceiver::new(ssh, rx);
             if let Err(e) = receiver.receive().await {
                 error!("{e}");
             }
         });
 
-        Self::Ssh { id, ssh_tx: tx }
+        Self {
+            id,
+            inner: Platform::Ssh(tx),
+        }
     }
 
-    pub fn id(&self) -> String {
-        match self {
-            Self::Machine { id, .. } | Self::Container { id, .. } | Self::Ssh { id, .. } => {
-                id.to_owned()
-            }
-        }
+    pub fn id(&self) -> &str {
+        self.id.as_str()
     }
 
     pub fn is(&self, pid: &str) -> bool {
-        match self {
-            Self::Machine { id, .. } | Self::Container { id, .. } | Self::Ssh { id, .. } => {
-                pid == id
-            }
-        }
+        self.id == pid
     }
 
     pub async fn push(&self, from: &str, to: &str) -> Result<()> {
-        match self {
-            Self::Machine { machine, .. } => machine.copy_into(from, to).await,
-            Self::Container { container, .. } => container.copy_into(from, to).await,
-            Self::Ssh { ssh_tx, .. } => {
+        match &self.inner {
+            Platform::Machine(machine) => machine.copy_into(from, to).await,
+            Platform::Container(container) => container.copy_into(from, to).await,
+            Platform::Ssh(ssh) => {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
-                ssh_tx
-                    .send(TargetPlatformMessage::Push {
-                        from: from.to_string(),
-                        to: to.to_string(),
-                        resp_tx,
-                    })
-                    .await?;
+                ssh.send(PlatformMessage::Artifacts {
+                    action: PlatformArtifactsAction::Push,
+                    from: from.to_string(),
+                    to: to.to_string(),
+                    resp_tx,
+                })
+                .await?;
 
                 resp_rx.await?
             }
@@ -194,19 +194,19 @@ impl TargetPlatform {
     }
 
     pub async fn get(&self, from: &str, to: &str) -> Result<()> {
-        match self {
-            Self::Machine { machine, .. } => machine.copy_from(from, to).await,
-            Self::Container { container, .. } => container.copy_from(from, to).await,
-            Self::Ssh { ssh_tx, .. } => {
+        match &self.inner {
+            Platform::Machine(machine) => machine.copy_from(from, to).await,
+            Platform::Container(container) => container.copy_from(from, to).await,
+            Platform::Ssh(ssh) => {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
-                ssh_tx
-                    .send(TargetPlatformMessage::Get {
-                        from: from.to_string(),
-                        to: to.to_string(),
-                        resp_tx,
-                    })
-                    .await?;
+                ssh.send(PlatformMessage::Artifacts {
+                    action: PlatformArtifactsAction::Get,
+                    from: from.to_string(),
+                    to: to.to_string(),
+                    resp_tx,
+                })
+                .await?;
 
                 resp_rx.await?
             }
@@ -219,20 +219,19 @@ impl TargetPlatform {
         working_dir: &Option<String>,
         command: &str,
     ) -> Result<()> {
-        match self {
-            Self::Machine { machine, .. } => machine.sh(logger, working_dir, command).await,
-            Self::Container { container, .. } => container.sh(logger, working_dir, command).await,
-            Self::Ssh { ssh_tx, .. } => {
+        match &self.inner {
+            Platform::Machine(machine) => machine.sh(logger, working_dir, command).await,
+            Platform::Container(container) => container.sh(logger, working_dir, command).await,
+            Platform::Ssh(ssh) => {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
-                ssh_tx
-                    .send(TargetPlatformMessage::Shell {
-                        logger,
-                        working_dir: working_dir.clone(),
-                        command: command.to_string(),
-                        resp_tx,
-                    })
-                    .await?;
+                ssh.send(PlatformMessage::Shell {
+                    logger,
+                    working_dir: working_dir.clone(),
+                    command: command.to_string(),
+                    resp_tx,
+                })
+                .await?;
 
                 resp_rx.await?
             }
@@ -240,23 +239,21 @@ impl TargetPlatform {
     }
 
     pub async fn keep_alive(&self) -> Result<()> {
-        match self {
-            Self::Container { container, .. } => container.keep_alive().await,
+        match &self.inner {
+            Platform::Container(container) => container.keep_alive().await,
             _ => Ok(()),
         }
     }
 
     pub async fn dispose(&self, in_child_runner: bool) -> Result<()> {
-        match self {
+        match &self.inner {
             // checking if the runner is a child in order to not cleanup the temp dir for the whole run
-            Self::Machine { machine, .. } if !in_child_runner => machine.dispose().await,
-            Self::Machine { .. } => Ok(()),
-            Self::Container { container, .. } => container.dispose().await,
-            Self::Ssh { ssh_tx, .. } => {
+            Platform::Machine(machine) if !in_child_runner => machine.dispose().await,
+            Platform::Machine(_) => Ok(()),
+            Platform::Container(container) => container.dispose().await,
+            Platform::Ssh(ssh) => {
                 let (resp_tx, resp_rx) = oneshot::channel();
-                ssh_tx
-                    .send(TargetPlatformMessage::Dispose { resp_tx })
-                    .await?;
+                ssh.send(PlatformMessage::Dispose { resp_tx }).await?;
                 resp_rx.await?
             }
         }

@@ -1,7 +1,6 @@
 use super::versioned::VersionedRunner;
 use crate::pipeline::traits::Load;
 use crate::pipeline::versioned::{VersionedPipeline, Yaml};
-use crate::platform::builder::{TargetPlatformBuilder, TargetPlatformOptions};
 use crate::runner::v1;
 use crate::runner::v2;
 use crate::token_context::v2::PipelineContextBuilder;
@@ -10,7 +9,10 @@ use bld_config::BldConfig;
 use bld_core::context::ContextSender;
 use bld_core::logger::LoggerSender;
 use bld_core::messages::WorkerMessages;
-use bld_core::platform::Image;
+use bld_core::platform::{
+    builder::{PlatformBuilder, PlatformOptions},
+    Image,
+};
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::regex::RegexCache;
 use bld_core::signals::UnixSignalsReceiver;
@@ -152,11 +154,14 @@ impl RunnerBuilder {
         let runner = match pipeline {
             VersionedPipeline::Version1(pipeline) => {
                 let options = match pipeline.runs_on.as_str() {
-                    "machine" => TargetPlatformOptions::Machine,
-                    image => TargetPlatformOptions::Container(Image::Use(image.to_owned())),
+                    "machine" => PlatformOptions::Machine,
+                    image => PlatformOptions::Container {
+                        image: Image::Use(image),
+                        docker_url: None,
+                    },
                 };
 
-                let platform = TargetPlatformBuilder::default()
+                let platform = PlatformBuilder::default()
                     .run_id(&self.run_id)
                     .options(options)
                     .config(config.clone())

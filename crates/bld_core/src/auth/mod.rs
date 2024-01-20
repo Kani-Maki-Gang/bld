@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use actix_web::rt::spawn;
 use anyhow::{anyhow, bail, Result};
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{create_dir_all, read_to_string, remove_file, File},
     io::AsyncWriteExt,

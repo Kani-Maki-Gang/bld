@@ -14,7 +14,7 @@ use bld_config::BldConfig;
 use bld_core::context::ContextSender;
 use bld_core::logger::LoggerSender;
 use bld_core::messages::{ExecClientMessage, WorkerMessages};
-use bld_core::platform::TargetPlatform;
+use bld_core::platform::PlatformSender;
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::request::WebSocket;
 use bld_core::signals::{UnixSignal, UnixSignalMessage, UnixSignalsReceiver};
@@ -45,7 +45,7 @@ pub struct Runner {
     pub env: Arc<HashMap<String, String>>,
     pub vars: Arc<HashMap<String, String>>,
     pub context: Arc<ContextSender>,
-    pub platform: Arc<TargetPlatform>,
+    pub platform: Arc<PlatformSender>,
     pub is_child: bool,
     pub has_faulted: bool,
 }

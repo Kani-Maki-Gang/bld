@@ -1,12 +1,15 @@
 use crate::{
     pipeline::v2::Pipeline,
-    platform::v2::Platform,
+    runs_on::v2::RunsOn,
     step::v2::{BuildStep, BuildStepExec},
 };
 use anyhow::{bail, Result};
-use bld_config::definitions::{
-    KEYWORD_BLD_DIR_V2, KEYWORD_PROJECT_DIR_V2, KEYWORD_RUN_PROPS_ID_V2,
-    KEYWORD_RUN_PROPS_START_TIME_V2,
+use bld_config::{
+    definitions::{
+        KEYWORD_BLD_DIR_V2, KEYWORD_PROJECT_DIR_V2, KEYWORD_RUN_PROPS_ID_V2,
+        KEYWORD_RUN_PROPS_START_TIME_V2,
+    },
+    DockerUrl,
 };
 use bld_config::{path, BldConfig, SshUserAuth};
 use bld_core::proxies::PipelineFileSystemProxy;
@@ -122,27 +125,40 @@ impl<'a> PipelineValidator<'a> {
 
     fn validate_runs_on(&mut self) {
         match &self.pipeline.runs_on {
-            Platform::Build {
+            RunsOn::Build {
                 name,
                 tag,
                 dockerfile,
+                docker_url,
             } => {
                 self.validate_symbols("runs_on > name", name);
                 self.validate_symbols("runs_on > tag", tag);
                 self.validate_symbols("runs_on > dockerfile", dockerfile);
                 self.validate_file_path("runs_on > dockerfile", dockerfile);
+                if let Some(docker_url) = docker_url {
+                    self.validate_symbols("runs_on > docker_url", docker_url);
+                    self.validate_docker_url(docker_url);
+                }
             }
 
-            Platform::Pull { image, .. } => self.validate_symbols("runs_on > image", image),
+            RunsOn::Pull {
+                image, docker_url, ..
+            } => {
+                self.validate_symbols("runs_on > image", image);
+                if let Some(docker_url) = docker_url {
+                    self.validate_symbols("runs_on > docker_url", docker_url);
+                    self.validate_docker_url(docker_url);
+                }
+            }
 
-            Platform::ContainerOrMachine(value) => self.validate_symbols("runs_on", value),
+            RunsOn::ContainerOrMachine(value) => self.validate_symbols("runs_on", value),
 
-            Platform::SshFromGlobalConfig { ssh_config } => {
+            RunsOn::SshFromGlobalConfig { ssh_config } => {
                 self.validate_symbols("runs_on > ssh_config", ssh_config);
                 self.validate_global_ssh_config("runs_on > ssh_config", ssh_config);
             }
 
-            Platform::Ssh(config) => {
+            RunsOn::Ssh(config) => {
                 self.validate_symbols("runs_on > host", &config.host);
                 self.validate_symbols("runs_on > port", &config.port);
                 self.validate_symbols("runs_on > user", &config.user);
@@ -174,6 +190,26 @@ impl<'a> PipelineValidator<'a> {
         let path = path![value];
         if !path.is_file() {
             let _ = writeln!(self.errors, "[{section} > {value}] File not found");
+        }
+    }
+
+    fn validate_docker_url(&mut self, value: &str) {
+        if self.contains_symbols(value) {
+            return;
+        }
+        match &self.config.local.docker_url {
+            DockerUrl::Single(_) => {
+                let _ = writeln!(
+                    self.errors,
+                    "[runs_on > docker_url] Only a single docker url is defined in the config file"
+                );
+            }
+            DockerUrl::Multiple(urls) => {
+                let url = urls.keys().find(|x| x.as_str() == value);
+                if url.is_none() {
+                    let _ = writeln!(self.errors, "[runs_on > docker_url] The defined docker url key wasn't found in the config file");
+                }
+            }
         }
     }
 
