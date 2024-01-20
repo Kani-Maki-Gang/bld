@@ -12,7 +12,7 @@ pub enum RunsOn {
     ContainerOrMachine(String),
     Pull {
         image: String,
-        pull: bool,
+        pull: Option<bool>,
         docker_url: Option<String>,
     },
     Build {
@@ -47,8 +47,13 @@ impl RunsOn {
 
     pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
         match self {
-            RunsOn::Pull { image, .. } => {
+            RunsOn::Pull {
+                image, docker_url, ..
+            } => {
                 *image = context.transform(image.to_owned()).await?;
+                if let Some(docker_url) = docker_url {
+                    *docker_url = context.transform(docker_url.to_owned()).await?;
+                }
             }
 
             RunsOn::Build {

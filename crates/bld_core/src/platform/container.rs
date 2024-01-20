@@ -22,6 +22,16 @@ use crate::{
 
 use super::{docker, Image};
 
+pub struct ContainerOptions<'a> {
+    pub config: Arc<BldConfig>,
+    pub docker_url: Option<&'a str>,
+    pub image: Image<'a>,
+    pub pipeline_env: &'a HashMap<String, String>,
+    pub env: Arc<HashMap<String, String>>,
+    pub logger: Arc<LoggerSender>,
+    pub context: Arc<ContextSender>,
+}
+
 pub struct Container {
     pub id: String,
     pub name: String,
@@ -71,27 +81,23 @@ impl Container {
         map.iter().map(|(k, v)| format!("{k}={v}")).collect()
     }
 
-    pub async fn new(
-        image: Image<'_>,
-        config: Arc<BldConfig>,
-        pipeline_env: &HashMap<String, String>,
-        env: Arc<HashMap<String, String>>,
-        logger: Arc<LoggerSender>,
-        context: Arc<ContextSender>,
-    ) -> Result<Self> {
-        let client = docker(config.as_ref(), None)?;
+    pub async fn new(options: ContainerOptions<'_>) -> Result<Self> {
+        let client = docker(options.config.as_ref(), options.docker_url)?;
         debug!("creating container environement");
-        let env = Self::create_environment(pipeline_env, env);
+        let env = Self::create_environment(options.pipeline_env, options.env);
         let container_env = env.iter().map(AsRef::as_ref).collect();
-        image.create(&client, logger.clone()).await?;
-        let (id, name) = Container::create(&client, image.name(), container_env).await?;
-        let entity = context.add_container(id.clone()).await?;
+        options
+            .image
+            .create(&client, options.logger.clone())
+            .await?;
+        let (id, name) = Container::create(&client, options.image.name(), container_env).await?;
+        let entity = options.context.add_container(id.clone()).await?;
         Ok(Self {
             id,
             name,
-            config: Some(config),
+            config: Some(options.config),
             client,
-            context,
+            context: options.context,
             entity,
             environment: env,
         })

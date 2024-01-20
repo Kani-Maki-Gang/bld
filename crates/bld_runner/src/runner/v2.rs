@@ -319,19 +319,10 @@ impl Runner {
 
             RunsOn::Pull {
                 image,
-                pull: false,
-                docker_url,
-            } => PlatformOptions::Container {
-                image: Image::Use(image),
-                docker_url: docker_url.as_deref(),
-            },
-
-            RunsOn::Pull {
-                image,
                 pull,
                 docker_url,
             } => {
-                let image = if *pull {
+                let image = if pull.unwrap_or_default() {
                     Image::pull(image)
                 } else {
                     Image::Use(image)

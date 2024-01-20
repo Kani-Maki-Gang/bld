@@ -12,6 +12,8 @@ use crate::{
     },
 };
 
+use super::ContainerOptions;
+
 pub enum PlatformOptions<'a> {
     Container {
         image: Image<'a>,
@@ -83,11 +85,11 @@ impl<'a> PlatformBuilder<'a> {
             .config
             .ok_or_else(|| anyhow!("no config provided for target platform builder"))?;
 
-        let pipeline_environment = self.pipeline_environment.ok_or_else(|| {
+        let pipeline_env = self.pipeline_environment.ok_or_else(|| {
             anyhow!("no pipeline environment provided for target platform builder")
         })?;
 
-        let environment = self
+        let env = self
             .environment
             .ok_or_else(|| anyhow!("no environment provided for target platform builder"))?;
 
@@ -100,28 +102,28 @@ impl<'a> PlatformBuilder<'a> {
             .ok_or_else(|| anyhow!("no context provided for target platform builder"))?;
 
         let platform = match self.options {
-            PlatformOptions::Container { image, .. } => {
-                let container = Container::new(
-                    image,
+            PlatformOptions::Container { image, docker_url } => {
+                let options = ContainerOptions {
                     config,
-                    pipeline_environment,
-                    environment,
+                    docker_url,
+                    image,
+                    pipeline_env,
+                    env,
                     logger,
                     context,
-                )
-                .await?;
+                };
+                let container = Container::new(options).await?;
                 PlatformSender::container(Box::new(container))
             }
 
             PlatformOptions::Ssh(connect) => {
-                let execution = SshExecutionOptions::new(config, pipeline_environment, environment);
+                let execution = SshExecutionOptions::new(config, pipeline_env, env);
                 let ssh = Ssh::new(connect, execution).await?;
                 PlatformSender::ssh(Box::new(ssh))
             }
 
             PlatformOptions::Machine => {
-                let machine =
-                    Machine::new(run_id, config, pipeline_environment, environment).await?;
+                let machine = Machine::new(run_id, config, pipeline_env, env).await?;
                 PlatformSender::machine(Box::new(machine))
             }
         }
