@@ -1,3 +1,4 @@
-mod generated_entities;
+mod generated;
+pub mod queries;
 
-pub use generated_entities::*;
+pub use generated::*;

@@ -872,7 +872,11 @@ dependencies = [
 name = "bld_entities"
 version = "0.3.1"
 dependencies = [
+ "anyhow",
+ "bld_migrations",
+ "chrono",
  "sea-orm",
+ "tracing",
 ]
 
 [[package]]
