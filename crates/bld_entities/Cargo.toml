@@ -11,3 +11,4 @@ bld_migrations = { path = "../bld_migrations" }
 chrono = { version = "0.4.23", default-features = false, features = ["std"] }
 sea-orm = { version = "0.12.2", features = ["sqlx-postgres", "sqlx-mysql", "sqlx-sqlite", "runtime-tokio-rustls"] }
 tracing = "0.1.36"
+uuid = { version = "1.3.4", features = ["v4"] }

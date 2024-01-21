@@ -15,6 +15,7 @@ anyhow = "1.0.40"
 bld_config = { path = "../bld_config" }
 bld_utils = { path = "../bld_utils" }
 bld_core = { path = "../bld_core" }
+bld_entities = { path = "../bld_entities" }
 bld_runner = { path = "../bld_runner" }
 bld_sock = { path = "../bld_sock" }
 bld_supervisor = { path = "../bld_supervisor" }

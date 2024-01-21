@@ -877,6 +877,7 @@ dependencies = [
  "chrono",
  "sea-orm",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -929,6 +930,7 @@ dependencies = [
  "anyhow",
  "bld_config",
  "bld_core",
+ "bld_entities",
  "bld_runner",
  "bld_sock",
  "bld_supervisor",
