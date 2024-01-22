@@ -1,5 +1,8 @@
 use anyhow::{anyhow, Result};
-use bld_entities::pipeline::{self, Entity as PipelineEntity};
+use bld_entities::{
+    cron_jobs,
+    pipeline::{self, Entity as PipelineEntity},
+};
 use bld_migrations::Expr;
 use chrono::Utc;
 use sea_orm::{
@@ -7,8 +10,6 @@ use sea_orm::{
     QueryFilter, QueryOrder, TransactionTrait,
 };
 use tracing::{debug, error};
-
-use crate::database::cron_jobs;
 
 pub use bld_entities::pipeline::Model as Pipeline;
 

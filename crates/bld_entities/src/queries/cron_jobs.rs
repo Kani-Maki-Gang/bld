@@ -1,10 +1,4 @@
 use anyhow::{anyhow, Result};
-use bld_entities::{
-    cron_jobs::{self, Entity as CronJobEntity},
-    pipeline::{self, Entity as Pipeline},
-    cron_job_variables::{self, InsertCronJobVariable},
-    cron_job_environment_variables::{self, InsertCronJobEnvironmentVariable},
-};
 use bld_migrations::Expr;
 use chrono::Utc;
 use sea_orm::{
@@ -13,7 +7,17 @@ use sea_orm::{
 };
 use tracing::{debug, error};
 
-pub use bld_entities::cron_jobs::Model as CronJob;
+use crate::generated::{
+    cron_jobs::{self, Entity as CronJobEntity},
+    pipeline::{self, Entity as Pipeline},
+};
+
+use super::{
+    cron_job_environment_variables::{self, InsertCronJobEnvironmentVariable},
+    cron_job_variables::{self, InsertCronJobVariable},
+};
+
+pub use crate::generated::cron_jobs::Model as CronJob;
 
 pub struct InsertCronJob {
     pub id: String,

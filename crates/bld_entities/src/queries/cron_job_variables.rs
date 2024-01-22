@@ -1,5 +1,5 @@
-use anyhow::{anyhow, Result};
 use crate::generated::cron_job_variables::{self, Entity as CronJobVariableEntity};
+use anyhow::{anyhow, Result};
 use chrono::Utc;
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait,

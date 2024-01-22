@@ -2,18 +2,18 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, bail, Result};
 use bld_core::{
-    database::{
-        cron_jobs::{self, CronJob, InsertCronJob, UpdateCronJob},
-        pipeline::{self, Pipeline},
-    },
+    database::pipeline::{self, Pipeline},
     messages::ExecClientMessage,
     proxies::PipelineFileSystemProxy,
     requests::{AddJobRequest, JobFiltersParams, UpdateJobRequest},
     responses::CronJobResponse,
 };
 use bld_entities::{
+    cron_job_environment_variables::{
+        self, CronJobEnvironmentVariable, InsertCronJobEnvironmentVariable,
+    },
     cron_job_variables::{self, CronJobVariable, InsertCronJobVariable},
-    cron_job_environment_variables::{self, CronJobEnvironmentVariable, InsertCronJobEnvironmentVariable}
+    cron_jobs::{self, CronJob, InsertCronJob, UpdateCronJob},
 };
 use sea_orm::DatabaseConnection;
 use tokio_cron_scheduler::{Job, JobScheduler};

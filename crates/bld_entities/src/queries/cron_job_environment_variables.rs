@@ -7,7 +7,7 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::generated::cron_job_environment_variables::{
-    self, Entity as CronJobEnvironmentVariableEntity
+    self, Entity as CronJobEnvironmentVariableEntity,
 };
 
 pub use crate::generated::cron_job_environment_variables::Model as CronJobEnvironmentVariable;
