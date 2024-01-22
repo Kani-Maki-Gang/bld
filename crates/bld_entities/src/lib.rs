@@ -1,7 +1,6 @@
 mod generated;
 mod queries;
 
-pub use generated::cron_job_variables;
 pub use generated::cron_jobs;
 pub use generated::pipeline;
 pub use generated::pipeline_runs;

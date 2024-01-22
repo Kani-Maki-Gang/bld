@@ -3,7 +3,6 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 use anyhow::{anyhow, bail, Result};
 use bld_core::{
     database::{
-        cron_job_variables::{self, CronJobVariable, InsertCronJobVariable},
         cron_jobs::{self, CronJob, InsertCronJob, UpdateCronJob},
         pipeline::{self, Pipeline},
     },
@@ -12,7 +11,10 @@ use bld_core::{
     requests::{AddJobRequest, JobFiltersParams, UpdateJobRequest},
     responses::CronJobResponse,
 };
-use bld_entities::cron_job_environment_variables::{self, CronJobEnvironmentVariable, InsertCronJobEnvironmentVariable};
+use bld_entities::{
+    cron_job_variables::{self, CronJobVariable, InsertCronJobVariable},
+    cron_job_environment_variables::{self, CronJobEnvironmentVariable, InsertCronJobEnvironmentVariable}
+};
 use sea_orm::DatabaseConnection;
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tracing::error;

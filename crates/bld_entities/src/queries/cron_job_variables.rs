@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use bld_entities::cron_job_variables::{self, Entity as CronJobVariableEntity};
+use crate::generated::cron_job_variables::{self, Entity as CronJobVariableEntity};
 use chrono::Utc;
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait,
@@ -7,7 +7,7 @@ use sea_orm::{
 use tracing::{debug, error};
 use uuid::Uuid;
 
-pub use bld_entities::cron_job_variables::Model as CronJobVariable;
+pub use crate::generated::cron_job_variables::Model as CronJobVariable;
 
 pub struct InsertCronJobVariable {
     pub id: String,

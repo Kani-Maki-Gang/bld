@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use bld_entities::{
     cron_jobs::{self, Entity as CronJobEntity},
     pipeline::{self, Entity as Pipeline},
+    cron_job_variables::{self, InsertCronJobVariable},
     cron_job_environment_variables::{self, InsertCronJobEnvironmentVariable},
 };
 use bld_migrations::Expr;
@@ -11,8 +12,6 @@ use sea_orm::{
     QueryFilter, QuerySelect, TransactionTrait,
 };
 use tracing::{debug, error};
-
-use super::cron_job_variables::{self, InsertCronJobVariable};
 
 pub use bld_entities::cron_jobs::Model as CronJob;
 
