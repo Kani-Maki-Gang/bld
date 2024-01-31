@@ -2,7 +2,6 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, bail, Result};
 use bld_core::{
-    database::pipeline::{self, Pipeline},
     messages::ExecClientMessage,
     proxies::PipelineFileSystemProxy,
     requests::{AddJobRequest, JobFiltersParams, UpdateJobRequest},
@@ -14,6 +13,7 @@ use bld_entities::{
     },
     cron_job_variables::{self, CronJobVariable, InsertCronJobVariable},
     cron_jobs::{self, CronJob, InsertCronJob, UpdateCronJob},
+    pipeline::{self, Pipeline},
 };
 use sea_orm::DatabaseConnection;
 use tokio_cron_scheduler::{Job, JobScheduler};

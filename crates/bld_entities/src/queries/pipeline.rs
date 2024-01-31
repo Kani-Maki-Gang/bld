@@ -1,8 +1,5 @@
 use anyhow::{anyhow, Result};
-use bld_entities::{
-    cron_jobs,
-    pipeline::{self, Entity as PipelineEntity},
-};
+use crate::generated::pipeline::{self, Entity as PipelineEntity};
 use bld_migrations::Expr;
 use chrono::Utc;
 use sea_orm::{
@@ -11,7 +8,9 @@ use sea_orm::{
 };
 use tracing::{debug, error};
 
-pub use bld_entities::pipeline::Model as Pipeline;
+use super::cron_jobs;
+
+pub use crate::generated::pipeline::Model as Pipeline;
 
 pub struct InsertPipeline {
     pub id: String,
