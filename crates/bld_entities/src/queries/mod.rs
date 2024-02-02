@@ -1,6 +1,7 @@
 pub mod cron_job_environment_variables;
 pub mod cron_job_variables;
 pub mod cron_jobs;
+pub mod ha_client_status;
 pub mod ha_hard_state;
 pub mod ha_log;
 pub mod ha_members;

@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use bld_entities::high_availability_client_status::{self, Entity as HighAvailClientStatusEntity};
 use bld_migrations::Expr;
 use chrono::Utc;
 use sea_orm::{
@@ -8,7 +7,10 @@ use sea_orm::{
 };
 use tracing::{debug, error};
 
-pub use bld_entities::high_availability_client_status::Model as HighAvailClientStatus;
+pub use crate::generated::high_availability_client_status::Model as HighAvailClientStatus;
+use crate::generated::high_availability_client_status::{
+    self, Entity as HighAvailClientStatusEntity,
+};
 
 pub struct InsertHighAvailClientStatus {
     pub id: i32,
