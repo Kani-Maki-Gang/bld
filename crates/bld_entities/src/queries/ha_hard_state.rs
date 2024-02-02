@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use bld_entities::high_availability_hard_state::{self, Entity as HighAvailHardStateEntity};
 use bld_migrations::Expr;
 use chrono::Utc;
 use sea_orm::{
@@ -8,7 +7,8 @@ use sea_orm::{
 };
 use tracing::{debug, error};
 
-pub use bld_entities::high_availability_hard_state::Model as HighAvailHardState;
+pub use crate::generated::high_availability_hard_state::Model as HighAvailHardState;
+use crate::generated::high_availability_hard_state::{self, Entity as HighAvailHardStateEntity};
 
 #[derive(Debug)]
 pub struct InsertHighAvailHardState {
