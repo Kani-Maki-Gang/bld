@@ -1,7 +1,4 @@
-pub mod ha_state_machine;
-
 use std::sync::Arc;
-
 use anyhow::{bail, Result};
 use bld_config::BldConfig;
 use bld_migrations::{Migrator, MigratorTrait};

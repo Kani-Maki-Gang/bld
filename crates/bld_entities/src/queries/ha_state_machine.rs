@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use bld_entities::high_availability_state_machine::{self, Entity as HighAvailStateMachineEntity};
 use bld_migrations::Expr;
 use chrono::Utc;
 use sea_orm::{
@@ -8,7 +7,8 @@ use sea_orm::{
 };
 use tracing::{debug, error};
 
-use bld_entities::high_availability_state_machine::Model as HighAvailStateMachine;
+use crate::generated::high_availability_state_machine::{self, Entity as HighAvailStateMachineEntity};
+pub use crate::generated::high_availability_state_machine::Model as HighAvailStateMachine;
 
 pub async fn select_first<C: ConnectionTrait + TransactionTrait>(
     conn: &C,
