@@ -7,8 +7,10 @@ use sea_orm::{
 };
 use tracing::{debug, error};
 
-use crate::generated::high_availability_state_machine::{self, Entity as HighAvailStateMachineEntity};
 pub use crate::generated::high_availability_state_machine::Model as HighAvailStateMachine;
+use crate::generated::high_availability_state_machine::{
+    self, Entity as HighAvailStateMachineEntity,
+};
 
 pub async fn select_first<C: ConnectionTrait + TransactionTrait>(
     conn: &C,

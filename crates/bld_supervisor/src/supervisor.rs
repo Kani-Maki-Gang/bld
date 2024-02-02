@@ -6,7 +6,7 @@ use actix_web::web::{get, resource};
 use actix_web::{App, HttpServer};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::database::new_connection_pool;
+use bld_entities::new_connection_pool;
 use bld_utils::sync::IntoData;
 use bld_utils::tls::{load_server_certificate, load_server_private_key};
 use rustls::ServerConfig;

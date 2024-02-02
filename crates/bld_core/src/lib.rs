@@ -1,6 +1,5 @@
 pub mod auth;
 pub mod context;
-pub mod database;
 pub mod logger;
 pub mod messages;
 pub mod platform;

@@ -6,10 +6,10 @@ use actix_web::rt::{spawn, System};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::{
-    context::ContextSender, database::new_connection_pool, logger::LoggerSender,
-    messages::WorkerMessages, proxies::PipelineFileSystemProxy, request::WebSocket,
+    context::ContextSender, logger::LoggerSender, messages::WorkerMessages,
+    proxies::PipelineFileSystemProxy, request::WebSocket,
 };
-use bld_entities::pipeline_runs;
+use bld_entities::{new_connection_pool, pipeline_runs};
 use bld_runner::RunnerBuilder;
 use bld_sock::clients::WorkerClient;
 use bld_utils::sync::IntoArc;

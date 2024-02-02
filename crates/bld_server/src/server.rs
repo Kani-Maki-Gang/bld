@@ -11,8 +11,8 @@ use actix_web::{
 };
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::database::new_connection_pool;
 use bld_core::{auth::LoginProcess, proxies::PipelineFileSystemProxy};
+use bld_entities::new_connection_pool;
 use bld_utils::{
     sync::IntoData,
     tls::{load_server_certificate, load_server_private_key},
