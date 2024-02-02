@@ -4,3 +4,4 @@ pub mod cron_jobs;
 pub mod pipeline;
 pub mod pipeline_run_containers;
 pub mod pipeline_runs;
+pub mod ha_log;

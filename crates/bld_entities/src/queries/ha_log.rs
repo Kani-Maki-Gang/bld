@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use bld_entities::high_availability_log::{self, Entity as HighAvailLogEntity};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
@@ -7,7 +6,8 @@ use sea_orm::{
 };
 use tracing::{debug, error};
 
-pub use bld_entities::high_availability_log::Model as HighAvailLog;
+use crate::generated::high_availability_log::{self, Entity as HighAvailLogEntity};
+pub use crate::generated::high_availability_log::Model as HighAvailLog;
 
 pub const BLANK: &str = "blank";
 pub const NORMAL: &str = "normal";
