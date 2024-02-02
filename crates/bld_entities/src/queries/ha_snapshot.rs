@@ -1,12 +1,12 @@
 use anyhow::{anyhow, Result};
-use bld_entities::high_availability_snapshot::{self, Entity as HighAvailSnapshotEntity};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ConnectionTrait, EntityTrait, QueryOrder, TransactionTrait,
 };
 use tracing::{debug, error};
 
-pub use bld_entities::high_availability_snapshot::Model as HighAvailSnapshot;
+pub use crate::generated::high_availability_snapshot::Model as HighAvailSnapshot;
+use crate::generated::high_availability_snapshot::{self, Entity as HighAvailSnapshotEntity};
 
 #[derive(Debug)]
 pub struct InsertHighAvailSnapshot {

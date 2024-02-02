@@ -6,8 +6,8 @@ use sea_orm::{
 };
 use tracing::{debug, error};
 
-use crate::generated::high_availability_log::{self, Entity as HighAvailLogEntity};
 pub use crate::generated::high_availability_log::Model as HighAvailLog;
+use crate::generated::high_availability_log::{self, Entity as HighAvailLogEntity};
 
 pub const BLANK: &str = "blank";
 pub const NORMAL: &str = "normal";
