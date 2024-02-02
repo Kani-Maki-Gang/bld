@@ -1,10 +1,4 @@
 use anyhow::{anyhow, Result};
-use bld_entities::{
-    high_availability_members_after_consensus::{
-        self, Entity as HighAvailMembersAfterConsensusEntity,
-    },
-    high_availability_snapshot,
-};
 use chrono::Utc;
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, QueryFilter, QueryOrder,
@@ -12,7 +6,13 @@ use sea_orm::{
 };
 use tracing::{debug, error};
 
-pub use bld_entities::high_availability_members_after_consensus::Model as HighAvailMembersAfterConsensus;
+pub use crate::generated::high_availability_members_after_consensus::Model as HighAvailMembersAfterConsensus;
+use crate::generated::{
+    high_availability_members_after_consensus::{
+        self, Entity as HighAvailMembersAfterConsensusEntity,
+    },
+    high_availability_snapshot,
+};
 
 pub struct InsertHighAvailMembersAfterConsensus {
     pub id: i32,

@@ -1,8 +1,4 @@
 use anyhow::{anyhow, Result};
-use bld_entities::{
-    high_availability_members::{self, Entity as HighAvailMembersEntity},
-    high_availability_snapshot,
-};
 use chrono::Utc;
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, QueryFilter, QueryOrder,
@@ -10,7 +6,11 @@ use sea_orm::{
 };
 use tracing::{debug, error};
 
-pub use bld_entities::high_availability_members::Model as HighAvailMembers;
+pub use crate::generated::high_availability_members::Model as HighAvailMembers;
+use crate::generated::{
+    high_availability_members::{self, Entity as HighAvailMembersEntity},
+    high_availability_snapshot,
+};
 
 pub struct InsertHighAvailMembers {
     pub id: i32,
