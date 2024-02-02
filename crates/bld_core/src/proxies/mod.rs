@@ -69,7 +69,7 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    async fn read_internal(&self, path: &PathBuf) -> Result<String> {
+    async fn read_inner(&self, path: &PathBuf) -> Result<String> {
         if path.is_yaml() {
             read_to_string(path).await.map_err(|e| anyhow!(e))
         } else {
@@ -79,15 +79,15 @@ impl PipelineFileSystemProxy {
 
     pub async fn read(&self, name: &str) -> Result<String> {
         let path = self.path(name).await?;
-        self.read_internal(&path).await
+        self.read_inner(&path).await
     }
 
     pub async fn read_tmp(&self, name: &str) -> Result<String> {
         let path = self.config().tmp_full_path(name);
-        self.read_internal(&path).await
+        self.read_inner(&path).await
     }
 
-    async fn create_internal(&self, path: &PathBuf, content: &str, overwrite: bool) -> Result<()> {
+    async fn create_inner(&self, path: &PathBuf, content: &str, overwrite: bool) -> Result<()> {
         if path.is_yaml() && !overwrite {
             bail!("pipeline already exists");
         } else if path.is_yaml() && overwrite {
@@ -125,12 +125,12 @@ impl PipelineFileSystemProxy {
 
         let path = self.path(name).await?;
 
-        self.create_internal(&path, content, overwrite).await
+        self.create_inner(&path, content, overwrite).await
     }
 
     pub async fn create_tmp(&self, name: &str, content: &str, overwrite: bool) -> Result<String> {
         let path = self.config().tmp_full_path(name);
-        self.create_internal(&path, content, overwrite).await?;
+        self.create_inner(&path, content, overwrite).await?;
         Ok(path.display().to_string())
     }
 
@@ -264,7 +264,7 @@ impl PipelineFileSystemProxy {
         }
     }
 
-    async fn edit_internal(&self, path: &PathBuf, check_path: bool) -> Result<()> {
+    async fn edit_inner(&self, path: &PathBuf, check_path: bool) -> Result<()> {
         let Self::Local { config } = self else {
             bail!("server pipelines dont support direct editing");
         };
@@ -289,16 +289,16 @@ impl PipelineFileSystemProxy {
 
     pub async fn edit(&self, name: &str) -> Result<()> {
         let path = self.path(name).await?;
-        self.edit_internal(&path, true).await
+        self.edit_inner(&path, true).await
     }
 
     pub async fn edit_tmp(&self, name: &str) -> Result<()> {
         let path = self.config().tmp_full_path(name);
-        self.edit_internal(&path, true).await
+        self.edit_inner(&path, true).await
     }
 
     pub async fn edit_config(&self) -> Result<()> {
-        self.edit_internal(&self.config().config_full_path(), false)
+        self.edit_inner(&self.config().config_full_path(), false)
             .await
     }
 }
