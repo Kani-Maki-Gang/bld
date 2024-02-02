@@ -6,8 +6,6 @@ pub mod ha_members;
 pub mod ha_members_after_consensus;
 pub mod ha_snapshot;
 pub mod ha_state_machine;
-pub mod pipeline_run_containers;
-pub mod pipeline_runs;
 
 use std::sync::Arc;
 

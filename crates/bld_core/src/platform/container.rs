@@ -2,6 +2,7 @@ use std::{collections::HashMap, path::Path, path::PathBuf, sync::Arc};
 
 use anyhow::{anyhow, bail, Result};
 use bld_config::{path, BldConfig};
+use bld_entities::pipeline_run_containers::PipelineRunContainers;
 use bollard::{
     container::{
         Config as ContainerConfig, CreateContainerOptions, DownloadFromContainerOptions, LogOutput,
@@ -15,10 +16,7 @@ use tar::{Archive, Builder};
 use tracing::{debug, error};
 use uuid::Uuid;
 
-use crate::{
-    context::ContextSender, database::pipeline_run_containers::PipelineRunContainers,
-    logger::LoggerSender,
-};
+use crate::{context::ContextSender, logger::LoggerSender};
 
 use super::{docker, Image};
 

@@ -1,13 +1,10 @@
 use actix_web::{rt::spawn, web::Data};
 use anyhow::{anyhow, Error, Result};
 use bld_config::BldConfig;
-use bld_core::{
-    database::{
-        pipeline_run_containers::{self, PRC_STATE_REMOVED},
-        pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED},
-    },
-    platform::docker,
-    workers::PipelineWorker,
+use bld_core::{platform::docker, workers::PipelineWorker};
+use bld_entities::{
+    pipeline_run_containers::{self, PRC_STATE_REMOVED},
+    pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED},
 };
 use bld_utils::sync::IntoArc;
 use bollard::{container::RemoveContainerOptions, errors::Error as BollardError, Docker};

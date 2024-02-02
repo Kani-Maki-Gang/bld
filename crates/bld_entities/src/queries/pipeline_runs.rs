@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use bld_entities::pipeline_runs::{self, Entity as PipelineRunsEntity};
 use bld_migrations::Expr;
 use chrono::Utc;
 use sea_orm::{
@@ -8,7 +7,8 @@ use sea_orm::{
 };
 use tracing::{debug, error};
 
-pub use bld_entities::pipeline_runs::Model as PipelineRuns;
+pub use crate::generated::pipeline_runs::Model as PipelineRuns;
+use crate::generated::pipeline_runs::{self, Entity as PipelineRunsEntity};
 
 pub const PR_STATE_INITIAL: &str = "initial";
 pub const PR_STATE_QUEUED: &str = "queued";

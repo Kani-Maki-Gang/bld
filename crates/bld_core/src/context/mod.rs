@@ -1,13 +1,14 @@
-use crate::database::pipeline_run_containers::{
-    self, InsertPipelineRunContainer, PipelineRunContainers, PRC_STATE_FAULTED,
-    PRC_STATE_KEEP_ALIVE, PRC_STATE_REMOVED,
-};
-use crate::database::pipeline_runs::{self, PR_STATE_FINISHED, PR_STATE_RUNNING};
-use crate::platform::PlatformSender;
-use crate::request::Request;
+use crate::{platform::PlatformSender, request::Request};
 use actix_web::rt::spawn;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
+use bld_entities::{
+    pipeline_run_containers::{
+        self, InsertPipelineRunContainer, PipelineRunContainers, PRC_STATE_FAULTED,
+        PRC_STATE_KEEP_ALIVE, PRC_STATE_REMOVED,
+    },
+    pipeline_runs::{self, PR_STATE_FINISHED, PR_STATE_RUNNING},
+};
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tokio::sync::mpsc::{channel, Receiver, Sender};

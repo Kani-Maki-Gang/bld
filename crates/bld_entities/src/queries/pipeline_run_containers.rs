@@ -1,9 +1,4 @@
-use crate::database::pipeline_runs::{PR_STATE_FAULTED, PR_STATE_FINISHED};
 use anyhow::{anyhow, Result};
-use bld_entities::{
-    pipeline_run_containers::{self, Entity as PipelineRunContainersEntity},
-    pipeline_runs,
-};
 use bld_migrations::Expr;
 use chrono::Utc;
 use sea_orm::{
@@ -12,7 +7,12 @@ use sea_orm::{
 };
 use tracing::{debug, error};
 
-pub use bld_entities::pipeline_run_containers::Model as PipelineRunContainers;
+use super::pipeline_runs::{PR_STATE_FAULTED, PR_STATE_FINISHED};
+pub use crate::generated::pipeline_run_containers::Model as PipelineRunContainers;
+use crate::generated::{
+    pipeline_run_containers::{self, Entity as PipelineRunContainersEntity},
+    pipeline_runs,
+};
 
 pub const PRC_STATE_ACTIVE: &str = "active";
 pub const PRC_STATE_REMOVED: &str = "removed";
