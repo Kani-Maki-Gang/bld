@@ -1,12 +1,12 @@
 use anyhow::{anyhow, Result};
-use bld_entities::high_availability_client_serial_responses::{
-    self, Entity as HighAvailClientSerialResponsesEntity,
-};
 use chrono::Utc;
 use sea_orm::{ActiveValue::Set, ConnectionTrait, EntityTrait, QueryOrder, TransactionTrait};
 use tracing::{debug, error};
 
-pub use bld_entities::high_availability_client_serial_responses::Model as HighAvailClientSerialResponses;
+pub use crate::generated::high_availability_client_serial_responses::Model as HighAvailClientSerialResponses;
+use crate::generated::high_availability_client_serial_responses::{
+    self, Entity as HighAvailClientSerialResponsesEntity,
+};
 
 #[derive(Debug)]
 pub struct InsertHighAvailClientSerialResponses {

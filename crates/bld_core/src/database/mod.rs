@@ -1,4 +1,3 @@
-pub mod ha_client_serial_responses;
 pub mod ha_state_machine;
 
 use std::sync::Arc;
