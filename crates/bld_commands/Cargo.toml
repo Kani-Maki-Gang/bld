@@ -14,9 +14,11 @@ async-signal = "0.2.5"
 bld_config = { path = "../bld_config" }
 bld_utils = { path = "../bld_utils" }
 bld_core = { path = "../bld_core" }
+bld_dtos = { path = "../bld_dtos" }
 bld_entities = { path = "../bld_entities" }
-bld_sock = { path = "../bld_sock" }
+bld_http = { path = "../bld_http" }
 bld_runner = { path = "../bld_runner" }
+bld_sock = { path = "../bld_sock" }
 bld_server = { path = "../bld_server" }
 bld_supervisor = { path = "../bld_supervisor" }
 chrono = { version = "0.4.23", default-features = false, features = ["std"] }

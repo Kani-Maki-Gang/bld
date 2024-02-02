@@ -4,7 +4,7 @@ use actix_web::web::{Data, Query};
 use actix_web::{delete, HttpResponse};
 use anyhow::Result;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_core::requests::PipelineQueryParams;
+use bld_dtos::PipelineQueryParams;
 use tracing::info;
 
 #[delete("/remove")]

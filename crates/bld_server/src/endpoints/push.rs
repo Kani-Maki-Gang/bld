@@ -4,7 +4,7 @@ use actix_web::web::{Data, Json};
 use actix_web::{post, HttpResponse, Responder};
 use anyhow::Result;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_core::requests::PushInfo;
+use bld_dtos::PushInfo;
 use bld_runner::{Load, VersionedPipeline, Yaml};
 use tracing::{error, info};
 

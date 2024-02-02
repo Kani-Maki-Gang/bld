@@ -17,10 +17,8 @@ use awc::{
     BoxedSocket,
 };
 use bld_config::{os_name, BldConfig, OSname};
-use bld_core::{
-    auth::write_tokens,
-    messages::{LoginClientMessage, LoginServerMessage},
-};
+use bld_dtos::{LoginClientMessage, LoginServerMessage};
+use bld_utils::fs::write_tokens;
 use futures::stream::SplitSink;
 use futures_util::future::ready;
 use tokio::process::Command;

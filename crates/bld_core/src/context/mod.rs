@@ -1,4 +1,4 @@
-use crate::{platform::PlatformSender, request::Request};
+use crate::platform::PlatformSender;
 use actix_web::rt::spawn;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
@@ -9,6 +9,7 @@ use bld_entities::{
     },
     pipeline_runs::{self, PR_STATE_FINISHED, PR_STATE_RUNNING},
 };
+use bld_http::Request;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tokio::sync::mpsc::{channel, Receiver, Sender};

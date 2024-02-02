@@ -9,7 +9,8 @@ use actix_web::{
     web::{Data, Json},
     HttpResponse, Responder,
 };
-use bld_core::{messages::ExecClientMessage, proxies::PipelineFileSystemProxy};
+use bld_core::proxies::PipelineFileSystemProxy;
+use bld_dtos::ExecClientMessage;
 use sea_orm::DatabaseConnection;
 use tracing::info;
 

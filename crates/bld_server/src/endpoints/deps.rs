@@ -8,7 +8,8 @@ use actix_web::{
 };
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::{proxies::PipelineFileSystemProxy, requests::PipelineQueryParams};
+use bld_core::proxies::PipelineFileSystemProxy;
+use bld_dtos::PipelineQueryParams;
 use bld_runner::VersionedPipeline;
 use tracing::info;
 

@@ -6,7 +6,8 @@ use actix_web::{
 };
 use actix_web_actors::ws;
 use anyhow::Result;
-use bld_core::{messages::ServerMessages, workers::PipelineWorker};
+use bld_core::workers::PipelineWorker;
+use bld_dtos::ServerMessages;
 use futures_util::future::ready;
 use std::env::current_exe;
 use tokio::process::Command;

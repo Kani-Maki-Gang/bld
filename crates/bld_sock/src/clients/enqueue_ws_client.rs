@@ -4,7 +4,7 @@ use actix_codec::Framed;
 use awc::error::WsProtocolError;
 use awc::ws::{Codec, Frame, Message};
 use awc::BoxedSocket;
-use bld_core::messages::ServerMessages;
+use bld_dtos::ServerMessages;
 use futures::stream::SplitSink;
 use tracing::{debug, info};
 

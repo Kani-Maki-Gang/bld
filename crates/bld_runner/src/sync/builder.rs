@@ -8,7 +8,6 @@ use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::context::ContextSender;
 use bld_core::logger::LoggerSender;
-use bld_core::messages::WorkerMessages;
 use bld_core::platform::{
     builder::{PlatformBuilder, PlatformOptions},
     Image,
@@ -16,6 +15,7 @@ use bld_core::platform::{
 use bld_core::proxies::PipelineFileSystemProxy;
 use bld_core::regex::RegexCache;
 use bld_core::signals::UnixSignalsReceiver;
+use bld_dtos::WorkerMessages;
 use bld_utils::sync::IntoArc;
 use chrono::Utc;
 use std::collections::HashMap;

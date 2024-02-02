@@ -1,23 +1,19 @@
-use crate::command::BldCommand;
-use crate::signals::CommandSignals;
+use crate::{command::BldCommand, signals::CommandSignals};
 use actix::io::SinkWrite;
 use actix::{Actor, StreamHandler};
 use actix_web::rt::{spawn, System};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::{
-    context::ContextSender, logger::LoggerSender, messages::WorkerMessages,
-    proxies::PipelineFileSystemProxy, request::WebSocket,
-};
+use bld_core::{context::ContextSender, logger::LoggerSender, proxies::PipelineFileSystemProxy};
+use bld_dtos::WorkerMessages;
 use bld_entities::{new_connection_pool, pipeline_runs};
+use bld_http::WebSocket;
 use bld_runner::RunnerBuilder;
-use bld_sock::clients::WorkerClient;
-use bld_utils::sync::IntoArc;
-use bld_utils::variables::parse_variables;
+use bld_sock::WorkerClient;
+use bld_utils::{sync::IntoArc, variables::parse_variables};
 use chrono::Utc;
 use clap::Args;
-use futures::join;
-use futures::stream::StreamExt;
+use futures::{join, stream::StreamExt};
 use std::sync::Arc;
 use tokio::sync::mpsc::{channel, Receiver};
 use tracing::{debug, error};

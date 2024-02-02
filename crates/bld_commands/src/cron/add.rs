@@ -2,7 +2,8 @@ use crate::command::BldCommand;
 use actix::System;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::{request::HttpClient, requests::AddJobRequest};
+use bld_dtos::AddJobRequest;
+use bld_http::HttpClient;
 use bld_utils::{sync::IntoArc, variables::parse_variables};
 use clap::Args;
 

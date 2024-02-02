@@ -3,7 +3,8 @@ use actix_web::{
     web::{Data, Json},
     HttpResponse, Responder,
 };
-use bld_core::{proxies::PipelineFileSystemProxy, requests::PipelinePathRequest};
+use bld_core::proxies::PipelineFileSystemProxy;
+use bld_dtos::PipelinePathRequest;
 use tracing::info;
 
 use crate::extractors::User;

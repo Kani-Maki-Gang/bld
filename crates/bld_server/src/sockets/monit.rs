@@ -8,7 +8,8 @@ use actix_web::{
 use actix_web_actors::ws;
 use anyhow::{anyhow, bail, Result};
 use bld_config::BldConfig;
-use bld_core::{messages::MonitInfo, scanner::FileScanner};
+use bld_core::scanner::FileScanner;
+use bld_dtos::MonitInfo;
 use bld_entities::pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED};
 use bld_utils::sync::IntoArc;
 use futures_util::future::ready;

@@ -1,11 +1,9 @@
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, bail, Result};
-use bld_core::{
-    messages::ExecClientMessage,
-    proxies::PipelineFileSystemProxy,
-    requests::{AddJobRequest, JobFiltersParams, UpdateJobRequest},
-    responses::CronJobResponse,
+use bld_core::proxies::PipelineFileSystemProxy;
+use bld_dtos::{
+    AddJobRequest, CronJobResponse, ExecClientMessage, JobFiltersParams, UpdateJobRequest,
 };
 use bld_entities::{
     cron_job_environment_variables::{

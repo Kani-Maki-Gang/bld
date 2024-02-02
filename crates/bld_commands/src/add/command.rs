@@ -3,7 +3,7 @@ use anyhow::Result;
 use bld_config::definitions::DEFAULT_V2_PIPELINE_CONTENT;
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_core::request::HttpClient;
+use bld_http::HttpClient;
 use bld_utils::sync::IntoArc;
 use clap::Args;
 use tracing::debug;

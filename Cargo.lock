@@ -799,7 +799,9 @@ dependencies = [
  "async-signal",
  "bld_config",
  "bld_core",
+ "bld_dtos",
  "bld_entities",
+ "bld_http",
  "bld_runner",
  "bld_server",
  "bld_sock",
@@ -845,6 +847,7 @@ dependencies = [
  "awc",
  "bld_config",
  "bld_entities",
+ "bld_http",
  "bld_migrations",
  "bld_utils",
  "bollard",
@@ -860,13 +863,23 @@ dependencies = [
  "sea-orm",
  "serde",
  "serde_json",
- "tabled",
  "tar",
  "termcolor",
  "tokio",
  "tracing",
  "uuid",
  "walkdir",
+]
+
+[[package]]
+name = "bld_dtos"
+version = "0.3.1"
+dependencies = [
+ "actix",
+ "bld_entities",
+ "bld_utils",
+ "serde",
+ "tabled",
 ]
 
 [[package]]
@@ -880,6 +893,20 @@ dependencies = [
  "sea-orm",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "bld_http"
+version = "0.3.1"
+dependencies = [
+ "anyhow",
+ "awc",
+ "bld_config",
+ "bld_dtos",
+ "bld_utils",
+ "rustls 0.20.9",
+ "serde",
+ "tracing",
 ]
 
 [[package]]
@@ -902,6 +929,8 @@ dependencies = [
  "anyhow",
  "bld_config",
  "bld_core",
+ "bld_dtos",
+ "bld_http",
  "bld_sock",
  "bld_utils",
  "bollard",
@@ -932,7 +961,9 @@ dependencies = [
  "anyhow",
  "bld_config",
  "bld_core",
+ "bld_dtos",
  "bld_entities",
+ "bld_http",
  "bld_runner",
  "bld_sock",
  "bld_supervisor",
@@ -963,6 +994,8 @@ dependencies = [
  "awc",
  "bld_config",
  "bld_core",
+ "bld_dtos",
+ "bld_utils",
  "futures",
  "futures-util",
  "rustls 0.20.9",
@@ -985,8 +1018,9 @@ dependencies = [
  "async-trait",
  "bld_config",
  "bld_core",
+ "bld_dtos",
  "bld_entities",
- "bld_sock",
+ "bld_http",
  "bld_utils",
  "bollard",
  "futures",
@@ -1013,6 +1047,7 @@ dependencies = [
  "serde",
  "serde_json",
  "termcolor",
+ "tokio",
  "tracing",
 ]
 

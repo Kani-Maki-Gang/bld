@@ -1,1 +1,3 @@
-pub mod clients;
+mod clients;
+
+pub use clients::*;

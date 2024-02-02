@@ -6,7 +6,7 @@ use actix_web::{get, HttpResponse, Responder};
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::proxies::PipelineFileSystemProxy;
-use bld_core::requests::PipelineQueryParams;
+use bld_dtos::PipelineQueryParams;
 use bld_runner::{Load, Yaml};
 use tracing::info;
 

@@ -9,17 +9,17 @@ use bld_config::{
 use bld_core::{
     context::ContextSender,
     logger::LoggerSender,
-    messages::{ExecClientMessage, WorkerMessages},
     platform::{
         builder::{PlatformBuilder, PlatformOptions},
         Image, PlatformSender, SshAuthOptions, SshConnectOptions,
     },
     proxies::PipelineFileSystemProxy,
     regex::RegexCache,
-    request::WebSocket,
     signals::{UnixSignal, UnixSignalMessage, UnixSignalsReceiver},
 };
-use bld_sock::clients::ExecClient;
+use bld_dtos::{ExecClientMessage, WorkerMessages};
+use bld_http::WebSocket;
+use bld_sock::ExecClient;
 use bld_utils::sync::IntoArc;
 use futures::{Future, StreamExt};
 use tokio::{sync::mpsc::Sender, task::JoinHandle};
