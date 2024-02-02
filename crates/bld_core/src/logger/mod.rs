@@ -14,29 +14,20 @@ use tokio::{
 use tracing::error;
 
 #[derive(Debug)]
+enum LogType {
+    Write,
+    WriteLine,
+    Info,
+    InfoLine,
+    Error,
+    ErrorLine,
+}
+
+#[derive(Debug)]
 enum LoggerMessage {
     Write {
         text: String,
-        resp_tx: oneshot::Sender<()>,
-    },
-    WriteLine {
-        text: String,
-        resp_tx: oneshot::Sender<()>,
-    },
-    Info {
-        text: String,
-        resp_tx: oneshot::Sender<()>,
-    },
-    InfoLine {
-        text: String,
-        resp_tx: oneshot::Sender<()>,
-    },
-    Error {
-        text: String,
-        resp_tx: oneshot::Sender<()>,
-    },
-    ErrorLine {
-        text: String,
+        log_type: LogType,
         resp_tx: oneshot::Sender<()>,
     },
     TryRetrieveOutput {
@@ -75,16 +66,42 @@ impl LoggerReceiver {
     async fn receive(mut self, mut rx: Receiver<LoggerMessage>) -> Result<()> {
         while let Some(msg) = rx.recv().await {
             match msg {
-                LoggerMessage::Write { text, resp_tx } => self.write(&text, resp_tx).await?,
-                LoggerMessage::WriteLine { text, resp_tx } => {
-                    self.write_line(&text, resp_tx).await?
-                }
-                LoggerMessage::Info { text, resp_tx } => self.info(&text, resp_tx).await?,
-                LoggerMessage::InfoLine { text, resp_tx } => self.info_line(&text, resp_tx).await?,
-                LoggerMessage::Error { text, resp_tx } => self.error(&text, resp_tx).await?,
-                LoggerMessage::ErrorLine { text, resp_tx } => {
-                    self.error_line(&text, resp_tx).await?
-                }
+                LoggerMessage::Write {
+                    text,
+                    log_type: LogType::Write,
+                    resp_tx,
+                } => self.write(&text, resp_tx).await?,
+
+                LoggerMessage::Write {
+                    text,
+                    log_type: LogType::WriteLine,
+                    resp_tx,
+                } => self.write_line(&text, resp_tx).await?,
+
+                LoggerMessage::Write {
+                    text,
+                    log_type: LogType::Info,
+                    resp_tx,
+                } => self.info(&text, resp_tx).await?,
+
+                LoggerMessage::Write {
+                    text,
+                    log_type: LogType::InfoLine,
+                    resp_tx,
+                } => self.info_line(&text, resp_tx).await?,
+
+                LoggerMessage::Write {
+                    text,
+                    log_type: LogType::Error,
+                    resp_tx,
+                } => self.error(&text, resp_tx).await?,
+
+                LoggerMessage::Write {
+                    text,
+                    log_type: LogType::ErrorLine,
+                    resp_tx,
+                } => self.error_line(&text, resp_tx).await?,
+
                 LoggerMessage::TryRetrieveOutput { resp_tx } => {
                     self.try_retrieve_output(resp_tx).await?
                 }
@@ -284,7 +301,13 @@ impl LoggerSender {
     pub async fn write(&self, text: String) -> Result<()> {
         let (resp_tx, resp_rx) = oneshot::channel();
 
-        self.tx.send(LoggerMessage::Write { text, resp_tx }).await?;
+        self.tx
+            .send(LoggerMessage::Write {
+                text,
+                log_type: LogType::Write,
+                resp_tx,
+            })
+            .await?;
 
         resp_rx.await.map_err(|e| anyhow!(e))
     }
@@ -293,7 +316,11 @@ impl LoggerSender {
         let (resp_tx, resp_rx) = oneshot::channel();
 
         self.tx
-            .send(LoggerMessage::WriteLine { text, resp_tx })
+            .send(LoggerMessage::Write {
+                text,
+                log_type: LogType::WriteLine,
+                resp_tx,
+            })
             .await?;
 
         resp_rx.await.map_err(|e| anyhow!(e))
@@ -303,8 +330,9 @@ impl LoggerSender {
         let (resp_tx, resp_rx) = oneshot::channel();
 
         self.tx
-            .send(LoggerMessage::WriteLine {
+            .send(LoggerMessage::Write {
                 text: format!("{:-<1$}", "", 80),
+                log_type: LogType::WriteLine,
                 resp_tx,
             })
             .await?;
@@ -315,7 +343,13 @@ impl LoggerSender {
     pub async fn info(&self, text: String) -> Result<()> {
         let (resp_tx, resp_rx) = oneshot::channel();
 
-        self.tx.send(LoggerMessage::Info { text, resp_tx }).await?;
+        self.tx
+            .send(LoggerMessage::Write {
+                text,
+                log_type: LogType::Info,
+                resp_tx,
+            })
+            .await?;
 
         resp_rx.await.map_err(|e| anyhow!(e))
     }
@@ -324,7 +358,11 @@ impl LoggerSender {
         let (resp_tx, resp_rx) = oneshot::channel();
 
         self.tx
-            .send(LoggerMessage::InfoLine { text, resp_tx })
+            .send(LoggerMessage::Write {
+                text,
+                log_type: LogType::InfoLine,
+                resp_tx,
+            })
             .await?;
 
         resp_rx.await.map_err(|e| anyhow!(e))
@@ -333,7 +371,13 @@ impl LoggerSender {
     pub async fn error(&self, text: String) -> Result<()> {
         let (resp_tx, resp_rx) = oneshot::channel();
 
-        self.tx.send(LoggerMessage::Error { text, resp_tx }).await?;
+        self.tx
+            .send(LoggerMessage::Write {
+                text,
+                log_type: LogType::Error,
+                resp_tx,
+            })
+            .await?;
 
         resp_rx.await.map_err(|e| anyhow!(e))
     }
@@ -342,7 +386,11 @@ impl LoggerSender {
         let (resp_tx, resp_rx) = oneshot::channel();
 
         self.tx
-            .send(LoggerMessage::ErrorLine { text, resp_tx })
+            .send(LoggerMessage::Write {
+                text,
+                log_type: LogType::ErrorLine,
+                resp_tx,
+            })
             .await?;
 
         resp_rx.await.map_err(|e| anyhow!(e))
