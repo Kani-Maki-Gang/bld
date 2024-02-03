@@ -6,7 +6,7 @@ use actix_web::{
 };
 use actix_web_actors::ws;
 use anyhow::Result;
-use bld_core::workers::PipelineWorker;
+use bld_core::workers::Worker;
 use bld_dtos::ServerMessages;
 use futures_util::future::ready;
 use std::env::current_exe;
@@ -61,7 +61,7 @@ impl ServerSocket {
 
                 let success_msg = format!("worker for pipeline: {pipeline} has been queued");
                 let enqueque_fut =
-                    async move { tx.enqueue(PipelineWorker::new(run_id, command)).await }
+                    async move { tx.enqueue(Worker::new(run_id, command)).await }
                         .into_actor(self)
                         .then(move |res, _, _| {
                             match res {

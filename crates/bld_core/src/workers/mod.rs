@@ -10,13 +10,13 @@ use nix::{
 };
 
 #[derive(Debug)]
-pub struct PipelineWorker {
+pub struct Worker {
     run_id: String,
     cmd: Command,
     child: Option<Child>,
 }
 
-impl PipelineWorker {
+impl Worker {
     pub fn new(run_id: String, cmd: Command) -> Self {
         Self {
             run_id,

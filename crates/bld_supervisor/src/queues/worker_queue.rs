@@ -1,7 +1,7 @@
 use actix_web::{rt::spawn, web::Data};
 use anyhow::{anyhow, Error, Result};
 use bld_config::BldConfig;
-use bld_core::{platform::docker, workers::PipelineWorker};
+use bld_core::{platform::docker, workers::Worker};
 use bld_entities::{
     pipeline_run_containers::{self, PRC_STATE_REMOVED},
     pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED},
@@ -20,7 +20,7 @@ fn oneshot_send_err<T>(_: T) -> Error {
 #[derive(Debug)]
 pub enum WorkerQueueMessage {
     Enqueue {
-        worker: PipelineWorker,
+        worker: Worker,
         resp_tx: oneshot::Sender<Result<()>>,
     },
     Dequeue {
@@ -42,8 +42,8 @@ pub enum WorkerQueueMessage {
 /// will add them to a backlog based on when they were enqueued.
 struct WorkerQueueReceiver {
     capacity: usize,
-    active: Vec<PipelineWorker>,
-    backlog: VecDeque<PipelineWorker>,
+    active: Vec<Worker>,
+    backlog: VecDeque<Worker>,
     conn: Data<DatabaseConnection>,
     docker: Arc<Docker>,
     rx: mpsc::Receiver<WorkerQueueMessage>,
@@ -100,7 +100,7 @@ impl WorkerQueueReceiver {
         Ok(())
     }
 
-    fn activate(&mut self, mut worker: PipelineWorker) -> Result<()> {
+    fn activate(&mut self, mut worker: Worker) -> Result<()> {
         worker.spawn().map_err(|e| {
             error!("{e}");
             e
@@ -109,7 +109,7 @@ impl WorkerQueueReceiver {
         Ok(())
     }
 
-    async fn add_backlog(&mut self, worker: PipelineWorker) -> Result<()> {
+    async fn add_backlog(&mut self, worker: Worker) -> Result<()> {
         pipeline_runs::update_state(self.conn.as_ref(), worker.get_run_id(), PR_STATE_QUEUED)
             .await?;
         self.backlog.push_back(worker);
@@ -135,7 +135,7 @@ impl WorkerQueueReceiver {
     }
 
     /// Used to spawn the child process of the worker and add it to the active workers vector.
-    async fn enqueue(&mut self, item: PipelineWorker) -> Result<()> {
+    async fn enqueue(&mut self, item: Worker) -> Result<()> {
         if self.active.len() < self.capacity {
             self.activate(item)?;
         } else {
@@ -226,7 +226,7 @@ impl WorkerQueueSender {
         Self { tx }
     }
 
-    pub async fn enqueue(&self, worker: PipelineWorker) -> Result<()> {
+    pub async fn enqueue(&self, worker: Worker) -> Result<()> {
         let (resp_tx, resp_rx) = oneshot::channel();
         let message = WorkerQueueMessage::Enqueue { worker, resp_tx };
 
@@ -289,7 +289,7 @@ pub async fn worker_queue_channel(
 /// of its associated containers will be set as faulted in order to be cleaned up later.
 async fn try_cleanup_process(
     conn: Data<DatabaseConnection>,
-    worker: &mut PipelineWorker,
+    worker: &mut Worker,
 ) -> Result<()> {
     debug!("starting worker process cleanup");
 
