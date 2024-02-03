@@ -2,7 +2,7 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::fs::FileSystem;
 use bld_http::HttpClient;
 use bld_utils::sync::IntoArc;
 use clap::Args;
@@ -40,7 +40,7 @@ impl PullCommand {
     async fn request(self) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
         let client = HttpClient::new(config.clone(), &self.server)?;
-        let proxy = PipelineFileSystemProxy::local(config);
+        let fs = FileSystem::local(config);
 
         debug!(
             "running pull subcommand with --server: {}, --pipeline: {} and --ignore-deps: {}",
@@ -82,7 +82,7 @@ impl PullCommand {
                     err
                 })?;
 
-            proxy.create(&data.name, &data.content, true).await?;
+            fs.create(&data.name, &data.content, true).await?;
         }
 
         Ok(())

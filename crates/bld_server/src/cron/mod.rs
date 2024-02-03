@@ -1,7 +1,7 @@
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, bail, Result};
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::fs::FileSystem;
 use bld_dtos::{
     AddJobRequest, CronJobResponse, ExecClientMessage, JobFiltersParams, UpdateJobRequest,
 };
@@ -21,7 +21,7 @@ use uuid::Uuid;
 use crate::supervisor::{channel::SupervisorMessageSender, helpers::enqueue_worker};
 
 pub struct CronScheduler {
-    proxy: Arc<PipelineFileSystemProxy>,
+    fs: Arc<FileSystem>,
     conn: Arc<DatabaseConnection>,
     supervisor: Arc<SupervisorMessageSender>,
     scheduler: JobScheduler,
@@ -29,14 +29,14 @@ pub struct CronScheduler {
 
 impl CronScheduler {
     pub async fn new(
-        proxy: Arc<PipelineFileSystemProxy>,
+        fs: Arc<FileSystem>,
         conn: Arc<DatabaseConnection>,
         supervisor: Arc<SupervisorMessageSender>,
     ) -> Result<Self> {
         let scheduler = JobScheduler::new().await?;
         scheduler.start().await?;
         let instance = Self {
-            proxy,
+            fs,
             conn,
             supervisor,
             scheduler,
@@ -169,7 +169,7 @@ impl CronScheduler {
     ) -> Result<Job> {
         // Compiler complaints about FnMut if parameters are directly used inside the closure
         // so this is the only workaround that works atm.
-        let proxy = self.proxy.clone();
+        let fs = self.fs.clone();
         let conn = self.conn.clone();
         let supervisor = self.supervisor.clone();
         let pipeline_id = pipeline_id.to_owned();
@@ -177,7 +177,7 @@ impl CronScheduler {
         let environment = environment.clone();
 
         let mut job = Job::new_cron_job_async(schedule, move |_uuid, _l| {
-            let proxy = proxy.clone();
+            let fs = fs.clone();
             let conn = conn.clone();
             let supervisor = supervisor.clone();
             let pipeline_id = pipeline_id.to_owned();
@@ -193,7 +193,7 @@ impl CronScheduler {
                     environment,
                     variables,
                 };
-                if let Err(e) = enqueue_worker("Cron", proxy, conn, supervisor, data).await {
+                if let Err(e) = enqueue_worker("Cron", fs, conn, supervisor, data).await {
                     error!("unable to enqueue cron run due to: {e}");
                 }
             })

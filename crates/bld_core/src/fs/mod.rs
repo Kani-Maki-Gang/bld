@@ -11,7 +11,7 @@ use tokio::{
 use uuid::Uuid;
 use walkdir::WalkDir;
 
-pub enum PipelineFileSystemProxy {
+pub enum FileSystem {
     Local {
         config: Arc<BldConfig>,
     },
@@ -21,7 +21,7 @@ pub enum PipelineFileSystemProxy {
     },
 }
 
-impl Default for PipelineFileSystemProxy {
+impl Default for FileSystem {
     fn default() -> Self {
         Self::Local {
             config: BldConfig::default().into_arc(),
@@ -29,7 +29,7 @@ impl Default for PipelineFileSystemProxy {
     }
 }
 
-impl PipelineFileSystemProxy {
+impl FileSystem {
     pub fn local(config: Arc<BldConfig>) -> Self {
         Self::Local { config }
     }
@@ -46,7 +46,7 @@ impl PipelineFileSystemProxy {
 
     async fn server_path(&self, name: &str) -> Result<PathBuf> {
         let Self::Server { config, conn } = self else {
-            bail!("server path isn't supported for a local proxy");
+            bail!("server path isn't supported for a local fs");
         };
 
         let pip = pipeline::select_by_name(conn.as_ref(), name).await?;
@@ -55,7 +55,7 @@ impl PipelineFileSystemProxy {
 
     fn pipeline_path(&self, pip: &Pipeline) -> Result<PathBuf> {
         let Self::Server { config, .. } = self else {
-            bail!("pipeline path isn't supported for a local proxy");
+            bail!("pipeline path isn't supported for a local fs");
         };
         Ok(path![config.server_pipelines(), format!("{}.yaml", pip.id)])
     }

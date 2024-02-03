@@ -1,7 +1,7 @@
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::{context::ContextSender, logger::LoggerSender, proxies::PipelineFileSystemProxy};
+use bld_core::{context::ContextSender, logger::LoggerSender, fs::FileSystem};
 use bld_dtos::ExecClientMessage;
 use bld_http::{HttpClient, WebSocket};
 use bld_runner::RunnerBuilder;
@@ -197,7 +197,7 @@ impl RunAdapter {
 
         let runner = RunnerBuilder::default()
             .config(mode.config.clone())
-            .proxy(PipelineFileSystemProxy::local(mode.config.clone()).into_arc())
+            .fs(FileSystem::local(mode.config.clone()).into_arc())
             .pipeline(&mode.pipeline)
             .logger(LoggerSender::shell().into_arc())
             .context(ContextSender::local(mode.config.clone()).into_arc())

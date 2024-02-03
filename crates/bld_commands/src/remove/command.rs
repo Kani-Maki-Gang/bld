@@ -2,7 +2,7 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::fs::FileSystem;
 use bld_http::HttpClient;
 use bld_utils::sync::IntoArc;
 use clap::Args;
@@ -28,8 +28,8 @@ pub struct RemoveCommand {
 impl RemoveCommand {
     async fn local_remove(&self) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
-        let proxy = PipelineFileSystemProxy::local(config);
-        proxy.remove(&self.pipeline).await
+        let fs = FileSystem::local(config);
+        fs.remove(&self.pipeline).await
     }
 
     async fn remote_remove(&self, server: &str) -> Result<()> {

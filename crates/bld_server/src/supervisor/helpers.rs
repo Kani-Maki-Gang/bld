@@ -1,6 +1,6 @@
 use crate::supervisor::channel::SupervisorMessageSender;
 use anyhow::{bail, Result};
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::fs::FileSystem;
 use bld_dtos::ExecClientMessage;
 use bld_entities::pipeline_runs::{self, InsertPipelineRun};
 use bld_utils::fs::IsYaml;
@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 pub async fn enqueue_worker(
     user_name: &str,
-    proxy: Arc<PipelineFileSystemProxy>,
+    fs: Arc<FileSystem>,
     conn: Arc<DatabaseConnection>,
     supervisor_sender: Arc<SupervisorMessageSender>,
     data: ExecClientMessage,
@@ -22,7 +22,7 @@ pub async fn enqueue_worker(
         variables,
     } = data;
 
-    let path = proxy.path(&name).await?;
+    let path = fs.path(&name).await?;
     if !path.is_yaml() {
         bail!("pipeline file not found");
     }

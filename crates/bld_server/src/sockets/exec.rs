@@ -11,7 +11,7 @@ use actix_web::{
 use actix_web_actors::ws;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::{proxies::PipelineFileSystemProxy, scanner::FileScanner};
+use bld_core::{fs::FileSystem, scanner::FileScanner};
 use bld_dtos::{ExecClientMessage, ExecServerMessage};
 use bld_entities::pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED};
 use bld_utils::sync::IntoArc;
@@ -24,7 +24,7 @@ pub struct ExecutePipelineSocket {
     config: Data<BldConfig>,
     supervisor: Data<SupervisorMessageSender>,
     conn: Data<DatabaseConnection>,
-    proxy: Data<PipelineFileSystemProxy>,
+    fs: Data<FileSystem>,
     user: User,
     scanner: Option<Arc<FileScanner>>,
     run_id: Option<String>,
@@ -36,13 +36,13 @@ impl ExecutePipelineSocket {
         config: Data<BldConfig>,
         supervisor_sender: Data<SupervisorMessageSender>,
         conn: Data<DatabaseConnection>,
-        proxy: Data<PipelineFileSystemProxy>,
+        fs: Data<FileSystem>,
     ) -> Self {
         Self {
             config,
             supervisor: supervisor_sender,
             conn,
-            proxy,
+            fs,
             user,
             scanner: None,
             run_id: None,
@@ -107,12 +107,12 @@ impl ExecutePipelineSocket {
         debug!("enqueueing run");
 
         let username = self.user.name.to_owned();
-        let proxy = Arc::clone(&self.proxy);
+        let fs = Arc::clone(&self.fs);
         let pool = Arc::clone(&self.conn);
         let supervisor = Arc::clone(&self.supervisor);
 
         let enqueue_fut =
-            async move { enqueue_worker(&username, proxy, pool, supervisor, message).await }
+            async move { enqueue_worker(&username, fs, pool, supervisor, message).await }
                 .into_actor(self)
                 .then(|res, act, ctx| match res {
                     Ok(run_id) => {
@@ -185,11 +185,11 @@ pub async fn ws(
     cfg: Data<BldConfig>,
     supervisor_sender: Data<SupervisorMessageSender>,
     conn: Data<DatabaseConnection>,
-    proxy: Data<PipelineFileSystemProxy>,
+    fs: Data<FileSystem>,
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{req:?}");
-    let socket = ExecutePipelineSocket::new(user, cfg, supervisor_sender, conn, proxy);
+    let socket = ExecutePipelineSocket::new(user, cfg, supervisor_sender, conn, fs);
     let res = ws::start(socket, &req, stream);
     println!("{res:?}");
     res

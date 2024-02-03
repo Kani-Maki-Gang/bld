@@ -2,7 +2,7 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::fs::FileSystem;
 use bld_http::HttpClient;
 use bld_utils::sync::IntoArc;
 use clap::Args;
@@ -24,8 +24,8 @@ pub struct ListCommand {
 impl ListCommand {
     async fn local_list(&self) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
-        let proxy = PipelineFileSystemProxy::local(config);
-        let content = proxy.list().await?.join("\n");
+        let fs = FileSystem::local(config);
+        let content = fs.list().await?.join("\n");
         println!("{content}");
         Ok(())
     }

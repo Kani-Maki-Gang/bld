@@ -1,7 +1,7 @@
 use actix::System;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::fs::FileSystem;
 use bld_http::HttpClient;
 use bld_utils::sync::IntoArc;
 use clap::Args;
@@ -31,8 +31,8 @@ pub struct CopyCommand {
 impl CopyCommand {
     async fn local_copy(&self) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
-        let proxy = PipelineFileSystemProxy::local(config);
-        proxy.copy(&self.pipeline, &self.target).await
+        let fs = FileSystem::local(config);
+        fs.copy(&self.pipeline, &self.target).await
     }
 
     async fn remote_copy(&self, server: &str) -> Result<()> {

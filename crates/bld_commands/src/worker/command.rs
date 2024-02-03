@@ -4,7 +4,7 @@ use actix::{Actor, StreamHandler};
 use actix_web::rt::{spawn, System};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::{context::ContextSender, logger::LoggerSender, proxies::PipelineFileSystemProxy};
+use bld_core::{context::ContextSender, logger::LoggerSender, fs::FileSystem};
 use bld_dtos::WorkerMessages;
 use bld_entities::{new_connection_pool, pipeline_runs};
 use bld_http::WebSocket;
@@ -76,7 +76,7 @@ impl BldCommand for WorkerCommand {
             let start_date = Utc::now().naive_utc();
             pipeline_runs::update_start_date(conn.as_ref(), &run_id, &start_date).await?;
             let start_date = start_date.format("%F %X").to_string();
-            let proxy = PipelineFileSystemProxy::Server {
+            let fs = FileSystem::Server {
                 config: config.clone(),
                 conn: conn.clone(),
             }
@@ -101,7 +101,7 @@ impl BldCommand for WorkerCommand {
                     .run_id(&run_id)
                     .run_start_time(&start_date)
                     .config(config)
-                    .proxy(proxy)
+                    .fs(fs)
                     .pipeline(&pipeline)
                     .logger(logger)
                     .environment(environment)

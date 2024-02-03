@@ -5,7 +5,7 @@ use crate::validator::v1 as validator_v1;
 use crate::validator::v2 as validator_v2;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::fs::FileSystem;
 use futures::Future;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Write, pin::Pin, sync::Arc};
@@ -54,10 +54,10 @@ pub enum VersionedPipeline {
 impl VersionedPipeline {
     pub async fn dependencies(
         config: Arc<BldConfig>,
-        proxy: Arc<PipelineFileSystemProxy>,
+        fs: Arc<FileSystem>,
         name: String,
     ) -> Result<HashMap<String, String>> {
-        let mut hs = Self::dependencies_recursive(config, proxy, name.clone())
+        let mut hs = Self::dependencies_recursive(config, fs, name.clone())
             .await
             .await?;
         hs.remove(&name);
@@ -66,13 +66,13 @@ impl VersionedPipeline {
 
     async fn dependencies_recursive(
         config: Arc<BldConfig>,
-        proxy: Arc<PipelineFileSystemProxy>,
+        fs: Arc<FileSystem>,
         name: String,
     ) -> DependenciesRecursiveFuture {
         Box::pin(async move {
             debug!("Parsing pipeline {name}");
 
-            let src = proxy
+            let src = fs
                 .read(&name)
                 .await
                 .map_err(|_| anyhow!("Pipeline {name} not found"))?;
@@ -87,7 +87,7 @@ impl VersionedPipeline {
             };
 
             for pipeline in local_pipelines.into_iter() {
-                for (k, v) in Self::dependencies_recursive(config.clone(), proxy.clone(), pipeline)
+                for (k, v) in Self::dependencies_recursive(config.clone(), fs.clone(), pipeline)
                     .await
                     .await?
                 {
@@ -110,16 +110,16 @@ impl VersionedPipeline {
     pub async fn validate_with_verbose_errors(
         &self,
         config: Arc<BldConfig>,
-        proxy: Arc<PipelineFileSystemProxy>,
+        fs: Arc<FileSystem>,
     ) -> Result<()> {
         match self {
             Self::Version1(pip) => {
-                validator_v1::PipelineValidator::new(pip, config, proxy)
+                validator_v1::PipelineValidator::new(pip, config, fs)
                     .validate()
                     .await
             }
             Self::Version2(pip) => {
-                validator_v2::PipelineValidator::new(pip, config, proxy)?
+                validator_v2::PipelineValidator::new(pip, config, fs)?
                     .validate()
                     .await
             }
@@ -130,9 +130,9 @@ impl VersionedPipeline {
     pub async fn validate(
         &self,
         config: Arc<BldConfig>,
-        proxy: Arc<PipelineFileSystemProxy>,
+        fs: Arc<FileSystem>,
     ) -> Result<()> {
-        self.validate_with_verbose_errors(config, proxy)
+        self.validate_with_verbose_errors(config, fs)
             .await
             .map_err(|_| anyhow!("Pipeline has expression errors"))
     }

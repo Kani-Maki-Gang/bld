@@ -13,7 +13,7 @@ use bld_core::{
         builder::{PlatformBuilder, PlatformOptions},
         Image, PlatformSender, SshAuthOptions, SshConnectOptions,
     },
-    proxies::PipelineFileSystemProxy,
+    fs::FileSystem,
     regex::RegexCache,
     signals::{UnixSignal, UnixSignalMessage, UnixSignalsReceiver},
 };
@@ -41,7 +41,7 @@ struct Job {
     pub run_start_time: String,
     pub config: Arc<BldConfig>,
     pub logger: Arc<LoggerSender>,
-    pub proxy: Arc<PipelineFileSystemProxy>,
+    pub fs: Arc<FileSystem>,
     pub pipeline: Arc<Pipeline>,
     pub context: Arc<ContextSender>,
     pub platform: Option<Arc<PlatformSender>>,
@@ -167,7 +167,7 @@ impl Job {
             .run_id(&self.run_id)
             .run_start_time(&self.run_start_time)
             .config(self.config.clone())
-            .proxy(self.proxy.clone())
+            .fs(self.fs.clone())
             .pipeline(&details.pipeline)
             .logger(self.logger.clone())
             .environment(environment.into_arc())
@@ -271,7 +271,7 @@ pub struct Runner {
     pub signals: Option<UnixSignalsReceiver>,
     pub logger: Arc<LoggerSender>,
     pub regex_cache: Arc<RegexCache>,
-    pub proxy: Arc<PipelineFileSystemProxy>,
+    pub fs: Arc<FileSystem>,
     pub pipeline: Arc<Pipeline>,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
     pub env: Arc<HashMap<String, String>>,
@@ -461,7 +461,7 @@ impl Runner {
         Job {
             pipeline: self.pipeline.clone(),
             job_name: name.to_owned(),
-            proxy: self.proxy.clone(),
+            fs: self.fs.clone(),
             run_id: self.run_id.clone(),
             run_start_time: self.run_start_time.clone(),
             config: self.config.clone(),

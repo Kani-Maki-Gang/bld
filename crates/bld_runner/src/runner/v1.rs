@@ -14,7 +14,7 @@ use bld_config::BldConfig;
 use bld_core::context::ContextSender;
 use bld_core::logger::LoggerSender;
 use bld_core::platform::PlatformSender;
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::fs::FileSystem;
 use bld_core::signals::{UnixSignal, UnixSignalMessage, UnixSignalsReceiver};
 use bld_dtos::{ExecClientMessage, WorkerMessages};
 use bld_http::WebSocket;
@@ -39,7 +39,7 @@ pub struct Runner {
     pub config: Arc<BldConfig>,
     pub signals: Option<UnixSignalsReceiver>,
     pub logger: Arc<LoggerSender>,
-    pub proxy: Arc<PipelineFileSystemProxy>,
+    pub fs: Arc<FileSystem>,
     pub pipeline: Pipeline,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
     pub env: Arc<HashMap<String, String>>,
@@ -260,7 +260,7 @@ impl Runner {
             .run_id(&self.run_id)
             .run_start_time(&self.run_start_time)
             .config(self.config.clone())
-            .proxy(self.proxy.clone())
+            .fs(self.fs.clone())
             .pipeline(&details.pipeline)
             .logger(self.logger.clone())
             .environment(environment.into_arc())

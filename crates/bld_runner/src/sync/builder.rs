@@ -12,7 +12,7 @@ use bld_core::platform::{
     builder::{PlatformBuilder, PlatformOptions},
     Image,
 };
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::fs::FileSystem;
 use bld_core::regex::RegexCache;
 use bld_core::signals::UnixSignalsReceiver;
 use bld_dtos::WorkerMessages;
@@ -30,7 +30,7 @@ pub struct RunnerBuilder {
     signals: Option<UnixSignalsReceiver>,
     logger: Arc<LoggerSender>,
     regex_cache: Arc<RegexCache>,
-    proxy: Arc<PipelineFileSystemProxy>,
+    fs: Arc<FileSystem>,
     pipeline: Option<String>,
     ipc: Arc<Option<Sender<WorkerMessages>>>,
     env: Option<Arc<HashMap<String, String>>>,
@@ -48,7 +48,7 @@ impl Default for RunnerBuilder {
             signals: None,
             logger: LoggerSender::default().into_arc(),
             regex_cache: RegexCache::default().into_arc(),
-            proxy: PipelineFileSystemProxy::default().into_arc(),
+            fs: FileSystem::default().into_arc(),
             pipeline: None,
             ipc: None.into_arc(),
             env: None,
@@ -95,8 +95,8 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn proxy(mut self, proxy: Arc<PipelineFileSystemProxy>) -> Self {
-        self.proxy = proxy;
+    pub fn fs(mut self, fs: Arc<FileSystem>) -> Self {
+        self.fs = fs;
         self
     }
 
@@ -134,9 +134,9 @@ impl RunnerBuilder {
             .pipeline
             .ok_or_else(|| anyhow!("no pipeline provided"))?;
 
-        let pipeline = Yaml::load(&self.proxy.read(&pipeline_name).await?)?;
+        let pipeline = Yaml::load(&self.fs.read(&pipeline_name).await?)?;
         pipeline
-            .validate(config.clone(), self.proxy.clone())
+            .validate(config.clone(), self.fs.clone())
             .await?;
 
         let env = self
@@ -180,7 +180,7 @@ impl RunnerBuilder {
                     config,
                     signals: self.signals,
                     logger: self.logger,
-                    proxy: self.proxy,
+                    fs: self.fs,
                     pipeline,
                     ipc: self.ipc,
                     env,
@@ -214,7 +214,7 @@ impl RunnerBuilder {
                     signals: self.signals,
                     logger: self.logger,
                     regex_cache: self.regex_cache,
-                    proxy: self.proxy,
+                    fs: self.fs,
                     pipeline: pipeline.into_arc(),
                     ipc: self.ipc,
                     env,

@@ -2,7 +2,7 @@ use actix::System;
 use anyhow::Result;
 use bld_config::definitions::DEFAULT_V2_PIPELINE_CONTENT;
 use bld_config::BldConfig;
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::fs::FileSystem;
 use bld_http::HttpClient;
 use bld_utils::sync::IntoArc;
 use clap::Args;
@@ -42,14 +42,14 @@ pub struct AddCommand {
 impl AddCommand {
     async fn local_add(&self) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
-        let proxy = PipelineFileSystemProxy::local(config);
+        let fs = FileSystem::local(config);
 
-        proxy
+        fs
             .create(&self.pipeline, DEFAULT_V2_PIPELINE_CONTENT, false)
             .await?;
 
         if self.edit {
-            proxy.edit(&self.pipeline).await?;
+            fs.edit(&self.pipeline).await?;
         }
 
         Ok(())
@@ -57,31 +57,31 @@ impl AddCommand {
 
     async fn remote_add(&self, server: &str) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
-        let proxy = PipelineFileSystemProxy::local(config.clone());
+        let fs = FileSystem::local(config.clone());
         let client = HttpClient::new(config, server)?;
         let tmp_name = format!("{}.yaml", Uuid::new_v4());
 
         println!("Creating temporary local pipeline {}", tmp_name);
         debug!("creating temporary pipeline file: {tmp_name}");
-        proxy
+        fs
             .create_tmp(&tmp_name, DEFAULT_V2_PIPELINE_CONTENT, true)
             .await?;
 
         if self.edit {
             println!("Editing temporary local pipeline {}", tmp_name);
             debug!("starting editor for temporary pipeline file: {tmp_name}");
-            proxy.edit_tmp(&tmp_name).await?;
+            fs.edit_tmp(&tmp_name).await?;
         }
 
         debug!("reading content of temporary pipeline file: {tmp_name}");
-        let tmp_content = proxy.read_tmp(&tmp_name).await?;
+        let tmp_content = fs.read_tmp(&tmp_name).await?;
 
         println!("Pushing updated content for {}", self.pipeline);
 
         client.push(&self.pipeline, &tmp_content).await?;
 
         debug!("deleting temporary pipeline file: {tmp_name}");
-        proxy.remove_tmp(&tmp_name).await?;
+        fs.remove_tmp(&tmp_name).await?;
 
         Ok(())
     }
