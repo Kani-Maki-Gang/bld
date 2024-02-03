@@ -5,6 +5,5 @@ pub mod platform;
 pub mod proxies;
 pub mod regex;
 pub mod scanner;
-pub mod shell;
 pub mod signals;
 pub mod workers;

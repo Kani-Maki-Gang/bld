@@ -1,6 +1,7 @@
-use crate::{logger::LoggerSender, shell::get_shell};
+use crate::logger::LoggerSender;
 use anyhow::{bail, Result};
 use bld_config::{path, BldConfig};
+use bld_utils::shell::get_shell;
 use std::{
     collections::HashMap,
     fmt::Write,

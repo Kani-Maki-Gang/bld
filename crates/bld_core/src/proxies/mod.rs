@@ -1,7 +1,7 @@
 use anyhow::{anyhow, bail, Result};
 use bld_config::{path, BldConfig};
 use bld_entities::pipeline::{self, InsertPipeline, Pipeline};
-use bld_utils::{fs::IsYaml, sync::IntoArc};
+use bld_utils::{fs::IsYaml, shell::get_shell, sync::IntoArc};
 use sea_orm::DatabaseConnection;
 use std::{fmt::Write as FmtWrite, path::PathBuf, process::ExitStatus, sync::Arc};
 use tokio::{
@@ -10,8 +10,6 @@ use tokio::{
 };
 use uuid::Uuid;
 use walkdir::WalkDir;
-
-use crate::shell::get_shell;
 
 pub enum PipelineFileSystemProxy {
     Local {
