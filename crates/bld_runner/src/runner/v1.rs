@@ -13,7 +13,7 @@ use bld_config::definitions::{
 use bld_config::BldConfig;
 use bld_core::context::Context;
 use bld_core::fs::FileSystem;
-use bld_core::logger::LoggerSender;
+use bld_core::logger::Logger;
 use bld_core::platform::PlatformSender;
 use bld_core::signals::{UnixSignal, UnixSignalMessage, UnixSignalsReceiver};
 use bld_dtos::{ExecClientMessage, WorkerMessages};
@@ -38,7 +38,7 @@ pub struct Runner {
     pub run_start_time: String,
     pub config: Arc<BldConfig>,
     pub signals: Option<UnixSignalsReceiver>,
-    pub logger: Arc<LoggerSender>,
+    pub logger: Arc<Logger>,
     pub fs: Arc<FileSystem>,
     pub pipeline: Pipeline,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,

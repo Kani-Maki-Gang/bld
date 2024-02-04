@@ -20,7 +20,7 @@ use actix::spawn;
 use anyhow::{anyhow, Result};
 use tracing::{debug, error};
 
-use crate::logger::LoggerSender;
+use crate::logger::Logger;
 
 pub enum PlatformArtifactsAction {
     Push,
@@ -35,7 +35,7 @@ pub enum PlatformMessage {
         resp_tx: oneshot::Sender<Result<()>>,
     },
     Shell {
-        logger: Arc<LoggerSender>,
+        logger: Arc<Logger>,
         working_dir: Option<String>,
         command: String,
         resp_tx: oneshot::Sender<Result<()>>,
@@ -114,7 +114,7 @@ impl PlatformReceiver {
 
     pub async fn shell(
         &self,
-        logger: Arc<LoggerSender>,
+        logger: Arc<Logger>,
         working_dir: Option<String>,
         command: String,
     ) -> Result<()> {
@@ -215,7 +215,7 @@ impl PlatformSender {
 
     pub async fn shell(
         &self,
-        logger: Arc<LoggerSender>,
+        logger: Arc<Logger>,
         working_dir: &Option<String>,
         command: &str,
     ) -> Result<()> {

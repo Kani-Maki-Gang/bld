@@ -256,17 +256,17 @@ impl LoggerReceiver {
     }
 }
 
-pub struct LoggerSender {
+pub struct Logger {
     tx: Sender<LoggerMessage>,
 }
 
-impl Default for LoggerSender {
+impl Default for Logger {
     fn default() -> Self {
         Self::shell()
     }
 }
 
-impl LoggerSender {
+impl Logger {
     pub fn shell() -> Self {
         let (tx, rx) = channel(4096);
         let logger = LoggerReceiver::shell();

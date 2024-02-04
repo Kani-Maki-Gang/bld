@@ -6,7 +6,7 @@ use bld_utils::sync::IntoArc;
 
 use crate::{
     context::Context,
-    logger::LoggerSender,
+    logger::Logger,
     platform::{
         Container, Image, Machine, PlatformSender, Ssh, SshConnectOptions, SshExecutionOptions,
     },
@@ -36,7 +36,7 @@ pub struct PlatformBuilder<'a> {
     config: Option<Arc<BldConfig>>,
     pipeline_environment: Option<&'a HashMap<String, String>>,
     environment: Option<Arc<HashMap<String, String>>>,
-    logger: Option<Arc<LoggerSender>>,
+    logger: Option<Arc<Logger>>,
     context: Option<Arc<Context>>,
 }
 
@@ -66,7 +66,7 @@ impl<'a> PlatformBuilder<'a> {
         self
     }
 
-    pub fn logger(mut self, logger: Arc<LoggerSender>) -> Self {
+    pub fn logger(mut self, logger: Arc<Logger>) -> Self {
         self.logger = Some(logger);
         self
     }

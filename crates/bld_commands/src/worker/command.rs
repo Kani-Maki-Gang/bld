@@ -4,7 +4,7 @@ use actix::{Actor, StreamHandler};
 use actix_web::rt::{spawn, System};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::{context::Context, fs::FileSystem, logger::LoggerSender};
+use bld_core::{context::Context, fs::FileSystem, logger::Logger};
 use bld_dtos::WorkerMessages;
 use bld_entities::{new_connection_pool, pipeline_runs};
 use bld_http::WebSocket;
@@ -84,7 +84,7 @@ impl BldCommand for WorkerCommand {
 
             let (worker_tx, worker_rx) = channel(4096);
             let worker_tx = Some(worker_tx).into_arc();
-            let logger = LoggerSender::file(config.clone(), &run_id)
+            let logger = Logger::file(config.clone(), &run_id)
                 .await?
                 .into_arc();
             let context = Context::server(config.clone(), conn, &run_id).into_arc();

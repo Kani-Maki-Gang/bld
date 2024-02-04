@@ -1,4 +1,4 @@
-use crate::logger::LoggerSender;
+use crate::logger::Logger;
 use anyhow::{bail, Result};
 use bld_config::{path, BldConfig};
 use bld_utils::shell::get_shell;
@@ -65,7 +65,7 @@ impl Machine {
 
     pub async fn sh(
         &self,
-        logger: Arc<LoggerSender>,
+        logger: Arc<Logger>,
         working_dir: &Option<String>,
         input: &str,
     ) -> Result<()> {

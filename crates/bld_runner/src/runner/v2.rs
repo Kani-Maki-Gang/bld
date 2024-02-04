@@ -9,7 +9,7 @@ use bld_config::{
 use bld_core::{
     context::Context,
     fs::FileSystem,
-    logger::LoggerSender,
+    logger::Logger,
     platform::{
         builder::{PlatformBuilder, PlatformOptions},
         Image, PlatformSender, SshAuthOptions, SshConnectOptions,
@@ -40,7 +40,7 @@ struct Job {
     pub run_id: String,
     pub run_start_time: String,
     pub config: Arc<BldConfig>,
-    pub logger: Arc<LoggerSender>,
+    pub logger: Arc<Logger>,
     pub fs: Arc<FileSystem>,
     pub pipeline: Arc<Pipeline>,
     pub context: Arc<Context>,
@@ -251,11 +251,11 @@ impl Job {
 struct RunningJob {
     name: String,
     handle: JoinHandle<Result<Job>>,
-    logger: Arc<LoggerSender>,
+    logger: Arc<Logger>,
 }
 
 impl RunningJob {
-    pub fn new(name: &str, handle: JoinHandle<Result<Job>>, logger: Arc<LoggerSender>) -> Self {
+    pub fn new(name: &str, handle: JoinHandle<Result<Job>>, logger: Arc<Logger>) -> Self {
         Self {
             name: name.to_owned(),
             handle,
@@ -269,7 +269,7 @@ pub struct Runner {
     pub run_start_time: String,
     pub config: Arc<BldConfig>,
     pub signals: Option<UnixSignalsReceiver>,
-    pub logger: Arc<LoggerSender>,
+    pub logger: Arc<Logger>,
     pub regex_cache: Arc<RegexCache>,
     pub fs: Arc<FileSystem>,
     pub pipeline: Arc<Pipeline>,
@@ -457,7 +457,7 @@ impl Runner {
         Ok(())
     }
 
-    fn create_job(&self, name: &str, logger: Arc<LoggerSender>) -> Job {
+    fn create_job(&self, name: &str, logger: Arc<Logger>) -> Job {
         Job {
             pipeline: self.pipeline.clone(),
             job_name: name.to_owned(),
@@ -477,7 +477,7 @@ impl Runner {
             self.logger
                 .write_line(format!("{:<15}: {}", "Running job", name))
                 .await?;
-            let logger = LoggerSender::in_memory().into_arc();
+            let logger = Logger::in_memory().into_arc();
             let job = self.create_job(name, logger.clone());
             let handle = spawn(job.run());
             jobs.push(Some(RunningJob::new(name, handle, logger)));

@@ -8,7 +8,7 @@ use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::context::Context;
 use bld_core::fs::FileSystem;
-use bld_core::logger::LoggerSender;
+use bld_core::logger::Logger;
 use bld_core::platform::{
     builder::{PlatformBuilder, PlatformOptions},
     Image,
@@ -28,7 +28,7 @@ pub struct RunnerBuilder {
     run_start_time: String,
     config: Option<Arc<BldConfig>>,
     signals: Option<UnixSignalsReceiver>,
-    logger: Arc<LoggerSender>,
+    logger: Arc<Logger>,
     regex_cache: Arc<RegexCache>,
     fs: Arc<FileSystem>,
     pipeline: Option<String>,
@@ -46,7 +46,7 @@ impl Default for RunnerBuilder {
             run_start_time: Utc::now().naive_utc().format("%F %X").to_string(),
             config: None,
             signals: None,
-            logger: LoggerSender::default().into_arc(),
+            logger: Logger::default().into_arc(),
             regex_cache: RegexCache::default().into_arc(),
             fs: FileSystem::default().into_arc(),
             pipeline: None,
@@ -80,7 +80,7 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn logger(mut self, logger: Arc<LoggerSender>) -> Self {
+    pub fn logger(mut self, logger: Arc<Logger>) -> Self {
         self.logger = logger;
         self
     }

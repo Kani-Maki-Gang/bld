@@ -7,7 +7,7 @@ use awc::error::WsProtocolError;
 use awc::ws::{Codec, Frame, Message};
 use awc::BoxedSocket;
 use bld_core::context::Context;
-use bld_core::logger::LoggerSender;
+use bld_core::logger::Logger;
 use bld_dtos::{ExecClientMessage, ExecServerMessage};
 use futures::stream::SplitSink;
 use std::sync::Arc;
@@ -16,7 +16,7 @@ use tracing::{debug, error};
 pub struct ExecClient {
     run_id: Option<String>,
     server: String,
-    logger: Arc<LoggerSender>,
+    logger: Arc<Logger>,
     context: Arc<Context>,
     writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>,
 }
@@ -24,7 +24,7 @@ pub struct ExecClient {
 impl ExecClient {
     pub fn new(
         server: String,
-        logger: Arc<LoggerSender>,
+        logger: Arc<Logger>,
         context: Arc<Context>,
         writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>,
     ) -> Self {

@@ -16,7 +16,7 @@ use tar::{Archive, Builder};
 use tracing::{debug, error};
 use uuid::Uuid;
 
-use crate::{context::Context, logger::LoggerSender};
+use crate::{context::Context, logger::Logger};
 
 use super::{docker, Image};
 
@@ -26,7 +26,7 @@ pub struct ContainerOptions<'a> {
     pub image: Image<'a>,
     pub pipeline_env: &'a HashMap<String, String>,
     pub env: Arc<HashMap<String, String>>,
-    pub logger: Arc<LoggerSender>,
+    pub logger: Arc<Logger>,
     pub context: Arc<Context>,
 }
 
@@ -146,7 +146,7 @@ impl Container {
 
     pub async fn sh(
         &self,
-        logger: Arc<LoggerSender>,
+        logger: Arc<Logger>,
         working_dir: &Option<String>,
         input: &str,
     ) -> Result<()> {

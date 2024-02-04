@@ -16,7 +16,7 @@ use tokio::{
 use tracing::{debug, error};
 use walkdir::WalkDir;
 
-use crate::logger::LoggerSender;
+use crate::logger::Logger;
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 
@@ -317,7 +317,7 @@ impl Ssh {
 
     pub async fn sh(
         &self,
-        logger: Arc<LoggerSender>,
+        logger: Arc<Logger>,
         working_dir: &Option<String>,
         input: &str,
     ) -> Result<()> {
