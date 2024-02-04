@@ -60,16 +60,15 @@ impl ServerSocket {
                 let tx = self.worker_queue_tx.clone();
 
                 let success_msg = format!("worker for pipeline: {pipeline} has been queued");
-                let enqueque_fut =
-                    async move { tx.enqueue(Worker::new(run_id, command)).await }
-                        .into_actor(self)
-                        .then(move |res, _, _| {
-                            match res {
-                                Ok(_) => info!(success_msg),
-                                Err(e) => error!("{e}"),
-                            }
-                            ready(())
-                        });
+                let enqueque_fut = async move { tx.enqueue(Worker::new(run_id, command)).await }
+                    .into_actor(self)
+                    .then(move |res, _, _| {
+                        match res {
+                            Ok(_) => info!(success_msg),
+                            Err(e) => error!("{e}"),
+                        }
+                        ready(())
+                    });
 
                 ctx.spawn(enqueque_fut);
             }

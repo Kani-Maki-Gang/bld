@@ -14,11 +14,7 @@ pub struct PipelineValidator<'a> {
 }
 
 impl<'a> PipelineValidator<'a> {
-    pub fn new(
-        pipeline: &'a Pipeline,
-        config: Arc<BldConfig>,
-        fs: Arc<FileSystem>,
-    ) -> Self {
+    pub fn new(pipeline: &'a Pipeline, config: Arc<BldConfig>, fs: Arc<FileSystem>) -> Self {
         Self {
             pipeline,
             config,

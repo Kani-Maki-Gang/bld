@@ -44,8 +44,7 @@ impl AddCommand {
         let config = BldConfig::load().await?.into_arc();
         let fs = FileSystem::local(config);
 
-        fs
-            .create(&self.pipeline, DEFAULT_V2_PIPELINE_CONTENT, false)
+        fs.create(&self.pipeline, DEFAULT_V2_PIPELINE_CONTENT, false)
             .await?;
 
         if self.edit {
@@ -63,8 +62,7 @@ impl AddCommand {
 
         println!("Creating temporary local pipeline {}", tmp_name);
         debug!("creating temporary pipeline file: {tmp_name}");
-        fs
-            .create_tmp(&tmp_name, DEFAULT_V2_PIPELINE_CONTENT, true)
+        fs.create_tmp(&tmp_name, DEFAULT_V2_PIPELINE_CONTENT, true)
             .await?;
 
         if self.edit {

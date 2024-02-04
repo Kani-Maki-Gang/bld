@@ -287,10 +287,7 @@ pub async fn worker_queue_channel(
 /// the current state of the run id. If the state isn't faulted or finished then
 /// the worker did not complete successfully so it will be set to faulted and all
 /// of its associated containers will be set as faulted in order to be cleaned up later.
-async fn try_cleanup_process(
-    conn: Data<DatabaseConnection>,
-    worker: &mut Worker,
-) -> Result<()> {
+async fn try_cleanup_process(conn: Data<DatabaseConnection>, worker: &mut Worker) -> Result<()> {
     debug!("starting worker process cleanup");
 
     let conn = conn.as_ref();

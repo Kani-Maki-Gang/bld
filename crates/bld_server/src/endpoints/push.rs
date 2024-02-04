@@ -22,11 +22,7 @@ pub async fn post(
     }
 }
 
-async fn do_push(
-    fs: &FileSystem,
-    cron: &CronScheduler,
-    info: &PushInfo,
-) -> Result<()> {
+async fn do_push(fs: &FileSystem, cron: &CronScheduler, info: &PushInfo) -> Result<()> {
     fs.create(&info.name, &info.content, true).await?;
     let pipeline: VersionedPipeline = Yaml::load(&info.content)?;
     let remove_res = match pipeline.cron() {

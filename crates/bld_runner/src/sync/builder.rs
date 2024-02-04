@@ -6,13 +6,13 @@ use crate::runner::v2;
 use crate::token_context::v2::PipelineContextBuilder;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::context::ContextSender;
+use bld_core::context::Context;
+use bld_core::fs::FileSystem;
 use bld_core::logger::LoggerSender;
 use bld_core::platform::{
     builder::{PlatformBuilder, PlatformOptions},
     Image,
 };
-use bld_core::fs::FileSystem;
 use bld_core::regex::RegexCache;
 use bld_core::signals::UnixSignalsReceiver;
 use bld_dtos::WorkerMessages;
@@ -35,7 +35,7 @@ pub struct RunnerBuilder {
     ipc: Arc<Option<Sender<WorkerMessages>>>,
     env: Option<Arc<HashMap<String, String>>>,
     vars: Option<Arc<HashMap<String, String>>>,
-    context: Option<Arc<ContextSender>>,
+    context: Option<Arc<Context>>,
     is_child: bool,
 }
 
@@ -115,7 +115,7 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn context(mut self, context: Arc<ContextSender>) -> Self {
+    pub fn context(mut self, context: Arc<Context>) -> Self {
         self.context = Some(context);
         self
     }
@@ -135,9 +135,7 @@ impl RunnerBuilder {
             .ok_or_else(|| anyhow!("no pipeline provided"))?;
 
         let pipeline = Yaml::load(&self.fs.read(&pipeline_name).await?)?;
-        pipeline
-            .validate(config.clone(), self.fs.clone())
-            .await?;
+        pipeline.validate(config.clone(), self.fs.clone()).await?;
 
         let env = self
             .env

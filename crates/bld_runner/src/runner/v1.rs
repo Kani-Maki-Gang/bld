@@ -11,10 +11,10 @@ use bld_config::definitions::{
     PUSH,
 };
 use bld_config::BldConfig;
-use bld_core::context::ContextSender;
+use bld_core::context::Context;
+use bld_core::fs::FileSystem;
 use bld_core::logger::LoggerSender;
 use bld_core::platform::PlatformSender;
-use bld_core::fs::FileSystem;
 use bld_core::signals::{UnixSignal, UnixSignalMessage, UnixSignalsReceiver};
 use bld_dtos::{ExecClientMessage, WorkerMessages};
 use bld_http::WebSocket;
@@ -44,7 +44,7 @@ pub struct Runner {
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
     pub env: Arc<HashMap<String, String>>,
     pub vars: Arc<HashMap<String, String>>,
-    pub context: Arc<ContextSender>,
+    pub context: Arc<Context>,
     pub platform: Arc<PlatformSender>,
     pub is_child: bool,
     pub has_faulted: bool,

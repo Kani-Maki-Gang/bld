@@ -127,11 +127,7 @@ impl VersionedPipeline {
         .map_err(|e| anyhow!("Expression errors\r\n\r\n{e}"))
     }
 
-    pub async fn validate(
-        &self,
-        config: Arc<BldConfig>,
-        fs: Arc<FileSystem>,
-    ) -> Result<()> {
+    pub async fn validate(&self, config: Arc<BldConfig>, fs: Arc<FileSystem>) -> Result<()> {
         self.validate_with_verbose_errors(config, fs)
             .await
             .map_err(|_| anyhow!("Pipeline has expression errors"))

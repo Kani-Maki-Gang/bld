@@ -1,7 +1,7 @@
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::{context::ContextSender, logger::LoggerSender, fs::FileSystem};
+use bld_core::{context::Context, fs::FileSystem, logger::LoggerSender};
 use bld_dtos::ExecClientMessage;
 use bld_http::{HttpClient, WebSocket};
 use bld_runner::RunnerBuilder;
@@ -200,7 +200,7 @@ impl RunAdapter {
             .fs(FileSystem::local(mode.config.clone()).into_arc())
             .pipeline(&mode.pipeline)
             .logger(LoggerSender::shell().into_arc())
-            .context(ContextSender::local(mode.config.clone()).into_arc())
+            .context(Context::local(mode.config.clone()).into_arc())
             .signals(signals_rx)
             .environment(mode.environment.into_arc())
             .variables(mode.variables.into_arc())
@@ -239,7 +239,7 @@ impl RunAdapter {
             ExecClient::new(
                 mode.server.to_owned(),
                 LoggerSender::shell().into_arc(),
-                ContextSender::local(mode.config.clone()).into_arc(),
+                Context::local(mode.config.clone()).into_arc(),
                 SinkWrite::new(sink, ctx),
             )
         });

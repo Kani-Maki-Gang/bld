@@ -16,7 +16,7 @@ use tar::{Archive, Builder};
 use tracing::{debug, error};
 use uuid::Uuid;
 
-use crate::{context::ContextSender, logger::LoggerSender};
+use crate::{context::Context, logger::LoggerSender};
 
 use super::{docker, Image};
 
@@ -27,7 +27,7 @@ pub struct ContainerOptions<'a> {
     pub pipeline_env: &'a HashMap<String, String>,
     pub env: Arc<HashMap<String, String>>,
     pub logger: Arc<LoggerSender>,
-    pub context: Arc<ContextSender>,
+    pub context: Arc<Context>,
 }
 
 pub struct Container {
@@ -35,7 +35,7 @@ pub struct Container {
     pub name: String,
     pub config: Option<Arc<BldConfig>>,
     pub client: Docker,
-    pub context: Arc<ContextSender>,
+    pub context: Arc<Context>,
     pub entity: Option<PipelineRunContainers>,
     pub environment: Vec<String>,
 }
