@@ -35,36 +35,47 @@ enum LoggerMessage {
     },
 }
 
-enum LoggerBackend {
+enum LoggerType {
     Shell,
-    File { handle: File },
-    InMemory { output: String },
+    File(File),
+    InMemory(String),
+}
+
+struct LoggerBackend {
+    logger_type: LoggerType,
+    rx: Receiver<LoggerMessage>
 }
 
 impl LoggerBackend {
-    pub fn shell() -> Self {
-        Self::Shell
+    pub fn shell(rx: Receiver<LoggerMessage>) -> Self {
+        Self { logger_type: LoggerType::Shell, rx }
     }
 
-    pub async fn file(config: Arc<BldConfig>, run_id: &str) -> Result<Self> {
+    pub async fn file(
+        config: Arc<BldConfig>,
+        run_id: &str,
+        rx: Receiver<LoggerMessage>,
+    ) -> Result<Self> {
         let path = config.log_full_path(run_id);
-        Ok(Self::File {
-            handle: if path.is_file() {
+        Ok(Self {
+            logger_type: LoggerType::File(if path.is_file() {
                 File::open(&path).await?
             } else {
                 File::create(&path).await?
-            },
+            }),
+            rx,
         })
     }
 
-    pub fn in_memory() -> Self {
-        Self::InMemory {
-            output: String::new(),
+    pub fn in_memory(rx: Receiver<LoggerMessage>) -> Self {
+        Self{
+            logger_type: LoggerType::InMemory(String::new()),
+            rx,
         }
     }
 
-    async fn receive_inner(mut self, mut rx: Receiver<LoggerMessage>) -> Result<()> {
-        while let Some(msg) = rx.recv().await {
+    async fn receive_inner(mut self) -> Result<()> {
+        while let Some(msg) = self.rx.recv().await {
             match msg {
                 LoggerMessage::Write {
                     text,
@@ -110,24 +121,24 @@ impl LoggerBackend {
         Ok(())
     }
 
-    pub fn receive(self, rx: Receiver<LoggerMessage>) {
+    pub fn receive(self) {
         spawn(async move {
-            if let Err(e) = self.receive_inner(rx).await {
+            if let Err(e) = self.receive_inner().await {
                 error!("{e}");
             }
         });
     }
 
     pub async fn write(&mut self, text: &str, resp_tx: oneshot::Sender<()>) -> Result<()> {
-        match self {
-            Self::Shell => {
+        match &mut self.logger_type {
+            LoggerType::Shell => {
                 print!("{}", text);
             }
-            Self::File { handle } => {
+            LoggerType::File(handle) => {
                 let bytes = text.as_bytes();
                 handle.write_all(bytes).await?;
             }
-            Self::InMemory { output } => {
+            LoggerType::InMemory(output) => {
                 write!(output, "{text}")?;
             }
         }
@@ -138,16 +149,16 @@ impl LoggerBackend {
     }
 
     pub async fn write_line(&mut self, text: &str, resp_tx: oneshot::Sender<()>) -> Result<()> {
-        match self {
-            Self::Shell => {
+        match &mut self.logger_type {
+            LoggerType::Shell => {
                 println!("{text}");
             }
-            Self::File { handle } => {
+            LoggerType::File(handle) => {
                 let text = format!("{text}\n");
                 let bytes = text.as_bytes();
                 handle.write_all(bytes).await?;
             }
-            Self::InMemory { output } => {
+            LoggerType::InMemory(output) => {
                 writeln!(output, "{text}")?;
             }
         }
@@ -158,18 +169,18 @@ impl LoggerBackend {
     }
 
     pub async fn info(&mut self, text: &str, resp_tx: oneshot::Sender<()>) -> Result<()> {
-        match self {
-            Self::Shell => {
+        match &mut self.logger_type {
+            LoggerType::Shell => {
                 let mut stdout = StandardStream::stdout(ColorChoice::Always);
                 let _ = stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)));
                 let _ = write!(&mut stdout, "{text}");
                 let _ = stdout.set_color(ColorSpec::new().set_fg(None));
             }
-            Self::File { handle } => {
+            LoggerType::File(handle) => {
                 let bytes = text.as_bytes();
                 handle.write_all(bytes).await?;
             }
-            Self::InMemory { output } => {
+            LoggerType::InMemory(output) => {
                 write!(output, "{text}")?;
             }
         }
@@ -180,19 +191,19 @@ impl LoggerBackend {
     }
 
     pub async fn info_line(&mut self, text: &str, resp_tx: oneshot::Sender<()>) -> Result<()> {
-        match self {
-            Self::Shell => {
+        match &mut self.logger_type {
+            LoggerType::Shell => {
                 let mut stdout = StandardStream::stdout(ColorChoice::Always);
                 let _ = stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)));
                 let _ = writeln!(&mut stdout, "{text}");
                 let _ = stdout.set_color(ColorSpec::new().set_fg(None));
             }
-            Self::File { handle } => {
+            LoggerType::File(handle) => {
                 let text = format!("{text}\n");
                 let bytes = text.as_bytes();
                 handle.write_all(bytes).await?;
             }
-            Self::InMemory { output } => {
+            LoggerType::InMemory(output) => {
                 writeln!(output, "{text}")?;
             }
         }
@@ -203,18 +214,18 @@ impl LoggerBackend {
     }
 
     pub async fn error(&mut self, text: &str, resp_tx: oneshot::Sender<()>) -> Result<()> {
-        match self {
-            Self::Shell => {
+        match &mut self.logger_type {
+            LoggerType::Shell => {
                 let mut stderr = StandardStream::stderr(ColorChoice::Always);
                 let _ = stderr.set_color(ColorSpec::new().set_fg(Some(Color::Red)));
                 let _ = write!(&mut stderr, "{text}");
                 let _ = stderr.set_color(ColorSpec::new().set_fg(None));
             }
-            Self::File { handle } => {
+            LoggerType::File(handle) => {
                 let bytes = text.as_bytes();
                 handle.write_all(bytes).await?;
             }
-            Self::InMemory { output } => {
+            LoggerType::InMemory(output) => {
                 write!(output, "{text}")?;
             }
         }
@@ -225,19 +236,19 @@ impl LoggerBackend {
     }
 
     pub async fn error_line(&mut self, text: &str, resp_tx: oneshot::Sender<()>) -> Result<()> {
-        match self {
-            Self::Shell => {
+        match &mut self.logger_type {
+            LoggerType::Shell => {
                 let mut stderr = StandardStream::stderr(ColorChoice::Always);
                 let _ = stderr.set_color(ColorSpec::new().set_fg(Some(Color::Red)));
                 let _ = writeln!(&mut stderr, "{text}");
                 let _ = stderr.set_color(ColorSpec::new().set_fg(None));
             }
-            Self::File { handle } => {
+            LoggerType::File(handle) => {
                 let text = format!("{text}\n");
                 let bytes = text.as_bytes();
                 handle.write_all(bytes).await?;
             }
-            Self::InMemory { output } => {
+            LoggerType::InMemory(output) => {
                 writeln!(output, "{text}")?;
             }
         }
@@ -248,14 +259,14 @@ impl LoggerBackend {
     }
 
     async fn try_retrieve_output(&mut self, resp_tx: oneshot::Sender<String>) -> Result<()> {
-        let output = match self {
-            Self::Shell => String::new(),
-            Self::File { handle } => {
+        let output = match &mut self.logger_type {
+            LoggerType::Shell => String::new(),
+            LoggerType::File(handle) => {
                 let mut output = String::new();
                 handle.read_to_string(&mut output).await?;
                 output
             }
-            Self::InMemory { output } => output.clone(),
+            LoggerType::InMemory(output) => output.clone(),
         };
 
         resp_tx
@@ -277,22 +288,19 @@ impl Default for Logger {
 impl Logger {
     pub fn shell() -> Self {
         let (tx, rx) = channel(4096);
-        let backend = LoggerBackend::shell();
-        backend.receive(rx);
+        LoggerBackend::shell(rx).receive();
         Self { tx }
     }
 
     pub async fn file(config: Arc<BldConfig>, run_id: &str) -> Result<Self> {
         let (tx, rx) = channel(4096);
-        let backend = LoggerBackend::file(config, run_id).await?;
-        backend.receive(rx);
+        LoggerBackend::file(config, run_id, rx).await?.receive();
         Ok(Self { tx })
     }
 
     pub fn in_memory() -> Self {
         let (tx, rx) = channel(4096);
-        let backend = LoggerBackend::in_memory();
-        backend.receive(rx);
+        LoggerBackend::in_memory(rx).receive();
         Self { tx }
     }
 
