@@ -35,13 +35,13 @@ enum LoggerMessage {
     },
 }
 
-enum LoggerReceiver {
+enum LoggerBackend {
     Shell,
     File { handle: File },
     InMemory { output: String },
 }
 
-impl LoggerReceiver {
+impl LoggerBackend {
     pub fn shell() -> Self {
         Self::Shell
     }
@@ -63,7 +63,7 @@ impl LoggerReceiver {
         }
     }
 
-    async fn receive(mut self, mut rx: Receiver<LoggerMessage>) -> Result<()> {
+    async fn receive_inner(mut self, mut rx: Receiver<LoggerMessage>) -> Result<()> {
         while let Some(msg) = rx.recv().await {
             match msg {
                 LoggerMessage::Write {
@@ -108,6 +108,14 @@ impl LoggerReceiver {
             }
         }
         Ok(())
+    }
+
+    pub fn receive(self, rx: Receiver<LoggerMessage>) {
+        spawn(async move {
+            if let Err(e) = self.receive_inner(rx).await {
+                error!("{e}");
+            }
+        });
     }
 
     pub async fn write(&mut self, text: &str, resp_tx: oneshot::Sender<()>) -> Result<()> {
@@ -269,32 +277,22 @@ impl Default for Logger {
 impl Logger {
     pub fn shell() -> Self {
         let (tx, rx) = channel(4096);
-        let logger = LoggerReceiver::shell();
-
-        spawn(async move {
-            if let Err(e) = logger.receive(rx).await {
-                error!("{e}");
-            }
-        });
-
+        let backend = LoggerBackend::shell();
+        backend.receive(rx);
         Self { tx }
     }
 
     pub async fn file(config: Arc<BldConfig>, run_id: &str) -> Result<Self> {
         let (tx, rx) = channel(4096);
-        let logger = LoggerReceiver::file(config, run_id).await?;
-
-        spawn(async move { logger.receive(rx).await });
-
+        let backend = LoggerBackend::file(config, run_id).await?;
+        backend.receive(rx);
         Ok(Self { tx })
     }
 
     pub fn in_memory() -> Self {
         let (tx, rx) = channel(4096);
-        let logger = LoggerReceiver::in_memory();
-
-        spawn(async move { logger.receive(rx).await });
-
+        let backend = LoggerBackend::in_memory();
+        backend.receive(rx);
         Self { tx }
     }
 
