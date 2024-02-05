@@ -1,4 +1,4 @@
-use std::{io::Write, sync::Arc};
+use std::io::Write;
 
 use anyhow::{bail, Result};
 use bollard::{
@@ -151,11 +151,11 @@ impl<'a> Image<'a> {
         }
     }
 
-    pub async fn create(&self, client: &Docker, logger: Arc<Logger>) -> Result<()> {
+    pub async fn create(&self, client: &Docker, logger: &Logger) -> Result<()> {
         match &self {
             Self::Use(_) => Ok(()),
-            Self::Pull(instance) => instance.pull(client, logger.as_ref()).await,
-            Self::Build(instance) => instance.build(client, logger.as_ref()).await,
+            Self::Pull(instance) => instance.pull(client, logger).await,
+            Self::Build(instance) => instance.build(client, logger).await,
         }
     }
 }

@@ -1,7 +1,7 @@
 use actix::spawn;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 use tokio::{
     fs::File,
     io::{AsyncBufReadExt, BufReader},
@@ -23,7 +23,7 @@ struct FileScannerBackend {
 }
 
 impl FileScannerBackend {
-    pub fn new(config: Arc<BldConfig>, run_id: &str, rx: Receiver<FileScannerMessage>) -> Self {
+    pub fn new(config: &BldConfig, run_id: &str, rx: Receiver<FileScannerMessage>) -> Self {
         Self {
             path: config.log_full_path(run_id),
             file_handle: None,
@@ -89,7 +89,7 @@ pub struct FileScanner {
 }
 
 impl FileScanner {
-    pub fn new(config: Arc<BldConfig>, run_id: &str) -> Self {
+    pub fn new(config: &BldConfig, run_id: &str) -> Self {
         let (tx, rx) = channel(4096);
         FileScannerBackend::new(config, run_id, rx).receive();
         Self { tx }

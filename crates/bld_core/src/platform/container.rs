@@ -86,7 +86,7 @@ impl Container {
         let container_env = env.iter().map(AsRef::as_ref).collect();
         options
             .image
-            .create(&client, options.logger.clone())
+            .create(&client, options.logger.as_ref())
             .await?;
         let (id, name) = Container::create(&client, options.image.name(), container_env).await?;
         let entity = options.context.add_container(id.clone()).await?;
