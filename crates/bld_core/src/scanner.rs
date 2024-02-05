@@ -16,13 +16,13 @@ enum FileScannerMessage {
     Next(oneshot::Sender<Vec<String>>),
 }
 
-struct FileScannerReceiver {
+struct FileScannerBackend {
     path: PathBuf,
     file_handle: Option<File>,
     receiver: Receiver<FileScannerMessage>,
 }
 
-impl FileScannerReceiver {
+impl FileScannerBackend {
     pub fn new(
         config: Arc<BldConfig>,
         run_id: &str,
@@ -35,7 +35,15 @@ impl FileScannerReceiver {
         }
     }
 
-    pub async fn receive(&mut self) -> Result<()> {
+    pub fn receive(self) {
+        spawn(async move {
+            if let Err(e) = self.receive_inner().await {
+                error!("{e}");
+            }
+        });
+    }
+
+    async fn receive_inner(mut self) -> Result<()> {
         while let Some(msg) = self.receiver.recv().await {
             match msg {
                 FileScannerMessage::Next(resp_tx) => self.next(resp_tx).await?,
@@ -87,14 +95,7 @@ pub struct FileScanner {
 impl FileScanner {
     pub fn new(config: Arc<BldConfig>, run_id: &str) -> Self {
         let (tx, rx) = channel(4096);
-        let mut receiver = FileScannerReceiver::new(config, run_id, rx);
-
-        spawn(async move {
-            if let Err(e) = receiver.receive().await {
-                error!("{e}");
-            }
-        });
-
+        FileScannerBackend::new(config, run_id, rx).receive();
         Self { tx }
     }
 
