@@ -24,25 +24,27 @@ enum RegexCacheMessage {
 
 struct RegexCacheBackend {
     cache: HashMap<String, Arc<Regex>>,
+    rx: Receiver<RegexCacheMessage>,
 }
 
 impl RegexCacheBackend {
-    pub fn new() -> Self {
+    pub fn new(rx: Receiver<RegexCacheMessage>) -> Self {
         Self {
             cache: HashMap::new(),
+            rx,
         }
     }
 
-    pub fn receive(self, rx: Receiver<RegexCacheMessage>) {
+    pub fn receive(self) {
         spawn(async move {
-            if let Err(e) = self.receive_inner(rx).await {
+            if let Err(e) = self.receive_inner().await {
                 error!("{e}");
             }
         });
     }
 
-    async fn receive_inner(mut self, mut rx: Receiver<RegexCacheMessage>) -> Result<()> {
-        while let Some(msg) = rx.recv().await {
+    async fn receive_inner(mut self) -> Result<()> {
+        while let Some(msg) = self.rx.recv().await {
             match msg {
                 RegexCacheMessage::Get { key, resp_tx } => self.get(key, resp_tx)?,
                 RegexCacheMessage::Set {
@@ -83,8 +85,7 @@ impl Default for RegexCache {
 impl RegexCache {
     pub fn new() -> RegexCache {
         let (tx, rx) = channel(4096);
-        let backend = RegexCacheBackend::new();
-        backend.receive(rx);
+        RegexCacheBackend::new(rx).receive();
         Self { tx }
     }
 

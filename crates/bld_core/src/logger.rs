@@ -43,12 +43,15 @@ enum LoggerType {
 
 struct LoggerBackend {
     logger_type: LoggerType,
-    rx: Receiver<LoggerMessage>
+    rx: Receiver<LoggerMessage>,
 }
 
 impl LoggerBackend {
     pub fn shell(rx: Receiver<LoggerMessage>) -> Self {
-        Self { logger_type: LoggerType::Shell, rx }
+        Self {
+            logger_type: LoggerType::Shell,
+            rx,
+        }
     }
 
     pub async fn file(
@@ -68,7 +71,7 @@ impl LoggerBackend {
     }
 
     pub fn in_memory(rx: Receiver<LoggerMessage>) -> Self {
-        Self{
+        Self {
             logger_type: LoggerType::InMemory(String::new()),
             rx,
         }
