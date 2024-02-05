@@ -3,7 +3,6 @@ pub mod run;
 pub mod server;
 
 use crate::platform::PlatformSender;
-use actix_web::rt::spawn;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_entities::pipeline_run_containers::PipelineRunContainers;
@@ -12,10 +11,9 @@ use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tokio::sync::mpsc::{channel, Sender};
 use tokio::sync::oneshot;
-use tracing::error;
 
 use self::local::{LocalContextBackend, LocalContextMessage};
-use self::server::{ServerContext, ServerContextMessage};
+use self::server::{ServerContextBackend, ServerContextMessage};
 
 pub enum Context {
     Server(Sender<ServerContextMessage>),
@@ -25,14 +23,7 @@ pub enum Context {
 impl Context {
     pub fn server(config: Arc<BldConfig>, pool: Arc<DatabaseConnection>, run_id: &str) -> Self {
         let (tx, rx) = channel(4096);
-        let context = ServerContext::new(config, pool, run_id);
-
-        spawn(async move {
-            if let Err(e) = context.receive(rx).await {
-                error!("{e}");
-            }
-        });
-
+        ServerContextBackend::new(config, pool, run_id, rx).receive();
         Self::Server(tx)
     }
 

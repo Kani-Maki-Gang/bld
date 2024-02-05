@@ -30,7 +30,7 @@ impl LocalContextBackend {
             config,
             remote_runs: vec![],
             platforms: vec![],
-            rx
+            rx,
         }
     }
 

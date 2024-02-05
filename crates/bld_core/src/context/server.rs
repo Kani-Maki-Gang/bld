@@ -1,5 +1,6 @@
 use super::run::RemoteRun;
 use crate::platform::PlatformSender;
+use actix::spawn;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_entities::{
@@ -34,23 +35,29 @@ pub enum ServerContextMessage {
     DoCleanup(oneshot::Sender<()>),
 }
 
-#[derive(Clone)]
-pub struct ServerContext {
+pub struct ServerContextBackend {
     config: Arc<BldConfig>,
     run_id: String,
     remote_runs: Vec<RemoteRun>,
     conn: Arc<DatabaseConnection>,
     platforms: Vec<Arc<PlatformSender>>,
+    rx: Receiver<ServerContextMessage>,
 }
 
-impl ServerContext {
-    pub fn new(config: Arc<BldConfig>, conn: Arc<DatabaseConnection>, run_id: &str) -> Self {
+impl ServerContextBackend {
+    pub fn new(
+        config: Arc<BldConfig>,
+        conn: Arc<DatabaseConnection>,
+        run_id: &str,
+        rx: Receiver<ServerContextMessage>,
+    ) -> Self {
         Self {
             config,
             run_id: run_id.to_owned(),
             remote_runs: vec![],
             conn,
             platforms: vec![],
+            rx,
         }
     }
 
@@ -60,8 +67,16 @@ impl ServerContext {
             .map(|_| ())
     }
 
-    pub async fn receive(mut self, mut rx: Receiver<ServerContextMessage>) -> Result<()> {
-        while let Some(message) = rx.recv().await {
+    pub fn receive(self) {
+        spawn(async move {
+            if let Err(e) = self.receive_inner().await {
+                error!("{e}");
+            }
+        });
+    }
+
+    pub async fn receive_inner(mut self) -> Result<()> {
+        while let Some(message) = self.rx.recv().await {
             match message {
                 ServerContextMessage::AddRemoteRun(remote_run) => {
                     debug!("added new remote run");
