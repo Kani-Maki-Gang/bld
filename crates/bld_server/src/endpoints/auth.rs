@@ -4,9 +4,9 @@ use actix_web::{
     HttpResponse, Responder,
 };
 use anyhow::{bail, Result};
-use bld_core::auth::{LoginProcess, RefreshTokenParams};
+use bld_core::auth::LoginProcess;
 use bld_dtos::AuthRedirectParams;
-use bld_utils::fs::AuthTokens;
+use bld_utils::fs::{AuthTokens, RefreshTokenParams};
 use openidconnect::{
     core::CoreClient, reqwest::async_http_client, OAuth2TokenResponse, RefreshToken,
 };

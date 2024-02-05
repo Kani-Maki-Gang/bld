@@ -19,19 +19,15 @@ enum FileScannerMessage {
 struct FileScannerBackend {
     path: PathBuf,
     file_handle: Option<File>,
-    receiver: Receiver<FileScannerMessage>,
+    rx: Receiver<FileScannerMessage>,
 }
 
 impl FileScannerBackend {
-    pub fn new(
-        config: Arc<BldConfig>,
-        run_id: &str,
-        receiver: Receiver<FileScannerMessage>,
-    ) -> Self {
+    pub fn new(config: Arc<BldConfig>, run_id: &str, rx: Receiver<FileScannerMessage>) -> Self {
         Self {
             path: config.log_full_path(run_id),
             file_handle: None,
-            receiver,
+            rx,
         }
     }
 
@@ -44,7 +40,7 @@ impl FileScannerBackend {
     }
 
     async fn receive_inner(mut self) -> Result<()> {
-        while let Some(msg) = self.receiver.recv().await {
+        while let Some(msg) = self.rx.recv().await {
             match msg {
                 FileScannerMessage::Next(resp_tx) => self.next(resp_tx).await?,
             }

@@ -19,14 +19,29 @@ enum LoginProcessMessage {
     Code(String, String),
 }
 
-#[derive(Default)]
-struct LoginProcessReceiver {
+struct LoginProcessBackend {
     inner: HashMap<String, oneshot::Sender<String>>,
+    rx: Receiver<LoginProcessMessage>
 }
 
-impl LoginProcessReceiver {
-    pub async fn receive(mut self, mut rx: Receiver<LoginProcessMessage>) -> Result<()> {
-        while let Some(message) = rx.recv().await {
+impl LoginProcessBackend {
+    pub fn new(rx: Receiver<LoginProcessMessage>) -> Self {
+        Self {
+            inner: HashMap::new(),
+            rx
+        }
+    }
+
+    pub fn receive(self) {
+        spawn(async move {
+            if let Err(e) = self.receive_inner().await {
+                error!("{e}");
+            }
+        });
+    }
+
+    async fn receive_inner(mut self) -> Result<()> {
+        while let Some(message) = self.rx.recv().await {
             let result = match message {
                 LoginProcessMessage::Add(token, sender) => self.add(token, sender),
                 LoginProcessMessage::Remove(token) => self.remove(token),
@@ -64,14 +79,7 @@ pub struct LoginProcess {
 impl Default for LoginProcess {
     fn default() -> Self {
         let (tx, rx) = channel(4096);
-
-        spawn(async move {
-            let receiver = LoginProcessReceiver::default();
-            if let Err(e) = receiver.receive(rx).await {
-                error!("{e}");
-            }
-        });
-
+        LoginProcessBackend::new(rx).receive();
         Self { tx }
     }
 }
@@ -110,19 +118,6 @@ impl AuthTokens {
         Self {
             access_token,
             refresh_token,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RefreshTokenParams {
-    pub refresh_token: String,
-}
-
-impl RefreshTokenParams {
-    pub fn new(refresh_token: &str) -> Self {
-        Self {
-            refresh_token: refresh_token.to_owned(),
         }
     }
 }
