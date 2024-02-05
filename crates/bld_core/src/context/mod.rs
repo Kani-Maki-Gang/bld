@@ -14,7 +14,7 @@ use tokio::sync::mpsc::{channel, Sender};
 use tokio::sync::oneshot;
 use tracing::error;
 
-use self::local::{LocalContext, LocalContextMessage};
+use self::local::{LocalContextBackend, LocalContextMessage};
 use self::server::{ServerContext, ServerContextMessage};
 
 pub enum Context {
@@ -38,14 +38,7 @@ impl Context {
 
     pub fn local(config: Arc<BldConfig>) -> Self {
         let (tx, rx) = channel(4096);
-        let context = LocalContext::new(config);
-
-        spawn(async move {
-            if let Err(e) = context.receive(rx).await {
-                error!("{e}");
-            }
-        });
-
+        LocalContextBackend::new(config, rx).receive();
         Self::Local(tx)
     }
 

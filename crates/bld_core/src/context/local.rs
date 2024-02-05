@@ -1,4 +1,5 @@
 use crate::platform::PlatformSender;
+use actix::spawn;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_http::Request;
@@ -16,23 +17,33 @@ pub enum LocalContextMessage {
     DoCleanup(oneshot::Sender<()>),
 }
 
-pub struct LocalContext {
+pub struct LocalContextBackend {
     config: Arc<BldConfig>,
     remote_runs: Vec<RemoteRun>,
     platforms: Vec<Arc<PlatformSender>>,
+    rx: Receiver<LocalContextMessage>,
 }
 
-impl LocalContext {
-    pub fn new(config: Arc<BldConfig>) -> Self {
+impl LocalContextBackend {
+    pub fn new(config: Arc<BldConfig>, rx: Receiver<LocalContextMessage>) -> Self {
         Self {
             config,
             remote_runs: vec![],
             platforms: vec![],
+            rx
         }
     }
 
-    pub async fn receive(mut self, mut rx: Receiver<LocalContextMessage>) -> Result<()> {
-        while let Some(message) = rx.recv().await {
+    pub fn receive(self) {
+        spawn(async move {
+            if let Err(e) = self.receive_inner().await {
+                error!("{e}");
+            }
+        });
+    }
+
+    async fn receive_inner(mut self) -> Result<()> {
+        while let Some(message) = self.rx.recv().await {
             match message {
                 LocalContextMessage::AddRemoteRun(remote_run) => {
                     debug!("added new remote run");
