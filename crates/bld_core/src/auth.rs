@@ -21,14 +21,14 @@ enum LoginProcessMessage {
 
 struct LoginProcessBackend {
     inner: HashMap<String, oneshot::Sender<String>>,
-    rx: Receiver<LoginProcessMessage>
+    rx: Receiver<LoginProcessMessage>,
 }
 
 impl LoginProcessBackend {
     pub fn new(rx: Receiver<LoginProcessMessage>) -> Self {
         Self {
             inner: HashMap::new(),
-            rx
+            rx,
         }
     }
 
