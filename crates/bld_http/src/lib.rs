@@ -9,7 +9,7 @@ use awc::http::StatusCode;
 use awc::ws::WebsocketsRequest;
 use awc::{Client, ClientRequest, Connector, SendClientRequest};
 use bld_config::BldConfig;
-use bld_dtos::{
+use bld_models::dtos::{
     AddJobRequest, CronJobResponse, ExecClientMessage, HistQueryParams, HistoryEntry,
     JobFiltersParams, PipelinePathRequest, PipelineQueryParams, PullResponse, PushInfo,
     UpdateJobRequest,

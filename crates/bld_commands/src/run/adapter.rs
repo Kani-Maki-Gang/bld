@@ -2,7 +2,7 @@ use actix::{io::SinkWrite, Actor, StreamHandler};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::{context::Context, fs::FileSystem, logger::Logger};
-use bld_dtos::ExecClientMessage;
+use bld_models::dtos::ExecClientMessage;
 use bld_http::{HttpClient, WebSocket};
 use bld_runner::RunnerBuilder;
 use bld_sock::ExecClient;

@@ -16,8 +16,7 @@ async-trait = "0.1.50"
 bollard = { version = "0.15.0", features = ["ssl"] }
 bld_config = { path = "../bld_config" }
 bld_core = { path = "../bld_core" }
-bld_dtos = { path = "../bld_dtos" }
-bld_entities = { path = "../bld_entities" }
+bld_models = { path = "../bld_models" }
 bld_http = { path = "../bld_http" }
 bld_utils = { path = "../bld_utils" }
 futures = "0.3.15"

@@ -9,7 +9,7 @@ use actix_web::{
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::fs::FileSystem;
-use bld_dtos::PipelineQueryParams;
+use bld_models::dtos::PipelineQueryParams;
 use bld_runner::VersionedPipeline;
 use tracing::info;
 

@@ -12,7 +12,7 @@ use actix_web::{
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::{auth::LoginProcess, fs::FileSystem};
-use bld_entities::new_connection_pool;
+use bld_models::new_connection_pool;
 use bld_utils::{
     sync::IntoData,
     tls::{load_server_certificate, load_server_private_key},

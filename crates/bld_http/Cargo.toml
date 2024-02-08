@@ -9,7 +9,7 @@ edition = "2021"
 awc = { version = "3.0.0", features = ["rustls"] }
 anyhow = "1.0.40"
 bld_config = { path = "../bld_config" }
-bld_dtos = { path = "../bld_dtos" }
+bld_models = { path = "../bld_models" }
 bld_utils = { path = "../bld_utils" }
 serde = { version = "1.0.126", features = ["derive"] }
 tracing = "0.1.36"

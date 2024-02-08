@@ -5,7 +5,7 @@ pub mod server;
 use crate::platform::PlatformSender;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_entities::pipeline_run_containers::PipelineRunContainers;
+use bld_models::pipeline_run_containers::PipelineRunContainers;
 use run::RemoteRun;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;

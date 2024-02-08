@@ -1,4 +1,4 @@
-use bld_entities::pipeline_runs::PipelineRuns;
+use crate::pipeline_runs::PipelineRuns;
 use serde::{Deserialize, Serialize};
 use tabled::Tabled;
 

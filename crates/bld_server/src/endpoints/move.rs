@@ -4,7 +4,7 @@ use actix_web::{
     HttpResponse, Responder,
 };
 use bld_core::fs::FileSystem;
-use bld_dtos::PipelinePathRequest;
+use bld_models::dtos::PipelinePathRequest;
 use tracing::info;
 
 use crate::extractors::User;

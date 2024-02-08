@@ -1,19 +1,18 @@
-use actix::io::SinkWrite;
-use actix::{Actor, StreamHandler};
+use actix::{io::SinkWrite, Actor, StreamHandler};
 use actix_web::rt::spawn;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_dtos::ServerMessages;
 use bld_http::WebSocket;
+use bld_models::dtos::ServerMessages;
 use bld_sock::EnqueueClient;
 use futures::stream::StreamExt;
-use std::env::current_exe;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::process::{Child, Command};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio::task::JoinHandle;
-use tokio::time::sleep;
+use std::{env::current_exe, sync::Arc, time::Duration};
+use tokio::{
+    process::{Child, Command},
+    sync::mpsc::{channel, Receiver, Sender},
+    task::JoinHandle,
+    time::sleep,
+};
 use tracing::{debug, error};
 
 struct SupervisorMessageReceiver {

@@ -1,8 +1,10 @@
 use crate::supervisor::channel::SupervisorMessageSender;
 use anyhow::{bail, Result};
 use bld_core::fs::FileSystem;
-use bld_dtos::ExecClientMessage;
-use bld_entities::pipeline_runs::{self, InsertPipelineRun};
+use bld_models::{
+    dtos::ExecClientMessage,
+    pipeline_runs::{self, InsertPipelineRun},
+};
 use bld_utils::fs::IsYaml;
 use sea_orm::DatabaseConnection;
 use std::{collections::HashMap, sync::Arc};

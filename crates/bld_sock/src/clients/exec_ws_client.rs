@@ -8,7 +8,7 @@ use awc::ws::{Codec, Frame, Message};
 use awc::BoxedSocket;
 use bld_core::context::Context;
 use bld_core::logger::Logger;
-use bld_dtos::{ExecClientMessage, ExecServerMessage};
+use bld_models::dtos::{ExecClientMessage, ExecServerMessage};
 use futures::stream::SplitSink;
 use std::sync::Arc;
 use tracing::{debug, error};

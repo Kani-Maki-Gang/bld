@@ -10,7 +10,7 @@ use actix_web::{
     HttpResponse, Responder,
 };
 use bld_core::fs::FileSystem;
-use bld_dtos::ExecClientMessage;
+use bld_models::dtos::ExecClientMessage;
 use sea_orm::DatabaseConnection;
 use tracing::info;
 

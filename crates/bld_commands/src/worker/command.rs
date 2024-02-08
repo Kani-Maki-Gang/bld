@@ -1,12 +1,10 @@
 use crate::{command::BldCommand, signals::CommandSignals};
-use actix::io::SinkWrite;
-use actix::{Actor, StreamHandler};
+use actix::{io::SinkWrite, Actor, StreamHandler};
 use actix_web::rt::{spawn, System};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_core::{context::Context, fs::FileSystem, logger::Logger};
-use bld_dtos::WorkerMessages;
-use bld_entities::{new_connection_pool, pipeline_runs};
+use bld_models::{new_connection_pool, pipeline_runs, dtos::WorkerMessages};
 use bld_http::WebSocket;
 use bld_runner::RunnerBuilder;
 use bld_sock::WorkerClient;

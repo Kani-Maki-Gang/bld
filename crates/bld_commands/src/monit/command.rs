@@ -3,7 +3,7 @@ use actix::{io::SinkWrite, Actor, StreamHandler};
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_dtos::MonitInfo;
+use bld_models::dtos::MonitInfo;
 use bld_http::WebSocket;
 use bld_sock::MonitClient;
 use clap::Args;

@@ -2,15 +2,13 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, bail, Result};
 use bld_core::fs::FileSystem;
-use bld_dtos::{
-    AddJobRequest, CronJobResponse, ExecClientMessage, JobFiltersParams, UpdateJobRequest,
-};
-use bld_entities::{
+use bld_models::{
     cron_job_environment_variables::{
         self, CronJobEnvironmentVariable, InsertCronJobEnvironmentVariable,
     },
     cron_job_variables::{self, CronJobVariable, InsertCronJobVariable},
     cron_jobs::{self, CronJob, InsertCronJob, UpdateCronJob},
+    dtos::{AddJobRequest, CronJobResponse, ExecClientMessage, JobFiltersParams, UpdateJobRequest},
     pipeline::{self, Pipeline},
 };
 use sea_orm::DatabaseConnection;

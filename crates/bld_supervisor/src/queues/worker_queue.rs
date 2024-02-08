@@ -2,7 +2,7 @@ use actix_web::{rt::spawn, web::Data};
 use anyhow::{anyhow, Error, Result};
 use bld_config::BldConfig;
 use bld_core::{platform::docker, workers::Worker};
-use bld_entities::{
+use bld_models::{
     pipeline_run_containers::{self, PRC_STATE_REMOVED},
     pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED},
 };

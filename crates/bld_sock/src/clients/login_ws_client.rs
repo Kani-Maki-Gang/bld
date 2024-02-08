@@ -17,7 +17,7 @@ use awc::{
     BoxedSocket,
 };
 use bld_config::{os_name, BldConfig, OSname};
-use bld_dtos::{LoginClientMessage, LoginServerMessage};
+use bld_models::dtos::{LoginClientMessage, LoginServerMessage};
 use bld_utils::fs::write_tokens;
 use futures::stream::SplitSink;
 use futures_util::future::ready;

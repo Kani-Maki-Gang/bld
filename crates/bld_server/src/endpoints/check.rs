@@ -6,7 +6,7 @@ use actix_web::{get, HttpResponse, Responder};
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::fs::FileSystem;
-use bld_dtos::PipelineQueryParams;
+use bld_models::dtos::PipelineQueryParams;
 use bld_runner::{Load, Yaml};
 use tracing::info;
 

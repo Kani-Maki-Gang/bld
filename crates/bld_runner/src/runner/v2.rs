@@ -17,8 +17,8 @@ use bld_core::{
     regex::RegexCache,
     signals::{UnixSignal, UnixSignalMessage, UnixSignalsReceiver},
 };
-use bld_dtos::{ExecClientMessage, WorkerMessages};
 use bld_http::WebSocket;
+use bld_models::dtos::{ExecClientMessage, WorkerMessages};
 use bld_sock::ExecClient;
 use bld_utils::sync::IntoArc;
 use futures::{Future, StreamExt};

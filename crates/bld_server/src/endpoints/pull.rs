@@ -2,7 +2,7 @@ use crate::extractors::User;
 use actix_web::web::{Data, Query};
 use actix_web::{get, HttpResponse, Responder};
 use bld_core::fs::FileSystem;
-use bld_dtos::{PipelineQueryParams, PullResponse};
+use bld_models::dtos::{PipelineQueryParams, PullResponse};
 use tracing::info;
 
 #[get("/pull")]

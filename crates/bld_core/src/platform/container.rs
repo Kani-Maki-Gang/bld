@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path, path::PathBuf, sync::Arc};
 
 use anyhow::{anyhow, bail, Result};
 use bld_config::{path, BldConfig};
-use bld_entities::pipeline_run_containers::PipelineRunContainers;
+use bld_models::pipeline_run_containers::PipelineRunContainers;
 use bollard::{
     container::{
         Config as ContainerConfig, CreateContainerOptions, DownloadFromContainerOptions, LogOutput,

@@ -1,8 +1,10 @@
 use crate::extractors::User;
 use actix_web::{get, web::Data, web::Query, HttpResponse, Responder};
 use anyhow::Result;
-use bld_dtos::{HistQueryParams, HistoryEntry};
-use bld_entities::pipeline_runs;
+use bld_models::{
+    dtos::{HistQueryParams, HistoryEntry},
+    pipeline_runs,
+};
 use sea_orm::DatabaseConnection;
 use tracing::info;
 

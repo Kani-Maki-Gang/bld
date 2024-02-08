@@ -12,8 +12,10 @@ use actix_web_actors::ws;
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::{fs::FileSystem, scanner::FileScanner};
-use bld_dtos::{ExecClientMessage, ExecServerMessage};
-use bld_entities::pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED};
+use bld_models::{
+    dtos::{ExecClientMessage, ExecServerMessage},
+    pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED},
+};
 use bld_utils::sync::IntoArc;
 use futures_util::future::ready;
 use sea_orm::DatabaseConnection;

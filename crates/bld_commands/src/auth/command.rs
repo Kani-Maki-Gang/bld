@@ -3,7 +3,7 @@ use std::sync::Arc;
 use actix::{io::SinkWrite, Actor, StreamHandler, System};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_dtos::LoginClientMessage;
+use bld_models::dtos::LoginClientMessage;
 use bld_http::WebSocket;
 use bld_sock::LoginClient;
 use bld_utils::sync::IntoArc;
