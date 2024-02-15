@@ -1,4 +1,4 @@
-use crate::platform::PlatformSender;
+use crate::platform::Platform;
 use actix::spawn;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
@@ -12,7 +12,7 @@ use super::run::RemoteRun;
 pub enum LocalContextMessage {
     AddRemoteRun(RemoteRun),
     RemoveRemoteRun(String),
-    AddPlatform(Arc<PlatformSender>),
+    AddPlatform(Arc<Platform>),
     RemovePlatform(String),
     DoCleanup(oneshot::Sender<()>),
 }
@@ -20,7 +20,7 @@ pub enum LocalContextMessage {
 pub struct LocalContextBackend {
     config: Arc<BldConfig>,
     remote_runs: Vec<RemoteRun>,
-    platforms: Vec<Arc<PlatformSender>>,
+    platforms: Vec<Arc<Platform>>,
     rx: Receiver<LocalContextMessage>,
 }
 

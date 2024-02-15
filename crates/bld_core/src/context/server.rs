@@ -1,5 +1,5 @@
 use super::run::RemoteRun;
-use crate::platform::PlatformSender;
+use crate::platform::Platform;
 use actix::spawn;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
@@ -20,7 +20,7 @@ use uuid::Uuid;
 pub enum ServerContextMessage {
     AddRemoteRun(RemoteRun),
     RemoveRemoteRun(String),
-    AddPlatform(Arc<PlatformSender>),
+    AddPlatform(Arc<Platform>),
     RemovePlatform(String),
     SetPipelineAsRunning(String),
     SetPipelineAsFinished(String),
@@ -40,7 +40,7 @@ pub struct ServerContextBackend {
     run_id: String,
     remote_runs: Vec<RemoteRun>,
     conn: Arc<DatabaseConnection>,
-    platforms: Vec<Arc<PlatformSender>>,
+    platforms: Vec<Arc<Platform>>,
     rx: Receiver<ServerContextMessage>,
 }
 

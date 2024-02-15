@@ -1,7 +1,7 @@
 use actix::spawn;
 use anyhow::Result;
 use async_signal::{Signal, Signals};
-use bld_core::signals::{UnixSignalsBackend, UnixSignals};
+use bld_core::signals::{UnixSignals, UnixSignalsBackend};
 use futures::stream::StreamExt;
 use signal_hook::low_level;
 use tokio::sync::mpsc::channel;

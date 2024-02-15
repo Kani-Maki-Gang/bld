@@ -2,7 +2,7 @@ pub mod local;
 pub mod run;
 pub mod server;
 
-use crate::platform::PlatformSender;
+use crate::platform::Platform;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_models::pipeline_run_containers::PipelineRunContainers;
@@ -60,7 +60,7 @@ impl Context {
         }
     }
 
-    pub async fn add_platform(&self, platform: Arc<PlatformSender>) -> Result<()> {
+    pub async fn add_platform(&self, platform: Arc<Platform>) -> Result<()> {
         match self {
             Self::Server(tx) => tx
                 .send(ServerContextMessage::AddPlatform(platform))

@@ -7,9 +7,7 @@ use bld_utils::sync::IntoArc;
 use crate::{
     context::Context,
     logger::Logger,
-    platform::{
-        Container, Image, Machine, PlatformSender, Ssh, SshConnectOptions, SshExecutionOptions,
-    },
+    platform::{Container, Image, Machine, Platform, Ssh, SshConnectOptions, SshExecutionOptions},
 };
 
 use super::ContainerOptions;
@@ -76,7 +74,7 @@ impl<'a> PlatformBuilder<'a> {
         self
     }
 
-    pub async fn build(self) -> Result<Arc<PlatformSender>> {
+    pub async fn build(self) -> Result<Arc<Platform>> {
         let run_id = self
             .run_id
             .ok_or_else(|| anyhow!("no run id provided for target platform builder"))?;
@@ -113,18 +111,18 @@ impl<'a> PlatformBuilder<'a> {
                     context,
                 };
                 let container = Container::new(options).await?;
-                PlatformSender::container(Box::new(container))
+                Platform::container(Box::new(container))
             }
 
             PlatformOptions::Ssh(connect) => {
                 let execution = SshExecutionOptions::new(config, pipeline_env, env);
                 let ssh = Ssh::new(connect, execution).await?;
-                PlatformSender::ssh(Box::new(ssh))
+                Platform::ssh(Box::new(ssh))
             }
 
             PlatformOptions::Machine => {
                 let machine = Machine::new(run_id, config, pipeline_env, env).await?;
-                PlatformSender::machine(Box::new(machine))
+                Platform::machine(Box::new(machine))
             }
         }
         .into_arc();

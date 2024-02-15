@@ -9,7 +9,7 @@ use bld_core::{
     context::Context,
     fs::FileSystem,
     logger::Logger,
-    platform::PlatformSender,
+    platform::Platform,
     signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend},
 };
 use bld_http::WebSocket;
@@ -42,7 +42,7 @@ pub struct Runner {
     pub env: Arc<HashMap<String, String>>,
     pub vars: Arc<HashMap<String, String>>,
     pub context: Arc<Context>,
-    pub platform: Arc<PlatformSender>,
+    pub platform: Arc<Platform>,
     pub is_child: bool,
     pub has_faulted: bool,
 }
