@@ -13,19 +13,19 @@ use tokio::{
 };
 use tracing::error;
 
-enum LoginProcessMessage {
+enum LoginsMessage {
     Add(String, oneshot::Sender<String>),
     Remove(String),
     Code(String, String),
 }
 
-struct LoginProcessBackend {
+struct LoginsBackend {
     inner: HashMap<String, oneshot::Sender<String>>,
-    rx: Receiver<LoginProcessMessage>,
+    rx: Receiver<LoginsMessage>,
 }
 
-impl LoginProcessBackend {
-    pub fn new(rx: Receiver<LoginProcessMessage>) -> Self {
+impl LoginsBackend {
+    pub fn new(rx: Receiver<LoginsMessage>) -> Self {
         Self {
             inner: HashMap::new(),
             rx,
@@ -43,9 +43,9 @@ impl LoginProcessBackend {
     async fn receive_inner(mut self) -> Result<()> {
         while let Some(message) = self.rx.recv().await {
             let result = match message {
-                LoginProcessMessage::Add(token, sender) => self.add(token, sender),
-                LoginProcessMessage::Remove(token) => self.remove(token),
-                LoginProcessMessage::Code(token, code) => self.code(token, code),
+                LoginsMessage::Add(token, sender) => self.add(token, sender),
+                LoginsMessage::Remove(token) => self.remove(token),
+                LoginsMessage::Code(token, code) => self.code(token, code),
             };
             if let Err(e) = result {
                 error!("{e}");
@@ -72,36 +72,36 @@ impl LoginProcessBackend {
     }
 }
 
-pub struct LoginProcess {
-    tx: Sender<LoginProcessMessage>,
+pub struct Logins {
+    tx: Sender<LoginsMessage>,
 }
 
-impl Default for LoginProcess {
+impl Default for Logins {
     fn default() -> Self {
         let (tx, rx) = channel(4096);
-        LoginProcessBackend::new(rx).receive();
+        LoginsBackend::new(rx).receive();
         Self { tx }
     }
 }
 
-impl LoginProcess {
+impl Logins {
     pub async fn add(&self, token: String, sender: oneshot::Sender<String>) -> Result<()> {
         self.tx
-            .send(LoginProcessMessage::Add(token, sender))
+            .send(LoginsMessage::Add(token, sender))
             .await
             .map_err(|e| anyhow!(e.to_string()))
     }
 
     pub async fn remove(&self, token: String) -> Result<()> {
         self.tx
-            .send(LoginProcessMessage::Remove(token))
+            .send(LoginsMessage::Remove(token))
             .await
             .map_err(|e| anyhow!(e.to_string()))
     }
 
     pub async fn code(&self, token: String, code: String) -> Result<()> {
         self.tx
-            .send(LoginProcessMessage::Code(token, code))
+            .send(LoginsMessage::Code(token, code))
             .await
             .map_err(|e| anyhow!(e.to_string()))
     }

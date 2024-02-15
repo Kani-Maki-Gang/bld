@@ -11,7 +11,7 @@ use actix_web::{
 use actix_web_actors::ws::{start, Message, ProtocolError, WebsocketContext};
 use anyhow::{anyhow, bail, Result};
 use bld_config::{Auth, BldConfig};
-use bld_core::auth::LoginProcess;
+use bld_core::auth::Logins;
 use bld_models::dtos::{LoginClientMessage, LoginServerMessage};
 use bld_utils::fs::AuthTokens;
 use openidconnect::{
@@ -28,7 +28,7 @@ pub struct LoginSocket {
     nonce: Nonce,
     config: Data<BldConfig>,
     client: Data<Option<CoreClient>>,
-    logins: Data<LoginProcess>,
+    logins: Data<Logins>,
 }
 
 impl LoginSocket {
@@ -37,7 +37,7 @@ impl LoginSocket {
         nonce: Nonce,
         config: Data<BldConfig>,
         client: Data<Option<CoreClient>>,
-        logins: Data<LoginProcess>,
+        logins: Data<Logins>,
     ) -> Self {
         Self {
             csrf_token,
@@ -238,7 +238,7 @@ pub async fn ws(
     stream: Payload,
     config: Data<BldConfig>,
     client: Data<Option<CoreClient>>,
-    logins: Data<LoginProcess>,
+    logins: Data<Logins>,
 ) -> Result<HttpResponse, Error> {
     let csrf_token = CsrfToken::new_random();
     let nonce = Nonce::new_random();
