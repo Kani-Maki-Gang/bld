@@ -17,10 +17,7 @@ const AUTH_REDIRECT_SUCCESS: &str =
 const AUTH_REDIRECT_FAILED: &str = "An error occured while completing the login process.";
 
 #[get("/auth/redirect")]
-pub async fn redirect(
-    info: Query<AuthRedirectParams>,
-    logins: Data<Logins>,
-) -> impl Responder {
+pub async fn redirect(info: Query<AuthRedirectParams>, logins: Data<Logins>) -> impl Responder {
     info!("Reached handler for /authRedirect route");
     let code = info.code.to_owned();
     let token = info.state.to_owned();

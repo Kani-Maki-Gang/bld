@@ -94,7 +94,7 @@ impl MonitorPipelineSocket {
             Ok(run) => {
                 debug!("starting scan for run");
                 act.id = run.id.clone();
-                act.scanner = Some(FileScanner::new(&act.config.as_ref(), &run.id).into_arc());
+                act.scanner = Some(FileScanner::new(act.config.as_ref(), &run.id).into_arc());
                 ready(())
             }
             Err(e) => {

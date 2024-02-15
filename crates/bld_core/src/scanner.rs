@@ -12,6 +12,7 @@ use tokio::{
 };
 use tracing::error;
 
+#[derive(Debug)]
 enum FileScannerMessage {
     Next(oneshot::Sender<Vec<String>>),
 }
@@ -23,9 +24,9 @@ struct FileScannerBackend {
 }
 
 impl FileScannerBackend {
-    pub fn new(config: &BldConfig, run_id: &str, rx: Receiver<FileScannerMessage>) -> Self {
+    pub fn new(path: PathBuf, rx: Receiver<FileScannerMessage>) -> Self {
         Self {
-            path: config.log_full_path(run_id),
+            path,
             file_handle: None,
             rx,
         }
@@ -33,36 +34,31 @@ impl FileScannerBackend {
 
     pub fn receive(self) {
         spawn(async move {
-            if let Err(e) = self.receive_inner().await {
-                error!("{e}");
-            }
+            self.receive_inner().await;
         });
     }
 
-    async fn receive_inner(mut self) -> Result<()> {
+    async fn receive_inner(mut self) {
         while let Some(msg) = self.rx.recv().await {
-            match msg {
-                FileScannerMessage::Next(resp_tx) => self.next(resp_tx).await?,
+            let res = match msg {
+                FileScannerMessage::Next(resp_tx) => self.next(resp_tx).await,
+            };
+            if let Err(e) = res {
+                error!("Message handling failed with {e}");
             }
         }
-        Ok(())
     }
 
-    async fn try_open(&mut self) {
-        if self.file_handle.is_some() {
-            return;
+    async fn try_file_handle(&mut self) -> Option<&mut File> {
+        if self.file_handle.is_none() && self.path.is_file() {
+            self.file_handle = File::open(&self.path).await.map(Some).unwrap_or(None);
         }
-        self.file_handle = match self.path.is_file() {
-            true => File::open(&self.path).await.map(Some).unwrap_or(None),
-            false => None,
-        };
+        self.file_handle.as_mut()
     }
 
     async fn next(&mut self, resp_tx: oneshot::Sender<Vec<String>>) -> Result<()> {
-        self.try_open().await;
-
         let mut content: Vec<String> = vec![];
-        let Some(file_handle) = self.file_handle.as_mut() else {
+        let Some(file_handle) = self.try_file_handle().await else {
             resp_tx
                 .send(content)
                 .map_err(|_| anyhow!("oneshot response sender dropped"))?;
@@ -90,8 +86,9 @@ pub struct FileScanner {
 
 impl FileScanner {
     pub fn new(config: &BldConfig, run_id: &str) -> Self {
+        let path = config.log_full_path(run_id);
         let (tx, rx) = channel(4096);
-        FileScannerBackend::new(config, run_id, rx).receive();
+        FileScannerBackend::new(path, rx).receive();
         Self { tx }
     }
 
