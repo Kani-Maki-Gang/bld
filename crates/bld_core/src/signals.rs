@@ -22,11 +22,11 @@ impl UnixSignalMessage {
     }
 }
 
-pub struct UnixSignalsSender {
+pub struct UnixSignals {
     tx: Sender<UnixSignalMessage>,
 }
 
-impl UnixSignalsSender {
+impl UnixSignals {
     pub fn new(tx: Sender<UnixSignalMessage>) -> Self {
         Self { tx }
     }
@@ -56,11 +56,11 @@ impl UnixSignalsSender {
     }
 }
 
-pub struct UnixSignalsReceiver {
+pub struct UnixSignalsBackend {
     rx: Receiver<UnixSignalMessage>,
 }
 
-impl UnixSignalsReceiver {
+impl UnixSignalsBackend {
     pub fn new(rx: Receiver<UnixSignalMessage>) -> Self {
         Self { rx }
     }

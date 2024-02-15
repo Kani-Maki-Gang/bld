@@ -15,7 +15,7 @@ use bld_core::{
         Image, PlatformSender, SshAuthOptions, SshConnectOptions,
     },
     regex::RegexCache,
-    signals::{UnixSignal, UnixSignalMessage, UnixSignalsReceiver},
+    signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend},
 };
 use bld_http::WebSocket;
 use bld_models::dtos::{ExecClientMessage, WorkerMessages};
@@ -268,7 +268,7 @@ pub struct Runner {
     pub run_id: String,
     pub run_start_time: String,
     pub config: Arc<BldConfig>,
-    pub signals: Option<UnixSignalsReceiver>,
+    pub signals: Option<UnixSignalsBackend>,
     pub logger: Arc<Logger>,
     pub regex_cache: Arc<RegexCache>,
     pub fs: Arc<FileSystem>,

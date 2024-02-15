@@ -10,7 +10,7 @@ use bld_core::{
     fs::FileSystem,
     logger::Logger,
     platform::PlatformSender,
-    signals::{UnixSignal, UnixSignalMessage, UnixSignalsReceiver},
+    signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend},
 };
 use bld_http::WebSocket;
 use bld_models::dtos::{ExecClientMessage, WorkerMessages};
@@ -34,7 +34,7 @@ pub struct Runner {
     pub run_id: String,
     pub run_start_time: String,
     pub config: Arc<BldConfig>,
-    pub signals: Option<UnixSignalsReceiver>,
+    pub signals: Option<UnixSignalsBackend>,
     pub logger: Arc<Logger>,
     pub fs: Arc<FileSystem>,
     pub pipeline: Pipeline,

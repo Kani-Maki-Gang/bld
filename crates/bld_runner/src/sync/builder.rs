@@ -9,7 +9,7 @@ use bld_core::{
         Image,
     },
     regex::RegexCache,
-    signals::UnixSignalsReceiver,
+    signals::UnixSignalsBackend,
 };
 use bld_models::dtos::WorkerMessages;
 use bld_utils::sync::IntoArc;
@@ -35,7 +35,7 @@ pub struct RunnerBuilder {
     run_id: String,
     run_start_time: String,
     config: Option<Arc<BldConfig>>,
-    signals: Option<UnixSignalsReceiver>,
+    signals: Option<UnixSignalsBackend>,
     logger: Arc<Logger>,
     regex_cache: Arc<RegexCache>,
     fs: Arc<FileSystem>,
@@ -83,7 +83,7 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn signals(mut self, signals: UnixSignalsReceiver) -> Self {
+    pub fn signals(mut self, signals: UnixSignalsBackend) -> Self {
         self.signals = Some(signals);
         self
     }
