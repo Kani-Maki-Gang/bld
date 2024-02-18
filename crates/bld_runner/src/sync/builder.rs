@@ -44,6 +44,7 @@ pub struct RunnerBuilder {
     env: Option<Arc<HashMap<String, String>>>,
     vars: Option<Arc<HashMap<String, String>>>,
     context: Option<Arc<Context>>,
+    platform_context: Option<PlatformContext>,
     is_child: bool,
 }
 
@@ -62,6 +63,7 @@ impl Default for RunnerBuilder {
             env: None,
             vars: None,
             context: None,
+            platform_context: PlatformContext::default(),
             is_child: false,
         }
     }
@@ -126,6 +128,10 @@ impl RunnerBuilder {
     pub fn context(mut self, context: Arc<Context>) -> Self {
         self.context = Some(context);
         self
+    }
+
+    pub fn platform_context(mut self, platform_context: PlatformContext) -> Self {
+
     }
 
     pub fn is_child(mut self, is_child: bool) -> Self {

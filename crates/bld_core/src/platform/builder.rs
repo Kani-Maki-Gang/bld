@@ -5,12 +5,11 @@ use bld_config::BldConfig;
 use bld_utils::sync::IntoArc;
 
 use crate::{
-    context::Context,
     logger::Logger,
     platform::{Container, Image, Machine, Platform, Ssh, SshConnectOptions, SshExecutionOptions},
 };
 
-use super::ContainerOptions;
+use super::{context::ContainerContext, ContainerOptions};
 
 pub enum PlatformOptions<'a> {
     Container {
@@ -35,7 +34,7 @@ pub struct PlatformBuilder<'a> {
     pipeline_environment: Option<&'a HashMap<String, String>>,
     environment: Option<Arc<HashMap<String, String>>>,
     logger: Option<Arc<Logger>>,
-    context: Option<Arc<Context>>,
+    context: Option<ContainerContext>,
 }
 
 impl<'a> PlatformBuilder<'a> {
@@ -69,7 +68,7 @@ impl<'a> PlatformBuilder<'a> {
         self
     }
 
-    pub fn context(mut self, context: Arc<Context>) -> Self {
+    pub fn context(mut self, context: ContainerContext) -> Self {
         self.context = Some(context);
         self
     }
@@ -95,10 +94,6 @@ impl<'a> PlatformBuilder<'a> {
             .logger
             .ok_or_else(|| anyhow!("no logger provided for target platform builder"))?;
 
-        let context = self
-            .context
-            .ok_or_else(|| anyhow!("no context provided for target platform builder"))?;
-
         let platform = match self.options {
             PlatformOptions::Container { image, docker_url } => {
                 let options = ContainerOptions {
@@ -108,7 +103,7 @@ impl<'a> PlatformBuilder<'a> {
                     pipeline_env,
                     env,
                     logger,
-                    context,
+                    context: self.context,
                 };
                 let container = Container::new(options).await?;
                 Platform::container(Box::new(container))

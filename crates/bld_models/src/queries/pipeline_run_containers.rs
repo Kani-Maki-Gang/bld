@@ -138,6 +138,7 @@ pub async fn update_state<C: ConnectionTrait + TransactionTrait>(
             pipeline_run_containers::Column::DateUpdated,
             Expr::value(date_updated),
         )
+        .filter(pipeline_run_containers::Column::Id.eq(id))
         .exec(conn)
         .await
         .map(|_| {

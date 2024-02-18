@@ -1,5 +1,6 @@
 pub mod builder;
 mod container;
+mod context;
 mod docker;
 mod image;
 mod machine;
