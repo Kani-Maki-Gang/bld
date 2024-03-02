@@ -1,4 +1,4 @@
-pub use std::sync::Arc;
+use std::sync::Arc;
 
 use anyhow::{bail, Result};
 use bld_models::pipeline_run_containers::{
@@ -15,7 +15,7 @@ pub enum PlatformContext {
         conn: Arc<DatabaseConnection>,
         entity_id: Option<String>,
         run_id: String,
-    }
+    },
 }
 
 impl Default for PlatformContext {
@@ -25,20 +25,22 @@ impl Default for PlatformContext {
 }
 
 impl PlatformContext {
-    pub fn local() -> Self {
-        Self::Local
-    }
-
-    pub fn server(conn: Arc<DatabaseConnection>, run_id: String) -> Self {
-        Self::Server {
-            conn,
-            run_id,
-            entity_id: None,
+    pub fn new(run_id: &str, conn: Option<Arc<DatabaseConnection>>) -> Self {
+        match conn {
+            None => Self::Local,
+            Some(conn) => Self::Server {
+                conn: conn.clone(),
+                run_id: run_id.to_string(),
+                entity_id: None,
+            },
         }
     }
 
     async fn update_pipeline_state(&self, state: &str) -> Result<()> {
-        let Self::Server { conn, entity_id, .. } = &self else {
+        let Self::Server {
+            conn, entity_id, ..
+        } = &self
+        else {
             return Ok(());
         };
 
@@ -51,7 +53,12 @@ impl PlatformContext {
     }
 
     pub async fn add(&mut self, container_id: &str) -> Result<()> {
-        let Self::Server { conn, entity_id, run_id } = self else {
+        let Self::Server {
+            conn,
+            entity_id,
+            run_id,
+        } = self
+        else {
             return Ok(());
         };
 

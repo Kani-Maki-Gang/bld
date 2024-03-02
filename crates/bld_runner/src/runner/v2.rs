@@ -387,6 +387,7 @@ impl Runner {
             }
         };
 
+        let conn = self.context.get_conn();
         let platform = PlatformBuilder::default()
             .run_id(&self.run_id)
             .config(self.config.clone())
@@ -394,7 +395,7 @@ impl Runner {
             .pipeline_environment(&self.pipeline.environment)
             .environment(self.env.clone())
             .logger(self.logger.clone())
-            .context(self.context.clone())
+            .conn(conn)
             .build()
             .await?;
 

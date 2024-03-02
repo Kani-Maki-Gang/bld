@@ -6,7 +6,7 @@ use bld_core::{
     logger::Logger,
     platform::{
         builder::{PlatformBuilder, PlatformOptions},
-        Image, PlatformContext
+        Image,
     },
     regex::RegexCache,
     signals::UnixSignalsBackend,
@@ -44,7 +44,6 @@ pub struct RunnerBuilder {
     env: Option<Arc<HashMap<String, String>>>,
     vars: Option<Arc<HashMap<String, String>>>,
     context: Option<Arc<Context>>,
-    platform_context: Option<PlatformContext>,
     is_child: bool,
 }
 
@@ -63,7 +62,6 @@ impl Default for RunnerBuilder {
             env: None,
             vars: None,
             context: None,
-            platform_context: Some(PlatformContext::default()),
             is_child: false,
         }
     }
@@ -130,11 +128,6 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn platform_context(mut self, platform_context: PlatformContext) -> Self {
-        self.platform_context = Some(platform_context);
-        self
-    }
-
     pub fn is_child(mut self, is_child: bool) -> Self {
         self.is_child = is_child;
         self
@@ -174,6 +167,7 @@ impl RunnerBuilder {
                     },
                 };
 
+                let conn = context.get_conn();
                 let platform = PlatformBuilder::default()
                     .run_id(&self.run_id)
                     .options(options)
@@ -181,7 +175,7 @@ impl RunnerBuilder {
                     .pipeline_environment(&pipeline.environment)
                     .environment(env.clone())
                     .logger(self.logger.clone())
-                    .context(self.platform_context)
+                    .conn(conn)
                     .build()
                     .await?;
 

@@ -16,15 +16,15 @@ use self::local::{LocalContextBackend, LocalContextMessage};
 use self::server::{ServerContextBackend, ServerContextMessage};
 
 pub enum Context {
-    Server(Sender<ServerContextMessage>),
+    Server { tx: Sender<ServerContextMessage>, conn: Arc<DatabaseConnection> },
     Local(Sender<LocalContextMessage>),
 }
 
 impl Context {
     pub fn server(config: Arc<BldConfig>, pool: Arc<DatabaseConnection>, run_id: &str) -> Self {
         let (tx, rx) = channel(4096);
-        ServerContextBackend::new(config, pool, run_id, rx).receive();
-        Self::Server(tx)
+        ServerContextBackend::new(config, pool.clone(), run_id, rx).receive();
+        Self::Server{ tx, conn: pool.clone() }
     }
 
     pub fn local(config: Arc<BldConfig>) -> Self {
@@ -33,10 +33,17 @@ impl Context {
         Self::Local(tx)
     }
 
+    pub fn get_conn(&self) -> Option<Arc<DatabaseConnection>> {
+        match self {
+            Self::Local(_) => None,
+            Self::Server { conn, .. } => Some(conn.clone()),
+        }
+    }
+
     pub async fn add_remote_run(&self, server: String, run_id: String) -> Result<()> {
         let remote_run = RemoteRun::new(server, run_id);
         match self {
-            Self::Server(tx) => tx
+            Self::Server { tx, .. } => tx
                 .send(ServerContextMessage::AddRemoteRun(remote_run))
                 .await
                 .map_err(|e| anyhow!(e)),
@@ -49,7 +56,7 @@ impl Context {
 
     pub async fn remove_remote_run(&self, run_id: &str) -> Result<()> {
         match self {
-            Self::Server(tx) => tx
+            Self::Server { tx, .. } => tx
                 .send(ServerContextMessage::RemoveRemoteRun(run_id.to_owned()))
                 .await
                 .map_err(|e| anyhow!(e)),
@@ -62,7 +69,7 @@ impl Context {
 
     pub async fn add_platform(&self, platform: Arc<Platform>) -> Result<()> {
         match self {
-            Self::Server(tx) => tx
+            Self::Server { tx, .. } => tx
                 .send(ServerContextMessage::AddPlatform(platform))
                 .await
                 .map_err(|e| anyhow!(e)),
@@ -75,7 +82,7 @@ impl Context {
 
     pub async fn remove_platform(&self, platform_id: &str) -> Result<()> {
         match self {
-            Self::Server(tx) => tx
+            Self::Server { tx, .. } => tx
                 .send(ServerContextMessage::RemovePlatform(
                     platform_id.to_string(),
                 ))
@@ -89,7 +96,7 @@ impl Context {
     }
 
     pub async fn set_pipeline_as_running(&self, run_id: String) -> Result<()> {
-        let Self::Server(tx) = self else {
+        let Self::Server { tx, .. } = self else {
             return Ok(());
         };
 
@@ -99,7 +106,7 @@ impl Context {
     }
 
     pub async fn set_pipeline_as_finished(&self, run_id: String) -> Result<()> {
-        let Self::Server(tx) = self else {
+        let Self::Server { tx, .. } = self else {
             return Ok(());
         };
 
@@ -109,7 +116,7 @@ impl Context {
     }
 
     pub async fn set_pipeline_as_faulted(&self, run_id: String) -> Result<()> {
-        let Self::Server(tx) = self else {
+        let Self::Server { tx, .. } = self else {
             return Ok(());
         };
 
@@ -122,7 +129,7 @@ impl Context {
         &self,
         container_id: String,
     ) -> Result<Option<PipelineRunContainers>> {
-        let Self::Server(tx) = self else {
+        let Self::Server { tx, .. } = self else {
             return Ok(None);
         };
 
@@ -139,7 +146,7 @@ impl Context {
     }
 
     pub async fn set_container_as_removed(&self, id: String) -> Result<()> {
-        let Self::Server(tx) = self else {
+        let Self::Server { tx, .. } = self else {
             return Ok(());
         };
 
@@ -149,7 +156,7 @@ impl Context {
     }
 
     pub async fn set_container_as_faulted(&self, id: String) -> Result<()> {
-        let Self::Server(tx) = self else {
+        let Self::Server { tx, .. } = self else {
             return Ok(());
         };
 
@@ -159,7 +166,7 @@ impl Context {
     }
 
     pub async fn keep_alive(&self, id: String) -> Result<()> {
-        let Self::Server(tx) = self else {
+        let Self::Server { tx, .. } = self else {
             return Ok(());
         };
 
@@ -172,7 +179,7 @@ impl Context {
         let (resp_tx, resp_rx) = oneshot::channel();
 
         match self {
-            Self::Server(tx) => tx
+            Self::Server { tx, .. } => tx
                 .send(ServerContextMessage::DoCleanup(resp_tx))
                 .await
                 .map_err(|e| anyhow!(e))?,

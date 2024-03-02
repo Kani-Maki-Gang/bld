@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::logger::Logger;
 
-use super::{context::PlatformContext, docker, Image, PlatformMessage};
+use super::{context::PlatformContext, docker, Image};
 
 pub struct ContainerOptions<'a> {
     pub config: Arc<BldConfig>,
@@ -26,7 +26,7 @@ pub struct ContainerOptions<'a> {
     pub pipeline_env: &'a HashMap<String, String>,
     pub env: Arc<HashMap<String, String>>,
     pub logger: Arc<Logger>,
-    pub context: Option<PlatformContext>,
+    pub context: PlatformContext,
 }
 
 pub struct Container {
@@ -34,7 +34,7 @@ pub struct Container {
     pub name: String,
     pub config: Option<Arc<BldConfig>>,
     pub client: Docker,
-    pub context: Option<PlatformContext>,
+    pub context: PlatformContext,
     pub environment: Vec<String>,
 }
 
@@ -88,9 +88,7 @@ impl Container {
             .await?;
         let (id, name) = Container::create(&client, options.image.name(), container_env).await?;
 
-        if let Some(context) = options.context.as_mut() {
-            context.add(&id).await?;
-        }
+        options.context.add(&id).await?;
 
         Ok(Self {
             id,
@@ -202,41 +200,35 @@ impl Container {
     }
 
     pub async fn keep_alive(&self) -> Result<()> {
-        let Some(context) = &self.context else {
-            return Ok(());
-        };
-        context.keep_alive().await
+        self.context.keep_alive().await
     }
 
     pub async fn dispose(&self) -> Result<()> {
         if let Err(e) = self.client.stop_container(&self.name, None).await {
             error!("could not stop container, {e}");
-            if let Some(context) = &self.context {
-                let _ = context
-                    .set_as_faulted()
-                    .await
-                    .map_err(|e| error!("could not set container as faulted, {e}"));
-            }
+            let _ = self
+                .context
+                .set_as_faulted()
+                .await
+                .map_err(|e| error!("could not set container as faulted, {e}"));
             bail!(e);
         }
 
         if let Err(e) = self.client.remove_container(&self.name, None).await {
             error!("could not stop container, {e}");
-            if let Some(context) = &self.context {
-                let _ = context
-                    .set_as_faulted()
-                    .await
-                    .map_err(|e| error!("could not set container as faulted, {e}"));
-            }
+            let _ = self
+                .context
+                .set_as_faulted()
+                .await
+                .map_err(|e| error!("could not set container as faulted, {e}"));
             bail!(e);
         }
 
-        if let Some(context) = &self.context {
-            let _ = context
-                .set_as_removed()
-                .await
-                .map_err(|e| error!("could not set container as faulted, {e}"));
-        }
+        let _ = self
+            .context
+            .set_as_removed()
+            .await
+            .map_err(|e| error!("could not set container as faulted, {e}"));
 
         Ok(())
     }

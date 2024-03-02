@@ -3,9 +3,11 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_utils::sync::IntoArc;
+use sea_orm::DatabaseConnection;
 
 use crate::{
-    context::Context, logger::Logger, platform::{Container, Image, Machine, Platform, Ssh, SshConnectOptions, SshExecutionOptions}
+    logger::Logger,
+    platform::{Container, Image, Machine, Platform, Ssh, SshConnectOptions, SshExecutionOptions},
 };
 
 use super::{context::PlatformContext, ContainerOptions};
@@ -33,7 +35,7 @@ pub struct PlatformBuilder<'a> {
     pipeline_environment: Option<&'a HashMap<String, String>>,
     environment: Option<Arc<HashMap<String, String>>>,
     logger: Option<Arc<Logger>>,
-    context: Option<PlatformContext>,
+    conn: Option<Arc<DatabaseConnection>>,
 }
 
 impl<'a> PlatformBuilder<'a> {
@@ -67,8 +69,8 @@ impl<'a> PlatformBuilder<'a> {
         self
     }
 
-    pub fn context(mut self, context: Option<PlatformContext>) -> Self {
-        self.context = context;
+    pub fn conn(mut self, conn: Option<Arc<DatabaseConnection>>) -> Self {
+        self.conn = conn;
         self
     }
 
@@ -95,6 +97,7 @@ impl<'a> PlatformBuilder<'a> {
 
         let platform = match self.options {
             PlatformOptions::Container { image, docker_url } => {
+                let context = PlatformContext::new(&run_id, self.conn);
                 let options = ContainerOptions {
                     config,
                     docker_url,
@@ -102,7 +105,7 @@ impl<'a> PlatformBuilder<'a> {
                     pipeline_env,
                     env,
                     logger,
-                    context: self.context,
+                    context,
                 };
                 let container = Container::new(options).await?;
                 Platform::container(Box::new(container))
