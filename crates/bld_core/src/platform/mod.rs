@@ -9,6 +9,7 @@ mod ssh;
 use std::sync::Arc;
 
 pub use container::*;
+pub use context::*;
 pub use docker::*;
 use futures::channel::oneshot;
 pub use image::*;

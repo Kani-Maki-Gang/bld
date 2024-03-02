@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::logger::Logger;
 
-use super::{context::ContainerContext, docker, Image};
+use super::{context::PlatformContext, docker, Image, PlatformMessage};
 
 pub struct ContainerOptions<'a> {
     pub config: Arc<BldConfig>,
@@ -26,7 +26,7 @@ pub struct ContainerOptions<'a> {
     pub pipeline_env: &'a HashMap<String, String>,
     pub env: Arc<HashMap<String, String>>,
     pub logger: Arc<Logger>,
-    pub context: Option<ContainerContext>,
+    pub context: Option<PlatformContext>,
 }
 
 pub struct Container {
@@ -34,7 +34,7 @@ pub struct Container {
     pub name: String,
     pub config: Option<Arc<BldConfig>>,
     pub client: Docker,
-    pub context: Option<ContainerContext>,
+    pub context: Option<PlatformContext>,
     pub environment: Vec<String>,
 }
 

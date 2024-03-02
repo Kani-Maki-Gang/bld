@@ -5,11 +5,10 @@ use bld_config::BldConfig;
 use bld_utils::sync::IntoArc;
 
 use crate::{
-    logger::Logger,
-    platform::{Container, Image, Machine, Platform, Ssh, SshConnectOptions, SshExecutionOptions},
+    context::Context, logger::Logger, platform::{Container, Image, Machine, Platform, Ssh, SshConnectOptions, SshExecutionOptions}
 };
 
-use super::{context::ContainerContext, ContainerOptions};
+use super::{context::PlatformContext, ContainerOptions};
 
 pub enum PlatformOptions<'a> {
     Container {
@@ -34,7 +33,7 @@ pub struct PlatformBuilder<'a> {
     pipeline_environment: Option<&'a HashMap<String, String>>,
     environment: Option<Arc<HashMap<String, String>>>,
     logger: Option<Arc<Logger>>,
-    context: Option<ContainerContext>,
+    context: Option<PlatformContext>,
 }
 
 impl<'a> PlatformBuilder<'a> {
@@ -68,8 +67,8 @@ impl<'a> PlatformBuilder<'a> {
         self
     }
 
-    pub fn context(mut self, context: ContainerContext) -> Self {
-        self.context = Some(context);
+    pub fn context(mut self, context: Option<PlatformContext>) -> Self {
+        self.context = context;
         self
     }
 

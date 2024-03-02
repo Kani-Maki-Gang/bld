@@ -6,7 +6,7 @@ use bld_core::{
     logger::Logger,
     platform::{
         builder::{PlatformBuilder, PlatformOptions},
-        Image,
+        Image, PlatformContext
     },
     regex::RegexCache,
     signals::UnixSignalsBackend,
@@ -63,7 +63,7 @@ impl Default for RunnerBuilder {
             env: None,
             vars: None,
             context: None,
-            platform_context: PlatformContext::default(),
+            platform_context: Some(PlatformContext::default()),
             is_child: false,
         }
     }
@@ -131,7 +131,8 @@ impl RunnerBuilder {
     }
 
     pub fn platform_context(mut self, platform_context: PlatformContext) -> Self {
-
+        self.platform_context = Some(platform_context);
+        self
     }
 
     pub fn is_child(mut self, is_child: bool) -> Self {
@@ -180,7 +181,7 @@ impl RunnerBuilder {
                     .pipeline_environment(&pipeline.environment)
                     .environment(env.clone())
                     .logger(self.logger.clone())
-                    .context(context.clone())
+                    .context(self.platform_context)
                     .build()
                     .await?;
 
