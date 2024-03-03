@@ -1,24 +1,17 @@
-use crate::command::BldCommand;
-use crate::signals::CommandSignals;
-use actix::io::SinkWrite;
-use actix::{Actor, StreamHandler};
+use crate::{command::BldCommand, signals::CommandSignals};
+use actix::{io::SinkWrite, Actor, StreamHandler};
 use actix_web::rt::{spawn, System};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::context::ContextSender;
-use bld_core::database::{new_connection_pool, pipeline_runs};
-use bld_core::logger::LoggerSender;
-use bld_core::messages::WorkerMessages;
-use bld_core::proxies::PipelineFileSystemProxy;
-use bld_core::request::WebSocket;
+use bld_core::{context::Context, fs::FileSystem, logger::Logger};
+use bld_http::WebSocket;
+use bld_models::{dtos::WorkerMessages, new_connection_pool, pipeline_runs};
 use bld_runner::RunnerBuilder;
-use bld_sock::clients::WorkerClient;
-use bld_utils::sync::IntoArc;
-use bld_utils::variables::parse_variables;
+use bld_sock::WorkerClient;
+use bld_utils::{sync::IntoArc, variables::parse_variables};
 use chrono::Utc;
 use clap::Args;
-use futures::join;
-use futures::stream::StreamExt;
+use futures::{join, stream::StreamExt};
 use std::sync::Arc;
 use tokio::sync::mpsc::{channel, Receiver};
 use tracing::{debug, error};
@@ -81,7 +74,7 @@ impl BldCommand for WorkerCommand {
             let start_date = Utc::now().naive_utc();
             pipeline_runs::update_start_date(conn.as_ref(), &run_id, &start_date).await?;
             let start_date = start_date.format("%F %X").to_string();
-            let proxy = PipelineFileSystemProxy::Server {
+            let fs = FileSystem::Server {
                 config: config.clone(),
                 conn: conn.clone(),
             }
@@ -89,10 +82,8 @@ impl BldCommand for WorkerCommand {
 
             let (worker_tx, worker_rx) = channel(4096);
             let worker_tx = Some(worker_tx).into_arc();
-            let logger = LoggerSender::file(config.clone(), &run_id)
-                .await?
-                .into_arc();
-            let context = ContextSender::server(config.clone(), conn, &run_id).into_arc();
+            let logger = Logger::file(config.clone(), &run_id).await?.into_arc();
+            let context = Context::server(config.clone(), conn, &run_id).into_arc();
             let (cmd_signals, signals_rx) = CommandSignals::new()?;
 
             let socket_handle = spawn(async move {
@@ -106,7 +97,7 @@ impl BldCommand for WorkerCommand {
                     .run_id(&run_id)
                     .run_start_time(&start_date)
                     .config(config)
-                    .proxy(proxy)
+                    .fs(fs)
                     .pipeline(&pipeline)
                     .logger(logger)
                     .environment(environment)

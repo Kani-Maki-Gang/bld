@@ -1,7 +1,7 @@
 use actix::spawn;
 use anyhow::Result;
 use async_signal::{Signal, Signals};
-use bld_core::signals::{UnixSignalsReceiver, UnixSignalsSender};
+use bld_core::signals::{UnixSignals, UnixSignalsBackend};
 use futures::stream::StreamExt;
 use signal_hook::low_level;
 use tokio::sync::mpsc::channel;
@@ -13,11 +13,11 @@ pub struct CommandSignals {
 }
 
 impl CommandSignals {
-    pub fn new() -> Result<(Self, UnixSignalsReceiver)> {
+    pub fn new() -> Result<(Self, UnixSignalsBackend)> {
         let (tx, rx) = channel(4096);
 
-        let mut signals_tx = UnixSignalsSender::new(tx);
-        let signals_rx = UnixSignalsReceiver::new(rx);
+        let mut signals_tx = UnixSignals::new(tx);
+        let signals_rx = UnixSignalsBackend::new(rx);
 
         let mut signals = if cfg!(target_family = "unix") {
             Signals::new([Signal::Term, Signal::Int, Signal::Quit])?

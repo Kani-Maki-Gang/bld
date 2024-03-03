@@ -1,7 +1,8 @@
 use actix::System;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::{proxies::PipelineFileSystemProxy, request::HttpClient};
+use bld_core::fs::FileSystem;
+use bld_http::HttpClient;
 use bld_utils::sync::IntoArc;
 use clap::Args;
 
@@ -30,8 +31,8 @@ pub struct MoveCommand {
 impl MoveCommand {
     async fn local_move(&self) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
-        let proxy = PipelineFileSystemProxy::local(config);
-        proxy.mv(&self.pipeline, &self.target).await
+        let fs = FileSystem::local(config);
+        fs.mv(&self.pipeline, &self.target).await
     }
 
     async fn remote_move(&self, server: &str) -> Result<()> {

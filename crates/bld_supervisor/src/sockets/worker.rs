@@ -5,7 +5,7 @@ use actix_web::web::{Bytes, Data, Payload};
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use anyhow::Result;
-use bld_core::messages::WorkerMessages;
+use bld_models::dtos::WorkerMessages;
 use tracing::{debug, error, info};
 
 pub struct WorkerSocket {

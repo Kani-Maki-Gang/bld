@@ -1,5 +1,6 @@
 pub mod builder;
 mod container;
+mod context;
 mod docker;
 mod image;
 mod machine;
@@ -8,6 +9,7 @@ mod ssh;
 use std::sync::Arc;
 
 pub use container::*;
+pub use context::*;
 pub use docker::*;
 use futures::channel::oneshot;
 pub use image::*;
@@ -20,7 +22,7 @@ use actix::spawn;
 use anyhow::{anyhow, Result};
 use tracing::{debug, error};
 
-use crate::logger::LoggerSender;
+use crate::logger::Logger;
 
 pub enum PlatformArtifactsAction {
     Push,
@@ -35,7 +37,7 @@ pub enum PlatformMessage {
         resp_tx: oneshot::Sender<Result<()>>,
     },
     Shell {
-        logger: Arc<LoggerSender>,
+        logger: Arc<Logger>,
         working_dir: Option<String>,
         command: String,
         resp_tx: oneshot::Sender<Result<()>>,
@@ -45,18 +47,18 @@ pub enum PlatformMessage {
     },
 }
 
-pub enum Platform {
+pub enum PlatformType {
     Machine(Box<Machine>),
     Container(Box<Container>),
     Ssh(Sender<PlatformMessage>),
 }
 
-struct PlatformReceiver {
+struct PlatformBackend {
     ssh: Box<Ssh>,
     receiver: Receiver<PlatformMessage>,
 }
 
-impl PlatformReceiver {
+impl PlatformBackend {
     pub fn new(ssh: Box<Ssh>, receiver: Receiver<PlatformMessage>) -> Self {
         Self { ssh, receiver }
     }
@@ -114,7 +116,7 @@ impl PlatformReceiver {
 
     pub async fn shell(
         &self,
-        logger: Arc<LoggerSender>,
+        logger: Arc<Logger>,
         working_dir: Option<String>,
         command: String,
     ) -> Result<()> {
@@ -126,17 +128,17 @@ impl PlatformReceiver {
     }
 }
 
-pub struct PlatformSender {
+pub struct Platform {
     id: String,
-    inner: Platform,
+    inner: PlatformType,
 }
 
-impl PlatformSender {
+impl Platform {
     pub fn machine(machine: Box<Machine>) -> Self {
         let id = Uuid::new_v4().to_string();
         Self {
             id,
-            inner: Platform::Machine(machine),
+            inner: PlatformType::Machine(machine),
         }
     }
 
@@ -144,7 +146,7 @@ impl PlatformSender {
         let id = Uuid::new_v4().to_string();
         Self {
             id,
-            inner: Platform::Container(container),
+            inner: PlatformType::Container(container),
         }
     }
 
@@ -153,7 +155,7 @@ impl PlatformSender {
         let (tx, rx) = channel(4096);
 
         spawn(async move {
-            let receiver = PlatformReceiver::new(ssh, rx);
+            let receiver = PlatformBackend::new(ssh, rx);
             if let Err(e) = receiver.receive().await {
                 error!("{e}");
             }
@@ -161,7 +163,7 @@ impl PlatformSender {
 
         Self {
             id,
-            inner: Platform::Ssh(tx),
+            inner: PlatformType::Ssh(tx),
         }
     }
 
@@ -175,9 +177,9 @@ impl PlatformSender {
 
     pub async fn push(&self, from: &str, to: &str) -> Result<()> {
         match &self.inner {
-            Platform::Machine(machine) => machine.copy_into(from, to).await,
-            Platform::Container(container) => container.copy_into(from, to).await,
-            Platform::Ssh(ssh) => {
+            PlatformType::Machine(machine) => machine.copy_into(from, to).await,
+            PlatformType::Container(container) => container.copy_into(from, to).await,
+            PlatformType::Ssh(ssh) => {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
                 ssh.send(PlatformMessage::Artifacts {
@@ -195,9 +197,9 @@ impl PlatformSender {
 
     pub async fn get(&self, from: &str, to: &str) -> Result<()> {
         match &self.inner {
-            Platform::Machine(machine) => machine.copy_from(from, to).await,
-            Platform::Container(container) => container.copy_from(from, to).await,
-            Platform::Ssh(ssh) => {
+            PlatformType::Machine(machine) => machine.copy_from(from, to).await,
+            PlatformType::Container(container) => container.copy_from(from, to).await,
+            PlatformType::Ssh(ssh) => {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
                 ssh.send(PlatformMessage::Artifacts {
@@ -215,14 +217,14 @@ impl PlatformSender {
 
     pub async fn shell(
         &self,
-        logger: Arc<LoggerSender>,
+        logger: Arc<Logger>,
         working_dir: &Option<String>,
         command: &str,
     ) -> Result<()> {
         match &self.inner {
-            Platform::Machine(machine) => machine.sh(logger, working_dir, command).await,
-            Platform::Container(container) => container.sh(logger, working_dir, command).await,
-            Platform::Ssh(ssh) => {
+            PlatformType::Machine(machine) => machine.sh(logger, working_dir, command).await,
+            PlatformType::Container(container) => container.sh(logger, working_dir, command).await,
+            PlatformType::Ssh(ssh) => {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
                 ssh.send(PlatformMessage::Shell {
@@ -240,7 +242,7 @@ impl PlatformSender {
 
     pub async fn keep_alive(&self) -> Result<()> {
         match &self.inner {
-            Platform::Container(container) => container.keep_alive().await,
+            PlatformType::Container(container) => container.keep_alive().await,
             _ => Ok(()),
         }
     }
@@ -248,10 +250,10 @@ impl PlatformSender {
     pub async fn dispose(&self, in_child_runner: bool) -> Result<()> {
         match &self.inner {
             // checking if the runner is a child in order to not cleanup the temp dir for the whole run
-            Platform::Machine(machine) if !in_child_runner => machine.dispose().await,
-            Platform::Machine(_) => Ok(()),
-            Platform::Container(container) => container.dispose().await,
-            Platform::Ssh(ssh) => {
+            PlatformType::Machine(machine) if !in_child_runner => machine.dispose().await,
+            PlatformType::Machine(_) => Ok(()),
+            PlatformType::Container(container) => container.dispose().await,
+            PlatformType::Ssh(ssh) => {
                 let (resp_tx, resp_rx) = oneshot::channel();
                 ssh.send(PlatformMessage::Dispose { resp_tx }).await?;
                 resp_rx.await?

@@ -7,19 +7,19 @@ use bld_config::{
     BldConfig, SshUserAuth,
 };
 use bld_core::{
-    context::ContextSender,
-    logger::LoggerSender,
-    messages::{ExecClientMessage, WorkerMessages},
+    context::Context,
+    fs::FileSystem,
+    logger::Logger,
     platform::{
         builder::{PlatformBuilder, PlatformOptions},
-        Image, PlatformSender, SshAuthOptions, SshConnectOptions,
+        Image, Platform, SshAuthOptions, SshConnectOptions,
     },
-    proxies::PipelineFileSystemProxy,
     regex::RegexCache,
-    request::WebSocket,
-    signals::{UnixSignal, UnixSignalMessage, UnixSignalsReceiver},
+    signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend},
 };
-use bld_sock::clients::ExecClient;
+use bld_http::WebSocket;
+use bld_models::dtos::{ExecClientMessage, WorkerMessages};
+use bld_sock::ExecClient;
 use bld_utils::sync::IntoArc;
 use futures::{Future, StreamExt};
 use tokio::{sync::mpsc::Sender, task::JoinHandle};
@@ -40,11 +40,11 @@ struct Job {
     pub run_id: String,
     pub run_start_time: String,
     pub config: Arc<BldConfig>,
-    pub logger: Arc<LoggerSender>,
-    pub proxy: Arc<PipelineFileSystemProxy>,
+    pub logger: Arc<Logger>,
+    pub fs: Arc<FileSystem>,
     pub pipeline: Arc<Pipeline>,
-    pub context: Arc<ContextSender>,
-    pub platform: Option<Arc<PlatformSender>>,
+    pub context: Arc<Context>,
+    pub platform: Option<Arc<Platform>>,
 }
 
 impl Job {
@@ -167,7 +167,7 @@ impl Job {
             .run_id(&self.run_id)
             .run_start_time(&self.run_start_time)
             .config(self.config.clone())
-            .proxy(self.proxy.clone())
+            .fs(self.fs.clone())
             .pipeline(&details.pipeline)
             .logger(self.logger.clone())
             .environment(environment.into_arc())
@@ -251,11 +251,11 @@ impl Job {
 struct RunningJob {
     name: String,
     handle: JoinHandle<Result<Job>>,
-    logger: Arc<LoggerSender>,
+    logger: Arc<Logger>,
 }
 
 impl RunningJob {
-    pub fn new(name: &str, handle: JoinHandle<Result<Job>>, logger: Arc<LoggerSender>) -> Self {
+    pub fn new(name: &str, handle: JoinHandle<Result<Job>>, logger: Arc<Logger>) -> Self {
         Self {
             name: name.to_owned(),
             handle,
@@ -268,15 +268,15 @@ pub struct Runner {
     pub run_id: String,
     pub run_start_time: String,
     pub config: Arc<BldConfig>,
-    pub signals: Option<UnixSignalsReceiver>,
-    pub logger: Arc<LoggerSender>,
+    pub signals: Option<UnixSignalsBackend>,
+    pub logger: Arc<Logger>,
     pub regex_cache: Arc<RegexCache>,
-    pub proxy: Arc<PipelineFileSystemProxy>,
+    pub fs: Arc<FileSystem>,
     pub pipeline: Arc<Pipeline>,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
     pub env: Arc<HashMap<String, String>>,
-    pub context: Arc<ContextSender>,
-    pub platform: Option<Arc<PlatformSender>>,
+    pub context: Arc<Context>,
+    pub platform: Option<Arc<Platform>>,
     pub is_child: bool,
     pub has_faulted: bool,
 }
@@ -387,6 +387,7 @@ impl Runner {
             }
         };
 
+        let conn = self.context.get_conn();
         let platform = PlatformBuilder::default()
             .run_id(&self.run_id)
             .config(self.config.clone())
@@ -394,7 +395,7 @@ impl Runner {
             .pipeline_environment(&self.pipeline.environment)
             .environment(self.env.clone())
             .logger(self.logger.clone())
-            .context(self.context.clone())
+            .conn(conn)
             .build()
             .await?;
 
@@ -457,11 +458,11 @@ impl Runner {
         Ok(())
     }
 
-    fn create_job(&self, name: &str, logger: Arc<LoggerSender>) -> Job {
+    fn create_job(&self, name: &str, logger: Arc<Logger>) -> Job {
         Job {
             pipeline: self.pipeline.clone(),
             job_name: name.to_owned(),
-            proxy: self.proxy.clone(),
+            fs: self.fs.clone(),
             run_id: self.run_id.clone(),
             run_start_time: self.run_start_time.clone(),
             config: self.config.clone(),
@@ -477,7 +478,7 @@ impl Runner {
             self.logger
                 .write_line(format!("{:<15}: {}", "Running job", name))
                 .await?;
-            let logger = LoggerSender::in_memory().into_arc();
+            let logger = Logger::in_memory().into_arc();
             let job = self.create_job(name, logger.clone());
             let handle = spawn(job.run());
             jobs.push(Some(RunningJob::new(name, handle, logger)));

@@ -3,7 +3,7 @@ use actix_web::{
     web::{Data, Json, Path, Query},
     HttpResponse, Responder,
 };
-use bld_core::requests::{AddJobRequest, JobFiltersParams, UpdateJobRequest};
+use bld_models::dtos::{AddJobRequest, JobFiltersParams, UpdateJobRequest};
 use tracing::info;
 
 use crate::{cron::CronScheduler, extractors::User};

@@ -2,7 +2,7 @@ use crate::pipeline::v1::Pipeline;
 use crate::step::v1::BuildStepExec;
 use anyhow::{bail, Result};
 use bld_config::BldConfig;
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::fs::FileSystem;
 use bld_utils::fs::IsYaml;
 use std::fmt::Write;
 use std::sync::Arc;
@@ -10,19 +10,15 @@ use std::sync::Arc;
 pub struct PipelineValidator<'a> {
     pipeline: &'a Pipeline,
     config: Arc<BldConfig>,
-    proxy: Arc<PipelineFileSystemProxy>,
+    fs: Arc<FileSystem>,
 }
 
 impl<'a> PipelineValidator<'a> {
-    pub fn new(
-        pipeline: &'a Pipeline,
-        config: Arc<BldConfig>,
-        proxy: Arc<PipelineFileSystemProxy>,
-    ) -> Self {
+    pub fn new(pipeline: &'a Pipeline, config: Arc<BldConfig>, fs: Arc<FileSystem>) -> Self {
         Self {
             pipeline,
             config,
-            proxy,
+            fs,
         }
     }
 
@@ -69,7 +65,7 @@ impl<'a> PipelineValidator<'a> {
     }
 
     async fn validate_external_pipeline(&self, pipeline: &str) -> Result<()> {
-        match self.proxy.path(pipeline).await {
+        match self.fs.path(pipeline).await {
             Ok(path) if !path.is_yaml() => {
                 bail!("[external > pipeline: {}] Not found", pipeline)
             }
@@ -124,7 +120,7 @@ impl<'a> PipelineValidator<'a> {
         }
 
         let found_path = self
-            .proxy
+            .fs
             .path(value)
             .await
             .map(|x| x.is_yaml())

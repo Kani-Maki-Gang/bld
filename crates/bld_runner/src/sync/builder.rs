@@ -1,21 +1,17 @@
-use super::versioned::VersionedRunner;
-use crate::pipeline::traits::Load;
-use crate::pipeline::versioned::{VersionedPipeline, Yaml};
-use crate::runner::v1;
-use crate::runner::v2;
-use crate::token_context::v2::PipelineContextBuilder;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::context::ContextSender;
-use bld_core::logger::LoggerSender;
-use bld_core::messages::WorkerMessages;
-use bld_core::platform::{
-    builder::{PlatformBuilder, PlatformOptions},
-    Image,
+use bld_core::{
+    context::Context,
+    fs::FileSystem,
+    logger::Logger,
+    platform::{
+        builder::{PlatformBuilder, PlatformOptions},
+        Image,
+    },
+    regex::RegexCache,
+    signals::UnixSignalsBackend,
 };
-use bld_core::proxies::PipelineFileSystemProxy;
-use bld_core::regex::RegexCache;
-use bld_core::signals::UnixSignalsReceiver;
+use bld_models::dtos::WorkerMessages;
 use bld_utils::sync::IntoArc;
 use chrono::Utc;
 use std::collections::HashMap;
@@ -23,19 +19,31 @@ use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
 
+use crate::{
+    pipeline::{
+        traits::Load,
+        versioned::{VersionedPipeline, Yaml},
+    },
+    runner::v1,
+    runner::v2,
+    token_context::v2::PipelineContextBuilder,
+};
+
+use super::versioned::VersionedRunner;
+
 pub struct RunnerBuilder {
     run_id: String,
     run_start_time: String,
     config: Option<Arc<BldConfig>>,
-    signals: Option<UnixSignalsReceiver>,
-    logger: Arc<LoggerSender>,
+    signals: Option<UnixSignalsBackend>,
+    logger: Arc<Logger>,
     regex_cache: Arc<RegexCache>,
-    proxy: Arc<PipelineFileSystemProxy>,
+    fs: Arc<FileSystem>,
     pipeline: Option<String>,
     ipc: Arc<Option<Sender<WorkerMessages>>>,
     env: Option<Arc<HashMap<String, String>>>,
     vars: Option<Arc<HashMap<String, String>>>,
-    context: Option<Arc<ContextSender>>,
+    context: Option<Arc<Context>>,
     is_child: bool,
 }
 
@@ -46,9 +54,9 @@ impl Default for RunnerBuilder {
             run_start_time: Utc::now().naive_utc().format("%F %X").to_string(),
             config: None,
             signals: None,
-            logger: LoggerSender::default().into_arc(),
+            logger: Logger::default().into_arc(),
             regex_cache: RegexCache::default().into_arc(),
-            proxy: PipelineFileSystemProxy::default().into_arc(),
+            fs: FileSystem::default().into_arc(),
             pipeline: None,
             ipc: None.into_arc(),
             env: None,
@@ -75,12 +83,12 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn signals(mut self, signals: UnixSignalsReceiver) -> Self {
+    pub fn signals(mut self, signals: UnixSignalsBackend) -> Self {
         self.signals = Some(signals);
         self
     }
 
-    pub fn logger(mut self, logger: Arc<LoggerSender>) -> Self {
+    pub fn logger(mut self, logger: Arc<Logger>) -> Self {
         self.logger = logger;
         self
     }
@@ -95,8 +103,8 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn proxy(mut self, proxy: Arc<PipelineFileSystemProxy>) -> Self {
-        self.proxy = proxy;
+    pub fn fs(mut self, fs: Arc<FileSystem>) -> Self {
+        self.fs = fs;
         self
     }
 
@@ -115,7 +123,7 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn context(mut self, context: Arc<ContextSender>) -> Self {
+    pub fn context(mut self, context: Arc<Context>) -> Self {
         self.context = Some(context);
         self
     }
@@ -134,10 +142,8 @@ impl RunnerBuilder {
             .pipeline
             .ok_or_else(|| anyhow!("no pipeline provided"))?;
 
-        let pipeline = Yaml::load(&self.proxy.read(&pipeline_name).await?)?;
-        pipeline
-            .validate(config.clone(), self.proxy.clone())
-            .await?;
+        let pipeline = Yaml::load(&self.fs.read(&pipeline_name).await?)?;
+        pipeline.validate(config.clone(), self.fs.clone()).await?;
 
         let env = self
             .env
@@ -161,6 +167,7 @@ impl RunnerBuilder {
                     },
                 };
 
+                let conn = context.get_conn();
                 let platform = PlatformBuilder::default()
                     .run_id(&self.run_id)
                     .options(options)
@@ -168,7 +175,7 @@ impl RunnerBuilder {
                     .pipeline_environment(&pipeline.environment)
                     .environment(env.clone())
                     .logger(self.logger.clone())
-                    .context(context.clone())
+                    .conn(conn)
                     .build()
                     .await?;
 
@@ -180,7 +187,7 @@ impl RunnerBuilder {
                     config,
                     signals: self.signals,
                     logger: self.logger,
-                    proxy: self.proxy,
+                    fs: self.fs,
                     pipeline,
                     ipc: self.ipc,
                     env,
@@ -214,7 +221,7 @@ impl RunnerBuilder {
                     signals: self.signals,
                     logger: self.logger,
                     regex_cache: self.regex_cache,
-                    proxy: self.proxy,
+                    fs: self.fs,
                     pipeline: pipeline.into_arc(),
                     ipc: self.ipc,
                     env,

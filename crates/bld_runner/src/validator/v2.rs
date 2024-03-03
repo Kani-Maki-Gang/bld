@@ -12,7 +12,7 @@ use bld_config::{
     DockerUrl,
 };
 use bld_config::{path, BldConfig, SshUserAuth};
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::fs::FileSystem;
 use bld_utils::fs::IsYaml;
 use cron::Schedule;
 use regex::Regex;
@@ -27,7 +27,7 @@ use std::{
 pub struct PipelineValidator<'a> {
     pipeline: &'a Pipeline,
     config: Arc<BldConfig>,
-    proxy: Arc<PipelineFileSystemProxy>,
+    fs: Arc<FileSystem>,
     regex: Regex,
     keywords: HashSet<&'a str>,
     symbols: HashSet<&'a str>,
@@ -38,7 +38,7 @@ impl<'a> PipelineValidator<'a> {
     pub fn new(
         pipeline: &'a Pipeline,
         config: Arc<BldConfig>,
-        proxy: Arc<PipelineFileSystemProxy>,
+        fs: Arc<FileSystem>,
     ) -> Result<Self> {
         let regex = Regex::new(r"\$\{\{\s*(\b\w+\b)\s*\}\}")?;
         let keywords = Self::prepare_keywords();
@@ -47,7 +47,7 @@ impl<'a> PipelineValidator<'a> {
         Ok(Self {
             pipeline,
             config,
-            proxy,
+            fs,
             regex,
             keywords,
             symbols,
@@ -281,7 +281,7 @@ impl<'a> PipelineValidator<'a> {
             return;
         }
 
-        match self.proxy.path(pipeline).await {
+        match self.fs.path(pipeline).await {
             Ok(path) if !path.is_yaml() => {
                 let _ = writeln!(
                     self.errors,
@@ -407,7 +407,7 @@ impl<'a> PipelineValidator<'a> {
         }
 
         let found_path = self
-            .proxy
+            .fs
             .path(value)
             .await
             .map(|x| x.is_yaml())

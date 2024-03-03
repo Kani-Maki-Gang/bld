@@ -6,7 +6,8 @@ use actix_web::{
 };
 use actix_web_actors::ws;
 use anyhow::Result;
-use bld_core::{messages::ServerMessages, workers::PipelineWorker};
+use bld_core::workers::Worker;
+use bld_models::dtos::ServerMessages;
 use futures_util::future::ready;
 use std::env::current_exe;
 use tokio::process::Command;
@@ -59,16 +60,15 @@ impl ServerSocket {
                 let tx = self.worker_queue_tx.clone();
 
                 let success_msg = format!("worker for pipeline: {pipeline} has been queued");
-                let enqueque_fut =
-                    async move { tx.enqueue(PipelineWorker::new(run_id, command)).await }
-                        .into_actor(self)
-                        .then(move |res, _, _| {
-                            match res {
-                                Ok(_) => info!(success_msg),
-                                Err(e) => error!("{e}"),
-                            }
-                            ready(())
-                        });
+                let enqueque_fut = async move { tx.enqueue(Worker::new(run_id, command)).await }
+                    .into_actor(self)
+                    .then(move |res, _, _| {
+                        match res {
+                            Ok(_) => info!(success_msg),
+                            Err(e) => error!("{e}"),
+                        }
+                        ready(())
+                    });
 
                 ctx.spawn(enqueque_fut);
             }

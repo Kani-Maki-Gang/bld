@@ -2,7 +2,7 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::request::HttpClient;
+use bld_http::HttpClient;
 use bld_utils::sync::IntoArc;
 use clap::Args;
 use tabled::{Style, Table};

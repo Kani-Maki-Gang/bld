@@ -11,11 +11,10 @@ use actix_web::{
 use actix_web_actors::ws;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::{
-    database::pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED},
-    messages::{ExecClientMessage, ExecServerMessage},
-    proxies::PipelineFileSystemProxy,
-    scanner::FileScanner,
+use bld_core::{fs::FileSystem, scanner::FileScanner};
+use bld_models::{
+    dtos::{ExecClientMessage, ExecServerMessage},
+    pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED},
 };
 use bld_utils::sync::IntoArc;
 use futures_util::future::ready;
@@ -27,7 +26,7 @@ pub struct ExecutePipelineSocket {
     config: Data<BldConfig>,
     supervisor: Data<SupervisorMessageSender>,
     conn: Data<DatabaseConnection>,
-    proxy: Data<PipelineFileSystemProxy>,
+    fs: Data<FileSystem>,
     user: User,
     scanner: Option<Arc<FileScanner>>,
     run_id: Option<String>,
@@ -39,13 +38,13 @@ impl ExecutePipelineSocket {
         config: Data<BldConfig>,
         supervisor_sender: Data<SupervisorMessageSender>,
         conn: Data<DatabaseConnection>,
-        proxy: Data<PipelineFileSystemProxy>,
+        fs: Data<FileSystem>,
     ) -> Self {
         Self {
             config,
             supervisor: supervisor_sender,
             conn,
-            proxy,
+            fs,
             user,
             scanner: None,
             run_id: None,
@@ -110,17 +109,17 @@ impl ExecutePipelineSocket {
         debug!("enqueueing run");
 
         let username = self.user.name.to_owned();
-        let proxy = Arc::clone(&self.proxy);
+        let fs = Arc::clone(&self.fs);
         let pool = Arc::clone(&self.conn);
         let supervisor = Arc::clone(&self.supervisor);
 
         let enqueue_fut =
-            async move { enqueue_worker(&username, proxy, pool, supervisor, message).await }
+            async move { enqueue_worker(&username, fs, pool, supervisor, message).await }
                 .into_actor(self)
                 .then(|res, act, ctx| match res {
                     Ok(run_id) => {
                         act.scanner =
-                            Some(FileScanner::new(Arc::clone(&act.config), &run_id).into_arc());
+                            Some(FileScanner::new(act.config.as_ref(), &run_id).into_arc());
                         act.run_id = Some(run_id.to_owned());
                         let message = ExecServerMessage::QueuedRun { run_id };
                         if let Ok(data) = serde_json::to_string(&message) {
@@ -188,11 +187,11 @@ pub async fn ws(
     cfg: Data<BldConfig>,
     supervisor_sender: Data<SupervisorMessageSender>,
     conn: Data<DatabaseConnection>,
-    proxy: Data<PipelineFileSystemProxy>,
+    fs: Data<FileSystem>,
 ) -> Result<HttpResponse, Error> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     println!("{req:?}");
-    let socket = ExecutePipelineSocket::new(user, cfg, supervisor_sender, conn, proxy);
+    let socket = ExecutePipelineSocket::new(user, cfg, supervisor_sender, conn, fs);
     let res = ws::start(socket, &req, stream);
     println!("{res:?}");
     res

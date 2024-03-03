@@ -3,7 +3,8 @@ use actix::System;
 use anyhow::Result;
 use bld_config::definitions::TOOL_DEFAULT_PIPELINE_FILE;
 use bld_config::BldConfig;
-use bld_core::{proxies::PipelineFileSystemProxy, request::HttpClient};
+use bld_core::fs::FileSystem;
+use bld_http::HttpClient;
 use bld_runner::{Load, Yaml};
 use bld_utils::sync::IntoArc;
 use clap::Args;
@@ -28,10 +29,10 @@ pub struct CheckCommand {
 impl CheckCommand {
     async fn local_check(&self) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
-        let proxy = PipelineFileSystemProxy::local(config.clone()).into_arc();
-        let content = proxy.read(&self.pipeline).await?;
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let content = fs.read(&self.pipeline).await?;
         let pipeline = Yaml::load_with_verbose_errors(&content)?;
-        pipeline.validate_with_verbose_errors(config, proxy).await
+        pipeline.validate_with_verbose_errors(config, fs).await
     }
 
     async fn remote_check(&self, server: &str) -> Result<()> {

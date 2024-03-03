@@ -1,0 +1,19 @@
+[package]
+name = "bld_models"
+version = "0.3.1"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix = "0.13.0"
+anyhow = "1.0.40"
+bld_config = { path = "../bld_config" }
+bld_migrations = { path = "../bld_migrations" }
+bld_utils = { path = "../bld_utils" }
+chrono = { version = "0.4.23", default-features = false, features = ["std"] }
+sea-orm = { version = "0.12.2", features = ["sqlx-postgres", "sqlx-mysql", "sqlx-sqlite", "runtime-tokio-rustls"] }
+serde = { version = "1.0.126", features = ["derive"] }
+tabled = "0.9.0"
+tracing = "0.1.36"
+uuid = { version = "1.3.4", features = ["v4"] }

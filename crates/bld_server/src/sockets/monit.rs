@@ -8,10 +8,10 @@ use actix_web::{
 use actix_web_actors::ws;
 use anyhow::{anyhow, bail, Result};
 use bld_config::BldConfig;
-use bld_core::{
-    database::pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED},
-    messages::MonitInfo,
-    scanner::FileScanner,
+use bld_core::scanner::FileScanner;
+use bld_models::{
+    dtos::MonitInfo,
+    pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED},
 };
 use bld_utils::sync::IntoArc;
 use futures_util::future::ready;
@@ -94,7 +94,7 @@ impl MonitorPipelineSocket {
             Ok(run) => {
                 debug!("starting scan for run");
                 act.id = run.id.clone();
-                act.scanner = Some(FileScanner::new(Arc::clone(&act.config), &run.id).into_arc());
+                act.scanner = Some(FileScanner::new(act.config.as_ref(), &run.id).into_arc());
                 ready(())
             }
             Err(e) => {

@@ -1,4 +1,4 @@
-use std::{io::Write, sync::Arc};
+use std::io::Write;
 
 use anyhow::{bail, Result};
 use bollard::{
@@ -11,12 +11,12 @@ use futures::TryStreamExt;
 use tar::{Builder, Header};
 use tokio::fs::read_to_string;
 
-use crate::logger::LoggerSender;
+use crate::logger::Logger;
 
 pub struct PullImage<'a>(&'a str);
 
 impl<'a> PullImage<'a> {
-    pub async fn pull(&self, client: &Docker, logger: &LoggerSender) -> Result<()> {
+    pub async fn pull(&self, client: &Docker, logger: &Logger) -> Result<()> {
         let image = self.0;
         let opts = CreateImageOptions {
             from_image: image,
@@ -67,7 +67,7 @@ impl<'a> BuildImage<'a> {
         Self { name, dockerfile }
     }
 
-    pub async fn build(&self, client: &Docker, logger: &LoggerSender) -> Result<()> {
+    pub async fn build(&self, client: &Docker, logger: &Logger) -> Result<()> {
         let content = read_to_string(&self.dockerfile).await?;
 
         let mut header = Header::new_gnu();
@@ -151,11 +151,11 @@ impl<'a> Image<'a> {
         }
     }
 
-    pub async fn create(&self, client: &Docker, logger: Arc<LoggerSender>) -> Result<()> {
+    pub async fn create(&self, client: &Docker, logger: &Logger) -> Result<()> {
         match &self {
             Self::Use(_) => Ok(()),
-            Self::Pull(instance) => instance.pull(client, logger.as_ref()).await,
-            Self::Build(instance) => instance.build(client, logger.as_ref()).await,
+            Self::Pull(instance) => instance.pull(client, logger).await,
+            Self::Build(instance) => instance.build(client, logger).await,
         }
     }
 }

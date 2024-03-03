@@ -1,6 +1,7 @@
-use crate::{logger::LoggerSender, shell::get_shell};
+use crate::logger::Logger;
 use anyhow::{bail, Result};
 use bld_config::{path, BldConfig};
+use bld_utils::shell::get_shell;
 use std::{
     collections::HashMap,
     fmt::Write,
@@ -64,7 +65,7 @@ impl Machine {
 
     pub async fn sh(
         &self,
-        logger: Arc<LoggerSender>,
+        logger: Arc<Logger>,
         working_dir: &Option<String>,
         input: &str,
     ) -> Result<()> {

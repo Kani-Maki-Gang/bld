@@ -5,8 +5,8 @@ use actix_web::web::{Data, Query};
 use actix_web::{get, HttpResponse, Responder};
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::proxies::PipelineFileSystemProxy;
-use bld_core::requests::PipelineQueryParams;
+use bld_core::fs::FileSystem;
+use bld_models::dtos::PipelineQueryParams;
 use bld_runner::{Load, Yaml};
 use tracing::info;
 
@@ -14,11 +14,11 @@ use tracing::info;
 pub async fn get(
     _user: User,
     config: Data<BldConfig>,
-    proxy: Data<PipelineFileSystemProxy>,
+    fs: Data<FileSystem>,
     params: Query<PipelineQueryParams>,
 ) -> impl Responder {
     info!("Reached handler for /check route");
-    match do_check(Arc::clone(&config), Arc::clone(&proxy), &params).await {
+    match do_check(Arc::clone(&config), Arc::clone(&fs), &params).await {
         Ok(_) => HttpResponse::Ok().json(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
@@ -26,10 +26,10 @@ pub async fn get(
 
 async fn do_check(
     config: Arc<BldConfig>,
-    proxy: Arc<PipelineFileSystemProxy>,
+    fs: Arc<FileSystem>,
     params: &PipelineQueryParams,
 ) -> Result<()> {
-    let content = proxy.read(&params.pipeline).await?;
+    let content = fs.read(&params.pipeline).await?;
     let pipeline = Yaml::load_with_verbose_errors(&content)?;
-    pipeline.validate_with_verbose_errors(config, proxy).await
+    pipeline.validate_with_verbose_errors(config, fs).await
 }

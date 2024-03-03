@@ -13,11 +13,13 @@ actix-web = { version = "4.0.1", features = ["rustls"] }
 actix-web-actors = "4.1.0"
 anyhow = "1.0.40"
 bld_config = { path = "../bld_config" }
-bld_utils = { path = "../bld_utils" }
 bld_core = { path = "../bld_core" }
+bld_models = { path = "../bld_models" }
+bld_http = { path = "../bld_http" }
 bld_runner = { path = "../bld_runner" }
 bld_sock = { path = "../bld_sock" }
 bld_supervisor = { path = "../bld_supervisor" }
+bld_utils = { path = "../bld_utils" }
 futures-util = "0.3.15"
 futures = "0.3.15"
 sea-orm = { version = "0.12.2", features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls"] }

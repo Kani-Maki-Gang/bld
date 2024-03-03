@@ -4,10 +4,9 @@ use actix_web::{
     HttpResponse, Responder,
 };
 use anyhow::{bail, Result};
-use bld_core::{
-    auth::{AuthTokens, LoginProcess, RefreshTokenParams},
-    requests::AuthRedirectParams,
-};
+use bld_core::auth::Logins;
+use bld_models::dtos::AuthRedirectParams;
+use bld_utils::fs::{AuthTokens, RefreshTokenParams};
 use openidconnect::{
     core::CoreClient, reqwest::async_http_client, OAuth2TokenResponse, RefreshToken,
 };
@@ -18,10 +17,7 @@ const AUTH_REDIRECT_SUCCESS: &str =
 const AUTH_REDIRECT_FAILED: &str = "An error occured while completing the login process.";
 
 #[get("/auth/redirect")]
-pub async fn redirect(
-    info: Query<AuthRedirectParams>,
-    logins: Data<LoginProcess>,
-) -> impl Responder {
+pub async fn redirect(info: Query<AuthRedirectParams>, logins: Data<Logins>) -> impl Responder {
     info!("Reached handler for /authRedirect route");
     let code = info.code.to_owned();
     let token = info.state.to_owned();

@@ -3,16 +3,14 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_utils::sync::IntoArc;
+use sea_orm::DatabaseConnection;
 
 use crate::{
-    context::ContextSender,
-    logger::LoggerSender,
-    platform::{
-        Container, Image, Machine, PlatformSender, Ssh, SshConnectOptions, SshExecutionOptions,
-    },
+    logger::Logger,
+    platform::{Container, Image, Machine, Platform, Ssh, SshConnectOptions, SshExecutionOptions},
 };
 
-use super::ContainerOptions;
+use super::{context::PlatformContext, ContainerOptions};
 
 pub enum PlatformOptions<'a> {
     Container {
@@ -36,8 +34,8 @@ pub struct PlatformBuilder<'a> {
     config: Option<Arc<BldConfig>>,
     pipeline_environment: Option<&'a HashMap<String, String>>,
     environment: Option<Arc<HashMap<String, String>>>,
-    logger: Option<Arc<LoggerSender>>,
-    context: Option<Arc<ContextSender>>,
+    logger: Option<Arc<Logger>>,
+    conn: Option<Arc<DatabaseConnection>>,
 }
 
 impl<'a> PlatformBuilder<'a> {
@@ -66,17 +64,17 @@ impl<'a> PlatformBuilder<'a> {
         self
     }
 
-    pub fn logger(mut self, logger: Arc<LoggerSender>) -> Self {
+    pub fn logger(mut self, logger: Arc<Logger>) -> Self {
         self.logger = Some(logger);
         self
     }
 
-    pub fn context(mut self, context: Arc<ContextSender>) -> Self {
-        self.context = Some(context);
+    pub fn conn(mut self, conn: Option<Arc<DatabaseConnection>>) -> Self {
+        self.conn = conn;
         self
     }
 
-    pub async fn build(self) -> Result<Arc<PlatformSender>> {
+    pub async fn build(self) -> Result<Arc<Platform>> {
         let run_id = self
             .run_id
             .ok_or_else(|| anyhow!("no run id provided for target platform builder"))?;
@@ -97,12 +95,9 @@ impl<'a> PlatformBuilder<'a> {
             .logger
             .ok_or_else(|| anyhow!("no logger provided for target platform builder"))?;
 
-        let context = self
-            .context
-            .ok_or_else(|| anyhow!("no context provided for target platform builder"))?;
-
         let platform = match self.options {
             PlatformOptions::Container { image, docker_url } => {
+                let context = PlatformContext::new(&run_id, self.conn);
                 let options = ContainerOptions {
                     config,
                     docker_url,
@@ -113,18 +108,18 @@ impl<'a> PlatformBuilder<'a> {
                     context,
                 };
                 let container = Container::new(options).await?;
-                PlatformSender::container(Box::new(container))
+                Platform::container(Box::new(container))
             }
 
             PlatformOptions::Ssh(connect) => {
                 let execution = SshExecutionOptions::new(config, pipeline_env, env);
                 let ssh = Ssh::new(connect, execution).await?;
-                PlatformSender::ssh(Box::new(ssh))
+                Platform::ssh(Box::new(ssh))
             }
 
             PlatformOptions::Machine => {
                 let machine = Machine::new(run_id, config, pipeline_env, env).await?;
-                PlatformSender::machine(Box::new(machine))
+                Platform::machine(Box::new(machine))
             }
         }
         .into_arc();

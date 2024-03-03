@@ -3,7 +3,8 @@ use actix_web::{
     web::{Data, Json},
     HttpResponse, Responder,
 };
-use bld_core::{proxies::PipelineFileSystemProxy, requests::PipelinePathRequest};
+use bld_core::fs::FileSystem;
+use bld_models::dtos::PipelinePathRequest;
 use tracing::info;
 
 use crate::extractors::User;
@@ -11,11 +12,11 @@ use crate::extractors::User;
 #[patch("/move")]
 pub async fn patch(
     _user: User,
-    proxy: Data<PipelineFileSystemProxy>,
+    fs: Data<FileSystem>,
     body: Json<PipelinePathRequest>,
 ) -> impl Responder {
     info!("Reached handler for /move route");
-    match proxy.mv(&body.pipeline, &body.target).await {
+    match fs.mv(&body.pipeline, &body.target).await {
         Ok(_) => HttpResponse::Ok().json(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }

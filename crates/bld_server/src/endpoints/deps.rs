@@ -8,7 +8,8 @@ use actix_web::{
 };
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::{proxies::PipelineFileSystemProxy, requests::PipelineQueryParams};
+use bld_core::fs::FileSystem;
+use bld_models::dtos::PipelineQueryParams;
 use bld_runner::VersionedPipeline;
 use tracing::info;
 
@@ -16,11 +17,11 @@ use tracing::info;
 pub async fn get(
     _user: User,
     config: Data<BldConfig>,
-    proxy: Data<PipelineFileSystemProxy>,
+    fs: Data<FileSystem>,
     params: Query<PipelineQueryParams>,
 ) -> impl Responder {
     info!("Reached handler for /deps route");
-    match do_deps(config, proxy, params.into_inner()).await {
+    match do_deps(config, fs, params.into_inner()).await {
         Ok(r) => HttpResponse::Ok().json(r),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
@@ -28,11 +29,11 @@ pub async fn get(
 
 async fn do_deps(
     config: Data<BldConfig>,
-    proxy: Data<PipelineFileSystemProxy>,
+    fs: Data<FileSystem>,
     params: PipelineQueryParams,
 ) -> Result<Vec<String>> {
     let config = Arc::clone(&config);
-    let proxy = Arc::clone(&proxy);
-    let dependencies = VersionedPipeline::dependencies(config, proxy, params.pipeline).await?;
+    let fs = Arc::clone(&fs);
+    let dependencies = VersionedPipeline::dependencies(config, fs, params.pipeline).await?;
     Ok(dependencies.into_keys().collect())
 }

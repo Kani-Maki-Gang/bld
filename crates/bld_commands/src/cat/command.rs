@@ -2,7 +2,8 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::{proxies::PipelineFileSystemProxy, request::HttpClient};
+use bld_core::fs::FileSystem;
+use bld_http::HttpClient;
 use bld_utils::sync::IntoArc;
 use clap::Args;
 
@@ -31,8 +32,8 @@ pub struct CatCommand {
 impl CatCommand {
     async fn local_print(&self) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
-        let proxy = PipelineFileSystemProxy::local(config);
-        let pipeline = proxy.read(&self.pipeline).await?;
+        let fs = FileSystem::local(config);
+        let pipeline = fs.read(&self.pipeline).await?;
         println!("{pipeline}");
         Ok(())
     }

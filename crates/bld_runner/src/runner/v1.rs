@@ -1,35 +1,32 @@
-use crate::external::v1::External;
-use crate::pipeline::v1::Pipeline;
-use crate::step::v1::{BuildStep, BuildStepExec};
-use crate::sync::builder::RunnerBuilder;
-use actix::io::SinkWrite;
-use actix::spawn;
-use actix::{Actor, StreamHandler};
+use actix::{io::SinkWrite, spawn, Actor, StreamHandler};
 use anyhow::{anyhow, Result};
 use bld_config::definitions::{
     GET, KEYWORD_ENV_V1, KEYWORD_RUN_PROPS_ID_V1, KEYWORD_RUN_PROPS_START_TIME_V1, KEYWORD_VAR_V1,
     PUSH,
 };
 use bld_config::BldConfig;
-use bld_core::context::ContextSender;
-use bld_core::logger::LoggerSender;
-use bld_core::messages::{ExecClientMessage, WorkerMessages};
-use bld_core::platform::PlatformSender;
-use bld_core::proxies::PipelineFileSystemProxy;
-use bld_core::request::WebSocket;
-use bld_core::signals::{UnixSignal, UnixSignalMessage, UnixSignalsReceiver};
-use bld_sock::clients::ExecClient;
+use bld_core::{
+    context::Context,
+    fs::FileSystem,
+    logger::Logger,
+    platform::Platform,
+    signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend},
+};
+use bld_http::WebSocket;
+use bld_models::dtos::{ExecClientMessage, WorkerMessages};
+use bld_sock::ExecClient;
 use bld_utils::sync::IntoArc;
 use futures::stream::StreamExt;
-use std::collections::HashMap;
-use std::fmt::Write;
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::mpsc::Sender;
-use tokio::time::sleep;
+use std::{collections::HashMap, fmt::Write, future::Future, pin::Pin, sync::Arc, time::Duration};
+use tokio::{sync::mpsc::Sender, time::sleep};
 use tracing::debug;
+
+use crate::{
+    external::v1::External,
+    pipeline::v1::Pipeline,
+    step::v1::{BuildStep, BuildStepExec},
+    sync::builder::RunnerBuilder,
+};
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 
@@ -37,15 +34,15 @@ pub struct Runner {
     pub run_id: String,
     pub run_start_time: String,
     pub config: Arc<BldConfig>,
-    pub signals: Option<UnixSignalsReceiver>,
-    pub logger: Arc<LoggerSender>,
-    pub proxy: Arc<PipelineFileSystemProxy>,
+    pub signals: Option<UnixSignalsBackend>,
+    pub logger: Arc<Logger>,
+    pub fs: Arc<FileSystem>,
     pub pipeline: Pipeline,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
     pub env: Arc<HashMap<String, String>>,
     pub vars: Arc<HashMap<String, String>>,
-    pub context: Arc<ContextSender>,
-    pub platform: Arc<PlatformSender>,
+    pub context: Arc<Context>,
+    pub platform: Arc<Platform>,
     pub is_child: bool,
     pub has_faulted: bool,
 }
@@ -260,7 +257,7 @@ impl Runner {
             .run_id(&self.run_id)
             .run_start_time(&self.run_start_time)
             .config(self.config.clone())
-            .proxy(self.proxy.clone())
+            .fs(self.fs.clone())
             .pipeline(&details.pipeline)
             .logger(self.logger.clone())
             .environment(environment.into_arc())

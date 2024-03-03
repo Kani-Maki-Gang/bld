@@ -1,18 +1,14 @@
 use actix::{io::SinkWrite, Actor, StreamHandler};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::context::ContextSender;
-use bld_core::logger::LoggerSender;
-use bld_core::messages::ExecClientMessage;
-use bld_core::proxies::PipelineFileSystemProxy;
-use bld_core::request::{HttpClient, WebSocket};
+use bld_core::{context::Context, fs::FileSystem, logger::Logger};
+use bld_http::{HttpClient, WebSocket};
+use bld_models::dtos::ExecClientMessage;
 use bld_runner::RunnerBuilder;
-use bld_sock::clients::ExecClient;
+use bld_sock::ExecClient;
 use bld_utils::sync::IntoArc;
 use futures::stream::StreamExt;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::time::sleep;
 use tracing::debug;
 
@@ -201,10 +197,10 @@ impl RunAdapter {
 
         let runner = RunnerBuilder::default()
             .config(mode.config.clone())
-            .proxy(PipelineFileSystemProxy::local(mode.config.clone()).into_arc())
+            .fs(FileSystem::local(mode.config.clone()).into_arc())
             .pipeline(&mode.pipeline)
-            .logger(LoggerSender::shell().into_arc())
-            .context(ContextSender::local(mode.config.clone()).into_arc())
+            .logger(Logger::shell().into_arc())
+            .context(Context::local(mode.config.clone()).into_arc())
             .signals(signals_rx)
             .environment(mode.environment.into_arc())
             .variables(mode.variables.into_arc())
@@ -242,8 +238,8 @@ impl RunAdapter {
             ExecClient::add_stream(stream, ctx);
             ExecClient::new(
                 mode.server.to_owned(),
-                LoggerSender::shell().into_arc(),
-                ContextSender::local(mode.config.clone()).into_arc(),
+                Logger::shell().into_arc(),
+                Context::local(mode.config.clone()).into_arc(),
                 SinkWrite::new(sink, ctx),
             )
         });

@@ -11,8 +11,8 @@ use actix_web::{
 };
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::database::new_connection_pool;
-use bld_core::{auth::LoginProcess, proxies::PipelineFileSystemProxy};
+use bld_core::{auth::Logins, fs::FileSystem};
+use bld_models::new_connection_pool;
 use bld_utils::{
     sync::IntoData,
     tls::{load_server_certificate, load_server_private_key},
@@ -29,11 +29,11 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
     let config_clone = config.clone();
     let conn = new_connection_pool(Arc::clone(&config)).await?;
     let supervisor_sender = SupervisorMessageSender::new(Arc::clone(&config)).into_data();
-    let logins = LoginProcess::default().into_data();
+    let logins = Logins::default().into_data();
     let pool = conn.into_data();
-    let prx = PipelineFileSystemProxy::server(Arc::clone(&config), Arc::clone(&pool)).into_data();
+    let fs = FileSystem::server(Arc::clone(&config), Arc::clone(&pool)).into_data();
     let cron = CronScheduler::new(
-        Arc::clone(&prx),
+        Arc::clone(&fs),
         Arc::clone(&pool),
         Arc::clone(&supervisor_sender),
     )
@@ -48,7 +48,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .app_data(supervisor_sender.clone())
             .app_data(logins.clone())
             .app_data(pool.clone())
-            .app_data(prx.clone())
+            .app_data(fs.clone())
             .app_data(cron.clone())
             .wrap(middleware::Logger::default())
             .service(home::get)

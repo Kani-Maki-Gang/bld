@@ -4,7 +4,8 @@ use crate::command::BldCommand;
 use actix::System;
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::{request::HttpClient, requests::JobFiltersParams};
+use bld_http::HttpClient;
+use bld_models::dtos::JobFiltersParams;
 use bld_utils::sync::IntoArc;
 use clap::Args;
 

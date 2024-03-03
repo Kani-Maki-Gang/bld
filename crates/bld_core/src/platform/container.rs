@@ -15,12 +15,9 @@ use tar::{Archive, Builder};
 use tracing::{debug, error};
 use uuid::Uuid;
 
-use crate::{
-    context::ContextSender, database::pipeline_run_containers::PipelineRunContainers,
-    logger::LoggerSender,
-};
+use crate::logger::Logger;
 
-use super::{docker, Image};
+use super::{context::PlatformContext, docker, Image};
 
 pub struct ContainerOptions<'a> {
     pub config: Arc<BldConfig>,
@@ -28,8 +25,8 @@ pub struct ContainerOptions<'a> {
     pub image: Image<'a>,
     pub pipeline_env: &'a HashMap<String, String>,
     pub env: Arc<HashMap<String, String>>,
-    pub logger: Arc<LoggerSender>,
-    pub context: Arc<ContextSender>,
+    pub logger: Arc<Logger>,
+    pub context: PlatformContext,
 }
 
 pub struct Container {
@@ -37,8 +34,7 @@ pub struct Container {
     pub name: String,
     pub config: Option<Arc<BldConfig>>,
     pub client: Docker,
-    pub context: Arc<ContextSender>,
-    pub entity: Option<PipelineRunContainers>,
+    pub context: PlatformContext,
     pub environment: Vec<String>,
 }
 
@@ -81,24 +77,25 @@ impl Container {
         map.iter().map(|(k, v)| format!("{k}={v}")).collect()
     }
 
-    pub async fn new(options: ContainerOptions<'_>) -> Result<Self> {
+    pub async fn new(mut options: ContainerOptions<'_>) -> Result<Self> {
         let client = docker(options.config.as_ref(), options.docker_url)?;
         debug!("creating container environement");
         let env = Self::create_environment(options.pipeline_env, options.env);
         let container_env = env.iter().map(AsRef::as_ref).collect();
         options
             .image
-            .create(&client, options.logger.clone())
+            .create(&client, options.logger.as_ref())
             .await?;
         let (id, name) = Container::create(&client, options.image.name(), container_env).await?;
-        let entity = options.context.add_container(id.clone()).await?;
+
+        options.context.add(&id).await?;
+
         Ok(Self {
             id,
             name,
             config: Some(options.config),
             client,
             context: options.context,
-            entity,
             environment: env,
         })
     }
@@ -148,7 +145,7 @@ impl Container {
 
     pub async fn sh(
         &self,
-        logger: Arc<LoggerSender>,
+        logger: Arc<Logger>,
         working_dir: &Option<String>,
         input: &str,
     ) -> Result<()> {
@@ -203,41 +200,35 @@ impl Container {
     }
 
     pub async fn keep_alive(&self) -> Result<()> {
-        self.context.keep_alive(self.id.clone()).await
+        self.context.keep_alive().await
     }
 
     pub async fn dispose(&self) -> Result<()> {
         if let Err(e) = self.client.stop_container(&self.name, None).await {
             error!("could not stop container, {e}");
-            if let Some(entity) = &self.entity {
-                let _ = self
-                    .context
-                    .set_container_as_faulted(entity.id.to_owned())
-                    .await
-                    .map_err(|e| error!("could not set container as faulted, {e}"));
-            }
+            let _ = self
+                .context
+                .set_as_faulted()
+                .await
+                .map_err(|e| error!("could not set container as faulted, {e}"));
             bail!(e);
         }
 
         if let Err(e) = self.client.remove_container(&self.name, None).await {
             error!("could not stop container, {e}");
-            if let Some(entity) = &self.entity {
-                let _ = self
-                    .context
-                    .set_container_as_faulted(entity.id.to_owned())
-                    .await
-                    .map_err(|e| error!("could not set container as faulted, {e}"));
-            }
+            let _ = self
+                .context
+                .set_as_faulted()
+                .await
+                .map_err(|e| error!("could not set container as faulted, {e}"));
             bail!(e);
         }
 
-        if let Some(entity) = &self.entity {
-            let _ = self
-                .context
-                .set_container_as_removed(entity.id.to_owned())
-                .await
-                .map_err(|e| error!("could not set container as faulted, {e}"));
-        }
+        let _ = self
+            .context
+            .set_as_removed()
+            .await
+            .map_err(|e| error!("could not set container as faulted, {e}"));
 
         Ok(())
     }

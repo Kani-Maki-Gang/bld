@@ -3,7 +3,8 @@ use actix_web::{
     web::{Data, Json},
     HttpResponse, Responder,
 };
-use bld_core::{proxies::PipelineFileSystemProxy, requests::PipelinePathRequest};
+use bld_core::fs::FileSystem;
+use bld_models::dtos::PipelinePathRequest;
 use tracing::info;
 
 use crate::extractors::User;
@@ -11,11 +12,11 @@ use crate::extractors::User;
 #[post("/copy")]
 pub async fn post(
     _user: User,
-    proxy: Data<PipelineFileSystemProxy>,
+    fs: Data<FileSystem>,
     body: Json<PipelinePathRequest>,
 ) -> impl Responder {
     info!("Reached handler for /copy route");
-    match proxy.copy(&body.pipeline, &body.target).await {
+    match fs.copy(&body.pipeline, &body.target).await {
         Ok(_) => HttpResponse::Ok().json(""),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }

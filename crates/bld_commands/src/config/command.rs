@@ -2,7 +2,7 @@ use crate::command::BldCommand;
 use actix::System;
 use anyhow::Result;
 use bld_config::{BldConfig, BldLocalConfig, BldRemoteServerConfig};
-use bld_core::proxies::PipelineFileSystemProxy;
+use bld_core::fs::FileSystem;
 use bld_utils::{sync::IntoArc, term};
 use clap::Args;
 use tracing::metadata::LevelFilter;
@@ -35,8 +35,8 @@ impl ConfigCommand {
 
     async fn edit() -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
-        let proxy = PipelineFileSystemProxy::local(config);
-        proxy.edit_config().await
+        let fs = FileSystem::local(config);
+        fs.edit_config().await
     }
 }
 

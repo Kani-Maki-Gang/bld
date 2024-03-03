@@ -6,15 +6,16 @@ edition = "2021"
 
 [workspace]
 members = [
-    "crates/bld_migrations",
-    "crates/bld_entities",
-    "crates/bld_core",
     "crates/bld_utils",
     "crates/bld_config",
-    "crates/bld_sock",
+    "crates/bld_migrations",
+    "crates/bld_models",
+    "crates/bld_core",
+    "crates/bld_http",
     "crates/bld_supervisor",
     "crates/bld_runner",
     "crates/bld_server",
+    "crates/bld_sock",
     "crates/bld_commands"
 ]
 

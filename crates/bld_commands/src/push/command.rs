@@ -2,7 +2,8 @@ use crate::command::BldCommand;
 use actix_web::rt::System;
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
-use bld_core::{proxies::PipelineFileSystemProxy, request::HttpClient};
+use bld_core::fs::FileSystem;
+use bld_http::HttpClient;
 use bld_runner::VersionedPipeline;
 use bld_utils::sync::IntoArc;
 use clap::Args;
@@ -40,21 +41,21 @@ impl PushCommand {
     async fn push(self) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
         let client = HttpClient::new(config.clone(), &self.server)?;
-        let proxy = PipelineFileSystemProxy::local(config.clone()).into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
 
         debug!(
             "running push subcommand with --server: {} and --pipeline: {}",
             self.server, self.pipeline
         );
 
-        let mut pipelines = vec![(self.pipeline.to_owned(), proxy.read(&self.pipeline).await?)];
+        let mut pipelines = vec![(self.pipeline.to_owned(), fs.read(&self.pipeline).await?)];
 
         if !self.ignore_deps {
             print!("Resolving dependecies...");
 
             let mut deps = VersionedPipeline::dependencies(
                 config.clone(),
-                proxy.clone(),
+                fs.clone(),
                 self.pipeline.to_owned(),
             )
             .await
