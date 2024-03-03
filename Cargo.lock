@@ -779,7 +779,7 @@ dependencies = [
 
 [[package]]
 name = "bld"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "bld_commands",
@@ -790,7 +790,7 @@ dependencies = [
 
 [[package]]
 name = "bld_commands"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "actix",
  "actix-codec",
@@ -824,7 +824,7 @@ dependencies = [
 
 [[package]]
 name = "bld_config"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "openidconnect",
@@ -836,7 +836,7 @@ dependencies = [
 
 [[package]]
 name = "bld_core"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "actix",
  "actix-web",
@@ -872,7 +872,7 @@ dependencies = [
 
 [[package]]
 name = "bld_http"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "awc",
@@ -886,7 +886,7 @@ dependencies = [
 
 [[package]]
 name = "bld_migrations"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "async-std",
  "chrono",
@@ -895,7 +895,7 @@ dependencies = [
 
 [[package]]
 name = "bld_models"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "actix",
  "anyhow",
@@ -912,7 +912,7 @@ dependencies = [
 
 [[package]]
 name = "bld_runner"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "actix",
  "actix-codec",
@@ -943,7 +943,7 @@ dependencies = [
 
 [[package]]
 name = "bld_server"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "actix",
  "actix-codec",
@@ -974,7 +974,7 @@ dependencies = [
 
 [[package]]
 name = "bld_sock"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "actix",
  "actix-codec",
@@ -998,7 +998,7 @@ dependencies = [
 
 [[package]]
 name = "bld_supervisor"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "actix",
  "actix-codec",
@@ -1026,7 +1026,7 @@ dependencies = [
 
 [[package]]
 name = "bld_utils"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "actix-web",
  "anyhow",
