@@ -49,7 +49,7 @@ impl MonitCommand {
         let config = BldConfig::load().await?;
         let server = config.server(&self.server)?;
         let auth_path = config.auth_full_path(&server.name);
-        let url = format!("{}/ws-monit/", server.base_url_ws());
+        let url = format!("{}/v1/ws-monit/", server.base_url_ws());
 
         debug!("establishing web socket connection on {}", url);
 

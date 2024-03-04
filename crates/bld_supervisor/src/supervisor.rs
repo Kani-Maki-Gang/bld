@@ -32,8 +32,8 @@ pub async fn start(config: BldConfig) -> Result<()> {
             .app_data(config_clone.clone())
             .app_data(conn.clone())
             .app_data(worker_queue_sender.clone())
-            .service(resource("/ws-server/").route(get().to(ws_server_socket)))
-            .service(resource("/ws-worker/").route(get().to(ws_worker_socket)))
+            .service(resource("/v1/ws-server/").route(get().to(ws_server_socket)))
+            .service(resource("/v1/ws-worker/").route(get().to(ws_worker_socket)))
     });
 
     server = match &config.local.supervisor.tls {

@@ -190,7 +190,7 @@ impl Job {
         let variables = details.variables.clone();
         let environment = details.environment.clone();
 
-        let url = format!("{}/ws-exec/", server.base_url_ws());
+        let url = format!("{}/v1/ws-exec/", server.base_url_ws());
 
         debug!(
             "establishing web socket connection with server {}",

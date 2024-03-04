@@ -186,7 +186,7 @@ impl HttpClient {
     }
 
     async fn refresh(&self) -> Result<()> {
-        let url = format!("{}/refresh", self.base_url);
+        let url = format!("{}/v1/refresh", self.base_url);
         let tokens = read_tokens(&self.auth_path).await?;
         let Some(refresh_token) = tokens.refresh_token else {
             error!("no refresh token found");
@@ -208,7 +208,7 @@ impl HttpClient {
     }
 
     async fn check_inner(&self, pipeline: &str) -> Result<()> {
-        let url = format!("{}/check", self.base_url);
+        let url = format!("{}/v1/check", self.base_url);
         let params = PipelineQueryParams::new(pipeline);
         Request::get(&url)
             .query(&params)?
@@ -231,7 +231,7 @@ impl HttpClient {
     }
 
     async fn deps_inner(&self, params: &PipelineQueryParams) -> Result<Vec<String>> {
-        let url = format!("{}/deps", self.base_url);
+        let url = format!("{}/v1/deps", self.base_url);
         Request::get(&url)
             .auth(&self.auth_path)
             .await
@@ -253,7 +253,7 @@ impl HttpClient {
     }
 
     async fn hist_inner(&self, params: &HistQueryParams) -> Result<Vec<HistoryEntry>> {
-        let url = format!("{}/hist", self.base_url);
+        let url = format!("{}/v1/hist", self.base_url);
         Request::get(&url)
             .query(params)?
             .auth(&self.auth_path)
@@ -280,7 +280,7 @@ impl HttpClient {
     }
 
     async fn print_inner(&self, params: &PipelineQueryParams) -> Result<String> {
-        let url = format!("{}/print", self.base_url);
+        let url = format!("{}/v1/print", self.base_url);
         Request::get(&url)
             .auth(&self.auth_path)
             .await
@@ -302,7 +302,7 @@ impl HttpClient {
     }
 
     async fn list_inner(&self) -> Result<String> {
-        let url = format!("{}/list", self.base_url);
+        let url = format!("{}/v1/list", self.base_url);
         Request::get(&url).auth(&self.auth_path).await.send().await
     }
 
@@ -318,7 +318,7 @@ impl HttpClient {
     }
 
     async fn pull_inner(&self, params: &PipelineQueryParams) -> Result<PullResponse> {
-        let url = format!("{}/pull", self.base_url);
+        let url = format!("{}/v1/pull", self.base_url);
         Request::get(&url)
             .auth(&self.auth_path)
             .await
@@ -340,7 +340,7 @@ impl HttpClient {
     }
 
     async fn push_inner(&self, json: &PushInfo) -> Result<()> {
-        let url = format!("{}/push", self.base_url);
+        let url = format!("{}/v1/push", self.base_url);
         Request::post(&url)
             .auth(&self.auth_path)
             .await
@@ -365,7 +365,7 @@ impl HttpClient {
     }
 
     async fn remove_inner(&self, params: &PipelineQueryParams) -> Result<()> {
-        let url = format!("{}/remove", self.base_url);
+        let url = format!("{}/v1/remove", self.base_url);
         Request::delete(&url)
             .auth(&self.auth_path)
             .await
@@ -388,7 +388,7 @@ impl HttpClient {
     }
 
     async fn run_inner(&self, json: &ExecClientMessage) -> Result<()> {
-        let url = format!("{}/run", self.base_url);
+        let url = format!("{}/v1/run", self.base_url);
         Request::post(&url)
             .auth(&self.auth_path)
             .await
@@ -419,7 +419,7 @@ impl HttpClient {
     }
 
     async fn stop_inner(&self, json: &String) -> Result<()> {
-        let url = format!("{}/stop", self.base_url);
+        let url = format!("{}/v1/stop", self.base_url);
         Request::post(&url)
             .auth(&self.auth_path)
             .await
@@ -441,7 +441,7 @@ impl HttpClient {
     }
 
     async fn cron_list_inner(&self, filters: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
-        let url = format!("{}/cron", self.base_url);
+        let url = format!("{}/v1/cron", self.base_url);
         Request::get(&url)
             .auth(&self.auth_path)
             .await
@@ -462,7 +462,7 @@ impl HttpClient {
     }
 
     async fn cron_add_inner(&self, body: &AddJobRequest) -> Result<()> {
-        let url = format!("{}/cron", self.base_url);
+        let url = format!("{}/v1/cron", self.base_url);
         Request::post(&url)
             .auth(&self.auth_path)
             .await
@@ -483,7 +483,7 @@ impl HttpClient {
     }
 
     async fn cron_update_inner(&self, body: &UpdateJobRequest) -> Result<()> {
-        let url = format!("{}/cron", self.base_url);
+        let url = format!("{}/v1/cron", self.base_url);
         Request::patch(&url)
             .auth(&self.auth_path)
             .await
@@ -504,7 +504,7 @@ impl HttpClient {
     }
 
     async fn cron_remove_inner(&self, id: &str) -> Result<()> {
-        let url = format!("{}/cron/{id}", self.base_url);
+        let url = format!("{}/v1/cron/{id}", self.base_url);
         Request::delete(&url)
             .auth(&self.auth_path)
             .await
@@ -525,7 +525,7 @@ impl HttpClient {
     }
 
     async fn copy_inner(&self, data: &PipelinePathRequest) -> Result<()> {
-        let url = format!("{}/copy", self.base_url);
+        let url = format!("{}/v1/copy", self.base_url);
         Request::post(&url)
             .auth(&self.auth_path)
             .await
@@ -547,7 +547,7 @@ impl HttpClient {
     }
 
     async fn mv_inner(&self, data: &PipelinePathRequest) -> Result<()> {
-        let url = format!("{}/move", self.base_url);
+        let url = format!("{}/v1/move", self.base_url);
         Request::patch(&url)
             .auth(&self.auth_path)
             .await
