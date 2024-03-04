@@ -28,7 +28,7 @@ async fn try_ws_connection(url: &str) -> Result<Framed<BoxedSocket, Codec>> {
     for _ in 0..10 {
         debug!("establishing web socket connection on {}", url);
 
-        let Ok((_, framed)) = WebSocket::new(&url)?
+        let Ok((_, framed)) = WebSocket::new(url)?
             .request()
             .connect()
             .await
