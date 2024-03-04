@@ -7,7 +7,7 @@ use bld_core::fs::FileSystem;
 use bld_models::dtos::PipelineQueryParams;
 use tracing::info;
 
-#[delete("/remove")]
+#[delete("/v1/remove")]
 pub async fn delete(
     _: User,
     fs: Data<FileSystem>,

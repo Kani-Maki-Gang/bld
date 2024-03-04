@@ -9,7 +9,7 @@ use tracing::info;
 
 use crate::extractors::User;
 
-#[patch("/move")]
+#[patch("/v1/move")]
 pub async fn patch(
     _user: User,
     fs: Data<FileSystem>,

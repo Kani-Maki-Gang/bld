@@ -8,7 +8,7 @@ use bld_models::{
 use sea_orm::DatabaseConnection;
 use tracing::info;
 
-#[get("/hist")]
+#[get("/v1/hist")]
 pub async fn get(
     _user: User,
     conn: Data<DatabaseConnection>,

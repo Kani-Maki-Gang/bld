@@ -13,7 +13,7 @@ use bld_models::dtos::PipelineQueryParams;
 use bld_runner::VersionedPipeline;
 use tracing::info;
 
-#[get("/deps")]
+#[get("/v1/deps")]
 pub async fn get(
     _user: User,
     config: Data<BldConfig>,

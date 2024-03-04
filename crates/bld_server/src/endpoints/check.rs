@@ -10,7 +10,7 @@ use bld_models::dtos::PipelineQueryParams;
 use bld_runner::{Load, Yaml};
 use tracing::info;
 
-#[get("/check")]
+#[get("/v1/check")]
 pub async fn get(
     _user: User,
     config: Data<BldConfig>,

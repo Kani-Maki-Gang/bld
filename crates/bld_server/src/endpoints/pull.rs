@@ -5,7 +5,7 @@ use bld_core::fs::FileSystem;
 use bld_models::dtos::{PipelineQueryParams, PullResponse};
 use tracing::info;
 
-#[get("/pull")]
+#[get("/v1/pull")]
 pub async fn get(
     _: User,
     fs: Data<FileSystem>,

@@ -14,7 +14,7 @@ use bld_models::dtos::ExecClientMessage;
 use sea_orm::DatabaseConnection;
 use tracing::info;
 
-#[post("/run")]
+#[post("/v1/run")]
 pub async fn post(
     user: User,
     fs: Data<FileSystem>,

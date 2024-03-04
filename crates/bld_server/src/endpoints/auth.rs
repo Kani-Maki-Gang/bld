@@ -16,7 +16,7 @@ const AUTH_REDIRECT_SUCCESS: &str =
     "Login completed, you can close this browser tab and go back to your terminal.";
 const AUTH_REDIRECT_FAILED: &str = "An error occured while completing the login process.";
 
-#[get("/auth/redirect")]
+#[get("/v1/auth/redirect")]
 pub async fn redirect(info: Query<AuthRedirectParams>, logins: Data<Logins>) -> impl Responder {
     info!("Reached handler for /authRedirect route");
     let code = info.code.to_owned();
@@ -30,7 +30,7 @@ pub async fn redirect(info: Query<AuthRedirectParams>, logins: Data<Logins>) -> 
     }
 }
 
-#[get("/auth/refresh")]
+#[get("/v1/auth/refresh")]
 pub async fn refresh(
     info: Query<RefreshTokenParams>,
     client: Data<Option<CoreClient>>,

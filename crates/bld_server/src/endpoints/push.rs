@@ -8,7 +8,7 @@ use bld_models::dtos::PushInfo;
 use bld_runner::{Load, VersionedPipeline, Yaml};
 use tracing::{error, info};
 
-#[post("/push")]
+#[post("/v1/push")]
 pub async fn post(
     _: User,
     fs: Data<FileSystem>,
