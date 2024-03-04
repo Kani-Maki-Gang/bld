@@ -290,7 +290,7 @@ impl Runner {
             .map(|(key, value)| (key.to_owned(), self.apply_context(value)))
             .collect();
 
-        let url = format!("{}/ws-exec/", server.base_url_ws());
+        let url = format!("{}/v1/ws-exec/", server.base_url_ws());
 
         debug!(
             "establishing web socket connection with server {}",

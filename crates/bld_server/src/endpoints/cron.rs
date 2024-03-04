@@ -8,7 +8,7 @@ use tracing::info;
 
 use crate::{cron::CronScheduler, extractors::User};
 
-#[get("/cron")]
+#[get("/v1/cron")]
 pub async fn get(
     _: User,
     cron: Data<CronScheduler>,
@@ -21,7 +21,7 @@ pub async fn get(
     }
 }
 
-#[post("/cron")]
+#[post("/v1/cron")]
 pub async fn post(_: User, cron: Data<CronScheduler>, body: Json<AddJobRequest>) -> impl Responder {
     info!("Reached handler for POST /cron route");
     match cron.add(&body).await {
@@ -30,7 +30,7 @@ pub async fn post(_: User, cron: Data<CronScheduler>, body: Json<AddJobRequest>)
     }
 }
 
-#[patch("/cron")]
+#[patch("/v1/cron")]
 pub async fn patch(
     _: User,
     cron: Data<CronScheduler>,
@@ -43,7 +43,7 @@ pub async fn patch(
     }
 }
 
-#[delete("/cron/{cron_job_id}")]
+#[delete("/v1/cron/{cron_job_id}")]
 pub async fn delete(_: User, cron: Data<CronScheduler>, path: Path<String>) -> impl Responder {
     info!("Reached handler for DELETE /cron route");
     let cron_job_id = path.into_inner();

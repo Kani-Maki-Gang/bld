@@ -70,9 +70,9 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .service(cron::post)
             .service(cron::patch)
             .service(cron::delete)
-            .service(resource("/ws-exec/").route(get().to(exec::ws)))
-            .service(resource("/ws-monit/").route(get().to(monit::ws)))
-            .service(resource("/ws-login/").route(get().to(login::ws)))
+            .service(resource("/v1/ws-exec/").route(get().to(exec::ws)))
+            .service(resource("/v1/ws-monit/").route(get().to(monit::ws)))
+            .service(resource("/v1/ws-login/").route(get().to(login::ws)))
     });
 
     let address = format!("{host}:{port}");

@@ -4,7 +4,7 @@ use actix_web::web::{Data, Json};
 use actix_web::{post, HttpResponse, Responder};
 use tracing::info;
 
-#[post("/stop")]
+#[post("/v1/stop")]
 pub async fn post(
     _: User,
     req: Json<String>,

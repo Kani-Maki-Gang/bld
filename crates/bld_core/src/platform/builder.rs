@@ -97,7 +97,7 @@ impl<'a> PlatformBuilder<'a> {
 
         let platform = match self.options {
             PlatformOptions::Container { image, docker_url } => {
-                let context = PlatformContext::new(&run_id, self.conn);
+                let context = PlatformContext::new(run_id, self.conn);
                 let options = ContainerOptions {
                     config,
                     docker_url,

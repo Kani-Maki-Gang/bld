@@ -130,7 +130,7 @@ async fn connect_to_supervisor(
     config: Arc<BldConfig>,
     mut worker_rx: Receiver<WorkerMessages>,
 ) -> Result<()> {
-    let url = format!("{}/ws-worker/", config.local.supervisor.base_url_ws());
+    let url = format!("{}/v1/ws-worker/", config.local.supervisor.base_url_ws());
 
     debug!("establishing web socket connection on {}", url);
 

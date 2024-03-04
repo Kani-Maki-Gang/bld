@@ -9,7 +9,7 @@ use tracing::info;
 
 use crate::extractors::User;
 
-#[post("/copy")]
+#[post("/v1/copy")]
 pub async fn post(
     _user: User,
     fs: Data<FileSystem>,

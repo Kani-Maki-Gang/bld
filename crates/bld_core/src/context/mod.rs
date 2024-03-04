@@ -16,7 +16,10 @@ use self::local::{LocalContextBackend, LocalContextMessage};
 use self::server::{ServerContextBackend, ServerContextMessage};
 
 pub enum Context {
-    Server { tx: Sender<ServerContextMessage>, conn: Arc<DatabaseConnection> },
+    Server {
+        tx: Sender<ServerContextMessage>,
+        conn: Arc<DatabaseConnection>,
+    },
     Local(Sender<LocalContextMessage>),
 }
 
@@ -24,7 +27,10 @@ impl Context {
     pub fn server(config: Arc<BldConfig>, pool: Arc<DatabaseConnection>, run_id: &str) -> Self {
         let (tx, rx) = channel(4096);
         ServerContextBackend::new(config, pool.clone(), run_id, rx).receive();
-        Self::Server{ tx, conn: pool.clone() }
+        Self::Server {
+            tx,
+            conn: pool.clone(),
+        }
     }
 
     pub fn local(config: Arc<BldConfig>) -> Self {

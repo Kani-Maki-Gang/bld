@@ -951,6 +951,7 @@ dependencies = [
  "actix-web",
  "actix-web-actors",
  "anyhow",
+ "awc",
  "bld_config",
  "bld_core",
  "bld_http",

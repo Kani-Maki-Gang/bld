@@ -4,7 +4,7 @@ use anyhow::Result;
 use bld_core::fs::FileSystem;
 use tracing::info;
 
-#[get("/list")]
+#[get("/v1/list")]
 pub async fn get(_: User, fs: Data<FileSystem>) -> HttpResponse {
     info!("Reached handler for /list route");
     match find_pipelines(fs.get_ref()).await {

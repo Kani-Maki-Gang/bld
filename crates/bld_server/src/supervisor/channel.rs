@@ -1,6 +1,9 @@
 use actix::{io::SinkWrite, Actor, StreamHandler};
+use actix_codec::Framed;
+use actix_http::ws::Codec;
 use actix_web::rt::spawn;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
+use awc::BoxedSocket;
 use bld_config::BldConfig;
 use bld_http::WebSocket;
 use bld_models::dtos::ServerMessages;
@@ -14,6 +17,34 @@ use tokio::{
     time::sleep,
 };
 use tracing::{debug, error};
+
+const INITIAL_DELAY: u64 = 500;
+const RETRY_DELAY: u64 = 2000;
+
+async fn try_ws_connection(url: &str) -> Result<Framed<BoxedSocket, Codec>> {
+    // small wait for the supervisor
+    sleep(Duration::from_millis(INITIAL_DELAY)).await;
+
+    for _ in 0..10 {
+        debug!("establishing web socket connection on {}", url);
+
+        let Ok((_, framed)) = WebSocket::new(url)?
+            .request()
+            .connect()
+            .await
+            .map_err(|e| {
+                error!("connection to supervisor web socket failed due to {e}, retrying in {RETRY_DELAY}ms");
+                anyhow!(e.to_string())
+            }) else {
+                sleep(Duration::from_millis(RETRY_DELAY)).await;
+                continue;
+            };
+
+        return Ok(framed);
+    }
+
+    bail!("unable to establish connection to supervisor websocket");
+}
 
 struct SupervisorMessageReceiver {
     config: Arc<BldConfig>,
@@ -33,29 +64,15 @@ impl SupervisorMessageReceiver {
     }
 
     pub async fn receive(mut self) -> Result<()> {
+        let supervisor = &self.config.local.supervisor;
+        let url = format!("{}/v1/ws-server/", supervisor.base_url_ws());
+
         'retry_loop: loop {
             if let Err(e) = self.spawn_inner() {
                 error!("{e}");
                 break 'retry_loop;
             }
-
-            // small wait for the supervisor
-            sleep(Duration::from_millis(300)).await;
-
-            let supervisor = &self.config.local.supervisor;
-            let url = format!("{}/ws-server/", supervisor.base_url_ws());
-
-            debug!("establishing web socket connection on {}", url);
-
-            let (_, framed) = WebSocket::new(&url)?
-                .request()
-                .connect()
-                .await
-                .map_err(|e| {
-                    error!("{e}");
-                    anyhow!(e.to_string())
-                })?;
-
+            let framed = try_ws_connection(&url).await?;
             let (sink, stream) = framed.split();
             let address = EnqueueClient::create(|ctx| {
                 EnqueueClient::add_stream(stream, ctx);

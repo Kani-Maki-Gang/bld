@@ -218,7 +218,7 @@ impl RunAdapter {
     async fn run_web_socket(mode: WebSocketRequest) -> Result<()> {
         let server = mode.config.server(&mode.server)?;
         let auth_path = mode.config.auth_full_path(&server.name);
-        let url = format!("{}/ws-exec/", server.base_url_ws());
+        let url = format!("{}/v1/ws-exec/", server.base_url_ws());
         let data = ExecClientMessage::EnqueueRun {
             name: mode.pipeline,
             environment: Some(mode.environment),
