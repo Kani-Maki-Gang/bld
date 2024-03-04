@@ -47,8 +47,8 @@ async fn try_ws_connection(url: &str) -> Result<Framed<BoxedSocket, Codec>> {
 }
 
 struct SupervisorMessageReceiver {
-config: Arc<BldConfig>,
-rx: Receiver<ServerMessages>,
+    config: Arc<BldConfig>,
+    rx: Receiver<ServerMessages>,
     child: Option<Child>,
     last_message: Option<ServerMessages>,
 }
