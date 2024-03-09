@@ -1,0 +1,9 @@
+[[hooks]]
+stage = "post_build"
+command = "sh"
+command_arguments = ["-c", "cp -r ./styles/* $TRUNK_STAGING_DIR"]
+
+[[hooks]]
+stage = "post_build"
+command = "sh"
+command_arguments = ["-c", "cp ../../target/stylers/main.css $TRUNK_STAGING_DIR"]

@@ -1,0 +1,31 @@
+.bg-primary {
+  background-color: var(--primary-color);
+}
+
+.bg-secondary {
+  background-color: var(--secondary-color);
+}
+
+.bg-dark {
+  background-color: var(--dark-color);
+}
+
+.bg-accent {
+  background-color: var(--accent-color);
+}
+
+.bg-accent-light {
+  background-color: var(--accent-light-color);
+}
+
+.bg-success {
+  background-color: var(--success-color);
+}
+
+.bg-danger {
+  background-color: var(--danger-color);
+}
+
+.bg-warning {
+  background-color: var(--warning-color);
+}

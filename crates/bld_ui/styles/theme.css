@@ -1,0 +1,22 @@
+:root {
+  --primary-color: #303B4B;
+  --secondary-color: #2C3644;
+  --dark-color: #232B35;
+  --accent-color: #9d5cc6;
+  --accent-light-color: #bc5df7;
+
+  --success-color: #7fefa0;
+  --danger-color: #ef7070;
+  --warning-color: #efd670;
+
+  --text-color: white;
+  --text-muted-color: #777777;
+}
+
+body {
+  font-family: "Roboto", sans-serif;
+  background-color: var(--secondary-color);
+  color: var(--text-color);
+  padding: 0;
+  margin: 0;
+}

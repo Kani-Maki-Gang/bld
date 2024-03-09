@@ -16,7 +16,8 @@ members = [
     "crates/bld_runner",
     "crates/bld_server",
     "crates/bld_sock",
-    "crates/bld_commands"
+    "crates/bld_commands",
+    "crates/bld_ui"
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
