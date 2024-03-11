@@ -4,5 +4,10 @@ button {
   border: 0;
   border-radius: 5px;
   padding: 4px;
+  min-height: 35px;
   min-width: 100px;
+}
+
+button:hover {
+  cursor: pointer;
 }

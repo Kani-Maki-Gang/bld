@@ -49,7 +49,6 @@ pub fn CardFooter(children: Children) -> impl IntoView {
     }
 }
 
-
 #[component]
 pub fn Card(children: Children) -> impl IntoView {
     let style = style! {

@@ -2,8 +2,8 @@
   --primary-color: #303B4B;
   --secondary-color: #2C3644;
   --dark-color: #232B35;
-  --accent-color: #9d5cc6;
-  --accent-light-color: #bc5df7;
+  --accent-color: #5665fe;
+  --accent-light-color: #56a5fe;
 
   --success-color: #7fefa0;
   --danger-color: #ef7070;
@@ -11,6 +11,10 @@
 
   --text-color: white;
   --text-muted-color: #777777;
+}
+
+.text-muted {
+  color: var(--text-muted-color);
 }
 
 body {

@@ -1,5 +1,6 @@
 mod app;
 mod components;
+mod pages;
 
 use app::App;
 use leptos::mount_to_body;
