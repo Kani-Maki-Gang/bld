@@ -1,70 +1,19 @@
 use leptos::*;
-use stylers::style;
 
 #[component]
 pub fn Login() -> impl IntoView {
-    let style = style! {
-        "Login",
-        .login {
-            background: url("grid.svg");
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        .login-card {
-            background-color: var(--dark-color);
-            border-radius: 10px;
-            min-width: 800px;
-            padding: 100px;
-            display: flex;
-        }
-        .logo {
-            max-width: 400px;
-            max-height: 400px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        .content {
-            border-radius: 10px;
-            background-color: var(--primary-color);
-            display: flex;
-            flex-direction: column;
-            align-self: center;
-            width: 300px;
-            height: 400px;
-            margin-left: 100px;
-            padding: 24px;
-        }
-        .title {
-            font-size: 32px;
-        }
-        .subtitle {
-            color: var(--text-muted-color);
-            font-size: 18px;
-            margin-top: 4px;
-        }
-        .login-btn {
-            justify-self: flex-end;
-        }
-    };
-
     view! {
-        class = style,
-        <div class="login">
-            <div class="login-card">
-                <img class="logo" src="logo.png" />
-                <div class="content">
-                    <div class="title">
+        <div class="w-full flex justify-center self-center">
+            <div class="flex rounded-xl bg-slate-700 min-w-[1000px] p-[100px]">
+                <img class="max-w-[400px] max-h-[400px]" src="logo.png" />
+                <div class="rounded-xl w-96 p-8 ml-24 bg-slate-800 flex flex-col">
+                    <div class="flex-none text-3xl text-white">
                         "Simple and blazingly fast CI/CD"
                     </div>
-                    <div class="subtitle">
+                    <div class="grow mt-4 text-lg text-gray-500">
                         "Use the below button to redirect to your OIDC provider"
                     </div>
-                    <button class="login-btn bg-accent" on:click=move || {
-
-                    }>
+                    <button class="flex-non text-white rounded h-8 w-full bg-indigo-600 hover:bg-indigo-700">
                         "Login"
                     </button>
                 </div>

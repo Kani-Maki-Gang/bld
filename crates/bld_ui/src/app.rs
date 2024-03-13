@@ -2,27 +2,19 @@ use leptos::*;
 use leptos_router::{Router, Routes, Route};
 
 use crate::pages::{Login, Home};
-use stylers::style;
-
-const APP_CLASS: &str = style! { "App",
-    .app {
-        height: 100vh;
-        display: flex;
-        justify-self: center;
-    }
-};
 
 #[component]
 pub fn App() -> impl IntoView {
     view! {
-        class = APP_CLASS,
         <Router>
-            <div class="app">
-                <Routes>
-                    <Route path="/home" view=Home />
-                    <Route path="/login" view=Login />
-                    <Route path="/*any" view=Login />
-                </Routes>
+            <div class="h-screen bg-slate-900">
+                <div class="h-screen flex bg-grid">
+                    <Routes>
+                        <Route path="/home" view=Home />
+                        <Route path="/login" view=Login />
+                        <Route path="/*any" view=Home />
+                    </Routes>
+                </div>
             </div>
         </Router>
     }

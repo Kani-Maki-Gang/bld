@@ -1,4 +1,9 @@
 [[hooks]]
+stage = "pre_build"
+command = "fish"
+command_arguments = ["-c", "nvm use lts && cd ./tailwind && npx tailwindcss -i ./input.css -o $TRUNK_STAGING_DIR/tailwind.css"]
+
+[[hooks]]
 stage = "post_build"
 command = "sh"
 command_arguments = ["-c", "cp ../../assets/logo.png $TRUNK_STAGING_DIR"]
@@ -6,9 +11,4 @@ command_arguments = ["-c", "cp ../../assets/logo.png $TRUNK_STAGING_DIR"]
 [[hooks]]
 stage = "post_build"
 command = "sh"
-command_arguments = ["-c", "cp -r ./styles/* $TRUNK_STAGING_DIR"]
-
-[[hooks]]
-stage = "post_build"
-command = "sh"
-command_arguments = ["-c", "cp ../../target/stylers/main.css $TRUNK_STAGING_DIR"]
+command_arguments = ["-c", "cp -r ./assets/* $TRUNK_STAGING_DIR"]
