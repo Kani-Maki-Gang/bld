@@ -20,8 +20,11 @@ pub fn SidebarTop() -> impl IntoView {
 #[component]
 pub fn SidebarItemInstance(#[prop()] item: SidebarItem) -> impl IntoView {
     view! {
-        <div class="py-4 px-8 hover:bg-slate-600 hover:cursor-pointer">
-            {item.text}
+        <div class="py-4 px-8 hover:bg-slate-600 hover:cursor-pointer flex items-center">
+            <div class="text-2xl text-indigo-500">
+                <i class=item.icon />
+            </div>
+            <div class="ml-4">{item.text}</div>
         </div>
     }
 }
