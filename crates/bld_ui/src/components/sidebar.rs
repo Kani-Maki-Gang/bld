@@ -1,5 +1,6 @@
 use crate::components::button::Button;
 use leptos::*;
+use leptos_router::A;
 
 #[derive(Debug, Clone, Default)]
 pub struct SidebarItem {
@@ -20,12 +21,12 @@ pub fn SidebarTop() -> impl IntoView {
 #[component]
 pub fn SidebarItemInstance(#[prop()] item: SidebarItem) -> impl IntoView {
     view! {
-        <div class="py-4 px-8 hover:bg-slate-600 hover:cursor-pointer flex items-center">
+        <A class="py-4 px-8 hover:bg-slate-600 hover:cursor-pointer flex items-center" href=item.url>
             <div class="text-2xl text-indigo-500">
                 <i class=item.icon />
             </div>
             <div class="ml-4">{item.text}</div>
-        </div>
+        </A>
     }
 }
 
