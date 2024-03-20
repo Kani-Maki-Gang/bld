@@ -18,25 +18,25 @@ pub fn Home() -> impl IntoView {
         SidebarItem {
             icon: "iconoir-presentation".to_string(),
             text: "Dashboard".to_string(),
-            url: "/home".to_string(),
+            url: "/".to_string(),
             ..Default::default()
         },
         SidebarItem {
             icon: "iconoir-book".to_string(),
             text: "History".to_string(),
-            url: "/home/history".to_string(),
+            url: "/history".to_string(),
             ..Default::default()
         },
         SidebarItem {
             icon: "iconoir-wrench".to_string(),
             text: "Pipelines".to_string(),
-            url: "/home/pipelines".to_string(),
+            url: "/pipelines".to_string(),
             ..Default::default()
         },
         SidebarItem {
             icon: "iconoir-clock-rotate-right".to_string(),
             text: "Cron jobs".to_string(),
-            url: "/home/cron".to_string(),
+            url: "/cron".to_string(),
             ..Default::default()
         }
     ];

@@ -1,8 +1,8 @@
 use leptos::*;
 use leptos_router::{Router, Routes, Route};
 use crate::pages::{
-    home::{Home, Dashboard, CronJobs, History, Pipelines},
-    login::Login
+    home::{CronJobs, Dashboard, History, Home, Pipelines},
+    login::Login, not_found::NotFound
 };
 
 
@@ -13,7 +13,7 @@ pub fn App() -> impl IntoView {
             <div class="h-screen bg-slate-900">
                 <div class="h-screen flex bg-grid">
                     <Routes>
-                        <Route path="/home" view=Home>
+                        <Route path="/" view=Home>
                             <Route path="/" view=Dashboard />
                             <Route path="/dashboard" view=Dashboard />
                             <Route path="/history" view=History />
@@ -21,7 +21,7 @@ pub fn App() -> impl IntoView {
                             <Route path="/cron" view=CronJobs />
                         </Route>
                         <Route path="/login" view=Login />
-                        <Route path="/*any" view=Home />
+                        <Route path="/*any" view=NotFound />
                     </Routes>
                 </div>
             </div>
