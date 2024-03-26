@@ -1,8 +1,8 @@
 use leptos::*;
-use crate::components::kpi::{Info, KpiInfo};
+use crate::components::kpi::{KpiInfo, Info};
 
 #[component]
-pub fn dashboard() -> impl IntoView {
+pub fn DashboardKpis() -> impl IntoView {
     let (queued, _) = create_signal(Info {
         icon: "iconoir-timer".to_string(),
         count: 10,
@@ -32,13 +32,9 @@ pub fn dashboard() -> impl IntoView {
     });
 
     view! {
-        <div class="flex flex-col">
-            <div class="grid grid-cols-4 justify-items-stretch gap-12">
-                <KpiInfo info=queued />
-                <KpiInfo info=running />
-                <KpiInfo info=completed />
-                <KpiInfo info=faulted />
-            </div>
-        </div>
+        <KpiInfo info=queued />
+        <KpiInfo info=running />
+        <KpiInfo info=completed />
+        <KpiInfo info=faulted />
     }
 }
