@@ -1,6 +1,6 @@
+use crate::components::card::Card;
 use leptos::*;
 use leptos_router::*;
-use crate::components::card::Card;
 
 #[component]
 pub fn NotFound() -> impl IntoView {

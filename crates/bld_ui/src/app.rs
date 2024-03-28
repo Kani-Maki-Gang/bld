@@ -1,10 +1,10 @@
-use leptos::*;
-use leptos_router::{Router, Routes, Route};
 use crate::pages::{
     home::{CronJobs, Dashboard, History, Home, Pipelines},
-    login::Login, not_found::NotFound
+    login::Login,
+    not_found::NotFound,
 };
-
+use leptos::*;
+use leptos_router::{Route, Router, Routes};
 
 #[component]
 pub fn App() -> impl IntoView {

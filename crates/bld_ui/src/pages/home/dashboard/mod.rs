@@ -1,9 +1,11 @@
 mod kpis;
 mod most_runs;
+mod runs_per_month;
 
-use leptos::*;
 use kpis::DashboardKpis;
+use leptos::*;
 use most_runs::DashboardMostRunsPerUser;
+use runs_per_month::DashboardRunsPerMonth;
 
 #[component]
 pub fn dashboard() -> impl IntoView {
@@ -13,7 +15,9 @@ pub fn dashboard() -> impl IntoView {
                 <DashboardKpis />
             </div>
             <div class="grid grid-cols-5 justify-items-stretch gap-12">
-                <div class="col-span-3"></div>
+                <div class="col-span-3">
+                    <DashboardRunsPerMonth />
+                </div>
                 <div class="col-span-2">
                     <DashboardMostRunsPerUser />
                 </div>

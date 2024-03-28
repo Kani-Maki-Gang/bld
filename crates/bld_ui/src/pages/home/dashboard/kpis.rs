@@ -1,5 +1,5 @@
+use crate::components::kpi::{Info, KpiInfo};
 use leptos::*;
-use crate::components::kpi::{KpiInfo, Info};
 
 #[component]
 pub fn DashboardKpis() -> impl IntoView {
@@ -14,7 +14,8 @@ pub fn DashboardKpis() -> impl IntoView {
         icon: "iconoir-running".to_string(),
         count: 30,
         title: "Running pipelines".to_string(),
-        footnote: "Full worker capacity has been reached multiple times in the last 10 days".to_string(),
+        footnote: "Full worker capacity has been reached multiple times in the last 10 days"
+            .to_string(),
     });
 
     let (completed, _) = create_signal(Info {

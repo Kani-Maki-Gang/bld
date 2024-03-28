@@ -8,9 +8,9 @@ pub use dashboard::*;
 pub use history::*;
 pub use pipelines::*;
 
+use crate::components::sidebar::{Sidebar, SidebarItem};
 use leptos::*;
 use leptos_router::Outlet;
-use crate::components::sidebar::{Sidebar, SidebarItem};
 
 #[component]
 pub fn Home() -> impl IntoView {
@@ -38,7 +38,7 @@ pub fn Home() -> impl IntoView {
             text: "Cron jobs".to_string(),
             url: "/cron".to_string(),
             ..Default::default()
-        }
+        },
     ];
 
     view! {

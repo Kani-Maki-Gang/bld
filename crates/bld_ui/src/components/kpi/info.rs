@@ -1,5 +1,5 @@
-use leptos::*;
 use crate::components::card::Card;
+use leptos::*;
 
 #[derive(Debug, Clone, Default)]
 pub struct Info {
