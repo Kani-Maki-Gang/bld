@@ -6,6 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chart-js-rs = "0.0.19"
 leptos = { version = "0.6.9", features = ["csr"] }
+leptos-chartistry = "0.1.5"
 leptos_router = { version = "0.6.9", features = ["csr"] }
