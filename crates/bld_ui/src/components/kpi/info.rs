@@ -16,7 +16,7 @@ pub fn KpiInfo(#[prop()] info: ReadSignal<Info>) -> impl IntoView {
             <div class="px-8 py-12 flex flex-col">
                 <div class="text-xl grid grid-cols-2 items-center">
                     <div class="grow">{move || info.get().title}</div>
-                    <div class="justify-self-end text-5xl text-indigo-400">
+                    <div class="justify-self-end text-5xl text-indigo-500">
                         <i class={move || info.get().icon} />
                     </div>
                 </div>

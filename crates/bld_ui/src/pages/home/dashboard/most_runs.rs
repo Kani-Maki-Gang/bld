@@ -66,7 +66,7 @@ pub fn DashboardMostRunsPerUser() -> impl IntoView {
     view! {
         <Card>
             <div class="flex flex-col px-8 py-12">
-                <div class="text-2xl">"Recent runs"</div>
+                <div class="text-2xl">"Most runs"</div>
                 <div class="text-gray-400 mb-8">"Users with most runs in the last month"</div>
                 <div class="h-96 overflow-y-auto">
                     <List items=data />
