@@ -15,18 +15,54 @@ pub fn DashboardRunsPerMonth() -> impl IntoView {
         .bar(|data: &MyData| data.runs);
 
     let (data, _set_data) = create_signal(vec![
-        MyData { month: 1.0, runs: 10.0 },
-        MyData { month: 2.0, runs: 20.0 },
-        MyData { month: 3.0, runs: 30.0 },
-        MyData { month: 4.0, runs: 40.0 },
-        MyData { month: 5.0, runs: 50.0 },
-        MyData { month: 6.0, runs: 60.0 },
-        MyData { month: 7.0, runs: 70.0 },
-        MyData { month: 8.0, runs: 80.0 },
-        MyData { month: 9.0, runs: 90.0 },
-        MyData { month: 10.0, runs: 100.0 },
-        MyData { month: 11.0, runs: 110.0 },
-        MyData { month: 12.0, runs: 120.0 },
+        MyData {
+            month: 1.0,
+            runs: 10.0,
+        },
+        MyData {
+            month: 2.0,
+            runs: 20.0,
+        },
+        MyData {
+            month: 3.0,
+            runs: 30.0,
+        },
+        MyData {
+            month: 4.0,
+            runs: 40.0,
+        },
+        MyData {
+            month: 5.0,
+            runs: 50.0,
+        },
+        MyData {
+            month: 6.0,
+            runs: 60.0,
+        },
+        MyData {
+            month: 7.0,
+            runs: 70.0,
+        },
+        MyData {
+            month: 8.0,
+            runs: 80.0,
+        },
+        MyData {
+            month: 9.0,
+            runs: 90.0,
+        },
+        MyData {
+            month: 10.0,
+            runs: 100.0,
+        },
+        MyData {
+            month: 11.0,
+            runs: 110.0,
+        },
+        MyData {
+            month: 12.0,
+            runs: 120.0,
+        },
     ]);
 
     view! {

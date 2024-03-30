@@ -1,6 +1,6 @@
-use leptos::*;
 use crate::components::card::Card;
 use crate::components::list::{List, ListItem};
+use leptos::*;
 
 #[component]
 pub fn DashboardPipelines() -> impl IntoView {
