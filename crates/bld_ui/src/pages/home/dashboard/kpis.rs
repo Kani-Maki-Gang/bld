@@ -28,7 +28,7 @@ pub fn DashboardKpis() -> impl IntoView {
     let (faulted, _) = create_signal(Info {
         icon: "iconoir-ev-plug-xmark".to_string(),
         count: 25,
-        title: "Fauled pipelines".to_string(),
+        title: "Faulted pipelines".to_string(),
         footnote: "~ 20% of pipelines faulted in the last 10 days".to_string(),
     });
 

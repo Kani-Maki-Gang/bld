@@ -5,7 +5,7 @@ pub struct ListItem {
     pub id: String,
     pub icon: String,
     pub title: String,
-    pub sub_title: String,
+    pub sub_title: Option<String>,
     pub stat: String,
 }
 

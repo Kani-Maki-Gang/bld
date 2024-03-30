@@ -46,8 +46,10 @@ pub fn Home() -> impl IntoView {
             <div class="grow-0 flex self-stretch">
                 <Sidebar items=nav_items />
             </div>
-            <div class="m-12 grow overflow-auto">
-                <Outlet />
+            <div class="grow overflow-auto">
+                <div class="m-12">
+                    <Outlet />
+                </div>
             </div>
         </div>
     }

@@ -1,10 +1,12 @@
 mod kpis;
 mod most_runs;
+mod pipelines;
 mod runs_per_month;
 
 use kpis::DashboardKpis;
 use leptos::*;
 use most_runs::DashboardMostRunsPerUser;
+use pipelines::DashboardPipelines;
 use runs_per_month::DashboardRunsPerMonth;
 
 #[component]
@@ -21,6 +23,9 @@ pub fn dashboard() -> impl IntoView {
                 <div class="col-span-2">
                     <DashboardMostRunsPerUser />
                 </div>
+            </div>
+            <div>
+                <DashboardPipelines />
             </div>
         </div>
     }
