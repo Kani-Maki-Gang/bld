@@ -1,7 +1,7 @@
 [[hooks]]
 stage = "pre_build"
 command = "fish"
-command_arguments = ["-c", "nvm use lts && cd ./tailwind && npx tailwindcss -i ./input.css -o $TRUNK_STAGING_DIR/tailwind.css"]
+command_arguments = ["-c", "nvm use lts && cd ./tailwind && tailwindcss -i ./input.css -o $TRUNK_STAGING_DIR/tailwind.css"]
 
 [[hooks]]
 stage = "post_build"

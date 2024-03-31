@@ -15,7 +15,7 @@ awc = { version = "3.0.0", features = ["rustls"] }
 anyhow = "1.0.40"
 bld_config = { path = "../bld_config" }
 bld_core = { path = "../bld_core" }
-bld_models = { path = "../bld_models" }
+bld_models = { path = "../bld_models", features = ["all"] }
 bld_utils = { path = "../bld_utils" }
 futures = "0.3.15"
 futures-util = "0.3.15"

@@ -1,6 +1,6 @@
+#[cfg(feature = "database")]
 use crate::pipeline_runs::PipelineRuns;
 use serde::{Deserialize, Serialize};
-use tabled::Tabled;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct HistQueryParams {
@@ -9,15 +9,13 @@ pub struct HistQueryParams {
     pub limit: u64,
 }
 
-#[derive(Serialize, Deserialize, Tabled)]
+#[derive(Serialize, Deserialize)]
 pub struct HistoryEntry {
     pub name: String,
     pub id: String,
     pub user: String,
     pub state: String,
-    #[tabled(display_with = "HistoryEntry::display_option")]
     pub start_date_time: Option<String>,
-    #[tabled(display_with = "HistoryEntry::display_option")]
     pub end_date_time: Option<String>,
 }
 
@@ -27,6 +25,7 @@ impl HistoryEntry {
     }
 }
 
+#[cfg(feature = "database")]
 impl From<PipelineRuns> for HistoryEntry {
     fn from(value: PipelineRuns) -> Self {
         Self {

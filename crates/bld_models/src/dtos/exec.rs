@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
+#[cfg(feature = "web_socket")]
 use actix::Message;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "web_socket")]
 #[derive(Debug, Clone, Serialize, Deserialize, Message)]
 #[rtype(result = "()")]
 pub enum ExecClientMessage {
@@ -13,6 +15,7 @@ pub enum ExecClientMessage {
     },
 }
 
+#[cfg(feature = "web_socket")]
 #[derive(Debug, Serialize, Deserialize, Message)]
 #[rtype(result = "()")]
 pub enum ExecServerMessage {

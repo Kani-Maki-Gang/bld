@@ -15,7 +15,7 @@ bollard = { version = "0.15.0", features = ["ssl"] }
 bld_config = { path = "../bld_config" }
 bld_core = { path = "../bld_core" }
 bld_http = { path = "../bld_http" }
-bld_models = { path = "../bld_models" }
+bld_models = { path = "../bld_models", features = ["all"] }
 bld_sock = { path = "../bld_sock" }
 bld_utils = { path = "../bld_utils" }
 chrono = { version = "0.4.23", default-features = false, features = ["std"] }
