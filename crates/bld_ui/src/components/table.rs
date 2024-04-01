@@ -7,8 +7,8 @@ pub struct TableRow {
 
 #[component]
 pub fn Table(
-    #[prop()] headers: Signal<Vec<String>>,
-    #[prop()] rows: Signal<Vec<TableRow>>,
+    #[prop(into)] headers: Signal<Vec<String>>,
+    #[prop(into)] rows: Signal<Vec<TableRow>>,
 ) -> impl IntoView {
     view! {
         <div class="overflow-x-auto">
