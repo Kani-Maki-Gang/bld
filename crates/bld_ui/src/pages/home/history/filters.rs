@@ -40,15 +40,17 @@ pub fn HistoryFilters(
 
     view! {
         <div class="flex items-center gap-x-4">
-            <div class="min-w-[50px]">
+            <div class="min-w-[400px]">
+                <Input placeholder="Search".to_string() value=pipeline />
+            </div>
+            <div class="min-w-[70px]">
                 <Input
                     input_type="number".to_string()
                     placeholder="Limit".to_string()
                     value=limit />
             </div>
-            <Select items=states value=state />
-            <div class="min-w-[300px]">
-                <Input placeholder="Search".to_string() value=pipeline />
+            <div class="min-w-[100px]">
+                <Select items=states value=state />
             </div>
             <div class="w-32">
                 <Button on:click=move |_| refresh.set(())>

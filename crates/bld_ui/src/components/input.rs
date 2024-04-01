@@ -13,7 +13,7 @@ pub fn Input(
             type=input_type
             min=min
             max=max
-            class="border border-slate-500 bg-slate-600 rounded-lg p-2 min-h-[45px] w-full"
+            class="h-[40px] w-full rounded-lg shadow-sm sm:text-sm border-slate-500 bg-slate-600 text-white px-4 py-2"
             placeholder=placeholder
             prop:value={move || value.get().unwrap_or("".to_string())}
             on:input=move |ev| value.set(Some(event_target_value(&ev)))/>
@@ -30,7 +30,7 @@ pub struct SelectItem {
 pub fn Select(#[prop()] items: ReadSignal<Vec<SelectItem>>, #[prop()] value: RwSignal<Option<String>>) -> impl IntoView {
     view! {
         <select
-            class="border border-slate-500 bg-slate-600 rounded-lg min-h-[45px] px-2 py-3"
+            class="px-4 py-2 h-[40px] w-full rounded-lg border-slate-400 bg-slate-600 sm:text-sm"
             prop:value={move || value.get().unwrap_or("".to_string())}
             on:change=move |ev| value.set(Some(event_target_value(&ev))) >
             <For
