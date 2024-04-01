@@ -1,10 +1,26 @@
 mod filters;
-mod list;
+mod table;
 
 use crate::components::card::Card;
+use bld_models::dtos::HistQueryParams;
 use filters::HistoryFilters;
 use leptos::*;
-use list::HistoryList;
+use table::HistoryTable;
+
+fn get_params(
+    state: Option<String>,
+    limit: Option<String>,
+    pipeline: Option<String>,
+) -> HistQueryParams{
+    HistQueryParams {
+        name: pipeline,
+        state: state.filter(|x| x != "all"),
+        limit: limit
+            .as_ref()
+            .map(|l| l.parse::<u64>().unwrap_or(100))
+            .unwrap_or(100),
+    }
+}
 
 #[component]
 pub fn History() -> impl IntoView {
@@ -12,6 +28,9 @@ pub fn History() -> impl IntoView {
     let limit = create_rw_signal(Some("100".to_string()));
     let pipeline: RwSignal<Option<String>> = create_rw_signal(None);
     let refresh = create_rw_signal(());
+
+    let params = move || get_params(state.get(), limit.get(), pipeline.get());
+
     view! {
         <div class="flex flex-col gap-8 h-full">
             <Card>
@@ -31,10 +50,8 @@ pub fn History() -> impl IntoView {
                             pipeline=pipeline
                             refresh=refresh />
                     </div>
-                    <HistoryList
-                        state=state
-                        limit=limit
-                        pipeline=pipeline
+                    <HistoryTable
+                        params=params
                         refresh=refresh />
                 </div>
             </Card>
