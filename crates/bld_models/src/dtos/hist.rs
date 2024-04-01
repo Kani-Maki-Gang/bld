@@ -9,7 +9,7 @@ pub struct HistQueryParams {
     pub limit: u64,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HistoryEntry {
     pub name: String,
     pub id: String,

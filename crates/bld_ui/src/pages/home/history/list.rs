@@ -3,9 +3,16 @@ use bld_models::dtos::{HistQueryParams, HistoryEntry};
 use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
 
-use crate::components::list::{List, ListItem};
+use crate::components::{
+    list::{List, ListItem},
+    table::{Table, TableRow},
+};
 
-fn get_params(state: Option<String>, limit: Option<String>, pipeline: Option<String>) -> HistQueryParams {
+fn get_params(
+    state: Option<String>,
+    limit: Option<String>,
+    pipeline: Option<String>,
+) -> HistQueryParams {
     HistQueryParams {
         name: pipeline,
         state: state.filter(|x| x != "all"),
@@ -62,27 +69,59 @@ pub fn HistoryList(
             let params = get_params(
                 state.get_untracked(),
                 limit.get_untracked(),
-                pipeline.get_untracked());
+                pipeline.get_untracked(),
+            );
 
             let data = get_hist(&params)
                 .await
                 .map_err(|e| logging::console_error(e.to_string().as_str()))
                 .unwrap_or_default();
 
-            set_data.set(data.into_iter().map(create_list_item).collect());
+            // set_data.set(data.into_iter().map(create_list_item).collect());
+            set_data.set(data);
         },
     );
 
-    let _ = watch(move || refresh.get(), move |_, _, _| hist_res.refetch(), false);
+    let _ = watch(
+        move || refresh.get(),
+        move |_, _, _| hist_res.refetch(),
+        false,
+    );
+
+    let (headers, _) = create_signal(vec![
+        "Id".to_string(),
+        "Name".to_string(),
+        "User".to_string(),
+        "Start Date".to_string(),
+        "End Date".to_string(),
+        "State".to_string(),
+    ]);
+
+    let rows = move || {
+        data.get()
+            .into_iter()
+            .map(|item| TableRow {
+                columns: vec![
+                    item.id,
+                    item.name,
+                    item.user,
+                    item.start_date_time.unwrap_or_default(),
+                    item.end_date_time.unwrap_or_default(),
+                    item.state,
+                ],
+            })
+            .collect()
+    };
 
     view! {
         <div class="flex flex-col">
-            <div>
-                {move || match hist_res.get() {
-                    None => view! { <div class="text-xl">Loading...</div> }.into_view(),
-                    Some(_) => view! { <List items=data /> }.into_view(),
-                }}
-            </div>
+            // <div>
+            //     {move || match hist_res.get() {
+            //         None => view! { <div class="text-xl">Loading...</div> }.into_view(),
+            //         Some(_) => view! { <List items=data /> }.into_view(),
+            //     }}
+            // </div>
+            <Table headers=headers.into() rows=Signal::derive(rows) />
         </div>
     }
 }
