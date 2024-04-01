@@ -6,10 +6,10 @@ use leptos::*;
 
 #[component]
 pub fn HistoryFilters(
-    #[prop()] state: RwSignal<Option<String>>,
-    #[prop()] limit: RwSignal<Option<String>>,
-    #[prop()] pipeline: RwSignal<Option<String>>,
-    #[prop()] refresh: RwSignal<()>,
+    #[prop(into)] state: RwSignal<Option<String>>,
+    #[prop(into)] limit: RwSignal<Option<String>>,
+    #[prop(into)] pipeline: RwSignal<Option<String>>,
+    #[prop(into)] refresh: RwSignal<()>,
 ) -> impl IntoView {
     let (states, _set_states) = create_signal(vec![
         SelectItem {
