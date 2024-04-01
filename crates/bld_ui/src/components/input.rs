@@ -13,7 +13,7 @@ pub fn Input(
             type=input_type
             min=min
             max=max
-            class="h-[40px] w-full rounded-lg shadow-sm sm:text-sm border-slate-500 bg-slate-600 text-white px-4 py-2"
+            class="h-[40px] w-full rounded-lg text-sm bg-slate-600 text-white px-4 py-2 focus:ring focus:ring-slate-500 focus:outline-none"
             placeholder=placeholder
             prop:value={move || value.get().unwrap_or("".to_string())}
             on:input=move |ev| value.set(Some(event_target_value(&ev)))/>
@@ -33,7 +33,7 @@ pub fn Select(
 ) -> impl IntoView {
     view! {
         <select
-            class="px-4 py-2 h-[40px] w-full rounded-lg border-slate-400 bg-slate-600 sm:text-sm"
+            class="px-4 py-2 h-[40px] w-full rounded-lg bg-slate-600 text-sm focus:ring focus:ring-slate-500 focus:outline-none"
             prop:value={move || value.get().unwrap_or("".to_string())}
             on:change=move |ev| value.set(Some(event_target_value(&ev))) >
             <For
