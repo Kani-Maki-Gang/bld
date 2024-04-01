@@ -11,12 +11,12 @@ pub fn Table(
     #[prop()] rows: Signal<Vec<TableRow>>,
 ) -> impl IntoView {
     view! {
-        <div class="overflow-x-auto rounded-lg border-2 border-slate-600">
+        <div class="overflow-x-auto">
             <table class="min-w-full bg-slate-700 text-sm">
                 <thead>
                     <tr>
                         <For each=move || headers.get() key=|state| state.clone() let:child>
-                            <th class="border-2 border-slate-600 whitespace-nowrap px-8 py-4 font-bold text-lg text-left">{child}</th>
+                            <th class="border border-b-4 border-slate-600 whitespace-nowrap p-4 font-bold text-left">{child}</th>
                         </For>
                     </tr>
                 </thead>
@@ -30,7 +30,7 @@ pub fn Table(
                                     .columns
                                     .iter()
                                     .map(|c| view! {
-                                        <td class="border border-slate-600 whitespace-nowrap px-8 py-4 text-left">{c}</td>
+                                        <td class="border border-slate-600 whitespace-nowrap p-4 text-left">{c}</td>
                                     }.into_view())
                                     .collect::<View>()
                                 }
