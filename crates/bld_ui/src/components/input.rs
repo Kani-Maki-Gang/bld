@@ -27,7 +27,10 @@ pub struct SelectItem {
 }
 
 #[component]
-pub fn Select(#[prop()] items: ReadSignal<Vec<SelectItem>>, #[prop()] value: RwSignal<Option<String>>) -> impl IntoView {
+pub fn Select(
+    #[prop()] items: ReadSignal<Vec<SelectItem>>,
+    #[prop()] value: RwSignal<Option<String>>,
+) -> impl IntoView {
     view! {
         <select
             class="px-4 py-2 h-[40px] w-full rounded-lg border-slate-400 bg-slate-600 sm:text-sm"
