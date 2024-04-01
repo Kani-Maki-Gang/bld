@@ -2,7 +2,7 @@
 use crate::pipeline_runs::PipelineRuns;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct HistQueryParams {
     pub state: Option<String>,
     pub name: Option<String>,

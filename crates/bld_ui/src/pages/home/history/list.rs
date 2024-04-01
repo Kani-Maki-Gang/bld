@@ -1,41 +1,26 @@
 use anyhow::Result;
+use bld_models::dtos::{HistQueryParams, HistoryEntry};
 use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
 
-use crate::components::{
-    button::Button,
-    list::{List, ListItem}
-};
+use crate::components::list::{List, ListItem};
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct HistQueryParams {
-    pub state: Option<String>,
-    pub name: Option<String>,
-    pub limit: u64,
+fn get_params(state: Option<String>, limit: Option<String>, pipeline: Option<String>) -> HistQueryParams {
+    HistQueryParams {
+        name: pipeline,
+        state: state.filter(|x| x != "all"),
+        limit: limit
+            .as_ref()
+            .map(|l| l.parse::<u64>().unwrap_or(100))
+            .unwrap_or(100),
+    }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct HistoryEntry {
-    pub name: String,
-    pub id: String,
-    pub user: String,
-    pub state: String,
-    pub start_date_time: Option<String>,
-    pub end_date_time: Option<String>,
-}
-
-async fn get_hist() -> Result<Vec<HistoryEntry>> {
-    let params = HistQueryParams {
-        state: None,
-        name: None,
-        limit: 100,
-    };
-
+async fn get_hist(params: &HistQueryParams) -> Result<Vec<HistoryEntry>> {
     let res = Client::builder()
         .build()?
         .get("http://localhost:6080/v1/hist")
-        .query(&params)
+        .query(params)
         .send()
         .await?;
 
@@ -47,46 +32,55 @@ async fn get_hist() -> Result<Vec<HistoryEntry>> {
     }
 }
 
+fn create_list_item(entry: HistoryEntry) -> ListItem {
+    ListItem {
+        id: entry.id.clone(),
+        icon: "iconoir-tools".to_string(),
+        title: format!("{} (id: {})", entry.name, entry.id),
+        sub_title: Some(format!(
+            "user: {} | start_date: {} | end_date: {}",
+            entry.user,
+            entry.start_date_time.unwrap_or_default(),
+            entry.end_date_time.unwrap_or("-".to_string())
+        )),
+        stat: entry.state,
+    }
+}
+
 #[component]
-pub fn HistoryList() -> impl IntoView {
-    let (hist, set_hist) = create_signal(vec![]);
+pub fn HistoryList(
+    #[prop(into)] state: Signal<Option<String>>,
+    #[prop(into)] limit: Signal<Option<String>>,
+    #[prop(into)] pipeline: Signal<Option<String>>,
+    #[prop(into)] refresh: Signal<()>,
+) -> impl IntoView {
+    let (data, set_data) = create_signal(vec![]);
 
     let hist_res = create_resource(
-        move || set_hist,
-        |value| async move {
-            let data = get_hist()
+        move || (state, limit, pipeline, set_data),
+        |(state, limit, pipeline, set_data)| async move {
+            let params = get_params(
+                state.get_untracked(),
+                limit.get_untracked(),
+                pipeline.get_untracked());
+
+            let data = get_hist(&params)
                 .await
                 .map_err(|e| logging::console_error(e.to_string().as_str()))
                 .unwrap_or_default();
 
-            value.set(
-                data.into_iter()
-                    .map(|h| ListItem {
-                        id: h.id.clone(),
-                        icon: "iconoir-tools".to_string(),
-                        title: format!("{} (id: {})", h.name, h.id),
-                        sub_title: Some(format!(
-                            "user: {} | start_date: {} | end_date: {}",
-                            h.user,
-                            h.start_date_time.unwrap_or_default(),
-                            h.end_date_time.unwrap_or("-".to_string())
-                        )),
-                        stat: h.state,
-                    })
-                    .collect(),
-            );
+            set_data.set(data.into_iter().map(create_list_item).collect());
         },
     );
 
+    let _ = watch(move || refresh.get(), move |_, _, _| hist_res.refetch(), false);
+
     view! {
         <div class="flex flex-col">
-            <Button on:click=move |_| hist_res.refetch()>
-                "Refresh"
-            </Button>
             <div>
                 {move || match hist_res.get() {
                     None => view! { <div class="text-xl">Loading...</div> }.into_view(),
-                    Some(_) => view! { <List items=hist /> }.into_view(),
+                    Some(_) => view! { <List items=data /> }.into_view(),
                 }}
             </div>
         </div>

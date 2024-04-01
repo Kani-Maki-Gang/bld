@@ -6,14 +6,17 @@ pub fn Input(
     #[prop(optional)] min: Option<i32>,
     #[prop(optional)] max: Option<i32>,
     #[prop(optional)] placeholder: Option<String>,
+    #[prop()] value: RwSignal<Option<String>>,
 ) -> impl IntoView {
     view! {
         <input
             type=input_type
             min=min
             max=max
-            class="border border-slate-800 bg-slate-600 rounded p-2 min-h-[45px] w-full"
-            placeholder=placeholder />
+            class="border border-slate-500 bg-slate-600 rounded-lg p-2 min-h-[45px] w-full"
+            placeholder=placeholder
+            prop:value={move || value.get().unwrap_or("".to_string())}
+            on:input=move |ev| value.set(Some(event_target_value(&ev)))/>
     }
 }
 
@@ -24,9 +27,12 @@ pub struct SelectItem {
 }
 
 #[component]
-pub fn Select(#[prop()] items: ReadSignal<Vec<SelectItem>>) -> impl IntoView {
+pub fn Select(#[prop()] items: ReadSignal<Vec<SelectItem>>, #[prop()] value: RwSignal<Option<String>>) -> impl IntoView {
     view! {
-        <select class="border border-slate-800 bg-slate-600 rounded min-h-[45px] px-2 py-3">
+        <select
+            class="border border-slate-500 bg-slate-600 rounded-lg min-h-[45px] px-2 py-3"
+            prop:value={move || value.get().unwrap_or("".to_string())}
+            on:change=move |ev| value.set(Some(event_target_value(&ev))) >
             <For
                 each=move || items.get()
                 key=|state| state.value.clone()

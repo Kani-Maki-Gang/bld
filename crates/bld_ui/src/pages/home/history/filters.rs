@@ -1,8 +1,16 @@
-use crate::components::input::{Input, Select, SelectItem};
+use crate::components::{
+    button::Button,
+    input::{Input, Select, SelectItem},
+};
 use leptos::*;
 
 #[component]
-pub fn HistoryFilters() -> impl IntoView {
+pub fn HistoryFilters(
+    #[prop()] state: RwSignal<Option<String>>,
+    #[prop()] limit: RwSignal<Option<String>>,
+    #[prop()] pipeline: RwSignal<Option<String>>,
+    #[prop()] refresh: RwSignal<()>,
+) -> impl IntoView {
     let (states, _set_states) = create_signal(vec![
         SelectItem {
             value: "all".to_string(),
@@ -31,15 +39,21 @@ pub fn HistoryFilters() -> impl IntoView {
     ]);
 
     view! {
-        <div class="flex flex-row-reverse gap-x-4">
-            <div class="min-w-[300px]">
-                <Input placeholder="Search".to_string() />
-            </div>
-            <Select items=states />
+        <div class="flex items-center gap-x-4">
             <div class="min-w-[50px]">
                 <Input
                     input_type="number".to_string()
-                    placeholder="Limit".to_string() />
+                    placeholder="Limit".to_string()
+                    value=limit />
+            </div>
+            <Select items=states value=state />
+            <div class="min-w-[300px]">
+                <Input placeholder="Search".to_string() value=pipeline />
+            </div>
+            <div class="w-32">
+                <Button on:click=move |_| refresh.set(())>
+                    "Apply"
+                </Button>
             </div>
         </div>
     }

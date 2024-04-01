@@ -3,11 +3,15 @@ mod list;
 
 use crate::components::card::Card;
 use filters::HistoryFilters;
-use list::HistoryList;
 use leptos::*;
+use list::HistoryList;
 
 #[component]
 pub fn History() -> impl IntoView {
+    let state: RwSignal<Option<String>> = create_rw_signal(None);
+    let limit = create_rw_signal(Some("100".to_string()));
+    let pipeline: RwSignal<Option<String>> = create_rw_signal(None);
+    let refresh = create_rw_signal(());
     view! {
         <div class="flex flex-col gap-8 h-full">
             <Card>
@@ -21,9 +25,17 @@ pub fn History() -> impl IntoView {
                                 "A list of pipelines and their state order by their start date"
                             </div>
                         </div>
-                        <HistoryFilters />
+                        <HistoryFilters
+                            state=state
+                            limit=limit
+                            pipeline=pipeline
+                            refresh=refresh />
                     </div>
-                    <HistoryList />
+                    <HistoryList
+                        state=state
+                        limit=limit
+                        pipeline=pipeline
+                        refresh=refresh />
                 </div>
             </Card>
         </div>

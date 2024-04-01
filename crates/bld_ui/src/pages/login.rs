@@ -1,3 +1,4 @@
+use crate::components::button::Button;
 use leptos::*;
 
 #[component]
@@ -13,9 +14,9 @@ pub fn Login() -> impl IntoView {
                     <div class="grow mt-4 text-lg text-gray-500">
                         "Use the below button to redirect to your OIDC provider"
                     </div>
-                    <button class="flex-non text-white rounded h-8 w-full bg-indigo-600 hover:bg-indigo-700">
+                    <Button>
                         "Login"
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>
