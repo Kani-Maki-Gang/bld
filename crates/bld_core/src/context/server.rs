@@ -201,7 +201,7 @@ impl ServerContextBackend {
         let _: String = Request::post(&url)
             .auth(&auth_path)
             .await
-            .send_json(&run.run_id)
+            .json_with_data(&run.run_id)
             .await?;
 
         Ok(())
