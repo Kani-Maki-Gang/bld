@@ -42,6 +42,26 @@ impl Load<VersionedPipeline> for Yaml {
     }
 }
 
+pub struct Json;
+
+impl Load<VersionedPipeline> for Json {
+    fn load(input: &str) -> Result<VersionedPipeline> {
+        serde_json::from_str(input).map_err(|_| anyhow!("Pipeline file has syntax errors"))
+    }
+
+    fn load_with_verbose_errors(input: &str) -> Result<VersionedPipeline> {
+        serde_json::from_str(input).map_err(|e| {
+            let mut message = "Syntax errors".to_string();
+
+            let _ = write!(message, "\r\n\r\n");
+            let _ = write!(message, "line: {} ", e.line());
+            let _ = write!(message, "{e}");
+
+            anyhow!(message)
+        })
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "version")]
 pub enum VersionedPipeline {
