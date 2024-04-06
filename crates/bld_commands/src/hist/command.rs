@@ -35,7 +35,7 @@ impl From<HistoryEntry> for HistoryEntryRow {
             user: value.user,
             state: value.state,
             start_date_time: value.start_date_time,
-            end_date_time: value.end_date_time
+            end_date_time: value.end_date_time,
         }
     }
 }

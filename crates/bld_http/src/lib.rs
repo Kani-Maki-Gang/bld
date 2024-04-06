@@ -128,7 +128,11 @@ impl Request {
         match status {
             StatusCode::OK => {
                 debug!("response from server status: {status}");
-                response.body().await.map_err(|e| anyhow!(e)).map(|body| String::from_utf8_lossy(&body).to_string())
+                response
+                    .body()
+                    .await
+                    .map_err(|e| anyhow!(e))
+                    .map(|body| String::from_utf8_lossy(&body).to_string())
             }
             StatusCode::BAD_REQUEST => {
                 let body = response.body().await.map_err(|e| anyhow!(e))?;
@@ -347,7 +351,7 @@ impl HttpClient {
 
     async fn list_inner(&self) -> Result<String> {
         let url = format!("{}/v1/list", self.base_url);
-        Request::get(&url).auth(&self.auth_path).await.json().await
+        Request::get(&url).auth(&self.auth_path).await.text().await
     }
 
     pub async fn list(&self) -> Result<String> {
