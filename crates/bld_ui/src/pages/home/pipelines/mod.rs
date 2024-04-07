@@ -5,6 +5,9 @@ use bld_models::dtos::ListResponse;
 use reqwest::Client;
 use crate::components::{card::Card, table::{Table, TableRow}, button::Button};
 use leptos::{leptos_dom::logging, *};
+use leptos_router::A;
+
+pub use info::PipelineInfo;
 
 async fn get_pipelines() -> Result<Vec<ListResponse>> {
     let res = Client::builder()
@@ -26,7 +29,9 @@ fn into_table_rows(data: Vec<ListResponse>) -> Vec<TableRow> {
     data.into_iter()
         .map(|x| TableRow {
             columns: vec![
-                x.id.into_view(),
+                view! {
+                    <A href={format!("/pipelines/{}", x.id)}>x.id</A>
+                }.into_view(),
                 x.pipeline.into_view(),
             ]
         })
