@@ -3,9 +3,11 @@ mod info;
 use anyhow::Result;
 use bld_models::dtos::ListResponse;
 use reqwest::Client;
-use crate::components::{card::Card, table::{Table, TableRow}, button::Button};
+use crate::components::{
+    card::Card, table::{Table, TableRow},
+    button::Button, link::Link
+};
 use leptos::{leptos_dom::logging, *};
-use leptos_router::A;
 
 pub use info::PipelineInfo;
 
@@ -30,7 +32,7 @@ fn into_table_rows(data: Vec<ListResponse>) -> Vec<TableRow> {
         .map(|x| TableRow {
             columns: vec![
                 view! {
-                    <A href={format!("/pipelines/{}", x.id)}>x.id</A>
+                    <Link href={format!("/pipelines/{}", x.id)}>{x.id}</Link>
                 }.into_view(),
                 x.pipeline.into_view(),
             ]
