@@ -26,8 +26,8 @@ fn into_table_rows(data: Vec<ListResponse>) -> Vec<TableRow> {
     data.into_iter()
         .map(|x| TableRow {
             columns: vec![
-                x.id,
-                x.pipeline
+                x.id.into_view(),
+                x.pipeline.into_view(),
             ]
         })
         .collect()
@@ -35,7 +35,10 @@ fn into_table_rows(data: Vec<ListResponse>) -> Vec<TableRow> {
 
 #[component]
 pub fn Pipelines() -> impl IntoView {
-    let (headers, _set_headers) = create_signal(vec!["Id".to_string(), "Name".to_string()]);
+    let (headers, _set_headers) = create_signal(vec![
+        "Id".into_view(),
+        "Name".into_view()
+    ]);
 
     let (rows, set_rows) = create_signal(vec![]);
 

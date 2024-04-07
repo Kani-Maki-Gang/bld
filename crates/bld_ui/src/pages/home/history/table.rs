@@ -25,12 +25,12 @@ fn into_table_rows(data: Vec<HistoryEntry>) -> Vec<TableRow> {
     data.into_iter()
         .map(|item| TableRow {
             columns: vec![
-                item.id,
-                item.name,
-                item.user,
-                item.start_date_time.unwrap_or_default(),
-                item.end_date_time.unwrap_or_default(),
-                item.state,
+                item.id.into_view(),
+                item.name.into_view(),
+                item.user.into_view(),
+                item.start_date_time.unwrap_or_default().into_view(),
+                item.end_date_time.unwrap_or_default().into_view(),
+                item.state.into_view(),
             ],
         })
         .collect()
@@ -42,12 +42,12 @@ pub fn HistoryTable(
     #[prop(into)] refresh: Signal<()>,
 ) -> impl IntoView {
     let (headers, _) = create_signal(vec![
-        "Id".to_string(),
-        "Name".to_string(),
-        "User".to_string(),
-        "Start Date".to_string(),
-        "End Date".to_string(),
-        "State".to_string(),
+        "Id".into_view(),
+        "Name".into_view(),
+        "User".into_view(),
+        "Start Date".into_view(),
+        "End Date".into_view(),
+        "State".into_view(),
     ]);
 
     let (rows, set_rows) = create_signal(vec![]);

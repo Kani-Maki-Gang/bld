@@ -2,12 +2,12 @@ use leptos::*;
 
 #[derive(Debug, Clone)]
 pub struct TableRow {
-    pub columns: Vec<String>,
+    pub columns: Vec<View>,
 }
 
 #[component]
 pub fn Table(
-    #[prop(into)] headers: Signal<Vec<String>>,
+    #[prop(into)] headers: Signal<Vec<View>>,
     #[prop(into)] rows: Signal<Vec<TableRow>>,
 ) -> impl IntoView {
     view! {
@@ -15,9 +15,14 @@ pub fn Table(
             <table class="min-w-full bg-slate-700 text-sm">
                 <thead>
                     <tr>
-                        <For each=move || headers.get() key=|state| state.clone() let:child>
-                            <th class="border border-b-4 border-slate-600 whitespace-nowrap p-4 font-bold text-left">{child}</th>
-                        </For>
+                        {move || headers
+                            .get()
+                            .into_iter()
+                            .map(|h| view! {
+                                <th class="border border-b-4 border-slate-600 whitespace-nowrap p-4 font-bold text-left">{h}</th>
+                            }.into_view())
+                            .collect::<View>()
+                        }
                     </tr>
                 </thead>
                 <tbody>
