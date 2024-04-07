@@ -11,7 +11,7 @@ fn get_params(
     state: Option<String>,
     limit: Option<String>,
     pipeline: Option<String>,
-) -> HistQueryParams{
+) -> HistQueryParams {
     HistQueryParams {
         name: pipeline,
         state: state.filter(|x| x != "all"),
