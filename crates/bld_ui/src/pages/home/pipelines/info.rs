@@ -1,14 +1,12 @@
 use anyhow::Result;
-use bld_models::dtos::PipelineQueryParams;
+use bld_models::dtos::PipelineInfoQueryParams;
 use leptos::*;
 use leptos_router::*;
 use reqwest::Client;
 use serde_json::Value;
 
 async fn get_pipeline(id: String) -> Result<Value> {
-    let params = PipelineQueryParams {
-        pipeline: id
-    };
+    let params = PipelineInfoQueryParams::Id { id };
 
     let res = Client::builder()
         .build()?
