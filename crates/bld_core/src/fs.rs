@@ -75,6 +75,16 @@ impl FileSystem {
         }
     }
 
+    pub async fn read_by_id(&self, id: &str) -> Result<String> {
+        let Self::Server { config, conn } = self else {
+            bail!("server path isn't supported for a local fs");
+        };
+
+        let pip = pipeline::select_by_id(conn.as_ref(), &id).await?;
+        let path = path![config.server_pipelines(), format!("{}.yaml", pip.id)];
+        self.read_inner(&path).await
+    }
+
     pub async fn read(&self, name: &str) -> Result<String> {
         let path = self.path(name).await?;
         self.read_inner(&path).await
