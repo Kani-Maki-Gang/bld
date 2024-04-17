@@ -7,7 +7,8 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.81"
-bld_models = { version = "0.4.0", path = "../bld_models" }
+bld_models = { path = "../bld_models" }
+bld_runner = { path = "../bld_runner" }
 leptos = { version = "0.6.9", features = ["csr"] }
 leptos-chartistry = "0.1.5"
 leptos_router = { version = "0.6.9", features = ["csr"] }
