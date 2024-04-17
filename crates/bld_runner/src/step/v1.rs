@@ -1,6 +1,10 @@
-use bld_config::BldConfig;
-use bld_utils::fs::IsYaml;
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "all")]
+use bld_config::BldConfig;
+
+#[cfg(feature = "all")]
+use bld_utils::fs::IsYaml;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct BuildStep {
@@ -12,6 +16,7 @@ pub struct BuildStep {
 }
 
 impl BuildStep {
+    #[cfg(feature = "all")]
     pub fn local_dependencies(&self, config: &BldConfig) -> Vec<String> {
         self.exec
             .iter()

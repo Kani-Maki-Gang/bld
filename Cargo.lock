@@ -1069,6 +1069,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bld_models",
+ "bld_runner",
  "leptos",
  "leptos-chartistry",
  "leptos_router",

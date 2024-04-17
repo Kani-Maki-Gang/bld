@@ -1,8 +1,8 @@
 use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "web_socket")]
 use actix::Message;
-use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "web_socket")]
 #[derive(Debug, Clone, Serialize, Deserialize, Message)]

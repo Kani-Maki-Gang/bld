@@ -11,12 +11,12 @@ actix-codec = "0.5.0"
 actix-web = { version = "4.0.1", features = ["rustls"] }
 anyhow = "1.0.40"
 async-signal = "0.2.5"
-bld_config = { path = "../bld_config" }
+bld_config = { path = "../bld_config", features = ["tokio"] }
 bld_utils = { path = "../bld_utils" }
 bld_core = { path = "../bld_core" }
 bld_models = { path = "../bld_models", features = ["all"] }
 bld_http = { path = "../bld_http" }
-bld_runner = { path = "../bld_runner" }
+bld_runner = { path = "../bld_runner", features = ["all"] }
 bld_sock = { path = "../bld_sock" }
 bld_server = { path = "../bld_server" }
 bld_supervisor = { path = "../bld_supervisor" }

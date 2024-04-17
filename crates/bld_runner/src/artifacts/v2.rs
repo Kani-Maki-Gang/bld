@@ -1,6 +1,9 @@
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "all")]
+use anyhow::Result;
+
+#[cfg(feature = "all")]
 use crate::token_context::v2::PipelineContext;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -13,6 +16,7 @@ pub struct Artifacts {
 }
 
 impl Artifacts {
+    #[cfg(feature = "all")]
     pub async fn apply_tokens<'a>(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
         self.from = context.transform(self.from.to_owned()).await?;
         self.to = context.transform(self.to.to_owned()).await?;

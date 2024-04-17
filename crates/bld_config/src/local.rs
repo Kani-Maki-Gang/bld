@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
 use crate::{
-    definitions, ssh::SshConfig, Auth, BldLocalServerConfig, BldLocalSupervisorConfig, DockerUrl,
-    DockerUrlEntry, SshUserAuth,
+    definitions, ssh::SshConfig, BldLocalServerConfig, BldLocalSupervisorConfig, DockerUrl
 };
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "tokio")]
 use tracing::debug;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -30,7 +31,10 @@ impl BldLocalConfig {
         definitions::DEFAULT_EDITOR.to_owned()
     }
 
+    #[cfg(feature = "tokio")]
     pub fn debug_info(&self) {
+        use crate::{Auth, DockerUrlEntry, SshUserAuth};
+
         debug!("loaded local configuration");
         debug!("server > host: {}", self.server.host);
         debug!("server > port: {}", self.server.port);

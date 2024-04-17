@@ -1,9 +1,11 @@
 use crate::artifacts::v1::Artifacts;
 use crate::external::v1::External;
 use crate::step::v1::BuildStep;
-use bld_config::BldConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+#[cfg(feature = "all")]
+use bld_config::BldConfig;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Pipeline {
@@ -34,6 +36,7 @@ impl Pipeline {
         true
     }
 
+    #[cfg(feature = "all")]
     pub fn local_dependencies(&self, config: &BldConfig) -> Vec<String> {
         let from_steps = self.steps.iter().flat_map(|s| s.local_dependencies(config));
 

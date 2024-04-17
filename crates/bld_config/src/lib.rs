@@ -9,10 +9,8 @@ mod supervisor;
 mod tls;
 
 pub use auth::*;
-use definitions::{LOCAL_SERVER_HOST, LOCAL_SERVER_PORT, TOOL_DIR};
 pub use docker::*;
 pub use local::*;
-use openidconnect::core::CoreClient;
 pub use path::*;
 pub use server::*;
 pub use ssh::*;
@@ -20,16 +18,20 @@ pub use supervisor::*;
 pub use tls::*;
 
 use anyhow::{anyhow, Error, Result};
+use crate::definitions::{
+    LOCAL_DEFAULT_DB_DIR, LOCAL_DEFAULT_DB_NAME, LOCAL_MACHINE_TMP_DIR, REMOTE_SERVER_AUTH,
+    TOOL_DEFAULT_CONFIG_FILE, LOCAL_SERVER_HOST, LOCAL_SERVER_PORT, TOOL_DIR
+};
+use openidconnect::core::CoreClient;
 use serde::{Deserialize, Serialize};
 use std::env::current_dir;
 use std::path::PathBuf;
-use tokio::fs::read_to_string;
-use tracing::debug;
 
-use crate::definitions::{
-    LOCAL_DEFAULT_DB_DIR, LOCAL_DEFAULT_DB_NAME, LOCAL_MACHINE_TMP_DIR, REMOTE_SERVER_AUTH,
-    TOOL_DEFAULT_CONFIG_FILE,
-};
+#[cfg(feature = "tokio")]
+use tokio::fs::read_to_string;
+
+#[cfg(feature = "tokio")]
+use tracing::debug;
 
 pub fn err_server_not_in_config() -> Error {
     anyhow!("server not found in config")
@@ -76,6 +78,7 @@ impl BldConfig {
         }
     }
 
+    #[cfg(feature = "tokio")]
     pub async fn load() -> Result<Self> {
         let path = Self::path()?;
 

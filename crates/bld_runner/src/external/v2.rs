@@ -1,7 +1,10 @@
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[cfg(feature = "all")]
+use anyhow::Result;
+
+#[cfg(feature = "all")]
 use crate::token_context::v2::PipelineContext;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -29,6 +32,7 @@ impl External {
         }
     }
 
+    #[cfg(feature = "all")]
     pub async fn apply_tokens<'a>(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
         if let Some(name) = self.name.as_mut() {
             *name = context.transform(name.to_owned()).await?;

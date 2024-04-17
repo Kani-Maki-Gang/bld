@@ -1,8 +1,15 @@
-use anyhow::Result;
-use bld_config::BldConfig;
-use bld_utils::fs::IsYaml;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "all")]
+use anyhow::Result;
+
+#[cfg(feature = "all")]
+use bld_config::BldConfig;
+
+#[cfg(feature = "all")]
+use bld_utils::fs::IsYaml;
+
+#[cfg(feature = "all")]
 use crate::token_context::v2::PipelineContext;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -18,6 +25,7 @@ pub enum BuildStep {
 }
 
 impl BuildStep {
+    #[cfg(feature = "all")]
     pub fn local_dependencies(&self, config: &BldConfig) -> Vec<String> {
         match self {
             Self::One(exec) => exec
@@ -31,6 +39,7 @@ impl BuildStep {
         }
     }
 
+    #[cfg(feature = "all")]
     pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
         match self {
             Self::One(exec) => {
@@ -70,6 +79,7 @@ pub enum BuildStepExec {
 }
 
 impl BuildStepExec {
+    #[cfg(feature = "all")]
     pub fn local_dependencies(&self, config: &BldConfig) -> Option<String> {
         match self {
             BuildStepExec::External { value } if config.full_path(value).is_yaml() => {
@@ -79,6 +89,7 @@ impl BuildStepExec {
         }
     }
 
+    #[cfg(feature = "all")]
     pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
         match self {
             Self::Shell(cmd) => {

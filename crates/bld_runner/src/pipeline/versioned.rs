@@ -1,20 +1,41 @@
-use super::traits::Load;
 use super::v1;
 use super::v2;
-use crate::validator::v1 as validator_v1;
-use crate::validator::v2 as validator_v2;
-use anyhow::{anyhow, Result};
-use bld_config::BldConfig;
-use bld_core::fs::FileSystem;
-use futures::Future;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt::Write, pin::Pin, sync::Arc};
+
+#[cfg(feature = "all")]
+use super::traits::Load;
+
+#[cfg(feature = "all")]
+use crate::validator::v1 as validator_v1;
+
+#[cfg(feature = "all")]
+use crate::validator::v2 as validator_v2;
+
+#[cfg(feature = "all")]
+use anyhow::{anyhow, Result};
+
+#[cfg(feature = "all")]
+use bld_config::BldConfig;
+
+#[cfg(feature = "all")]
+use bld_core::fs::FileSystem;
+
+#[cfg(feature = "all")]
+use futures::Future;
+
+#[cfg(feature = "all")]
+use std::{fmt::Write, collections::HashMap, pin::Pin, sync::Arc};
+
+#[cfg(feature = "all")]
 use tracing::debug;
 
+#[cfg(feature = "all")]
 type DependenciesRecursiveFuture = Pin<Box<dyn Future<Output = Result<HashMap<String, String>>>>>;
 
+#[cfg(feature = "all")]
 pub struct Yaml;
 
+#[cfg(feature = "all")]
 impl Load<VersionedPipeline> for Yaml {
     fn load(input: &str) -> Result<VersionedPipeline> {
         serde_yaml::from_str(input).map_err(|_| anyhow!("Pipeline file has syntax errors"))
@@ -52,6 +73,7 @@ pub enum VersionedPipeline {
 }
 
 impl VersionedPipeline {
+    #[cfg(feature = "all")]
     pub async fn dependencies(
         config: Arc<BldConfig>,
         fs: Arc<FileSystem>,
@@ -64,6 +86,7 @@ impl VersionedPipeline {
         Ok(hs)
     }
 
+    #[cfg(feature = "all")]
     async fn dependencies_recursive(
         config: Arc<BldConfig>,
         fs: Arc<FileSystem>,
@@ -107,6 +130,7 @@ impl VersionedPipeline {
         }
     }
 
+    #[cfg(feature = "all")]
     pub async fn validate_with_verbose_errors(
         &self,
         config: Arc<BldConfig>,
@@ -127,6 +151,7 @@ impl VersionedPipeline {
         .map_err(|e| anyhow!("Expression errors\r\n\r\n{e}"))
     }
 
+    #[cfg(feature = "all")]
     pub async fn validate(&self, config: Arc<BldConfig>, fs: Arc<FileSystem>) -> Result<()> {
         self.validate_with_verbose_errors(config, fs)
             .await
