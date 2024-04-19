@@ -1,3 +1,4 @@
+mod v2;
 mod info;
 
 use anyhow::Result;
@@ -32,7 +33,7 @@ fn into_table_rows(data: Vec<ListResponse>) -> Vec<TableRow> {
         .map(|x| TableRow {
             columns: vec![
                 view! {
-                    <Link href={format!("/pipelines/{}", x.id)}>{x.id}</Link>
+                    <Link href={format!("/pipelines/info?id={}&name={}", x.id, x.pipeline)}>{x.id}</Link>
                 }.into_view(),
                 x.pipeline.into_view(),
             ]

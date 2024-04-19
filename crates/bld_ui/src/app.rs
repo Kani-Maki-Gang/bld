@@ -18,7 +18,7 @@ pub fn App() -> impl IntoView {
                             <Route path="/dashboard" view=Dashboard />
                             <Route path="/history" view=History />
                             <Route path="/pipelines" view=Pipelines />
-                            <Route path="/pipelines/:id" view=PipelineInfo />
+                            <Route path="/pipelines/info" view=PipelineInfo />
                             <Route path="/cron" view=CronJobs />
                         </Route>
                         <Route path="/login" view=Login />

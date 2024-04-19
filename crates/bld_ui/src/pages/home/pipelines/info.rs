@@ -1,11 +1,14 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use bld_models::dtos::PipelineInfoQueryParams;
-use leptos::*;
+use bld_runner::VersionedPipeline;
+use leptos::{leptos_dom::logging, *};
 use leptos_router::*;
 use reqwest::Client;
-use serde_json::Value;
+use crate::components::card::Card;
 
-async fn get_pipeline(id: String) -> Result<Value> {
+use super::v2::info::PipelineInfoV2;
+
+async fn get_pipeline(id: String) -> Result<Option<VersionedPipeline>> {
     let params = PipelineInfoQueryParams::Id { id };
 
     let res = Client::builder()
@@ -20,22 +23,26 @@ async fn get_pipeline(id: String) -> Result<Value> {
         let body = res.text().await?;
         Ok(serde_json::from_str(&body)?)
     } else {
-        Ok(Value::Null)
+        bail!("unable to fetch pipeline")
     }
 }
 
 #[component]
 pub fn PipelineInfo() -> impl IntoView {
-    let params = use_params_map();
+    let params = use_query_map();
 
-    let pipeline_id = move || {
+    let id = move || {
         params.with(|p| p.get("id").cloned())
     };
 
-    let (_data, set_data) = create_signal(Value::Null);
+    let name = move || {
+        params.with(|p| p.get("name").cloned())
+    };
+
+    let (data, set_data) = create_signal(None);
 
     let _ = create_resource(
-        move || (pipeline_id(), set_data),
+        move || (id(), set_data),
         |(id, set_data)| async move {
             let Some(id) = id else {
                 return;
@@ -43,15 +50,34 @@ pub fn PipelineInfo() -> impl IntoView {
 
             let value = get_pipeline(id)
                 .await
-                .unwrap_or_else(|_| Value::Null);
+                .map_err(|e| logging::console_error(&e.to_string()))
+                .unwrap_or_else(|_| None);
 
-            if value == Value::Null {
+            if value.is_some() {
                 set_data.set(value);
             }
         }
     );
 
     view! {
-        "Hello from the pipeline info page for pipeline with id: " {pipeline_id}
+        <div class="flex flex-col spacing-4">
+            {move || match data.get() {
+                Some(VersionedPipeline::Version1(pip)) => {
+                    view! {
+                        "TODO!"
+                    }.into_view()
+                }
+
+                Some(VersionedPipeline::Version2(_)) => {
+                    view! {
+                        <PipelineInfoV2 name=name pipeline=data />
+                    }.into_view()
+                }
+
+                None => {
+                    view! { "No pipeline found!" }.into_view()
+                }
+            }}
+        </div>
     }
 }
