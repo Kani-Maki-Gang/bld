@@ -63,7 +63,7 @@ impl Load<VersionedPipeline> for Yaml {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(tag = "version")]
 pub enum VersionedPipeline {
     #[serde(rename(serialize = "1", deserialize = "1"))]

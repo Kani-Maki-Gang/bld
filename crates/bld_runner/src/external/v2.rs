@@ -7,7 +7,7 @@ use anyhow::Result;
 #[cfg(feature = "all")]
 use crate::token_context::v2::PipelineContext;
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct External {
     pub name: Option<String>,
     pub server: Option<String>,

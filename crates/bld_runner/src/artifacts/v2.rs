@@ -6,7 +6,7 @@ use anyhow::Result;
 #[cfg(feature = "all")]
 use crate::token_context::v2::PipelineContext;
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Artifacts {
     pub method: String,
     pub from: String,

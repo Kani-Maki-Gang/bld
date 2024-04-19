@@ -12,7 +12,7 @@ use bld_utils::fs::IsYaml;
 #[cfg(feature = "all")]
 use crate::token_context::v2::PipelineContext;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BuildStep {
     One(BuildStepExec),
@@ -67,7 +67,7 @@ impl BuildStep {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BuildStepExec {
     Shell(String),

@@ -7,7 +7,7 @@ use std::collections::HashMap;
 #[cfg(feature = "all")]
 use bld_config::BldConfig;
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Pipeline {
     pub name: Option<String>,
     pub runs_on: String,

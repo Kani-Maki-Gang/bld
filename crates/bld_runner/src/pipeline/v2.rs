@@ -14,7 +14,7 @@ use anyhow::Result;
 #[cfg(feature = "all")]
 use bld_config::BldConfig;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pipeline {
     pub name: Option<String>,
     pub runs_on: RunsOn,

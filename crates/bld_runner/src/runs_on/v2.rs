@@ -11,7 +11,7 @@ use bld_config::SshUserAuth;
 #[cfg(feature = "all")]
 use crate::token_context::v2::PipelineContext;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum RunsOn {
     ContainerOrMachine(String),

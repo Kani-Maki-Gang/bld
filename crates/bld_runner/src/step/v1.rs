@@ -6,7 +6,7 @@ use bld_config::BldConfig;
 #[cfg(feature = "all")]
 use bld_utils::fs::IsYaml;
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BuildStep {
     pub name: Option<String>,
     pub working_dir: Option<String>,
@@ -30,7 +30,7 @@ impl BuildStep {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BuildStepExec {
     Shell(String),
