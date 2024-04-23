@@ -40,7 +40,7 @@ pub fn PipelineVariablesV2(
 
     view! {
         <Card>
-            <div class="flex flex-col px-8 py-12 gap-y-4 min-h-96 max-h-[400px]">
+            <div class="flex flex-col px-8 py-12 gap-y-4 min-h-96 max-h-[600px]">
                 <div class="text-xl">
                     "Inputs"
                 </div>
