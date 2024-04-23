@@ -41,6 +41,12 @@ pub fn PipelineVariablesV2(
     view! {
         <Card>
             <div class="flex flex-col px-8 py-12 gap-y-4">
+                <div class="text-xl">
+                    "Inputs"
+                </div>
+                <div class="text-gray-400">
+                    "The configured variables and environment variables for this pipeline."
+                </div>
                 <Tabs items=tabs selected=selected_tab />
                 <Show
                     when=move || selected_tab.get() == "variables" && !vars().is_empty()
