@@ -10,6 +10,7 @@ pub fn DashboardPipelines() -> impl IntoView {
             icon: "iconoir-tools".to_string(),
             title: "web-app/ci.yaml".to_string(),
             sub_title: None,
+            content: None,
             stat: "success 80% | failure 20%".to_string(),
         },
         ListItem {
@@ -17,6 +18,7 @@ pub fn DashboardPipelines() -> impl IntoView {
             icon: "iconoir-tools".to_string(),
             title: "web-app/pr.yaml".to_string(),
             sub_title: None,
+            content: None,
             stat: "success 76% | failure 24%".to_string(),
         },
         ListItem {
@@ -24,6 +26,7 @@ pub fn DashboardPipelines() -> impl IntoView {
             icon: "iconoir-tools".to_string(),
             title: "web-app/vault-task.yaml".to_string(),
             sub_title: None,
+            content: None,
             stat: "success 100% | failure 0%".to_string(),
         },
         ListItem {
@@ -31,6 +34,7 @@ pub fn DashboardPipelines() -> impl IntoView {
             icon: "iconoir-tools".to_string(),
             title: "redis/refresh.yaml".to_string(),
             sub_title: None,
+            content: None,
             stat: "success 100% | failure 0%".to_string(),
         },
     ]);

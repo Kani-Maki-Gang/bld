@@ -1,8 +1,9 @@
-use crate::components::{badge::Badge, button::Button, card::Card};
+use crate::components::{badge::Badge, button::Button, card::Card, list::ListItem};
 use bld_runner::VersionedPipeline;
 use leptos::*;
+use std::collections::HashMap;
 
-use super::variables::PipelineVariablesV2;
+use super::{jobs::PipelineJobsV2, variables::PipelineVariablesV2};
 
 #[component]
 pub fn PipelineInfoV2(
@@ -22,6 +23,26 @@ pub fn PipelineInfoV2(
     let runs_on = move || format!("{}", pipeline().unwrap().runs_on);
     let variables = move || pipeline().unwrap().variables;
     let environment = move || pipeline().unwrap().environment;
+
+    let jobs = move || {
+        pipeline()
+            .unwrap()
+            .jobs
+            .into_iter()
+            .map(|(k, v)| {
+                (
+                    k,
+                    v.into_iter()
+                        .map(|x| {
+                            let mut item = ListItem::default();
+                            item.content = Some(serde_yaml::to_string(&x).unwrap().into_view());
+                            item
+                        })
+                        .collect::<Vec<ListItem>>(),
+                )
+            })
+            .collect::<HashMap<String, Vec<ListItem>>>()
+    };
 
     view! {
         <Show
@@ -57,11 +78,10 @@ pub fn PipelineInfoV2(
                         </div>
                     </div>
                 </Card>
-                <div class="grid grid-cols-3">
+                <div class="grid grid-cols-2 gap-8">
                     <PipelineVariablesV2 variables=variables environment=environment />
-                    <div class="col-span-2">
-                    </div>
                 </div>
+                <PipelineJobsV2 jobs=jobs />
             </div>
         </Show>
     }

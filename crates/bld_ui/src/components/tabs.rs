@@ -8,7 +8,7 @@ pub struct TabItem {
 
 #[component]
 pub fn Tabs(
-    #[prop(into)] items: ReadSignal<Vec<TabItem>>,
+    #[prop(into)] items: Signal<Vec<TabItem>>,
     #[prop(into)] selected: RwSignal<String>,
 ) -> impl IntoView {
     view! {

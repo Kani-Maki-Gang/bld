@@ -10,6 +10,7 @@ pub fn DashboardMostRunsPerUser() -> impl IntoView {
             icon: "iconoir-user-circle".to_string(),
             title: "John Johnson".to_string(),
             sub_title: Some("john@someemail.com".to_string()),
+            content: None,
             stat: "65 runs".to_string(),
         },
         ListItem {
@@ -17,6 +18,7 @@ pub fn DashboardMostRunsPerUser() -> impl IntoView {
             icon: "iconoir-user-circle".to_string(),
             title: "Wade Willson".to_string(),
             sub_title: Some("wade@someemail.com".to_string()),
+            content: None,
             stat: "60 runs".to_string(),
         },
         ListItem {
@@ -24,6 +26,7 @@ pub fn DashboardMostRunsPerUser() -> impl IntoView {
             icon: "iconoir-user-circle".to_string(),
             title: "Peter Parker".to_string(),
             sub_title: Some("peter@someemail.com".to_string()),
+            content: None,
             stat: "49 runs".to_string(),
         },
         ListItem {
@@ -31,6 +34,7 @@ pub fn DashboardMostRunsPerUser() -> impl IntoView {
             icon: "iconoir-user-circle".to_string(),
             title: "Charles Xavier".to_string(),
             sub_title: Some("charles@someemail.com".to_string()),
+            content: None,
             stat: "40 runs".to_string(),
         },
         ListItem {
@@ -38,6 +42,7 @@ pub fn DashboardMostRunsPerUser() -> impl IntoView {
             icon: "iconoir-user-circle".to_string(),
             title: "Bruce Wayne".to_string(),
             sub_title: Some("bruse@someemail.com".to_string()),
+            content: None,
             stat: "35 runs".to_string(),
         },
         ListItem {
@@ -45,6 +50,7 @@ pub fn DashboardMostRunsPerUser() -> impl IntoView {
             icon: "iconoir-user-circle".to_string(),
             title: "Clark Kent".to_string(),
             sub_title: Some("clark@someemail.com".to_string()),
+            content: None,
             stat: "28 runs".to_string(),
         },
         ListItem {
@@ -52,6 +58,7 @@ pub fn DashboardMostRunsPerUser() -> impl IntoView {
             icon: "iconoir-user-circle".to_string(),
             title: "Lois Lane".to_string(),
             sub_title: Some("lois@someemail.com".to_string()),
+            content: None,
             stat: "24 runs".to_string(),
         },
         ListItem {
@@ -59,6 +66,7 @@ pub fn DashboardMostRunsPerUser() -> impl IntoView {
             icon: "iconoir-user-circle".to_string(),
             title: "Barbara Gordon".to_string(),
             sub_title: Some("barbara@someemail.com".to_string()),
+            content: None,
             stat: "16 runs".to_string(),
         },
     ]);
