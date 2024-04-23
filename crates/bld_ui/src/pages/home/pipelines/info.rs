@@ -1,10 +1,10 @@
+use crate::components::card::Card;
 use anyhow::{bail, Result};
 use bld_models::dtos::PipelineInfoQueryParams;
 use bld_runner::VersionedPipeline;
 use leptos::{leptos_dom::logging, *};
 use leptos_router::*;
 use reqwest::Client;
-use crate::components::card::Card;
 
 use super::v2::info::PipelineInfoV2;
 
@@ -31,13 +31,9 @@ async fn get_pipeline(id: String) -> Result<Option<VersionedPipeline>> {
 pub fn PipelineInfo() -> impl IntoView {
     let params = use_query_map();
 
-    let id = move || {
-        params.with(|p| p.get("id").cloned())
-    };
+    let id = move || params.with(|p| p.get("id").cloned());
 
-    let name = move || {
-        params.with(|p| p.get("name").cloned())
-    };
+    let name = move || params.with(|p| p.get("name").cloned());
 
     let (data, set_data) = create_signal(None);
 
@@ -56,7 +52,7 @@ pub fn PipelineInfo() -> impl IntoView {
             if value.is_some() {
                 set_data.set(value);
             }
-        }
+        },
     );
 
     view! {

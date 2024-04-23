@@ -1,6 +1,6 @@
-use leptos::*;
-use bld_runner::VersionedPipeline;
 use crate::components::{badge::Badge, button::Button, card::Card};
+use bld_runner::VersionedPipeline;
+use leptos::*;
 
 use super::variables::PipelineVariablesV2;
 
@@ -9,10 +9,12 @@ pub fn PipelineInfoV2(
     #[prop(into)] name: Signal<Option<String>>,
     #[prop(into)] pipeline: Signal<Option<VersionedPipeline>>,
 ) -> impl IntoView {
-    let pipeline = move || if let Some(VersionedPipeline::Version2(pip)) = pipeline.get() {
-        Some(pip)
-    } else {
-        None
+    let pipeline = move || {
+        if let Some(VersionedPipeline::Version2(pip)) = pipeline.get() {
+            Some(pip)
+        } else {
+            None
+        }
     };
 
     let pipeline_name = move || pipeline().unwrap().name;
@@ -55,8 +57,10 @@ pub fn PipelineInfoV2(
                         </div>
                     </div>
                 </Card>
-                <div class="grid grid-cols-2">
+                <div class="grid grid-cols-3">
                     <PipelineVariablesV2 variables=variables environment=environment />
+                    <div class="col-span-2">
+                    </div>
                 </div>
             </div>
         </Show>

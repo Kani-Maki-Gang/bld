@@ -1,6 +1,10 @@
+use crate::components::{
+    card::Card,
+    table::{Table, TableRow},
+    tabs::{TabItem, Tabs},
+};
 use leptos::*;
 use std::collections::HashMap;
-use crate::components::{card::Card, table::{Table, TableRow}, tabs::{Tabs, TabItem}};
 
 fn into_table_rows(data: HashMap<String, String>) -> Vec<TableRow> {
     data.into_iter()
@@ -28,7 +32,8 @@ pub fn PipelineVariablesV2(
 
     let selected_tab = create_rw_signal("variables".to_string());
 
-    let (headers, _set_headers) = create_signal(vec!["Name".into_view(), "Default value".into_view()]);
+    let (headers, _set_headers) =
+        create_signal(vec!["Name".into_view(), "Default value".into_view()]);
 
     let vars = move || into_table_rows(variables.get());
     let env = move || into_table_rows(environment.get());
