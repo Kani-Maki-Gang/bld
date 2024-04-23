@@ -1,23 +1,25 @@
 use leptos::*;
 use bld_runner::VersionedPipeline;
-use crate::components::{badge::Badge, card::Card};
+use crate::components::{badge::Badge, button::Button, card::Card};
+
+use super::variables::PipelineVariablesV2;
 
 #[component]
 pub fn PipelineInfoV2(
     #[prop(into)] name: Signal<Option<String>>,
     #[prop(into)] pipeline: Signal<Option<VersionedPipeline>>,
 ) -> impl IntoView {
-    let pipeline = move || {
-        if let Some(VersionedPipeline::Version2(pip)) = pipeline.get() {
-            Some(pip)
-        } else {
-            None
-        }
+    let pipeline = move || if let Some(VersionedPipeline::Version2(pip)) = pipeline.get() {
+        Some(pip)
+    } else {
+        None
     };
 
     let pipeline_name = move || pipeline().unwrap().name;
     let cron = move || pipeline().unwrap().cron;
     let runs_on = move || format!("{}", pipeline().unwrap().runs_on);
+    let variables = move || pipeline().unwrap().variables;
+    let environment = move || pipeline().unwrap().environment;
 
     view! {
         <Show
@@ -37,14 +39,25 @@ pub fn PipelineInfoV2(
                             </Show>
                             <div class="flex gap-x-2">
                                 <Badge>"version 2"</Badge>
+                                <Badge>{runs_on()}</Badge>
                                 <Show when=move || cron().is_some() fallback=|| view! { }>
                                     <Badge>{cron().unwrap()}</Badge>
                                 </Show>
-                                <Badge>{runs_on()}</Badge>
+                            </div>
+                        </div>
+                        <div class="flex gap-x-4">
+                            <div class="min-w-40">
+                                <Button>"Edit"</Button>
+                            </div>
+                            <div class="min-w-40">
+                                <Button>"Run"</Button>
                             </div>
                         </div>
                     </div>
                 </Card>
+                <div class="grid grid-cols-2">
+                    <PipelineVariablesV2 variables=variables environment=environment />
+                </div>
             </div>
         </Show>
     }
