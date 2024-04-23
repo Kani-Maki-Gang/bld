@@ -20,7 +20,7 @@ pub fn Tabs(
                     .map(|x| if x.id == selected.get() {
                         view! {
                             <button
-                                class="shrink-0 rounded-lg px-4 py-2 text-sm font-medium text-gray-200 bg-slate-900"
+                                class="shrink-0 rounded-lg px-4 py-2 text-sm font-medium text-gray-200 bg-slate-800"
                                 on:click=move |_e| selected.set(x.id.clone())>
                                 {x.label}
                             </button>
@@ -28,7 +28,7 @@ pub fn Tabs(
                     } else {
                         view! {
                             <button
-                                class="shrink-0 rounded-lg px-4 py-2 text-sm font-medium text-gray-400 hover:bg-slate-800 hover:text-gray-200"
+                                class="shrink-0 rounded-lg px-4 py-2 text-sm font-medium text-gray-400 hover:text-gray-200"
                                 on:click=move |_e| selected.set(x.id.clone())>
                                 {x.label}
                             </button>
