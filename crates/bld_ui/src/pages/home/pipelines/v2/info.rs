@@ -1,9 +1,14 @@
-use crate::components::{badge::Badge, button::Button, card::Card, list::ListItem, table::TableRow};
+use crate::components::{
+    badge::Badge, button::Button, card::Card, list::ListItem, table::TableRow,
+};
 use bld_runner::VersionedPipeline;
 use leptos::{leptos_dom::logging, *};
 use std::collections::HashMap;
 
-use super::{jobs::PipelineJobsV2, variables::PipelineVariablesV2, artifacts::PipelineArtifactsV2, external::PipelineExternalV2};
+use super::{
+    artifacts::PipelineArtifactsV2, external::PipelineExternalV2, jobs::PipelineJobsV2,
+    variables::PipelineVariablesV2,
+};
 
 #[component]
 pub fn PipelineInfoV2(
@@ -19,18 +24,21 @@ pub fn PipelineInfoV2(
     };
 
     let pipeline_name = move || pipeline().unwrap().name;
-    let cron = move || pipeline().unwrap().cron;
-    let runs_on = move || format!("{}", pipeline().unwrap().runs_on);
+    let cron = move || pipeline().unwrap().cron.map(|x| format!("Cron: {}", x));
+    let runs_on = move || format!("Runs on: {}", pipeline().unwrap().runs_on);
+    let dispose = move || format!("Dispose: {}", pipeline().unwrap().dispose);
     let variables = move || pipeline().unwrap().variables;
     let environment = move || pipeline().unwrap().environment;
 
-    let artifact_headers = Signal::from(|| vec![
-        "Method".into_view(),
-        "From".into_view(),
-        "To".into_view(),
-        "Ignore errors".into_view(),
-        "After".into_view(),
-    ]);
+    let artifact_headers = Signal::from(|| {
+        vec![
+            "Method".into_view(),
+            "From".into_view(),
+            "To".into_view(),
+            "Ignore errors".into_view(),
+            "After".into_view(),
+        ]
+    });
 
     let artifact_rows = move || {
         pipeline()
@@ -60,11 +68,14 @@ pub fn PipelineInfoV2(
                 let content = serde_yaml::to_string(&x)
                     .map_err(|e| logging::console_error(&format!("{:?}", e)))
                     .unwrap_or_default();
-                item.content = Some(view! {
-                    <pre class="text-sm text-gray-200">
-                        {content}
-                    </pre>
-                }.into_view());
+                item.content = Some(
+                    view! {
+                        <pre class="text-sm text-gray-200">
+                            {content}
+                        </pre>
+                    }
+                    .into_view(),
+                );
                 item
             })
             .collect::<Vec<ListItem>>()
@@ -85,11 +96,14 @@ pub fn PipelineInfoV2(
                             let content = serde_yaml::to_string(&x)
                                 .map_err(|e| logging::console_error(&format!("{:?}", e)))
                                 .unwrap_or_default();
-                            item.content = Some(view! {
-                                <pre class="text-sm text-gray-200">
-                                    {content}
-                                </pre>
-                            }.into_view());
+                            item.content = Some(
+                                view! {
+                                    <pre class="text-sm text-gray-200">
+                                        {content}
+                                    </pre>
+                                }
+                                .into_view(),
+                            );
                             item
                         })
                         .collect::<Vec<ListItem>>(),
@@ -115,11 +129,12 @@ pub fn PipelineInfoV2(
                                 </div>
                             </Show>
                             <div class="flex gap-x-2">
-                                <Badge>"version 2"</Badge>
+                                <Badge>"Version: 2"</Badge>
                                 <Badge>{runs_on()}</Badge>
                                 <Show when=move || cron().is_some() fallback=|| view! { }>
                                     <Badge>{cron().unwrap()}</Badge>
                                 </Show>
+                                <Badge>{dispose()}</Badge>
                             </div>
                         </div>
                         <div class="flex gap-x-4">
@@ -133,11 +148,13 @@ pub fn PipelineInfoV2(
                     </div>
                 </Card>
                 <div class="grid grid-cols-2 gap-8">
+                    <PipelineJobsV2 jobs=jobs />
+                    <PipelineExternalV2 items=external />
+                </div>
+                <div class="grid grid-cols-2 gap-8">
                     <PipelineVariablesV2 variables=variables environment=environment />
                     <PipelineArtifactsV2 headers=artifact_headers rows=artifact_rows />
                 </div>
-                <PipelineExternalV2 items=external />
-                <PipelineJobsV2 jobs=jobs />
             </div>
         </Show>
     }

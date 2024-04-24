@@ -1,5 +1,9 @@
+use crate::components::{
+    badge::Badge,
+    card::Card,
+    list::{List, ListItem},
+};
 use leptos::*;
-use crate::components::{card::Card, list::{List, ListItem}};
 
 #[component]
 pub fn PipelineExternalV2(#[prop(into)] items: Signal<Vec<ListItem>>) -> impl IntoView {
@@ -10,13 +14,13 @@ pub fn PipelineExternalV2(#[prop(into)] items: Signal<Vec<ListItem>>) -> impl In
                     "External"
                 </div>
                 <div class="text-gray-400">
-                    "The external pipelines local or server used by the pipeline."
+                    "The external pipelines local or server used by this pipeline."
                 </div>
                 <Show
                     when=move || !items.get().is_empty()
                     fallback= || view! {
-                        <div class="text-gray-400">
-                            "No external pipelines configured."
+                        <div class="grid justify-items-center">
+                            <Badge>"No external pipelines configured."</Badge>
                         </div>
                     }>
                     <List items=items />

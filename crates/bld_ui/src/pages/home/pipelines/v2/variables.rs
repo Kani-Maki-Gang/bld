@@ -1,4 +1,5 @@
 use crate::components::{
+    badge::Badge,
     card::Card,
     table::{Table, TableRow},
     tabs::{TabItem, Tabs},
@@ -56,7 +57,9 @@ pub fn PipelineVariablesV2(
                 <Show
                     when=move || selected_tab.get() == "variables" && vars().is_empty()
                     fallback=|| view! {}>
-                    <div class="text-gray-400">"This pipeline has no variables"</div>
+                    <div class="grid justify-items-center">
+                        <Badge>"No variables configured."</Badge>
+                    </div>
                 </Show>
                 <Show
                     when=move || selected_tab.get() == "environment" && !env().is_empty()
@@ -66,7 +69,9 @@ pub fn PipelineVariablesV2(
                 <Show
                     when=move || selected_tab.get() == "environment" && env().is_empty()
                     fallback=|| view! {}>
-                    <div class="text-gray-400">"This pipeline has no environment variables"</div>
+                    <div class="grid justify-items-center">
+                        <Badge>"No environment variables configured."</Badge>
+                    </div>
                 </Show>
             </div>
         </Card>

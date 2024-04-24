@@ -1,10 +1,14 @@
+use crate::components::{
+    badge::Badge,
+    card::Card,
+    table::{Table, TableRow},
+};
 use leptos::*;
-use crate::components::{card::Card, table::{Table, TableRow}};
 
 #[component]
 pub fn PipelineArtifactsV2(
     #[prop(into)] headers: Signal<Vec<View>>,
-    #[prop(into)] rows: Signal<Vec<TableRow>>
+    #[prop(into)] rows: Signal<Vec<TableRow>>,
 ) -> impl IntoView {
     view! {
         <Card>
@@ -18,8 +22,8 @@ pub fn PipelineArtifactsV2(
                 <Show
                     when=move || !rows.get().is_empty()
                     fallback=|| view! {
-                        <div class="text-gray-400">
-                            "No artifacts configured."
+                        <div class="grid justify-items-center">
+                            <Badge>"No artifacts configured."</Badge>
                         </div>
                     }>
                     <Table headers=headers rows=rows />

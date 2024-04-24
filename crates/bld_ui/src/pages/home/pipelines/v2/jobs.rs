@@ -1,4 +1,5 @@
 use crate::components::{
+    badge::Badge,
     card::Card,
     list::{List, ListItem},
     tabs::{TabItem, Tabs},
@@ -47,8 +48,8 @@ pub fn PipelineJobsV2(#[prop(into)] jobs: Signal<HashMap<String, Vec<ListItem>>>
                 <Show
                     when=move || !tabs().is_empty()
                     fallback= || view! {
-                        <div class="text-gray-400">
-                            "No jobs configured."
+                        <div class="grid justify-items-center">
+                            <Badge>"No jobs configured."</Badge>
                         </div>
                     }>
                     <Tabs items=tabs selected=selected_tab />
