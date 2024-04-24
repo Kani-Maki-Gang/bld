@@ -24,7 +24,7 @@ use bld_core::fs::FileSystem;
 use futures::Future;
 
 #[cfg(feature = "all")]
-use std::{fmt::Write, collections::HashMap, pin::Pin, sync::Arc};
+use std::{collections::HashMap, fmt::Write, pin::Pin, sync::Arc};
 
 #[cfg(feature = "all")]
 use tracing::debug;

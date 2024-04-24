@@ -17,11 +17,11 @@ pub use ssh::*;
 pub use supervisor::*;
 pub use tls::*;
 
-use anyhow::{anyhow, Error, Result};
 use crate::definitions::{
-    LOCAL_DEFAULT_DB_DIR, LOCAL_DEFAULT_DB_NAME, LOCAL_MACHINE_TMP_DIR, REMOTE_SERVER_AUTH,
-    TOOL_DEFAULT_CONFIG_FILE, LOCAL_SERVER_HOST, LOCAL_SERVER_PORT, TOOL_DIR
+    LOCAL_DEFAULT_DB_DIR, LOCAL_DEFAULT_DB_NAME, LOCAL_MACHINE_TMP_DIR, LOCAL_SERVER_HOST,
+    LOCAL_SERVER_PORT, REMOTE_SERVER_AUTH, TOOL_DEFAULT_CONFIG_FILE, TOOL_DIR,
 };
+use anyhow::{anyhow, Error, Result};
 use openidconnect::core::CoreClient;
 use serde::{Deserialize, Serialize};
 use std::env::current_dir;

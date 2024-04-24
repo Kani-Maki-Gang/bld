@@ -10,7 +10,9 @@ use awc::ws::WebsocketsRequest;
 use awc::{Client, ClientRequest, Connector, SendClientRequest};
 use bld_config::BldConfig;
 use bld_models::dtos::{
-    AddJobRequest, CronJobResponse, ExecClientMessage, HistQueryParams, HistoryEntry, JobFiltersParams, PipelineInfoQueryParams, PipelinePathRequest, PipelineQueryParams, PullResponse, PushInfo, UpdateJobRequest
+    AddJobRequest, CronJobResponse, ExecClientMessage, HistQueryParams, HistoryEntry,
+    JobFiltersParams, PipelineInfoQueryParams, PipelinePathRequest, PipelineQueryParams,
+    PullResponse, PushInfo, UpdateJobRequest,
 };
 use bld_utils::fs::{read_tokens, write_tokens, AuthTokens, RefreshTokenParams};
 use bld_utils::sync::IntoArc;
@@ -336,7 +338,9 @@ impl HttpClient {
     }
 
     pub async fn print(&self, pipeline: &str) -> Result<String> {
-        let params = PipelineInfoQueryParams::Name { name: pipeline.to_string() };
+        let params = PipelineInfoQueryParams::Name {
+            name: pipeline.to_string(),
+        };
         let response = self.print_inner(&params).await;
 
         if Self::unauthorized(&response) {

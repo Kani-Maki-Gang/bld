@@ -46,6 +46,6 @@ pub async fn get(
     }
 
     HttpResponse::BadRequest()
-            .append_header(("Access-Control-Allow-Origin", "*"))
+        .append_header(("Access-Control-Allow-Origin", "*"))
         .body("unsupported media type")
 }
