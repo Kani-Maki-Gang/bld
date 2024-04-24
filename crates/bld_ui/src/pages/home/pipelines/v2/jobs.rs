@@ -37,7 +37,7 @@ pub fn PipelineJobsV2(#[prop(into)] jobs: Signal<HashMap<String, Vec<ListItem>>>
 
     view! {
         <Card>
-            <div class="flex flex-col px-8 py-12 gap-y-4 min-h-96">
+            <div class="flex flex-col px-8 py-12 gap-y-4 min-h-96 max-h-[500]px">
                 <div class="text-xl">
                     "Jobs"
                 </div>
