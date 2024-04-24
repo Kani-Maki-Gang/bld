@@ -9,7 +9,7 @@ pub struct ButtonGroupItem {
 #[component]
 pub fn ButtonGroup(
     #[prop(into)] items: Signal<Vec<ButtonGroupItem>>,
-    #[prop(into)] selected: RwSignal<String>
+    #[prop(into)] selected: RwSignal<String>,
 ) -> impl IntoView {
     view! {
         <div class="inline-flex rounded-lg border border-gray-800 p-1 bg-slate-900">

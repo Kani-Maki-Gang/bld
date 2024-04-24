@@ -1,5 +1,10 @@
 use crate::components::{
-    badge::Badge, button::Button, button_group::{ButtonGroup, ButtonGroupItem}, card::Card, list::ListItem, table::TableRow
+    badge::Badge,
+    button::Button,
+    button_group::{ButtonGroup, ButtonGroupItem},
+    card::Card,
+    list::ListItem,
+    table::TableRow,
 };
 use bld_runner::VersionedPipeline;
 use leptos::{leptos_dom::logging, *};
@@ -16,7 +21,11 @@ pub fn PipelineInfoV2(
     #[prop(into)] pipeline: Signal<Option<VersionedPipeline>>,
 ) -> impl IntoView {
     let raw = move || {
-        pipeline.get().map(|x| serde_yaml::to_string(&x).map_err(|e| logging::console_error(&format!("{e}"))).unwrap_or_default())
+        pipeline.get().map(|x| {
+            serde_yaml::to_string(&x)
+                .map_err(|e| logging::console_error(&format!("{e}")))
+                .unwrap_or_default()
+        })
     };
 
     let pipeline = move || {
@@ -27,16 +36,18 @@ pub fn PipelineInfoV2(
         }
     };
 
-    let group = Signal::from(|| vec![
-        ButtonGroupItem {
-            id: "view".to_string(),
-            label: "View".to_string(),
-        },
-        ButtonGroupItem {
-            id: "rawfile".to_string(),
-            label: "Raw file".to_string(),
-        },
-    ]);
+    let group = Signal::from(|| {
+        vec![
+            ButtonGroupItem {
+                id: "view".to_string(),
+                label: "View".to_string(),
+            },
+            ButtonGroupItem {
+                id: "rawfile".to_string(),
+                label: "Raw file".to_string(),
+            },
+        ]
+    });
 
     let selected_group_item = RwSignal::new("view".to_string());
 

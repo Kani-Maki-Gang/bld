@@ -1,11 +1,13 @@
 mod cron_jobs;
 mod dashboard;
 mod history;
+mod monit;
 mod pipelines;
 
 pub use cron_jobs::*;
 pub use dashboard::*;
 pub use history::*;
+pub use monit::*;
 pub use pipelines::*;
 
 use crate::components::sidebar::{Sidebar, SidebarItem};

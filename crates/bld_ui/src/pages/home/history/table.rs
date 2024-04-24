@@ -3,7 +3,7 @@ use bld_models::dtos::{HistQueryParams, HistoryEntry};
 use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
 
-use crate::components::table::{Table, TableRow};
+use crate::components::{link::Link, table::{Table, TableRow}};
 
 async fn get_hist(params: &HistQueryParams) -> Result<Vec<HistoryEntry>> {
     let res = Client::builder()
@@ -25,7 +25,9 @@ fn into_table_rows(data: Vec<HistoryEntry>) -> Vec<TableRow> {
     data.into_iter()
         .map(|item| TableRow {
             columns: vec![
-                item.id.into_view(),
+                view! {
+                    <Link href=format!("/monit?id={}", item.id)>{item.id}</Link>
+                }.into_view(),
                 item.name.into_view(),
                 item.user.into_view(),
                 item.start_date_time.unwrap_or_default().into_view(),
