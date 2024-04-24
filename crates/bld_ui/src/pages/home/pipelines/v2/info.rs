@@ -1,5 +1,5 @@
 use crate::components::{
-    badge::Badge, button::Button, card::Card, list::ListItem, table::TableRow,
+    badge::Badge, button::Button, button_group::{ButtonGroup, ButtonGroupItem}, card::Card, list::ListItem, table::TableRow
 };
 use bld_runner::VersionedPipeline;
 use leptos::{leptos_dom::logging, *};
@@ -15,6 +15,10 @@ pub fn PipelineInfoV2(
     #[prop(into)] name: Signal<Option<String>>,
     #[prop(into)] pipeline: Signal<Option<VersionedPipeline>>,
 ) -> impl IntoView {
+    let raw = move || {
+        pipeline.get().map(|x| serde_yaml::to_string(&x).map_err(|e| logging::console_error(&format!("{e}"))).unwrap_or_default())
+    };
+
     let pipeline = move || {
         if let Some(VersionedPipeline::Version2(pip)) = pipeline.get() {
             Some(pip)
@@ -22,6 +26,19 @@ pub fn PipelineInfoV2(
             None
         }
     };
+
+    let group = Signal::from(|| vec![
+        ButtonGroupItem {
+            id: "view".to_string(),
+            label: "View".to_string(),
+        },
+        ButtonGroupItem {
+            id: "rawfile".to_string(),
+            label: "Raw file".to_string(),
+        },
+    ]);
+
+    let selected_group_item = RwSignal::new("view".to_string());
 
     let pipeline_name = move || pipeline().unwrap().name;
     let cron = move || pipeline().unwrap().cron.map(|x| format!("Cron: {}", x));
@@ -137,7 +154,10 @@ pub fn PipelineInfoV2(
                                 <Badge>{dispose()}</Badge>
                             </div>
                         </div>
-                        <div class="flex gap-x-4">
+                        <div class="flex justify-items-center gap-x-4">
+                            <div class="flex-shrink">
+                                <ButtonGroup items=group selected=selected_group_item />
+                            </div>
                             <div class="min-w-40">
                                 <Button>"Edit"</Button>
                             </div>
@@ -147,14 +167,29 @@ pub fn PipelineInfoV2(
                         </div>
                     </div>
                 </Card>
-                <div class="grid grid-cols-2 gap-8">
-                    <PipelineJobsV2 jobs=jobs />
-                    <PipelineExternalV2 items=external />
-                </div>
-                <div class="grid grid-cols-2 gap-8">
-                    <PipelineVariablesV2 variables=variables environment=environment />
-                    <PipelineArtifactsV2 headers=artifact_headers rows=artifact_rows />
-                </div>
+                <Show
+                    when=move || selected_group_item.get() == "view"
+                    fallback=|| view! {}>
+                    <div class="grid grid-cols-2 gap-8">
+                        <PipelineJobsV2 jobs=jobs />
+                        <PipelineExternalV2 items=external />
+                    </div>
+                    <div class="grid grid-cols-2 gap-8">
+                        <PipelineVariablesV2 variables=variables environment=environment />
+                        <PipelineArtifactsV2 headers=artifact_headers rows=artifact_rows />
+                    </div>
+                </Show>
+                <Show
+                    when=move || selected_group_item.get() == "rawfile"
+                    fallback=|| view! {}>
+                    <Card>
+                        <div class="px-8 py-12">
+                            <pre class="text-sm text-gray-200">
+                                {raw()}
+                            </pre>
+                        </div>
+                    </Card>
+                </Show>
             </div>
         </Show>
     }
