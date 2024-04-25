@@ -39,11 +39,13 @@ pub fn PipelineJobsV2(#[prop(into)] jobs: Signal<HashMap<String, Vec<ListItem>>>
     view! {
         <Card>
             <div class="flex flex-col px-8 py-12 gap-y-4 min-h-96 max-h-[500]px">
-                <div class="text-xl">
-                    "Jobs"
-                </div>
-                <div class="text-gray-400">
-                    "The parallel jobs for this pipeline."
+                <div class="flex flex-col">
+                    <div class="text-xl">
+                        "Jobs"
+                    </div>
+                    <div class="text-gray-400">
+                        "The parallel jobs for this pipeline."
+                    </div>
                 </div>
                 <Show
                     when=move || !tabs().is_empty()

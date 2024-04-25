@@ -40,7 +40,7 @@ fn into_table_rows(data: Vec<HistoryEntry>) -> Vec<TableRow> {
 
 #[component]
 pub fn HistoryTable(
-    #[prop(into)] params: Signal<HistQueryParams>,
+    #[prop(into)] params: Signal<Option<HistQueryParams>>,
     #[prop(into)] refresh: Signal<()>,
 ) -> impl IntoView {
     let (headers, _) = create_signal(vec![
@@ -57,7 +57,11 @@ pub fn HistoryTable(
     let hist_res = create_resource(
         move || (params, set_rows),
         |(params, set_rows)| async move {
-            let data = get_hist(&params.get_untracked())
+            let Some(params) = params.get_untracked() else {
+                return;
+            };
+
+            let data = get_hist(&params)
                 .await
                 .map_err(|e| logging::console_error(e.to_string().as_str()))
                 .unwrap_or_default();
@@ -73,8 +77,6 @@ pub fn HistoryTable(
     );
 
     view! {
-        <div class="flex flex-col">
-            <Table headers=headers rows=rows />
-        </div>
+        <Table headers=headers rows=rows />
     }
 }

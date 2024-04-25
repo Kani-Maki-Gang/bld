@@ -12,7 +12,7 @@ use std::collections::HashMap;
 
 use super::{
     artifacts::PipelineArtifactsV2, external::PipelineExternalV2, jobs::PipelineJobsV2,
-    variables::PipelineVariablesV2,
+    variables::PipelineVariablesV2, history::PipelineHistoryV2
 };
 
 #[component]
@@ -189,6 +189,7 @@ pub fn PipelineInfoV2(
                         <PipelineVariablesV2 variables=variables environment=environment />
                         <PipelineArtifactsV2 headers=artifact_headers rows=artifact_rows />
                     </div>
+                    <PipelineHistoryV2 name=move || name.get() />
                 </Show>
                 <Show
                     when=move || selected_group_item.get() == "rawfile"

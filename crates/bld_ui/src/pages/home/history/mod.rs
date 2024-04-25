@@ -1,5 +1,5 @@
 mod filters;
-mod table;
+pub mod table;
 
 use crate::components::card::Card;
 use bld_models::dtos::HistQueryParams;
@@ -11,15 +11,16 @@ fn get_params(
     state: Option<String>,
     limit: Option<String>,
     pipeline: Option<String>,
-) -> HistQueryParams {
-    HistQueryParams {
+) -> Option<HistQueryParams> {
+    let params = HistQueryParams {
         name: pipeline,
         state: state.filter(|x| x != "all"),
         limit: limit
             .as_ref()
             .map(|l| l.parse::<u64>().unwrap_or(100))
             .unwrap_or(100),
-    }
+    };
+    Some(params)
 }
 
 #[component]
