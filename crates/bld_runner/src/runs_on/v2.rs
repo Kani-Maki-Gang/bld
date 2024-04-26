@@ -1,12 +1,17 @@
+use bld_config::SshConfig;
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
+#[cfg(feature = "all")]
 use anyhow::Result;
-use bld_config::{SshConfig, SshUserAuth};
-use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "all")]
+use bld_config::SshUserAuth;
+
+#[cfg(feature = "all")]
 use crate::token_context::v2::PipelineContext;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum RunsOn {
     ContainerOrMachine(String),
@@ -40,11 +45,8 @@ impl Display for RunsOn {
     }
 }
 
+#[cfg(feature = "all")]
 impl RunsOn {
-    pub fn default_ssh_port() -> String {
-        String::from("22")
-    }
-
     pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
         match self {
             RunsOn::Pull {

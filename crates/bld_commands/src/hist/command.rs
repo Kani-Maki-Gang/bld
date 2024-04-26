@@ -3,10 +3,42 @@ use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_http::HttpClient;
+use bld_models::dtos::HistoryEntry;
 use bld_utils::sync::IntoArc;
 use clap::Args;
-use tabled::{Style, Table};
+use tabled::{Style, Table, Tabled};
 use tracing::debug;
+
+#[derive(Tabled)]
+struct HistoryEntryRow {
+    pub name: String,
+    pub id: String,
+    pub user: String,
+    pub state: String,
+    #[tabled(display_with = "HistoryEntryRow::display_option")]
+    pub start_date_time: Option<String>,
+    #[tabled(display_with = "HistoryEntryRow::display_option")]
+    pub end_date_time: Option<String>,
+}
+
+impl HistoryEntryRow {
+    pub fn display_option(value: &Option<String>) -> String {
+        value.as_deref().unwrap_or("").to_string()
+    }
+}
+
+impl From<HistoryEntry> for HistoryEntryRow {
+    fn from(value: HistoryEntry) -> Self {
+        Self {
+            name: value.name,
+            id: value.id,
+            user: value.user,
+            state: value.state,
+            start_date_time: value.start_date_time,
+            end_date_time: value.end_date_time,
+        }
+    }
+}
 
 #[derive(Args)]
 #[command(about = "Fetches execution history of pipelines on a bld server")]
@@ -65,9 +97,12 @@ impl BldCommand for HistCommand {
                 self.server, self.limit,
             );
 
-            let history = HttpClient::new(config, &self.server)?
+            let history: Vec<HistoryEntryRow> = HttpClient::new(config, &self.server)?
                 .hist(state, self.pipeline, self.limit)
-                .await?;
+                .await?
+                .into_iter()
+                .map(From::from)
+                .collect();
 
             if !history.is_empty() {
                 let table = Table::new(history).with(Style::modern()).to_string();

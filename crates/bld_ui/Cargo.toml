@@ -1,0 +1,19 @@
+[package]
+name = "bld_ui"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.81"
+bld_models = { path = "../bld_models" }
+bld_runner = { path = "../bld_runner" }
+leptos = { version = "0.6.9", features = ["csr"] }
+leptos-chartistry = "0.1.5"
+leptos-use = "0.10.8"
+leptos_router = { version = "0.6.9", features = ["csr"] }
+reqwest = "0.12.2"
+serde = { version = "1.0.197", features = ["derive"] }
+serde_json = "1.0.115"
+serde_yaml = "0.9.34"

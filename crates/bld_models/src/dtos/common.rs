@@ -1,6 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PipelineInfoQueryParams {
+    Id { id: String },
+    Name { name: String },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PipelineQueryParams {
     pub pipeline: String,
 }

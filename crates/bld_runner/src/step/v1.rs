@@ -1,8 +1,12 @@
-use bld_config::BldConfig;
-use bld_utils::fs::IsYaml;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[cfg(feature = "all")]
+use bld_config::BldConfig;
+
+#[cfg(feature = "all")]
+use bld_utils::fs::IsYaml;
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BuildStep {
     pub name: Option<String>,
     pub working_dir: Option<String>,
@@ -12,6 +16,7 @@ pub struct BuildStep {
 }
 
 impl BuildStep {
+    #[cfg(feature = "all")]
     pub fn local_dependencies(&self, config: &BldConfig) -> Vec<String> {
         self.exec
             .iter()
@@ -25,7 +30,7 @@ impl BuildStep {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BuildStepExec {
     Shell(String),

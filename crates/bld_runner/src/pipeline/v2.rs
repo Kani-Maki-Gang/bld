@@ -2,13 +2,19 @@ use crate::artifacts::v2::Artifacts;
 use crate::external::v2::External;
 use crate::runs_on::v2::RunsOn;
 use crate::step::v2::BuildStep;
-use crate::token_context::v2::PipelineContext;
-use anyhow::Result;
-use bld_config::BldConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[cfg(feature = "all")]
+use crate::token_context::v2::PipelineContext;
+
+#[cfg(feature = "all")]
+use anyhow::Result;
+
+#[cfg(feature = "all")]
+use bld_config::BldConfig;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pipeline {
     pub name: Option<String>,
     pub runs_on: RunsOn,
@@ -39,6 +45,7 @@ impl Pipeline {
         true
     }
 
+    #[cfg(feature = "all")]
     pub fn local_dependencies(&self, config: &BldConfig) -> Vec<String> {
         let from_steps = self
             .jobs
@@ -55,6 +62,7 @@ impl Pipeline {
         from_steps.chain(from_external).collect()
     }
 
+    #[cfg(feature = "all")]
     pub async fn apply_tokens<'a>(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
         self.runs_on.apply_tokens(context).await?;
 

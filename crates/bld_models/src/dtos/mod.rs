@@ -1,21 +1,39 @@
 mod auth;
 mod common;
 mod cron;
-mod exec;
 mod hist;
-mod login;
-mod monit;
+mod list;
 mod pull;
 mod push;
+
+#[cfg(feature = "web_socket")]
+mod exec;
+
+#[cfg(feature = "web_socket")]
+mod login;
+
+#[cfg(feature = "web_socket")]
+mod monit;
+
+#[cfg(feature = "web_socket")]
 mod supervisor;
 
 pub use auth::*;
 pub use common::*;
 pub use cron::*;
-pub use exec::*;
 pub use hist::*;
-pub use login::*;
-pub use monit::*;
+pub use list::*;
 pub use pull::*;
 pub use push::*;
+
+#[cfg(feature = "web_socket")]
+pub use exec::*;
+
+#[cfg(feature = "web_socket")]
+pub use login::*;
+
+#[cfg(feature = "web_socket")]
+pub use monit::*;
+
+#[cfg(feature = "web_socket")]
 pub use supervisor::*;

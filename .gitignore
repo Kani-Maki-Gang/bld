@@ -1,8 +1,10 @@
 /target
+**/*/target
 /.build
 /.vscode
 /.vimspector.json
 /dist
+/crates/bld_ui/dist
 /.bld/**/*
 !/.bld/config.yaml
 !/.bld/build-musl.yaml

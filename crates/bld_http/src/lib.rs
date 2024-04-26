@@ -11,8 +11,8 @@ use awc::{Client, ClientRequest, Connector, SendClientRequest};
 use bld_config::BldConfig;
 use bld_models::dtos::{
     AddJobRequest, CronJobResponse, ExecClientMessage, HistQueryParams, HistoryEntry,
-    JobFiltersParams, PipelinePathRequest, PipelineQueryParams, PullResponse, PushInfo,
-    UpdateJobRequest,
+    JobFiltersParams, PipelineInfoQueryParams, PipelinePathRequest, PipelineQueryParams,
+    PullResponse, PushInfo, UpdateJobRequest,
 };
 use bld_utils::fs::{read_tokens, write_tokens, AuthTokens, RefreshTokenParams};
 use bld_utils::sync::IntoArc;
@@ -97,21 +97,63 @@ impl Request {
         self
     }
 
-    pub async fn send<T: DeserializeOwned>(self) -> Result<T> {
+    pub async fn text(self) -> Result<String> {
         let send_request = self.request.send();
-        Self::do_send::<T>(send_request).await
+        Self::request_with_text(send_request).await
     }
 
-    pub async fn send_json<T, V>(self, json: &T) -> Result<V>
+    pub async fn text_with_data<T: Serialize>(self, data: &T) -> Result<String> {
+        let send_request = self.request.send_json(data);
+        Self::request_with_text(send_request).await
+    }
+
+    pub async fn json<T: DeserializeOwned>(self) -> Result<T> {
+        let send_request = self.request.send();
+        Self::request_with_json::<T>(send_request).await
+    }
+
+    pub async fn json_with_data<T, V>(self, data: &T) -> Result<V>
     where
         T: 'static + Serialize,
         V: DeserializeOwned,
     {
-        let send_request = self.request.send_json(&json);
-        Self::do_send::<V>(send_request).await
+        let send_request = self.request.send_json(&data);
+        Self::request_with_json::<V>(send_request).await
     }
 
-    async fn do_send<T: DeserializeOwned>(send_request: SendClientRequest) -> Result<T> {
+    async fn request_with_text(send_request: SendClientRequest) -> Result<String> {
+        let mut response = send_request.await.map_err(|e| anyhow!(e.to_string()))?;
+        let status = response.status();
+
+        match status {
+            StatusCode::OK => {
+                debug!("response from server status: {status}");
+                response
+                    .body()
+                    .await
+                    .map_err(|e| anyhow!(e))
+                    .map(|body| String::from_utf8_lossy(&body).to_string())
+            }
+            StatusCode::BAD_REQUEST => {
+                let body = response.body().await.map_err(|e| anyhow!(e))?;
+                let text = format!("{}", String::from_utf8_lossy(&body));
+                debug!("response from server status: {status}");
+                Err(RequestError::new(&text, StatusCode::BAD_REQUEST).into())
+            }
+            StatusCode::UNAUTHORIZED => {
+                debug!("response from server status: {status}");
+                let message = format!("request failed with status code: {status}");
+                Err(RequestError::new(&message, StatusCode::UNAUTHORIZED).into())
+            }
+            st => {
+                debug!("response from server status: {status}");
+                let message = format!("request failed with status code: {st}");
+                Err(RequestError::new(&message, st).into())
+            }
+        }
+    }
+
+    async fn request_with_json<T: DeserializeOwned>(send_request: SendClientRequest) -> Result<T> {
         let mut response = send_request.await.map_err(|e| anyhow!(e.to_string()))?;
         let status = response.status();
 
@@ -126,10 +168,15 @@ impl Request {
                 debug!("response from server status: {status}");
                 Err(RequestError::new(&text, StatusCode::BAD_REQUEST).into())
             }
+            StatusCode::UNAUTHORIZED => {
+                debug!("response from server status: {status}");
+                let message = format!("request failed with status code: {status}");
+                Err(RequestError::new(&message, StatusCode::UNAUTHORIZED).into())
+            }
             st => {
                 debug!("response from server status: {status}");
                 let message = format!("request failed with status code: {st}");
-                Err(RequestError::new(&message, StatusCode::UNAUTHORIZED).into())
+                Err(RequestError::new(&message, st).into())
             }
         }
     }
@@ -193,7 +240,7 @@ impl HttpClient {
             bail!("request failed with status code: 401 Unauthorized");
         };
         let params = RefreshTokenParams::new(&refresh_token);
-        let tokens: AuthTokens = Request::get(&url).query(&params)?.send().await?;
+        let tokens: AuthTokens = Request::get(&url).query(&params)?.json().await?;
         write_tokens(&self.auth_path, tokens).await
     }
 
@@ -214,7 +261,7 @@ impl HttpClient {
             .query(&params)?
             .auth(&self.auth_path)
             .await
-            .send()
+            .json()
             .await
             .map(|_: String| ())
     }
@@ -236,7 +283,7 @@ impl HttpClient {
             .auth(&self.auth_path)
             .await
             .query(params)?
-            .send()
+            .json()
             .await
     }
 
@@ -258,7 +305,7 @@ impl HttpClient {
             .query(params)?
             .auth(&self.auth_path)
             .await
-            .send()
+            .json()
             .await
     }
 
@@ -279,18 +326,21 @@ impl HttpClient {
         }
     }
 
-    async fn print_inner(&self, params: &PipelineQueryParams) -> Result<String> {
+    async fn print_inner(&self, params: &PipelineInfoQueryParams) -> Result<String> {
         let url = format!("{}/v1/print", self.base_url);
         Request::get(&url)
             .auth(&self.auth_path)
             .await
             .query(params)?
-            .send()
+            .header("Accept", "text/plain")
+            .text()
             .await
     }
 
     pub async fn print(&self, pipeline: &str) -> Result<String> {
-        let params = PipelineQueryParams::new(pipeline);
+        let params = PipelineInfoQueryParams::Name {
+            name: pipeline.to_string(),
+        };
         let response = self.print_inner(&params).await;
 
         if Self::unauthorized(&response) {
@@ -303,7 +353,7 @@ impl HttpClient {
 
     async fn list_inner(&self) -> Result<String> {
         let url = format!("{}/v1/list", self.base_url);
-        Request::get(&url).auth(&self.auth_path).await.send().await
+        Request::get(&url).auth(&self.auth_path).await.text().await
     }
 
     pub async fn list(&self) -> Result<String> {
@@ -323,7 +373,7 @@ impl HttpClient {
             .auth(&self.auth_path)
             .await
             .query(params)?
-            .send()
+            .json()
             .await
     }
 
@@ -344,7 +394,7 @@ impl HttpClient {
         Request::post(&url)
             .auth(&self.auth_path)
             .await
-            .send_json(json)
+            .json_with_data(json)
             .await
             .map(|_: String| ())
     }
@@ -370,7 +420,7 @@ impl HttpClient {
             .auth(&self.auth_path)
             .await
             .query(params)?
-            .send()
+            .json()
             .await
             .map(|_: String| ())
     }
@@ -392,7 +442,7 @@ impl HttpClient {
         Request::post(&url)
             .auth(&self.auth_path)
             .await
-            .send_json(json)
+            .json_with_data(json)
             .await
             .map(|_: String| ())
     }
@@ -423,7 +473,7 @@ impl HttpClient {
         Request::post(&url)
             .auth(&self.auth_path)
             .await
-            .send_json(json)
+            .json_with_data(json)
             .await
             .map(|_: String| ())
     }
@@ -446,7 +496,7 @@ impl HttpClient {
             .auth(&self.auth_path)
             .await
             .query(filters)?
-            .send()
+            .json()
             .await
     }
 
@@ -466,7 +516,7 @@ impl HttpClient {
         Request::post(&url)
             .auth(&self.auth_path)
             .await
-            .send_json(body)
+            .json_with_data(body)
             .await
             .map(|_: String| ())
     }
@@ -487,7 +537,7 @@ impl HttpClient {
         Request::patch(&url)
             .auth(&self.auth_path)
             .await
-            .send_json(body)
+            .json_with_data(body)
             .await
             .map(|_: String| ())
     }
@@ -508,7 +558,7 @@ impl HttpClient {
         Request::delete(&url)
             .auth(&self.auth_path)
             .await
-            .send()
+            .json()
             .await
             .map(|_: String| ())
     }
@@ -529,7 +579,7 @@ impl HttpClient {
         Request::post(&url)
             .auth(&self.auth_path)
             .await
-            .send_json(data)
+            .json_with_data(data)
             .await
             .map(|_: String| ())
     }
@@ -551,7 +601,7 @@ impl HttpClient {
         Request::patch(&url)
             .auth(&self.auth_path)
             .await
-            .send_json(data)
+            .json_with_data(data)
             .await
             .map(|_: String| ())
     }
