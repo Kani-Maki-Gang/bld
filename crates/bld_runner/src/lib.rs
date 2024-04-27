@@ -1,8 +1,8 @@
-mod artifacts;
-mod external;
-mod pipeline;
-mod runs_on;
-mod step;
+pub mod artifacts;
+pub mod external;
+pub mod pipeline;
+pub mod runs_on;
+pub mod step;
 
 #[cfg(feature = "all")]
 mod runner;
