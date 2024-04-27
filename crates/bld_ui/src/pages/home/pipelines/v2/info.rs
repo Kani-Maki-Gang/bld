@@ -2,13 +2,10 @@ use crate::components::{
     badge::Badge,
     button::Button,
     button_group::{ButtonGroup, ButtonGroupItem},
-    card::Card,
-    list::ListItem,
-    table::TableRow,
+    card::Card
 };
-use bld_runner::VersionedPipeline;
+use bld_runner::pipeline::versioned::VersionedPipeline;
 use leptos::{leptos_dom::logging, *};
-use std::collections::HashMap;
 
 use super::{
     artifacts::PipelineArtifactsV2, external::PipelineExternalV2, jobs::PipelineJobsV2,
@@ -55,90 +52,6 @@ pub fn PipelineInfoV2(
     let cron = move || pipeline().unwrap().cron.map(|x| format!("Cron: {}", x));
     let runs_on = move || format!("Runs on: {}", pipeline().unwrap().runs_on);
     let dispose = move || format!("Dispose: {}", pipeline().unwrap().dispose);
-    let variables = move || pipeline().unwrap().variables;
-    let environment = move || pipeline().unwrap().environment;
-
-    let artifact_headers = Signal::from(|| {
-        vec![
-            "Method".into_view(),
-            "From".into_view(),
-            "To".into_view(),
-            "Ignore errors".into_view(),
-            "After".into_view(),
-        ]
-    });
-
-    let artifact_rows = move || {
-        pipeline()
-            .unwrap()
-            .artifacts
-            .into_iter()
-            .map(|x| TableRow {
-                columns: vec![
-                    x.method.into_view(),
-                    x.from.into_view(),
-                    x.to.into_view(),
-                    x.ignore_errors.into_view(),
-                    x.after.into_view(),
-                ],
-            })
-            .collect::<Vec<TableRow>>()
-    };
-
-    let external = move || {
-        pipeline()
-            .unwrap()
-            .external
-            .into_iter()
-            .map(|x| {
-                let mut item = ListItem::default();
-                item.icon = "iconoir-minus".to_string();
-                let content = serde_yaml::to_string(&x)
-                    .map_err(|e| logging::console_error(&format!("{:?}", e)))
-                    .unwrap_or_default();
-                item.content = Some(
-                    view! {
-                        <pre class="text-sm text-gray-200">
-                            {content}
-                        </pre>
-                    }
-                    .into_view(),
-                );
-                item
-            })
-            .collect::<Vec<ListItem>>()
-    };
-
-    let jobs = move || {
-        pipeline()
-            .unwrap()
-            .jobs
-            .into_iter()
-            .map(|(k, v)| {
-                (
-                    k,
-                    v.into_iter()
-                        .map(|x| {
-                            let mut item = ListItem::default();
-                            item.icon = "iconoir-minus".to_string();
-                            let content = serde_yaml::to_string(&x)
-                                .map_err(|e| logging::console_error(&format!("{:?}", e)))
-                                .unwrap_or_default();
-                            item.content = Some(
-                                view! {
-                                    <pre class="text-sm text-gray-200">
-                                        {content}
-                                    </pre>
-                                }
-                                .into_view(),
-                            );
-                            item
-                        })
-                        .collect::<Vec<ListItem>>(),
-                )
-            })
-            .collect::<HashMap<String, Vec<ListItem>>>()
-    };
 
     view! {
         <Show
@@ -182,12 +95,14 @@ pub fn PipelineInfoV2(
                     when=move || selected_group_item.get() == "view"
                     fallback=|| view! {}>
                     <div class="grid grid-cols-2 gap-8">
-                        <PipelineJobsV2 jobs=jobs />
-                        <PipelineExternalV2 items=external />
+                        <PipelineJobsV2 jobs=move || pipeline().unwrap().jobs />
+                        <PipelineExternalV2 external=move || pipeline().unwrap().external />
                     </div>
                     <div class="grid grid-cols-2 gap-8">
-                        <PipelineVariablesV2 variables=variables environment=environment />
-                        <PipelineArtifactsV2 headers=artifact_headers rows=artifact_rows />
+                        <PipelineVariablesV2
+                            variables=move || pipeline().unwrap().variables
+                            environment=move || pipeline().unwrap().environment />
+                        <PipelineArtifactsV2 artifacts=move || pipeline().unwrap().artifacts />
                     </div>
                     <PipelineHistoryV2 name=move || name.get() />
                 </Show>
