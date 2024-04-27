@@ -3,7 +3,7 @@ use bld_models::dtos::{HistQueryParams, HistoryEntry};
 use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
 
-use crate::components::{link::Link, table::{Table, TableRow}};
+use crate::components::{badge::Badge, link::Link, table::{Table, TableRow}};
 
 async fn get_hist(params: &HistQueryParams) -> Result<Vec<HistoryEntry>> {
     let res = Client::builder()
@@ -21,6 +21,29 @@ async fn get_hist(params: &HistQueryParams) -> Result<Vec<HistoryEntry>> {
     }
 }
 
+fn into_pipeline_state_view(state: &str) -> View {
+    let (icon, label, class) = match state {
+        "initial" => ("iconoir-running", "Intial", "bg-yellow-600".to_string()),
+        "queued" => ("iconoir-clock", "Queued", String::new()),
+        "running" => ("iconoir-running", "Running", String::new()),
+        "finished" => ("iconoir-check-circle", "Finished", "bg-emerable-600".to_string()),
+        "faulted" => ("iconoir-minus-circle", "Faulted", "bg-red-600".to_string()),
+        _ => return view! {}.into_view(),
+    };
+
+    let icon = format!("{icon} mr-2");
+
+    view! {
+        <div class="w-28">
+            <Badge class=class>
+                <div class="flex items-center">
+                    <i class=icon></i>{label}
+                </div>
+            </Badge>
+        </div>
+    }.into_view()
+}
+
 fn into_table_rows(data: Vec<HistoryEntry>) -> Vec<TableRow> {
     data.into_iter()
         .map(|item| TableRow {
@@ -32,7 +55,7 @@ fn into_table_rows(data: Vec<HistoryEntry>) -> Vec<TableRow> {
                 item.user.into_view(),
                 item.start_date_time.unwrap_or_default().into_view(),
                 item.end_date_time.unwrap_or_default().into_view(),
-                item.state.into_view(),
+                into_pipeline_state_view(&item.state),
             ],
         })
         .collect()
