@@ -29,11 +29,8 @@ async fn get_pipeline(id: String) -> Result<Option<VersionedPipeline>> {
 #[component]
 pub fn PipelineInfo() -> impl IntoView {
     let params = use_query_map();
-
     let id = move || params.with(|p| p.get("id").cloned());
-
     let name = move || params.with(|p| p.get("name").cloned());
-
     let (data, set_data) = create_signal(None);
 
     let _ = create_resource(
@@ -64,7 +61,7 @@ pub fn PipelineInfo() -> impl IntoView {
             <Show
                 when=move || matches!(data.get(), Some(VersionedPipeline::Version2(_)))
                 fallback=|| view! { }>
-                <PipelineV2 name=name pipeline=move || data.get() />
+                <PipelineV2 id=id name=name pipeline=move || data.get() />
             </Show>
             <Show
                 when=move || data.get().is_none()

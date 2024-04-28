@@ -17,6 +17,7 @@ use {
 
 #[component]
 pub fn PipelineV2(
+    #[prop(into)] id: Signal<Option<String>>,
     #[prop(into)] name: Signal<Option<String>>,
     #[prop(into)] pipeline: Signal<Option<VersionedPipeline>>,
 ) -> impl IntoView {
@@ -36,7 +37,7 @@ pub fn PipelineV2(
         }
     };
 
-    let selected_group_item = RwSignal::new("view".to_string());
+    let selected_group_item = create_rw_signal("view".to_string());
 
     view! {
         <Show
@@ -44,7 +45,8 @@ pub fn PipelineV2(
             fallback=|| view! { "Invalid pipeline version" }>
             <div class="flex flex-col gap-8">
                 <PipelineDetailsV2
-                    name=move || name.get()
+                    id=id
+                    name=name
                     pipeline=move || pipeline().unwrap()
                     selected_group_item=selected_group_item />
                 <Show

@@ -1,5 +1,6 @@
 mod info;
 mod v2;
+mod run;
 
 use crate::components::{
     button::Button,
@@ -13,6 +14,7 @@ use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
 
 pub use info::PipelineInfo;
+pub use run::RunPipeline;
 
 async fn get_pipelines() -> Result<Vec<ListResponse>> {
     let res = Client::builder()
