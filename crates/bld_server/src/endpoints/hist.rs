@@ -16,12 +16,8 @@ pub async fn get(
 ) -> impl Responder {
     info!("Reached handler for /hist route");
     match history_info(conn.get_ref(), params.into_inner()).await {
-        Ok(ls) => HttpResponse::Ok()
-            .insert_header(("Access-Control-Allow-Origin", "*"))
-            .json(ls),
-        Err(_) => HttpResponse::BadRequest()
-            .insert_header(("Access-Control-Allow-Origin", "*"))
-            .body(""),
+        Ok(ls) => HttpResponse::Ok().json(ls),
+        Err(_) => HttpResponse::BadRequest().body(""),
     }
 }
 

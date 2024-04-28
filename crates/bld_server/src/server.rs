@@ -4,6 +4,7 @@ use crate::endpoints::{
 };
 use crate::sockets::{exec, login, monit};
 use crate::supervisor::channel::SupervisorMessageSender;
+use actix_cors::Cors;
 use actix_web::{
     middleware,
     web::{get, resource},
@@ -42,6 +43,11 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
 
     set_var("RUST_LOG", "actix_server=info,actix_web=debug");
     let mut server = HttpServer::new(move || {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allow_any_method()
+            .allow_any_header();
+
         App::new()
             .app_data(config_clone.clone())
             .app_data(client.clone())
@@ -51,6 +57,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .app_data(fs.clone())
             .app_data(cron.clone())
             .wrap(middleware::Logger::default())
+            .wrap(cors)
             .service(home::get)
             .service(auth::redirect)
             .service(auth::refresh)

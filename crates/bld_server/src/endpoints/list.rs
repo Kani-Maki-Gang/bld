@@ -18,9 +18,7 @@ pub async fn get(
     info!("Reached handler for /list route");
 
     let Ok(pips) = pipeline::select_all(conn.as_ref()).await else {
-        return HttpResponse::BadRequest()
-            .append_header(("Access-Control-Allow-Origin", "*"))
-            .body("no pipelines found");
+        return HttpResponse::BadRequest().body("no pipelines found");
     };
 
     let accept = accept.to_string();
@@ -33,19 +31,13 @@ pub async fn get(
                 pipeline: x.name,
             })
             .collect();
-        return HttpResponse::Ok()
-            .append_header(("Access-Control-Allow-Origin", "*"))
-            .json(pips);
+        return HttpResponse::Ok().json(pips);
     }
 
     if accept == "text/plain" || accept == "*/*" || accept.is_empty() {
         let pips: Vec<String> = pips.into_iter().map(|x| x.name).collect();
-        return HttpResponse::Ok()
-            .append_header(("Access-Control-Allow-Origin", "*"))
-            .body(pips.join("\n"));
+        return HttpResponse::Ok().body(pips.join("\n"));
     }
 
-    HttpResponse::BadRequest()
-        .append_header(("Access-Control-Allow-Origin", "*"))
-        .body("unsupported media type")
+    HttpResponse::BadRequest().body("unsupported media type")
 }

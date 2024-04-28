@@ -22,9 +22,7 @@ pub async fn get(
     };
 
     let Ok(content) = content else {
-        return HttpResponse::BadRequest()
-            .insert_header(("Access-Control-Allow-Origin", "*"))
-            .body("pipeline not found");
+        return HttpResponse::BadRequest().body("pipeline not found");
     };
 
     let accept = accept.to_string();
@@ -35,23 +33,15 @@ pub async fn get(
     }
 
     if accept == "text/plain" || accept == "*/*" || accept.is_empty() {
-        return HttpResponse::Ok()
-            .insert_header(("Access-Control-Allow-Origin", "*"))
-            .body(content);
+        return HttpResponse::Ok().body(content);
     }
 
-    HttpResponse::NotAcceptable()
-        .insert_header(("Access-Control-Allow-Origin", "*"))
-        .body("unsupported media type")
+    HttpResponse::NotAcceptable().body("unsupported media type")
 }
 
 fn get_as_json(pipeline: String) -> HttpResponse {
     match Yaml::load(&pipeline) {
-        Ok(pipeline) => HttpResponse::Ok()
-            .insert_header(("Access-Control-Allow-Origin", "*"))
-            .json(pipeline),
-        Err(e) => HttpResponse::BadRequest()
-            .insert_header(("Access-Control-Allow-Origin", "*"))
-            .body(e.to_string()),
+        Ok(pipeline) => HttpResponse::Ok().json(pipeline),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
