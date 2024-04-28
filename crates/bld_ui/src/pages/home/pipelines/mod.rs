@@ -1,6 +1,6 @@
 mod info;
-mod v2;
 mod run;
+mod v2;
 
 use crate::components::{
     button::Button,

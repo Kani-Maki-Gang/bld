@@ -11,7 +11,6 @@ pub fn Link(#[prop(into)] href: String, children: Children) -> impl IntoView {
     }
 }
 
-
 #[component]
 pub fn LinkButton(#[prop(into)] href: Signal<String>, children: Children) -> impl IntoView {
     view! {

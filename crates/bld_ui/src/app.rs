@@ -1,5 +1,5 @@
 use crate::pages::{
-    home::{CronJobs, Dashboard, History, Home, PipelineInfo, Pipelines, RunPipeline, Monit},
+    home::{CronJobs, Dashboard, History, Home, Monit, PipelineInfo, Pipelines, RunPipeline},
     login::Login,
     not_found::NotFound,
 };

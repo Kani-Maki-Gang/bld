@@ -9,7 +9,9 @@ use leptos::{leptos_dom::logging, *};
 use std::collections::HashMap;
 
 #[component]
-pub fn PipelineJobsV2(#[prop(into)] jobs: Signal<HashMap<String, Vec<BuildStep>>>) -> impl IntoView {
+pub fn PipelineJobsV2(
+    #[prop(into)] jobs: Signal<HashMap<String, Vec<BuildStep>>>,
+) -> impl IntoView {
     let jobs = move || {
         jobs.get()
             .into_iter()
@@ -50,20 +52,10 @@ pub fn PipelineJobsV2(#[prop(into)] jobs: Signal<HashMap<String, Vec<BuildStep>>
             .collect::<Vec<TabItem>>()
     };
 
-    selected_tab.update(|x: &mut String| {
-        *x = jobs()
-            .keys()
-            .next()
-            .map(|x| x.clone())
-            .unwrap_or_default()
-    });
+    selected_tab
+        .update(|x: &mut String| *x = jobs().keys().next().map(|x| x.clone()).unwrap_or_default());
 
-    let items = move || {
-        jobs()
-            .get(&selected_tab.get())
-            .cloned()
-            .unwrap_or_default()
-    };
+    let items = move || jobs().get(&selected_tab.get()).cloned().unwrap_or_default();
 
     view! {
         <Card>

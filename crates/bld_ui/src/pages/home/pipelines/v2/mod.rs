@@ -1,7 +1,7 @@
 mod artifacts;
+mod details;
 mod external;
 mod history;
-mod details;
 mod jobs;
 mod variables;
 
@@ -10,9 +10,8 @@ use bld_runner::pipeline::versioned::VersionedPipeline;
 use leptos::{leptos_dom::logging, *};
 
 use {
-    details::PipelineDetailsV2,
-    artifacts::PipelineArtifactsV2, external::PipelineExternalV2, jobs::PipelineJobsV2,
-    variables::PipelineVariablesV2, history::PipelineHistoryV2
+    artifacts::PipelineArtifactsV2, details::PipelineDetailsV2, external::PipelineExternalV2,
+    history::PipelineHistoryV2, jobs::PipelineJobsV2, variables::PipelineVariablesV2,
 };
 
 #[component]

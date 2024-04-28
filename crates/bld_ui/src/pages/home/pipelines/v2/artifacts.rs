@@ -7,9 +7,7 @@ use bld_runner::artifacts::v2;
 use leptos::*;
 
 #[component]
-pub fn PipelineArtifactsV2(
-    #[prop(into)] artifacts: Signal<Vec<v2::Artifacts>>
-) -> impl IntoView {
+pub fn PipelineArtifactsV2(#[prop(into)] artifacts: Signal<Vec<v2::Artifacts>>) -> impl IntoView {
     let headers = Signal::from(|| {
         vec![
             "Method".into_view(),

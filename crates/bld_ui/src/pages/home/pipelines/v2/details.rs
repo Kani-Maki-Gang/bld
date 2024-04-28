@@ -1,6 +1,11 @@
-use leptos::*;
+use crate::components::{
+    badge::Badge,
+    button_group::{ButtonGroup, ButtonGroupItem},
+    card::Card,
+    link::LinkButton,
+};
 use bld_runner::pipeline::v2::Pipeline;
-use crate::components::{badge::Badge, button_group::{ButtonGroup, ButtonGroupItem}, card::Card, link::LinkButton};
+use leptos::*;
 
 #[component]
 pub fn PipelineDetailsV2(

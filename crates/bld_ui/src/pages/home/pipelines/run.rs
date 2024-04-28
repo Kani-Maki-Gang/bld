@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::components::{button::Button, card::Card};
+use crate::components::{badge::Badge, button::Button, card::Card};
 use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::PipelineInfoQueryParams;
 use bld_runner::VersionedPipeline;
@@ -15,7 +15,7 @@ enum RunParams {
         name: String,
         variables: Option<HashMap<String, String>>,
         environment: Option<HashMap<String, String>>,
-    }
+    },
 }
 
 async fn get_pipeline(id: String) -> Result<Option<VersionedPipeline>> {
@@ -109,7 +109,7 @@ pub fn RunPipeline() -> impl IntoView {
 
     view! {
         <Card>
-            <div class="flex flex-col px-8 py-12 gap-y-4">
+            <div class="flex flex-col px-8 py-12 gap-y-4 min-h-96">
                 <div class="flex">
                     <div class="grow flex flex-col">
                         <div class="text-2xl">
@@ -117,6 +117,26 @@ pub fn RunPipeline() -> impl IntoView {
                         </div>
                         <div class="text-gray-400">
                             {name}
+                        </div>
+                        <div class="flex gap-4">
+                            <Show
+                                when=move || variables().is_empty()
+                                fallback=move || view!{}>
+                                <div class="flex-shrink">
+                                    <Badge>
+                                        "Pipeline has no variables"
+                                    </Badge>
+                                </div>
+                            </Show>
+                            <Show
+                                when=move || environment().is_empty()
+                                fallback=move || view!{}>
+                                <div class="flex-shrink">
+                                    <Badge>
+                                        "Pipeline has no environment variables"
+                                    </Badge>
+                                </div>
+                            </Show>
                         </div>
                     </div>
                     <div class="min-w-40">
