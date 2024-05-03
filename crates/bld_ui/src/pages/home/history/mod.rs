@@ -7,11 +7,7 @@ use filters::HistoryFilters;
 use leptos::*;
 use table::HistoryTable;
 
-fn get_params(
-    state: Option<String>,
-    limit: String,
-    pipeline: String,
-) -> Option<HistQueryParams> {
+fn get_params(state: Option<String>, limit: String, pipeline: String) -> Option<HistQueryParams> {
     let params = HistQueryParams {
         name: if pipeline.is_empty() {
             None
@@ -19,7 +15,7 @@ fn get_params(
             Some(pipeline)
         },
         state: state.filter(|x| x != "all"),
-        limit: limit.parse::<u64>().unwrap_or(100)
+        limit: limit.parse::<u64>().unwrap_or(100),
     };
     Some(params)
 }
