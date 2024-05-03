@@ -5,13 +5,18 @@ use std::collections::HashMap;
 use crate::components::{badge::Badge, button::Button, card::Card};
 use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::PipelineInfoQueryParams;
-use bld_runner::VersionedPipeline;
+use bld_runner::{
+    pipeline::{v1, v2},
+    VersionedPipeline,
+};
 use leptos::{leptos_dom::logging, *};
 use leptos_router::*;
 use reqwest::Client;
 use serde::Serialize;
 
-use self::variables::{RunPipelineVariables, PipelineVariable};
+use self::variables::{PipelineVariable, RunPipelineVariables};
+
+type RequestInterRepr = (String, Vec<PipelineVariable>, Vec<PipelineVariable>);
 
 #[derive(Serialize)]
 enum RunParams {
@@ -41,13 +46,13 @@ async fn get_pipeline(id: String) -> Result<Option<VersionedPipeline>> {
     }
 }
 
-async fn start_run(name: &str) {
+async fn start_run(name: &str, vars: HashMap<String, String>, env: HashMap<String, String>) {
     let name = name.to_string();
     let fut = async move {
         let data = RunParams::EnqueueRun {
             name,
-            variables: None,
-            environment: None,
+            variables: Some(vars),
+            environment: Some(env),
         };
 
         let res = Client::builder()
@@ -81,12 +86,21 @@ fn into_pipeline_variables(items: HashMap<String, String>) -> Vec<PipelineVariab
         .collect()
 }
 
+fn into_hash_map(items: &Vec<PipelineVariable>) -> HashMap<String, String> {
+    items
+        .into_iter()
+        .map(|e| (e.name.to_owned(), e.value.get_untracked()))
+        .collect()
+}
+
 #[component]
 pub fn RunPipeline() -> impl IntoView {
     let params = use_query_map();
     let id = move || params.with(|p| p.get("id").cloned());
     let name = move || params.with(|p| p.get("name").cloned());
     let (data, set_data) = create_signal(None);
+    let variables = create_rw_signal(vec![]);
+    let environment = create_rw_signal(vec![]);
 
     let _ = create_resource(
         move || (id(), set_data),
@@ -106,26 +120,30 @@ pub fn RunPipeline() -> impl IntoView {
         },
     );
 
-    let start_run = create_action(|name: &String| {
+    let start_run = create_action(|args: &RequestInterRepr| {
+        let (name, vars, env) = args;
         let name = name.to_owned();
-        async move { start_run(&name).await }
+        let vars = into_hash_map(vars);
+        let env = into_hash_map(env);
+        async move { start_run(&name, vars, env).await }
     });
 
-    let variables = move || match data.get() {
-        Some(VersionedPipeline::Version1(pipeline)) => into_pipeline_variables(pipeline.variables),
-        Some(VersionedPipeline::Version2(pipeline)) => into_pipeline_variables(pipeline.variables),
-        _ => Vec::with_capacity(0),
-    };
-
-    let environment = move || match data.get() {
-        Some(VersionedPipeline::Version1(pipeline)) => {
-            into_pipeline_variables(pipeline.environment)
+    create_effect(move |_| match data.get() {
+        Some(VersionedPipeline::Version1(v1::Pipeline {
+            variables: var,
+            environment: env,
+            ..
+        }))
+        | Some(VersionedPipeline::Version2(v2::Pipeline {
+            variables: var,
+            environment: env,
+            ..
+        })) => {
+            variables.set(into_pipeline_variables(var));
+            environment.set(into_pipeline_variables(env));
         }
-        Some(VersionedPipeline::Version2(pipeline)) => {
-            into_pipeline_variables(pipeline.environment)
-        }
-        _ => Vec::with_capacity(0),
-    };
+        _ => {}
+    });
 
     view! {
         <div class="flex flex-col gap-4">
@@ -141,7 +159,7 @@ pub fn RunPipeline() -> impl IntoView {
                             </div>
                             <div class="flex gap-4">
                                 <Show
-                                    when=move || variables().is_empty()
+                                    when=move || variables.get().is_empty()
                                     fallback=move || view!{}>
                                     <div class="flex-shrink">
                                         <Badge>
@@ -150,7 +168,7 @@ pub fn RunPipeline() -> impl IntoView {
                                     </div>
                                 </Show>
                                 <Show
-                                    when=move || environment().is_empty()
+                                    when=move || environment.get().is_empty()
                                     fallback=move || view!{}>
                                     <div class="flex-shrink">
                                         <Badge>
@@ -161,13 +179,13 @@ pub fn RunPipeline() -> impl IntoView {
                             </div>
                         </div>
                         <div class="min-w-40">
-                            <Button on:click=move |_| start_run.dispatch(name().unwrap())>Start</Button>
+                            <Button on:click=move |_| start_run.dispatch((name().unwrap(), variables.get(), environment.get()))>Start</Button>
                         </div>
                     </div>
                 </div>
             </Card>
             <Show
-                when=move || !variables().is_empty()
+                when=move || !variables.get().is_empty()
                 fallback=move || view!{}>
                 <RunPipelineVariables
                     title="Variables"
@@ -175,7 +193,7 @@ pub fn RunPipeline() -> impl IntoView {
                     items=variables />
             </Show>
             <Show
-                when=move || !variables().is_empty()
+                when=move || !variables.get().is_empty()
                 fallback=move || view!{}>
                 <RunPipelineVariables
                     title="Environment"
