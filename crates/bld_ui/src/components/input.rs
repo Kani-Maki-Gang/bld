@@ -6,7 +6,7 @@ pub fn Input(
     #[prop(optional)] min: Option<i32>,
     #[prop(optional)] max: Option<i32>,
     #[prop(optional)] placeholder: Option<String>,
-    #[prop()] value: RwSignal<Option<String>>,
+    #[prop()] value: RwSignal<String>,
 ) -> impl IntoView {
     view! {
         <input
@@ -15,8 +15,8 @@ pub fn Input(
             max=max
             class="h-[40px] w-full rounded-lg text-sm bg-slate-600 text-white px-4 py-2 focus:ring focus:ring-slate-500 focus:outline-none"
             placeholder=placeholder
-            prop:value={move || value.get().unwrap_or("".to_string())}
-            on:input=move |ev| value.set(Some(event_target_value(&ev)))/>
+            prop:value=move || value.get()
+            on:input=move |ev| value.set(event_target_value(&ev))/>
     }
 }
 

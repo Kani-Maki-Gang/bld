@@ -7,8 +7,8 @@ use leptos::*;
 #[component]
 pub fn HistoryFilters(
     #[prop(into)] state: RwSignal<Option<String>>,
-    #[prop(into)] limit: RwSignal<Option<String>>,
-    #[prop(into)] pipeline: RwSignal<Option<String>>,
+    #[prop(into)] limit: RwSignal<String>,
+    #[prop(into)] pipeline: RwSignal<String>,
     #[prop(into)] refresh: RwSignal<()>,
 ) -> impl IntoView {
     let (states, _set_states) = create_signal(vec![
