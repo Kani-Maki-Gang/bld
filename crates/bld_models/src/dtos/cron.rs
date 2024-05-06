@@ -53,7 +53,7 @@ impl UpdateJobRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobFiltersParams {
     pub id: Option<String>,
     pub pipeline: Option<String>,
