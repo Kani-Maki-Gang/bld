@@ -1,6 +1,9 @@
-use leptos::*;
+use crate::{
+    components::{button::Button, card::Card},
+    pages::home::history::table::HistoryTable,
+};
 use bld_models::dtos::HistQueryParams;
-use crate::{components::{button::Button, card::Card}, pages::home::history::table::HistoryTable};
+use leptos::*;
 
 #[component]
 pub fn PipelineHistoryV2(#[prop(into)] name: Signal<Option<String>>) -> impl IntoView {

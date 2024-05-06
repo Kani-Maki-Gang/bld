@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 struct MonitInfo {
     id: Option<String>,
     pipeline: Option<String>,
-    last: bool
+    last: bool,
 }
 
 #[component]
@@ -20,21 +20,23 @@ pub fn Monit() -> impl IntoView {
     let info = move || MonitInfo {
         id: id(),
         pipeline: None,
-        last: false
+        last: false,
     };
 
     let (history, set_history) = create_signal(vec![]);
 
-    let UseWebsocketReturn { message, send, ready_state, .. } =
-        use_websocket("ws://localhost:6080/v1/ws-monit/");
+    let UseWebsocketReturn {
+        message,
+        send,
+        ready_state,
+        ..
+    } = use_websocket("ws://localhost:6080/v1/ws-monit/");
 
-    let socket_state = move || {
-        match ready_state.get() {
-            ConnectionReadyState::Connecting => "Connecting",
-            ConnectionReadyState::Open => "Open",
-            ConnectionReadyState::Closing => "Closing",
-            ConnectionReadyState::Closed => "Closed",
-        }
+    let socket_state = move || match ready_state.get() {
+        ConnectionReadyState::Connecting => "Connecting",
+        ConnectionReadyState::Open => "Open",
+        ConnectionReadyState::Closing => "Closing",
+        ConnectionReadyState::Closed => "Closed",
     };
 
     create_effect(move |_| {

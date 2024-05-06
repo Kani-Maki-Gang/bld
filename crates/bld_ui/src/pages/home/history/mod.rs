@@ -7,18 +7,15 @@ use filters::HistoryFilters;
 use leptos::*;
 use table::HistoryTable;
 
-fn get_params(
-    state: Option<String>,
-    limit: Option<String>,
-    pipeline: Option<String>,
-) -> Option<HistQueryParams> {
+fn get_params(state: Option<String>, limit: String, pipeline: String) -> Option<HistQueryParams> {
     let params = HistQueryParams {
-        name: pipeline,
+        name: if pipeline.is_empty() {
+            None
+        } else {
+            Some(pipeline)
+        },
         state: state.filter(|x| x != "all"),
-        limit: limit
-            .as_ref()
-            .map(|l| l.parse::<u64>().unwrap_or(100))
-            .unwrap_or(100),
+        limit: limit.parse::<u64>().unwrap_or(100),
     };
     Some(params)
 }
@@ -26,8 +23,8 @@ fn get_params(
 #[component]
 pub fn History() -> impl IntoView {
     let state: RwSignal<Option<String>> = create_rw_signal(None);
-    let limit = create_rw_signal(Some("100".to_string()));
-    let pipeline: RwSignal<Option<String>> = create_rw_signal(None);
+    let limit = create_rw_signal("100".to_string());
+    let pipeline: RwSignal<String> = create_rw_signal(String::new());
     let refresh = create_rw_signal(());
 
     let params = move || get_params(state.get(), limit.get(), pipeline.get());

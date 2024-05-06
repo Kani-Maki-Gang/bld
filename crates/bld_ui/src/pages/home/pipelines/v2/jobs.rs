@@ -4,14 +4,46 @@ use crate::components::{
     list::{List, ListItem},
     tabs::{TabItem, Tabs},
 };
-use leptos::*;
+use bld_runner::step::v2::BuildStep;
+use leptos::{leptos_dom::logging, *};
 use std::collections::HashMap;
 
 #[component]
-pub fn PipelineJobsV2(#[prop(into)] jobs: Signal<HashMap<String, Vec<ListItem>>>) -> impl IntoView {
+pub fn PipelineJobsV2(
+    #[prop(into)] jobs: Signal<HashMap<String, Vec<BuildStep>>>,
+) -> impl IntoView {
+    let jobs = move || {
+        jobs.get()
+            .into_iter()
+            .map(|(k, v)| {
+                (
+                    k,
+                    v.into_iter()
+                        .map(|x| {
+                            let mut item = ListItem::default();
+                            item.icon = "iconoir-minus".to_string();
+                            let content = serde_yaml::to_string(&x)
+                                .map_err(|e| logging::console_error(&format!("{:?}", e)))
+                                .unwrap_or_default();
+                            item.content = Some(
+                                view! {
+                                    <pre class="text-sm text-gray-200">
+                                        {content}
+                                    </pre>
+                                }
+                                .into_view(),
+                            );
+                            item
+                        })
+                        .collect::<Vec<ListItem>>(),
+                )
+            })
+            .collect::<HashMap<String, Vec<ListItem>>>()
+    };
+
     let selected_tab = create_rw_signal(String::default());
     let tabs = move || {
-        jobs.get()
+        jobs()
             .keys()
             .map(|k| TabItem {
                 id: k.clone(),
@@ -20,21 +52,10 @@ pub fn PipelineJobsV2(#[prop(into)] jobs: Signal<HashMap<String, Vec<ListItem>>>
             .collect::<Vec<TabItem>>()
     };
 
-    selected_tab.update(|x: &mut String| {
-        *x = jobs
-            .get()
-            .keys()
-            .next()
-            .map(|x| x.clone())
-            .unwrap_or_default()
-    });
+    selected_tab
+        .update(|x: &mut String| *x = jobs().keys().next().map(|x| x.clone()).unwrap_or_default());
 
-    let items = move || {
-        jobs.get()
-            .get(&selected_tab.get())
-            .cloned()
-            .unwrap_or_default()
-    };
+    let items = move || jobs().get(&selected_tab.get()).cloned().unwrap_or_default();
 
     view! {
         <Card>

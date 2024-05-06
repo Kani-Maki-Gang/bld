@@ -34,7 +34,7 @@ pub async fn post(
     .await;
 
     match result {
-        Ok(_) => HttpResponse::Ok().json(""),
+        Ok(run_id) => HttpResponse::Ok().json(run_id),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
