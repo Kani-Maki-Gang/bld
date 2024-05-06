@@ -1,4 +1,4 @@
-FROM rust:1.73-bullseye
+FROM rust:1.78-bookworm
 
 ARG OPENSSL_VERSION=1.1.1m
 
