@@ -1,5 +1,6 @@
 use anyhow::Result;
 use bld_models::dtos::{CronJobResponse, JobFiltersParams};
+use crate::components::link::Link;
 use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
 
@@ -25,7 +26,11 @@ fn into_table_rows(data: Vec<CronJobResponse>) -> Vec<TableRow> {
     data.into_iter()
         .map(|item| TableRow {
             columns: vec![
-                item.id.into_view(),
+                view! {
+                    <Link href=format!("cron/edit?id={}", item.id)>
+                        {item.id}
+                    </Link>
+                }.into_view(),
                 item.pipeline.into_view(),
                 item.schedule.into_view(),
                 item.is_default.into_view(),

@@ -1,5 +1,5 @@
 use crate::pages::{
-    home::{CronJobs, Dashboard, History, Home, Monit, PipelineInfo, Pipelines, RunPipeline},
+    home::{CronJobs, CronJobsEdit, Dashboard, History, Home, Monit, PipelineInfo, Pipelines, RunPipeline},
     login::Login,
     not_found::NotFound,
 };
@@ -21,6 +21,7 @@ pub fn App() -> impl IntoView {
                             <Route path="/pipelines/info" view=PipelineInfo />
                             <Route path="/pipelines/run" view=RunPipeline />
                             <Route path="/cron" view=CronJobs />
+                            <Route path="/cron/edit" view=CronJobsEdit />
                             <Route path="/monit" view=Monit />
                         </Route>
                         <Route path="/login" view=Login />

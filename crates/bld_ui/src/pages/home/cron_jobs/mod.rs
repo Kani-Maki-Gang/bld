@@ -8,6 +8,8 @@ use filters::CronJobsFilters;
 use leptos::*;
 use table::CronJobsTable;
 
+pub use edit::CronJobsEdit;
+
 fn get_params(limit: String, pipeline: String) -> Option<JobFiltersParams> {
     Some(JobFiltersParams::new(
         None,
