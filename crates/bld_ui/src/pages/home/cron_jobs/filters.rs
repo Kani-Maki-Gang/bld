@@ -5,7 +5,7 @@ use leptos::*;
 pub fn CronJobsFilters(
     #[prop(into)] pipeline: RwSignal<String>,
     #[prop(into)] limit: RwSignal<String>,
-    #[prop(into)] refresh: RwSignal<()>
+    #[prop(into)] refresh: RwSignal<()>,
 ) -> impl IntoView {
     view! {
         <div class="flex items-center gap-x-4">

@@ -1,11 +1,11 @@
 use anyhow::Result;
-use bld_models::dtos::{JobFiltersParams, CronJobResponse};
+use bld_models::dtos::{CronJobResponse, JobFiltersParams};
 use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
 
 use crate::components::table::{Table, TableRow};
 
-async fn get_hist(params: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
+async fn get_cron(params: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
     let res = Client::builder()
         .build()?
         .get("http://localhost:6080/v1/cron")
@@ -59,7 +59,7 @@ pub fn CronJobsTable(
                 return;
             };
 
-            let data = get_hist(&params)
+            let data = get_cron(&params)
                 .await
                 .map_err(|e| logging::console_error(e.to_string().as_str()))
                 .unwrap_or_default();

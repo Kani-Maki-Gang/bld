@@ -1,10 +1,11 @@
+mod edit;
 mod filters;
 mod table;
 
-use bld_models::dtos::JobFiltersParams;
 use crate::components::card::Card;
-use leptos::*;
+use bld_models::dtos::JobFiltersParams;
 use filters::CronJobsFilters;
+use leptos::*;
 use table::CronJobsTable;
 
 fn get_params(limit: String, pipeline: String) -> Option<JobFiltersParams> {
@@ -17,7 +18,8 @@ fn get_params(limit: String, pipeline: String) -> Option<JobFiltersParams> {
         },
         None,
         None,
-        limit.parse::<u64>().map(|x| Some(x)).unwrap_or_default()))
+        limit.parse::<u64>().map(|x| Some(x)).unwrap_or_default(),
+    ))
 }
 
 #[component]
