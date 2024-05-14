@@ -1,4 +1,4 @@
-mod variables;
+pub mod variables;
 
 use std::collections::HashMap;
 

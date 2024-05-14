@@ -14,7 +14,7 @@ use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
 
 pub use info::PipelineInfo;
-pub use run::RunPipeline;
+pub use run::{RunPipeline, variables::{PipelineVariable, RunPipelineVariables}};
 
 async fn get_pipelines() -> Result<Vec<ListResponse>> {
     let res = Client::builder()
