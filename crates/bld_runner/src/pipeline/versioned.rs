@@ -1,6 +1,7 @@
 use super::v1;
 use super::v2;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[cfg(feature = "all")]
 use super::traits::Load;
@@ -24,7 +25,7 @@ use bld_core::fs::FileSystem;
 use futures::Future;
 
 #[cfg(feature = "all")]
-use std::{collections::HashMap, fmt::Write, pin::Pin, sync::Arc};
+use std::{fmt::Write, pin::Pin, sync::Arc};
 
 #[cfg(feature = "all")]
 use tracing::debug;
@@ -127,6 +128,13 @@ impl VersionedPipeline {
             pip.cron.as_deref()
         } else {
             None
+        }
+    }
+
+    pub fn variables_and_environment(self) -> (HashMap<String, String>, HashMap<String, String>) {
+        match self {
+            Self::Version1(pip) => (pip.variables, pip.environment),
+            Self::Version2(pip) => (pip.variables, pip.environment),
         }
     }
 
