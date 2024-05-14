@@ -1,5 +1,5 @@
-use bld_models::dtos::CronJobResponse;
 use crate::components::{badge::Badge, card::Card};
+use bld_models::dtos::CronJobResponse;
 use leptos::*;
 
 #[component]

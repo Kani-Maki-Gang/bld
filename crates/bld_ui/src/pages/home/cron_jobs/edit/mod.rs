@@ -1,16 +1,19 @@
 mod details;
 mod schedule;
 
-use anyhow::{anyhow, bail, Result};
-use bld_models::dtos::{CronJobResponse, PipelineInfoQueryParams, JobFiltersParams};
-use bld_runner::{pipeline::{v1, v2}, VersionedPipeline};
 use crate::pages::home::{PipelineVariable, RunPipelineVariables};
+use anyhow::{anyhow, bail, Result};
+use bld_models::dtos::{CronJobResponse, JobFiltersParams, PipelineInfoQueryParams};
+use bld_runner::{
+    pipeline::{v1, v2},
+    VersionedPipeline,
+};
 use details::CronJobsEditDetails;
 use leptos::{leptos_dom::logging, *};
 use leptos_router::*;
+use reqwest::Client;
 use schedule::CronJobsEditSchedule;
 use std::collections::HashMap;
-use reqwest::Client;
 
 fn into_pipeline_variables(
     pipeline_items: HashMap<String, String>,
@@ -20,7 +23,6 @@ fn into_pipeline_variables(
         .into_iter()
         .enumerate()
         .map(|(i, (k, v))| {
-
             let value = cron_items
                 .as_mut()
                 .and_then(|c| c.remove(&k))
@@ -31,7 +33,6 @@ fn into_pipeline_variables(
                 name: k,
                 value: create_rw_signal(value),
             }
-
         })
         .collect()
 }
@@ -53,7 +54,9 @@ async fn get_cron(id: Option<String>) -> Result<CronJobResponse> {
     if res.status().is_success() {
         let body = res.text().await?;
         let data: Vec<CronJobResponse> = serde_json::from_str(&body)?;
-        data.into_iter().next().ok_or_else(|| anyhow!("No data found"))
+        data.into_iter()
+            .next()
+            .ok_or_else(|| anyhow!("No data found"))
     } else {
         bail!("Request failed with status: {}", res.status())
     }
@@ -81,7 +84,8 @@ async fn get_pipeline(name: String) -> Result<Option<VersionedPipeline>> {
 async fn fetch_all_data(
     id: Option<String>,
     pipeline: WriteSignal<Option<VersionedPipeline>>,
-    cron: WriteSignal<Option<CronJobResponse>>) {
+    cron: WriteSignal<Option<CronJobResponse>>,
+) {
     let cron_resp = get_cron(id)
         .await
         .map_err(|e| logging::console_error(e.to_string().as_str()))

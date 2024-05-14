@@ -2,9 +2,7 @@ use crate::components::{card::Card, input::Input};
 use leptos::*;
 
 #[component]
-pub fn CronJobsEditSchedule(
-    #[prop(into)] schedule: RwSignal<String>
-) -> impl IntoView {
+pub fn CronJobsEditSchedule(#[prop(into)] schedule: RwSignal<String>) -> impl IntoView {
     view! {
         <Card>
             <div class="flex flex-col px-8 py-12 gap-4">
