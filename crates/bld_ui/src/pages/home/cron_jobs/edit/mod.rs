@@ -2,7 +2,8 @@ mod details;
 mod schedule;
 
 use anyhow::{anyhow, bail, Result};
-use bld_models::dtos::{CronJobResponse, JobFiltersParams};
+use bld_models::dtos::{CronJobResponse, PipelineInfoQueryParams, JobFiltersParams};
+use bld_runner::{pipeline::{v1, v2}, VersionedPipeline};
 use crate::pages::home::{PipelineVariable, RunPipelineVariables};
 use details::CronJobsEditDetails;
 use leptos::{leptos_dom::logging, *};
@@ -11,14 +12,26 @@ use schedule::CronJobsEditSchedule;
 use std::collections::HashMap;
 use reqwest::Client;
 
-fn into_pipeline_variables(items: HashMap<String, String>) -> Vec<PipelineVariable> {
-    items
+fn into_pipeline_variables(
+    pipeline_items: HashMap<String, String>,
+    mut cron_items: Option<HashMap<String, String>>,
+) -> Vec<PipelineVariable> {
+    pipeline_items
         .into_iter()
         .enumerate()
-        .map(|(i, (k, v))| PipelineVariable {
-            id: i.to_string(),
-            name: k,
-            value: create_rw_signal(v),
+        .map(|(i, (k, v))| {
+
+            let value = cron_items
+                .as_mut()
+                .and_then(|c| c.remove(&k))
+                .unwrap_or_else(|| v);
+
+            PipelineVariable {
+                id: i.to_string(),
+                name: k,
+                value: create_rw_signal(value),
+            }
+
         })
         .collect()
 }
@@ -46,36 +59,73 @@ async fn get_cron(id: Option<String>) -> Result<CronJobResponse> {
     }
 }
 
+async fn get_pipeline(name: String) -> Result<Option<VersionedPipeline>> {
+    let params = PipelineInfoQueryParams::Name { name };
+
+    let res = Client::builder()
+        .build()?
+        .get("http://localhost:6080/v1/print")
+        .header("Accept", "application/json")
+        .query(&params)
+        .send()
+        .await?;
+
+    if res.status().is_success() {
+        let body = res.text().await?;
+        Ok(serde_json::from_str(&body)?)
+    } else {
+        bail!("unable to fetch pipeline")
+    }
+}
+
+async fn fetch_all_data(
+    id: Option<String>,
+    pipeline: WriteSignal<Option<VersionedPipeline>>,
+    cron: WriteSignal<Option<CronJobResponse>>) {
+    let cron_resp = get_cron(id)
+        .await
+        .map_err(|e| logging::console_error(e.to_string().as_str()))
+        .ok();
+
+    if let Some(cron_resp) = &cron_resp {
+        let pipeline_resp = get_pipeline(cron_resp.pipeline.clone())
+            .await
+            .map_err(|e| logging::console_error(e.to_string().as_str()))
+            .ok();
+
+        if let Some(pipeline_resp) = pipeline_resp {
+            pipeline.set(pipeline_resp);
+        }
+    }
+
+    cron.set(cron_resp);
+}
+
 #[component]
 pub fn CronJobsEdit() -> impl IntoView {
     let params = use_query_map();
     let id = move || params.with(|p| p.get("id").cloned());
     let (cron, set_cron) = create_signal(None);
+    let (pipeline, set_pipeline) = create_signal(None);
     let schedule = create_rw_signal(String::new());
     let variables = create_rw_signal(vec![]);
     let environment = create_rw_signal(vec![]);
 
-    let _ = create_resource(
-        move || (id(), set_cron),
-        |(id, set_cron)| async move {
-            let cron = get_cron(id)
-                .await
-                .map_err(|e| logging::console_error(e.to_string().as_str()))
-                .ok();
-            set_cron.set(cron);
+    create_resource(
+        move || (id(), set_pipeline, set_cron),
+        |(id, set_pipeline, set_cron)| async move {
+            fetch_all_data(id, set_pipeline, set_cron).await;
         },
     );
 
     create_effect(move |_| {
-        if let Some(cron) = cron.get() {
-            schedule.set(cron.schedule);
-            if let Some(vars) = cron.variables {
-                variables.set(into_pipeline_variables(vars));
-            }
-            if let Some(env) = cron.environment {
-                environment.set(into_pipeline_variables(env));
-            }
-        }
+        let (Some(cron), Some(pipeline)) = (cron.get(), pipeline.get()) else {
+            return;
+        };
+        schedule.set(cron.schedule);
+        let (vars, env) = pipeline.variables_and_environment();
+        variables.set(into_pipeline_variables(vars, cron.variables));
+        environment.set(into_pipeline_variables(env, cron.environment));
     });
 
     view! {
