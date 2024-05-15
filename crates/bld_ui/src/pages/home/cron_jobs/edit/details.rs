@@ -1,12 +1,15 @@
-use crate::components::{badge::Badge, card::Card};
+use crate::components::{badge::Badge, button::Button, card::Card};
 use bld_models::dtos::CronJobResponse;
 use leptos::*;
 
 #[component]
-pub fn CronJobsEditDetails(#[prop(into)] job: Signal<CronJobResponse>) -> impl IntoView {
+pub fn CronJobsEditDetails(
+    #[prop(into)] job: Signal<CronJobResponse>,
+    #[prop(into)] save: RwSignal<()>,
+) -> impl IntoView {
     view! {
         <Card>
-            <div class="flex px-8 py-12">
+            <div class="flex px-8 py-12 items-start">
                 <div class="grow flex flex-col gap-y-2">
                     <div class="text-2xl">
                         {job.get().pipeline}
@@ -18,6 +21,9 @@ pub fn CronJobsEditDetails(#[prop(into)] job: Signal<CronJobResponse>) -> impl I
                         <Badge>"Created on: " {move || job.get().date_created}</Badge>
                         <Badge>"Updated on: " {move || job.get().date_updated}</Badge>
                     </div>
+                </div>
+                <div class="min-w-40">
+                    <Button on:click=move |_| save.set(())>"Save"</Button>
                 </div>
             </div>
         </Card>

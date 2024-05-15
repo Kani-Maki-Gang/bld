@@ -179,7 +179,11 @@ pub fn RunPipeline() -> impl IntoView {
                             </div>
                         </div>
                         <div class="min-w-40">
-                            <Button on:click=move |_| start_run.dispatch((name().unwrap(), variables.get(), environment.get()))>Start</Button>
+                            <Button on:click={move |_| {
+                                start_run.dispatch((name().unwrap(), variables.get(), environment.get()))
+                            }}>
+                                "Start"
+                            </Button>
                         </div>
                     </div>
                 </div>

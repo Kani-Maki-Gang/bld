@@ -3,17 +3,23 @@ mod schedule;
 
 use crate::pages::home::{PipelineVariable, RunPipelineVariables};
 use anyhow::{anyhow, bail, Result};
-use bld_models::dtos::{CronJobResponse, JobFiltersParams, PipelineInfoQueryParams};
-use bld_runner::{
-    pipeline::{v1, v2},
-    VersionedPipeline,
+use bld_models::dtos::{
+    CronJobResponse, JobFiltersParams, PipelineInfoQueryParams, UpdateJobRequest,
 };
+use bld_runner::VersionedPipeline;
 use details::CronJobsEditDetails;
 use leptos::{leptos_dom::logging, *};
 use leptos_router::*;
 use reqwest::Client;
 use schedule::CronJobsEditSchedule;
 use std::collections::HashMap;
+
+type SaveCronJob = (
+    String,
+    String,
+    HashMap<String, String>,
+    HashMap<String, String>,
+);
 
 fn into_pipeline_variables(
     pipeline_items: HashMap<String, String>,
@@ -34,6 +40,13 @@ fn into_pipeline_variables(
                 value: create_rw_signal(value),
             }
         })
+        .collect()
+}
+
+fn into_hash_map(items: Vec<PipelineVariable>) -> HashMap<String, String> {
+    items
+        .into_iter()
+        .map(|item| (item.name, item.value.get_untracked()))
         .collect()
 }
 
@@ -105,6 +118,32 @@ async fn fetch_all_data(
     cron.set(cron_resp);
 }
 
+async fn update_cron(
+    id: String,
+    schedule: String,
+    variables: Option<HashMap<String, String>>,
+    environment: Option<HashMap<String, String>>,
+) -> Result<()> {
+    let data = UpdateJobRequest::new(id, schedule, variables, environment);
+
+    let res = Client::builder()
+        .build()?
+        .patch("http://localhost:6080/v1/cron")
+        .json(&data)
+        .send()
+        .await?;
+
+    if res.status().is_success() {
+        let nav = use_navigate();
+        nav("/cron?={}", NavigateOptions::default());
+        Ok(())
+    } else {
+        let msg = format!("Request failed with status: {}", res.status());
+        logging::console_error(&msg);
+        bail!(msg)
+    }
+}
+
 #[component]
 pub fn CronJobsEdit() -> impl IntoView {
     let params = use_query_map();
@@ -114,6 +153,7 @@ pub fn CronJobsEdit() -> impl IntoView {
     let schedule = create_rw_signal(String::new());
     let variables = create_rw_signal(vec![]);
     let environment = create_rw_signal(vec![]);
+    let save = create_rw_signal(());
 
     create_resource(
         move || (id(), set_pipeline, set_cron),
@@ -132,6 +172,27 @@ pub fn CronJobsEdit() -> impl IntoView {
         environment.set(into_pipeline_variables(env, cron.environment));
     });
 
+    let save_action = create_action(|args: &SaveCronJob| {
+        let (id, schedule, vars, env) = args;
+        let id = id.clone();
+        let schedule = schedule.clone();
+        let vars = Some(vars.clone());
+        let env = Some(env.clone());
+        async move { update_cron(id, schedule, vars, env).await }
+    });
+
+    let _ = watch(
+        move || save.get(),
+        move |_, _, _| {
+            let vars = into_hash_map(variables.get_untracked());
+            let env = into_hash_map(environment.get_untracked());
+            let schedule = schedule.get_untracked();
+            let id = id().unwrap_or_default();
+            save_action.dispatch((id, schedule, vars, env));
+        },
+        false,
+    );
+
     view! {
         <Show
             when=move || cron.get().is_some()
@@ -141,7 +202,9 @@ pub fn CronJobsEdit() -> impl IntoView {
                 </div>
             }>
             <div class="flex flex-col gap-4">
-                <CronJobsEditDetails job=move || cron.get().unwrap() />
+                <CronJobsEditDetails
+                    job=move || cron.get().unwrap()
+                    save=save />
                 <CronJobsEditSchedule schedule=schedule />
                 <Show
                     when=move || !variables.get().is_empty()
