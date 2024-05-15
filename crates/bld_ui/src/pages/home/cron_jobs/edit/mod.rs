@@ -153,7 +153,6 @@ pub fn CronJobsEdit() -> impl IntoView {
     let schedule = create_rw_signal(String::new());
     let variables = create_rw_signal(vec![]);
     let environment = create_rw_signal(vec![]);
-    let save = create_rw_signal(());
 
     create_resource(
         move || (id(), set_pipeline, set_cron),
