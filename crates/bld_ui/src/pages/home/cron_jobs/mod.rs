@@ -6,9 +6,9 @@ use crate::components::card::Card;
 use bld_models::dtos::JobFiltersParams;
 use filters::CronJobsFilters;
 use leptos::*;
-use table::CronJobsTable;
 
 pub use edit::CronJobsEdit;
+pub use table::CronJobsTable;
 
 fn get_params(limit: String, pipeline: String) -> Option<JobFiltersParams> {
     Some(JobFiltersParams::new(
