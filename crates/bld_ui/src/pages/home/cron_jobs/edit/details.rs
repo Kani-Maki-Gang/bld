@@ -3,9 +3,9 @@ use bld_models::dtos::CronJobResponse;
 use leptos::*;
 
 #[component]
-pub fn CronJobsEditDetails(
+pub fn CronJobsEditDetails<F: Fn() -> () + 'static>(
     #[prop(into)] job: Signal<CronJobResponse>,
-    #[prop(into)] save: RwSignal<()>,
+    save: F
 ) -> impl IntoView {
     view! {
         <Card>
@@ -23,7 +23,7 @@ pub fn CronJobsEditDetails(
                     </div>
                 </div>
                 <div class="min-w-40">
-                    <Button on:click=move |_| save.set(())>"Save"</Button>
+                    <Button on:click=move |_| save()>"Save"</Button>
                 </div>
             </div>
         </Card>

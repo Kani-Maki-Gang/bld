@@ -17,8 +17,8 @@ use std::collections::HashMap;
 type SaveCronJob = (
     String,
     String,
-    HashMap<String, String>,
-    HashMap<String, String>,
+    Vec<PipelineVariable>,
+    Vec<PipelineVariable>
 );
 
 fn into_pipeline_variables(
@@ -176,22 +176,10 @@ pub fn CronJobsEdit() -> impl IntoView {
         let (id, schedule, vars, env) = args;
         let id = id.clone();
         let schedule = schedule.clone();
-        let vars = Some(vars.clone());
-        let env = Some(env.clone());
+        let vars = Some(into_hash_map(vars.clone()));
+        let env = Some(into_hash_map(env.clone()));
         async move { update_cron(id, schedule, vars, env).await }
     });
-
-    let _ = watch(
-        move || save.get(),
-        move |_, _, _| {
-            let vars = into_hash_map(variables.get_untracked());
-            let env = into_hash_map(environment.get_untracked());
-            let schedule = schedule.get_untracked();
-            let id = id().unwrap_or_default();
-            save_action.dispatch((id, schedule, vars, env));
-        },
-        false,
-    );
 
     view! {
         <Show
@@ -204,7 +192,7 @@ pub fn CronJobsEdit() -> impl IntoView {
             <div class="flex flex-col gap-4">
                 <CronJobsEditDetails
                     job=move || cron.get().unwrap()
-                    save=save />
+                    save=move || save_action.dispatch((id().unwrap(), schedule.get(), variables.get(), environment.get()))/>
                 <CronJobsEditSchedule schedule=schedule />
                 <Show
                     when=move || !variables.get().is_empty()
