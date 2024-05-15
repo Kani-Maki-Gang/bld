@@ -1,7 +1,7 @@
 mod artifacts;
 mod details;
 mod external;
-mod history;
+mod hist_and_cron;
 mod jobs;
 mod variables;
 
@@ -11,7 +11,7 @@ use leptos::{leptos_dom::logging, *};
 
 use {
     artifacts::PipelineArtifactsV2, details::PipelineDetailsV2, external::PipelineExternalV2,
-    history::PipelineHistoryV2, jobs::PipelineJobsV2, variables::PipelineVariablesV2,
+    hist_and_cron::PipelineHistAndCronV2, jobs::PipelineJobsV2, variables::PipelineVariablesV2,
 };
 
 #[component]
@@ -61,7 +61,7 @@ pub fn PipelineV2(
                             environment=move || pipeline().unwrap().environment />
                         <PipelineArtifactsV2 artifacts=move || pipeline().unwrap().artifacts />
                     </div>
-                    <PipelineHistoryV2 name=move || name.get() />
+                    <PipelineHistAndCronV2 name=move || name.get() />
                 </Show>
                 <Show
                     when=move || selected_group_item.get() == "rawfile"
