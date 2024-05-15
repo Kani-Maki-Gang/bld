@@ -14,12 +14,7 @@ use reqwest::Client;
 use schedule::CronJobsEditSchedule;
 use std::collections::HashMap;
 
-type SaveCronJob = (
-    String,
-    String,
-    Vec<PipelineVariable>,
-    Vec<PipelineVariable>
-);
+type SaveCronJob = (String, String, Vec<PipelineVariable>, Vec<PipelineVariable>);
 
 fn into_pipeline_variables(
     pipeline_items: HashMap<String, String>,
@@ -191,7 +186,13 @@ pub fn CronJobsEdit() -> impl IntoView {
             <div class="flex flex-col gap-4">
                 <CronJobsEditDetails
                     job=move || cron.get().unwrap()
-                    save=move || save_action.dispatch((id().unwrap(), schedule.get(), variables.get(), environment.get()))/>
+                    save=move || {
+                        save_action.dispatch((
+                            id().unwrap(),
+                            schedule.get(),
+                            variables.get(),
+                            environment.get()))
+                    }/>
                 <CronJobsEditSchedule schedule=schedule />
                 <Show
                     when=move || !variables.get().is_empty()

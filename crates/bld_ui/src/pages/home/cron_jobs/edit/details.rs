@@ -5,7 +5,7 @@ use leptos::*;
 #[component]
 pub fn CronJobsEditDetails<F: Fn() -> () + 'static>(
     #[prop(into)] job: Signal<CronJobResponse>,
-    save: F
+    save: F,
 ) -> impl IntoView {
     view! {
         <Card>
