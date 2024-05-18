@@ -80,7 +80,7 @@ impl JobFiltersParams {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct CronJobResponse {
     pub id: String,
     pub schedule: String,
