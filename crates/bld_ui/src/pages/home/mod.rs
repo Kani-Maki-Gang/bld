@@ -1,10 +1,10 @@
-mod cron_jobs;
+mod cron;
 mod dashboard;
 mod history;
 mod monit;
 mod pipelines;
 
-pub use cron_jobs::*;
+pub use cron::*;
 pub use dashboard::*;
 pub use history::*;
 pub use monit::*;
