@@ -18,8 +18,12 @@ pub fn CronJobsEditDetails<F: Fn() -> () + 'static>(
                         <Show when=move || job.get().is_default fallback=|| view!{}>
                             <Badge>"Default"</Badge>
                         </Show>
-                        <Badge>"Created on: " {move || job.get().date_created}</Badge>
-                        <Badge>"Updated on: " {move || job.get().date_updated}</Badge>
+                        <Show when=move || !job.get().date_created.is_empty() fallback=|| view!{}>
+                            <Badge>"Created on: " {move || job.get().date_created}</Badge>
+                        </Show>
+                        <Show when=move || job.get().date_updated.is_some() fallback=|| view!{}>
+                            <Badge>"Updated on: " {move || job.get().date_updated}</Badge>
+                        </Show>
                     </div>
                 </div>
                 <div class="min-w-40">
