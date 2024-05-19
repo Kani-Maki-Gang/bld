@@ -14,9 +14,9 @@ use leptos_router::*;
 use reqwest::Client;
 use serde::Serialize;
 
-use self::variables::{PipelineVariable, RunPipelineVariables};
+use self::variables::RunPipelineVariables;
 
-type RequestInterRepr = (String, Vec<PipelineVariable>, Vec<PipelineVariable>);
+type RequestInterRepr = (String, HashMap<String, RwSignal<String>>, HashMap<String, RwSignal<String>>);
 
 #[derive(Serialize)]
 enum RunParams {
@@ -74,22 +74,17 @@ async fn start_run(name: &str, vars: HashMap<String, String>, env: HashMap<Strin
     }
 }
 
-fn into_pipeline_variables(items: HashMap<String, String>) -> Vec<PipelineVariable> {
+fn hash_map_rw_signals(items: HashMap<String, String>) -> HashMap<String, RwSignal<String>> {
     items
         .into_iter()
-        .enumerate()
-        .map(|(i, (k, v))| PipelineVariable {
-            id: i.to_string(),
-            name: k,
-            value: create_rw_signal(v),
-        })
+        .map(|(k, v)| (k, create_rw_signal(v)))
         .collect()
 }
 
-fn into_hash_map(items: &Vec<PipelineVariable>) -> HashMap<String, String> {
+fn hash_map_strings(items: HashMap<String, RwSignal<String>>) -> HashMap<String, String> {
     items
         .into_iter()
-        .map(|e| (e.name.to_owned(), e.value.get_untracked()))
+        .map(|(k, v)| (k, v.get_untracked()))
         .collect()
 }
 
@@ -99,8 +94,8 @@ pub fn RunPipeline() -> impl IntoView {
     let id = move || params.with(|p| p.get("id").cloned());
     let name = move || params.with(|p| p.get("name").cloned());
     let (data, set_data) = create_signal(None);
-    let variables = create_rw_signal(vec![]);
-    let environment = create_rw_signal(vec![]);
+    let variables = create_rw_signal(HashMap::new());
+    let environment = create_rw_signal(HashMap::new());
 
     let _ = create_resource(
         move || (id(), set_data),
@@ -123,8 +118,8 @@ pub fn RunPipeline() -> impl IntoView {
     let start_run = create_action(|args: &RequestInterRepr| {
         let (name, vars, env) = args;
         let name = name.to_owned();
-        let vars = into_hash_map(vars);
-        let env = into_hash_map(env);
+        let vars = hash_map_strings(vars.clone());
+        let env = hash_map_strings(env.clone());
         async move { start_run(&name, vars, env).await }
     });
 
@@ -139,8 +134,8 @@ pub fn RunPipeline() -> impl IntoView {
             environment: env,
             ..
         })) => {
-            variables.set(into_pipeline_variables(var));
-            environment.set(into_pipeline_variables(env));
+            variables.set(hash_map_rw_signals(var));
+            environment.set(hash_map_rw_signals(env));
         }
         _ => {}
     });

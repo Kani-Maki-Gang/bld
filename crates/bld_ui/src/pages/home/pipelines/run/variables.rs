@@ -1,18 +1,12 @@
 use crate::components::{card::Card, input::Input};
 use leptos::*;
-
-#[derive(Debug, Clone)]
-pub struct PipelineVariable {
-    pub id: String,
-    pub name: String,
-    pub value: RwSignal<String>,
-}
+use std::collections::HashMap;
 
 #[component]
 pub fn RunPipelineVariables(
     #[prop(into)] title: String,
     #[prop(into)] subtitle: String,
-    #[prop(into)] items: Signal<Vec<PipelineVariable>>,
+    #[prop(into)] items: Signal<HashMap<String, RwSignal<String>>>,
 ) -> impl IntoView {
     view! {
         <Card>
@@ -25,14 +19,14 @@ pub fn RunPipelineVariables(
                 </div>
                 <div class="grid grid-cols-3 gap-4">
                     <For
-                        each=move || items.get()
-                        key=|i| i.id.clone()
+                        each=move || items.get().into_iter().enumerate()
+                        key=|(i, _)| *i
                         let:item>
                         <div>
-                            {item.name}
+                            {item.1.0}
                         </div>
                         <div class="col-span-2">
-                            <Input value=item.value />
+                            <Input value=item.1.1 />
                         </div>
                     </For>
                 </div>

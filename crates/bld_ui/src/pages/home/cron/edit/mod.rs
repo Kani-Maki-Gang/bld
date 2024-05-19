@@ -1,7 +1,7 @@
 mod details;
 mod schedule;
 
-use crate::pages::home::{PipelineVariable, RunPipelineVariables};
+use crate::pages::home::RunPipelineVariables;
 use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::{
     AddJobRequest, CronJobResponse, JobFiltersParams, PipelineInfoQueryParams, UpdateJobRequest
@@ -18,36 +18,31 @@ type SaveCronJob = (
     Option<String>,
     Option<String>,
     String,
-    Vec<PipelineVariable>,
-    Vec<PipelineVariable>,
+    HashMap<String, RwSignal<String>>,
+    HashMap<String, RwSignal<String>>,
 );
 
-fn into_pipeline_variables(
+fn hash_map_rw_signals(
     pipeline_items: HashMap<String, String>,
     mut cron_items: Option<HashMap<String, String>>,
-) -> Vec<PipelineVariable> {
+) -> HashMap<String, RwSignal<String>> {
     pipeline_items
         .into_iter()
-        .enumerate()
-        .map(|(i, (k, v))| {
+        .map(|(k, v)| {
             let value = cron_items
                 .as_mut()
                 .and_then(|c| c.remove(&k))
                 .unwrap_or_else(|| v);
 
-            PipelineVariable {
-                id: i.to_string(),
-                name: k,
-                value: create_rw_signal(value),
-            }
+            (k, create_rw_signal(value))
         })
         .collect()
 }
 
-fn into_hash_map(items: Vec<PipelineVariable>) -> HashMap<String, String> {
+fn hash_map_strings(items: HashMap<String, RwSignal<String>>) -> HashMap<String, String> {
     items
         .into_iter()
-        .map(|item| (item.name, item.value.get_untracked()))
+        .map(|(k, v)| (k, v.get_untracked()))
         .collect()
 }
 
@@ -200,8 +195,8 @@ pub fn CronJobsEdit() -> impl IntoView {
     let (cron, set_cron) = create_signal(None);
     let (pipeline, set_pipeline) = create_signal(None);
     let schedule = create_rw_signal(String::new());
-    let variables = create_rw_signal(vec![]);
-    let environment = create_rw_signal(vec![]);
+    let variables = create_rw_signal(HashMap::new());
+    let environment = create_rw_signal(HashMap::new());
 
     create_resource(
         move || (id(), name(), is_new(), set_pipeline, set_cron),
@@ -220,8 +215,8 @@ pub fn CronJobsEdit() -> impl IntoView {
         };
         schedule.set(cron.schedule);
         let (vars, env) = pipeline.variables_and_environment();
-        variables.set(into_pipeline_variables(vars, cron.variables));
-        environment.set(into_pipeline_variables(env, cron.environment));
+        variables.set(hash_map_rw_signals(vars, cron.variables));
+        environment.set(hash_map_rw_signals(env, cron.environment));
     });
 
     let save_action = create_action(|args: &SaveCronJob| {
@@ -229,8 +224,8 @@ pub fn CronJobsEdit() -> impl IntoView {
         let id = id.as_ref().cloned();
         let name = name.as_ref().cloned();
         let schedule = schedule.clone();
-        let vars = Some(into_hash_map(vars.clone()));
-        let env = Some(into_hash_map(env.clone()));
+        let vars = Some(hash_map_strings(vars.clone()));
+        let env = Some(hash_map_strings(env.clone()));
         async move {
             if let Some(name) = name {
                 let _ = insert_cron(name, schedule, vars, env).await;

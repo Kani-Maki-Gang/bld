@@ -15,7 +15,7 @@ use reqwest::Client;
 
 pub use info::PipelineInfo;
 pub use run::{
-    variables::{PipelineVariable, RunPipelineVariables},
+    variables::RunPipelineVariables,
     RunPipeline,
 };
 
