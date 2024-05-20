@@ -14,20 +14,6 @@ use reqwest::Client;
 use schedule::CronJobsEditSchedule;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, PartialEq)]
-enum Operation {
-    Insert(String),
-    Update(String),
-    None,
-}
-
-type SaveCronJob = (
-    Operation,
-    String,
-    HashMap<String, RwSignal<String>>,
-    HashMap<String, RwSignal<String>>,
-);
-
 fn hash_map_rw_signals(
     pipeline_items: HashMap<String, String>,
     mut cron_items: Option<HashMap<String, String>>,
@@ -91,106 +77,130 @@ async fn get_pipeline(name: String) -> Result<Option<VersionedPipeline>> {
         let body = res.text().await?;
         Ok(serde_json::from_str(&body)?)
     } else {
-        bail!("unable to fetch pipeline")
+        bail!("Request failed with status: {}", res.status())
     }
 }
 
-async fn fetch_by_id(
-    id: String,
-    pipeline: WriteSignal<Option<VersionedPipeline>>,
-    cron: WriteSignal<Option<CronJobResponse>>,
-) {
-    let cron_resp = get_cron(id)
-        .await
-        .map_err(|e| logging::console_error(e.to_string().as_str()))
-        .ok();
+#[derive(Debug, Clone, PartialEq)]
+enum Operation {
+    Insert(String),
+    Update(String),
+    None,
+}
 
-    if let Some(name) = cron_resp.as_ref().map(|x| x.pipeline.clone()) {
-        let pipeline_resp = get_pipeline(name)
-            .await
-            .map_err(|e| logging::console_error(e.to_string().as_str()))
-            .ok();
+impl Operation {
+    pub async fn load(
+        &self,
+        pipeline: WriteSignal<Option<VersionedPipeline>>,
+        cron: WriteSignal<Option<CronJobResponse>>,
+    ) {
+        match self {
+            Operation::Insert(name) => {
+                let job = CronJobResponse {
+                    pipeline: name.clone(),
+                    ..Default::default()
+                };
 
-        if let Some(pipeline_resp) = pipeline_resp {
-            pipeline.set(pipeline_resp);
+                let pipeline_resp = get_pipeline(name.to_string())
+                    .await
+                    .map_err(|e| logging::console_error(e.to_string().as_str()))
+                    .ok();
+
+                if let Some(pipeline_resp) = pipeline_resp {
+                    pipeline.set(pipeline_resp);
+                    cron.set(Some(job));
+                }
+            }
+
+            Operation::Update(id) => {
+                let cron_resp = get_cron(id.to_string())
+                    .await
+                    .map_err(|e| logging::console_error(e.to_string().as_str()))
+                    .ok();
+
+                if let Some(name) = cron_resp.as_ref().map(|x| x.pipeline.clone()) {
+                    let pipeline_resp = get_pipeline(name)
+                        .await
+                        .map_err(|e| logging::console_error(e.to_string().as_str()))
+                        .ok();
+
+                    if let Some(pipeline_resp) = pipeline_resp {
+                        pipeline.set(pipeline_resp);
+                    }
+                }
+
+                cron.set(cron_resp);
+            }
+
+            Operation::None => {}
         }
     }
 
-    cron.set(cron_resp);
-}
+    pub async fn save(
+        &self,
+        schedule: String,
+        variables: HashMap<String, String>,
+        environment: HashMap<String, String>,
+    ) -> Result<()> {
+        let resp = match self {
+            Operation::Insert(name) => {
+                let data = AddJobRequest::new(
+                    schedule,
+                    name.to_string(),
+                    Some(variables),
+                    Some(environment),
+                    false,
+                );
+                let resp = Client::builder()
+                    .build()?
+                    .post("http://localhost:6080/v1/cron")
+                    .json(&data)
+                    .send()
+                    .await?;
+                Some(resp)
+            }
 
-async fn fetch_by_name(
-    name: String,
-    pipeline: WriteSignal<Option<VersionedPipeline>>,
-    cron: WriteSignal<Option<CronJobResponse>>,
-) {
-    let job = CronJobResponse {
-        pipeline: name.clone(),
-        ..Default::default()
-    };
+            Operation::Update(id) => {
+                let data = UpdateJobRequest::new(
+                    id.to_string(),
+                    schedule,
+                    Some(variables),
+                    Some(environment),
+                );
+                let resp = Client::builder()
+                    .build()?
+                    .patch("http://localhost:6080/v1/cron")
+                    .json(&data)
+                    .send()
+                    .await?;
+                Some(resp)
+            }
 
-    let pipeline_resp = get_pipeline(name)
-        .await
-        .map_err(|e| logging::console_error(e.to_string().as_str()))
-        .ok();
+            Operation::None => None,
+        };
 
-    if let Some(pipeline_resp) = pipeline_resp {
-        pipeline.set(pipeline_resp);
-        cron.set(Some(job));
+        if resp
+            .as_ref()
+            .map(|r| r.status().is_success())
+            .unwrap_or_default()
+        {
+            let nav = use_navigate();
+            nav("/cron?={}", NavigateOptions::default());
+            Ok(())
+        } else {
+            let msg = format!("Request failed with status: {:?}", resp);
+            logging::console_error(&msg);
+            bail!(msg)
+        }
     }
 }
 
-async fn update_cron(
-    id: String,
-    schedule: String,
-    variables: Option<HashMap<String, String>>,
-    environment: Option<HashMap<String, String>>,
-) -> Result<()> {
-    let data = UpdateJobRequest::new(id, schedule, variables, environment);
-
-    let res = Client::builder()
-        .build()?
-        .patch("http://localhost:6080/v1/cron")
-        .json(&data)
-        .send()
-        .await?;
-
-    if res.status().is_success() {
-        let nav = use_navigate();
-        nav("/cron?={}", NavigateOptions::default());
-        Ok(())
-    } else {
-        let msg = format!("Request failed with status: {}", res.status());
-        logging::console_error(&msg);
-        bail!(msg)
-    }
-}
-
-async fn insert_cron(
-    name: String,
-    schedule: String,
-    variables: Option<HashMap<String, String>>,
-    environment: Option<HashMap<String, String>>,
-) -> Result<()> {
-    let data = AddJobRequest::new(schedule, name, variables, environment, false);
-
-    let res = Client::builder()
-        .build()?
-        .post("http://localhost:6080/v1/cron")
-        .json(&data)
-        .send()
-        .await?;
-
-    if res.status().is_success() {
-        let nav = use_navigate();
-        nav("/cron?={}", NavigateOptions::default());
-        Ok(())
-    } else {
-        let msg = format!("Request failed with status: {}", res.status());
-        logging::console_error(&msg);
-        bail!(msg)
-    }
-}
+type SaveCronJob = (
+    Operation,
+    String,
+    HashMap<String, RwSignal<String>>,
+    HashMap<String, RwSignal<String>>,
+);
 
 #[component]
 pub fn CronJobsEdit() -> impl IntoView {
@@ -217,11 +227,7 @@ pub fn CronJobsEdit() -> impl IntoView {
     create_resource(
         move || (operation(), set_pipeline, set_cron),
         |(operation, set_pipeline, set_cron)| async move {
-            match operation {
-                Operation::Insert(name) => fetch_by_name(name, set_pipeline, set_cron).await,
-                Operation::Update(id) => fetch_by_id(id, set_pipeline, set_cron).await,
-                Operation::None => {}
-            }
+            operation.load(set_pipeline, set_cron).await;
         },
     );
 
@@ -239,14 +245,13 @@ pub fn CronJobsEdit() -> impl IntoView {
         let (operation, schedule, vars, env) = args;
         let operation = operation.clone();
         let schedule = schedule.clone();
-        let vars = Some(hash_map_strings(vars.clone()));
-        let env = Some(hash_map_strings(env.clone()));
+        let vars = hash_map_strings(vars.clone());
+        let env = hash_map_strings(env.clone());
         async move {
-            match operation {
-                Operation::Insert(name) => insert_cron(name, schedule, vars, env).await,
-                Operation::Update(id) => update_cron(id, schedule, vars, env).await,
-                Operation::None => Ok(()),
-            }
+            let _ = operation
+                .save(schedule, vars, env)
+                .await
+                .map_err(|e| logging::console_error(&e.to_string()));
         }
     });
 
