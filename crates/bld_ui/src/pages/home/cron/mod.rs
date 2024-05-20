@@ -1,14 +1,18 @@
 mod edit;
 mod filters;
+mod helpers;
+mod insert;
 mod table;
+mod update;
 
 use crate::components::card::Card;
 use bld_models::dtos::JobFiltersParams;
 use filters::CronJobsFilters;
 use leptos::*;
 
-pub use edit::CronJobsEdit;
+pub use insert::CronJobInsert;
 pub use table::CronJobsTable;
+pub use update::CronJobUpdate;
 
 fn get_params(limit: String, pipeline: String) -> Option<JobFiltersParams> {
     Some(JobFiltersParams::new(

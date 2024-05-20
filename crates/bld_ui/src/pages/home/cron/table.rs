@@ -27,7 +27,7 @@ fn into_table_rows(data: Vec<CronJobResponse>) -> Vec<TableRow> {
         .map(|item| TableRow {
             columns: vec![
                 view! {
-                    <Link href=format!("cron/edit?id={}", item.id)>
+                    <Link href=format!("cron/update?id={}", item.id)>
                         {item.id}
                     </Link>
                 }

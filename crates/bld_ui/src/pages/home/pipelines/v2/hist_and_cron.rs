@@ -60,7 +60,7 @@ pub fn PipelineHistAndCronV2(#[prop(into)] name: Signal<Option<String>>) -> impl
                         <div class="min-w-40">
                             <Button on:click=move |_| {
                                 let nav = use_navigate();
-                                nav(&format!("cron/edit?name={}&new=true", name.get().unwrap_or_default()), NavigateOptions::default());
+                                nav(&format!("cron/insert?name={}", name.get().unwrap_or_default()), NavigateOptions::default());
                             }>
                                 "Add new"
                             </Button>
