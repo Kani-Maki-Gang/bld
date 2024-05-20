@@ -4,7 +4,7 @@ mod schedule;
 use crate::pages::home::RunPipelineVariables;
 use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::{
-    AddJobRequest, CronJobResponse, JobFiltersParams, PipelineInfoQueryParams, UpdateJobRequest
+    AddJobRequest, CronJobResponse, JobFiltersParams, PipelineInfoQueryParams, UpdateJobRequest,
 };
 use bld_runner::VersionedPipeline;
 use details::CronJobsEditDetails;
@@ -14,9 +14,15 @@ use reqwest::Client;
 use schedule::CronJobsEditSchedule;
 use std::collections::HashMap;
 
+#[derive(Debug, Clone, PartialEq)]
+enum Operation {
+    Insert(String),
+    Update(String),
+    None,
+}
+
 type SaveCronJob = (
-    Option<String>,
-    Option<String>,
+    Operation,
     String,
     HashMap<String, RwSignal<String>>,
     HashMap<String, RwSignal<String>>,
@@ -46,8 +52,7 @@ fn hash_map_strings(items: HashMap<String, RwSignal<String>>) -> HashMap<String,
         .collect()
 }
 
-async fn get_cron(id: Option<String>) -> Result<CronJobResponse> {
-    let id = id.ok_or_else(|| anyhow!("No id provided"))?;
+async fn get_cron(id: String) -> Result<CronJobResponse> {
     let params = JobFiltersParams {
         id: Some(id),
         ..Default::default()
@@ -71,8 +76,7 @@ async fn get_cron(id: Option<String>) -> Result<CronJobResponse> {
     }
 }
 
-async fn get_pipeline(name: Option<String>) -> Result<Option<VersionedPipeline>> {
-    let name = name.ok_or_else(|| anyhow!("No name provided"))?;
+async fn get_pipeline(name: String) -> Result<Option<VersionedPipeline>> {
     let params = PipelineInfoQueryParams::Name { name };
 
     let res = Client::builder()
@@ -92,7 +96,7 @@ async fn get_pipeline(name: Option<String>) -> Result<Option<VersionedPipeline>>
 }
 
 async fn fetch_by_id(
-    id: Option<String>,
+    id: String,
     pipeline: WriteSignal<Option<VersionedPipeline>>,
     cron: WriteSignal<Option<CronJobResponse>>,
 ) {
@@ -101,27 +105,29 @@ async fn fetch_by_id(
         .map_err(|e| logging::console_error(e.to_string().as_str()))
         .ok();
 
-    let pipeline_resp = get_pipeline(cron_resp.as_ref().map(|x| x.pipeline.clone()))
-        .await
-        .map_err(|e| logging::console_error(e.to_string().as_str()))
-        .ok();
+    if let Some(name) = cron_resp.as_ref().map(|x| x.pipeline.clone()) {
+        let pipeline_resp = get_pipeline(name)
+            .await
+            .map_err(|e| logging::console_error(e.to_string().as_str()))
+            .ok();
 
-    if let Some(pipeline_resp) = pipeline_resp {
-        pipeline.set(pipeline_resp);
+        if let Some(pipeline_resp) = pipeline_resp {
+            pipeline.set(pipeline_resp);
+        }
     }
 
     cron.set(cron_resp);
 }
 
 async fn fetch_by_name(
-    name: Option<String>,
+    name: String,
     pipeline: WriteSignal<Option<VersionedPipeline>>,
     cron: WriteSignal<Option<CronJobResponse>>,
 ) {
-    let job = name.as_ref().map(|name| CronJobResponse {
+    let job = CronJobResponse {
         pipeline: name.clone(),
         ..Default::default()
-    });
+    };
 
     let pipeline_resp = get_pipeline(name)
         .await
@@ -130,7 +136,7 @@ async fn fetch_by_name(
 
     if let Some(pipeline_resp) = pipeline_resp {
         pipeline.set(pipeline_resp);
-        cron.set(job);
+        cron.set(Some(job));
     }
 }
 
@@ -164,7 +170,7 @@ async fn insert_cron(
     name: String,
     schedule: String,
     variables: Option<HashMap<String, String>>,
-    environment: Option<HashMap<String, String>>
+    environment: Option<HashMap<String, String>>,
 ) -> Result<()> {
     let data = AddJobRequest::new(schedule, name, variables, environment, false);
 
@@ -189,22 +195,32 @@ async fn insert_cron(
 #[component]
 pub fn CronJobsEdit() -> impl IntoView {
     let params = use_query_map();
-    let id = move || params.with(|p| p.get("id").cloned());
-    let name = move || params.with(|p| p.get("name").cloned());
-    let is_new = move || params.with(|p| p.get("new").is_some());
     let (cron, set_cron) = create_signal(None);
     let (pipeline, set_pipeline) = create_signal(None);
     let schedule = create_rw_signal(String::new());
     let variables = create_rw_signal(HashMap::new());
     let environment = create_rw_signal(HashMap::new());
 
+    let operation = move || {
+        let id = params.with(|p| p.get("id").cloned());
+        let name = params.with(|p| p.get("name").cloned());
+        let is_new = params.with(|p| p.get("new").is_some());
+        if is_new && name.is_some() {
+            Operation::Insert(name.unwrap())
+        } else if id.is_some() {
+            Operation::Update(id.unwrap())
+        } else {
+            Operation::None
+        }
+    };
+
     create_resource(
-        move || (id(), name(), is_new(), set_pipeline, set_cron),
-        |(id, name, is_new, set_pipeline, set_cron)| async move {
-            if is_new && name.is_some() {
-                fetch_by_name(name, set_pipeline, set_cron).await;
-            } else {
-                fetch_by_id(id, set_pipeline, set_cron).await;
+        move || (operation(), set_pipeline, set_cron),
+        |(operation, set_pipeline, set_cron)| async move {
+            match operation {
+                Operation::Insert(name) => fetch_by_name(name, set_pipeline, set_cron).await,
+                Operation::Update(id) => fetch_by_id(id, set_pipeline, set_cron).await,
+                Operation::None => {}
             }
         },
     );
@@ -220,17 +236,16 @@ pub fn CronJobsEdit() -> impl IntoView {
     });
 
     let save_action = create_action(|args: &SaveCronJob| {
-        let (id, name, schedule, vars, env) = args;
-        let id = id.as_ref().cloned();
-        let name = name.as_ref().cloned();
+        let (operation, schedule, vars, env) = args;
+        let operation = operation.clone();
         let schedule = schedule.clone();
         let vars = Some(hash_map_strings(vars.clone()));
         let env = Some(hash_map_strings(env.clone()));
         async move {
-            if let Some(name) = name {
-                let _ = insert_cron(name, schedule, vars, env).await;
-            } else if let Some(id) = id {
-                let _ = update_cron(id, schedule, vars, env).await;
+            match operation {
+                Operation::Insert(name) => insert_cron(name, schedule, vars, env).await,
+                Operation::Update(id) => update_cron(id, schedule, vars, env).await,
+                Operation::None => Ok(()),
             }
         }
     });
@@ -248,8 +263,7 @@ pub fn CronJobsEdit() -> impl IntoView {
                     job=move || cron.get().unwrap()
                     save=move || {
                         save_action.dispatch((
-                            id(),
-                            name(),
+                            operation(),
                             schedule.get(),
                             variables.get(),
                             environment.get()))

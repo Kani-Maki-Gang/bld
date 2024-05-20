@@ -16,7 +16,11 @@ use serde::Serialize;
 
 use self::variables::RunPipelineVariables;
 
-type RequestInterRepr = (String, HashMap<String, RwSignal<String>>, HashMap<String, RwSignal<String>>);
+type RequestInterRepr = (
+    String,
+    HashMap<String, RwSignal<String>>,
+    HashMap<String, RwSignal<String>>,
+);
 
 #[derive(Serialize)]
 enum RunParams {
