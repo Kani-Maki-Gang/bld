@@ -27,6 +27,24 @@ async fn update(data: UpdateJobRequest) -> Result<()> {
     }
 }
 
+async fn delete(id: String) -> Result<()> {
+    let resp = Client::builder()
+        .build()?
+        .delete(format!("http://localhost:6080/v1/cron/{}", id))
+        .send()
+        .await?;
+
+    if resp.status().is_success() {
+        let nav = use_navigate();
+        nav("/cron?={}", NavigateOptions::default());
+        Ok(())
+    } else {
+        let msg = format!("Request failed with status: {:?}", resp);
+        logging::console_error(&msg);
+        bail!(msg)
+    }
+}
+
 #[component]
 pub fn CronJobUpdate() -> impl IntoView {
     let params = use_query_map();
@@ -34,6 +52,7 @@ pub fn CronJobUpdate() -> impl IntoView {
     let (cron, set_cron) = create_signal(None);
     let (pipeline, set_pipeline) = create_signal(None);
     let (save, set_save) = create_signal(None);
+    let (get_delete, set_delete) = create_signal(());
 
     create_resource(
         move || (id(), set_pipeline, set_cron),
@@ -78,13 +97,34 @@ pub fn CronJobUpdate() -> impl IntoView {
         }
     });
 
+    let delete_action = create_action(|args: &String| {
+        let id = args.clone();
+        async move {
+            let _ = delete(id).await;
+        }
+    });
+
     create_effect(move |_| {
         if let Some(data) = save.get() {
             save_action.dispatch((id(), data));
         }
     });
 
+    let _ = watch(
+        move || (get_delete.get(), id()),
+        move |args: &((), Option<String>), _, _| {
+            let ((), id) = args;
+            if let Some(id) = id.as_ref().cloned() {
+                delete_action.dispatch(id);
+            }
+        },
+        false);
+
     view! {
-        <CronJobsEdit cron=cron pipeline=pipeline save=set_save />
+        <CronJobsEdit
+            cron=cron
+            pipeline=pipeline
+            save=set_save
+            delete=set_delete />
     }
 }

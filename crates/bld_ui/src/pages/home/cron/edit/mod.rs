@@ -21,6 +21,7 @@ pub fn CronJobsEdit(
     #[prop(into)] cron: Signal<Option<CronJobResponse>>,
     #[prop(into)] pipeline: Signal<Option<VersionedPipeline>>,
     #[prop(into)] save: WriteSignal<Option<SaveCronJob>>,
+    #[prop(into, optional)] delete: Option<WriteSignal<()>>
 ) -> impl IntoView {
     let schedule = create_rw_signal(String::new());
     let variables = create_rw_signal(HashMap::new());
@@ -48,7 +49,8 @@ pub fn CronJobsEdit(
             <div class="flex flex-col gap-4">
                 <CronJobsEditDetails
                     job=move || cron.get().unwrap()
-                    save=move || save.set(Some(save_data())) />
+                    save=move || save.set(Some(save_data()))
+                    delete=delete />
                 <CronJobsEditSchedule schedule=schedule />
                 <Show
                     when=move || !variables.get().is_empty()

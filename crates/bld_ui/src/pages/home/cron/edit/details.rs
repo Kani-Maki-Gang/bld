@@ -6,10 +6,11 @@ use leptos::*;
 pub fn CronJobsEditDetails<F: Fn() -> () + 'static>(
     #[prop(into)] job: Signal<CronJobResponse>,
     save: F,
+    delete: Option<WriteSignal<()>>
 ) -> impl IntoView {
     view! {
         <Card>
-            <div class="flex px-8 py-12 items-start">
+            <div class="flex px-8 py-12 items-start gap-2">
                 <div class="grow flex flex-col gap-y-2">
                     <div class="text-2xl">
                         {job.get().pipeline}
@@ -29,6 +30,17 @@ pub fn CronJobsEditDetails<F: Fn() -> () + 'static>(
                 <div class="min-w-40">
                     <Button on:click=move |_| save()>"Save"</Button>
                 </div>
+                <Show when=move || delete.is_some() fallback=|| view!{}>
+                    <div class="min-w-40">
+                        <Button on:click=move |_| {
+                            if let Some(delete) = delete {
+                                delete.set(());
+                            }
+                        }>
+                            "Delete"
+                        </Button>
+                    </div>
+                </Show>
             </div>
         </Card>
     }
