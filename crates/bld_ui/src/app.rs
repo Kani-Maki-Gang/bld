@@ -6,12 +6,21 @@ use crate::pages::{
     login::Login,
     not_found::NotFound,
 };
-use leptos::*;
+use leptos::{html::Dialog, *};
 use leptos_router::{Route, Router, Routes};
 
 #[component]
 pub fn App() -> impl IntoView {
+    let app_dialog = create_node_ref::<Dialog>();
+    let app_dialog_content: RwSignal<Option<View>> = create_rw_signal(None);
+
+    provide_context(app_dialog);
+    provide_context(app_dialog_content);
+
     view! {
+        <dialog _ref=app_dialog>
+            {move || app_dialog_content.get()}
+        </dialog>
         <Router>
             <div class="h-screen bg-slate-900">
                 <div class="h-screen flex bg-grid">
