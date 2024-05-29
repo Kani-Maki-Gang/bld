@@ -31,11 +31,9 @@ fn CronJobDeleteDialog(
     view! {
         <Card>
             <div class="flex flex-col px-8 py-12 w-[600px] h-[300px]">
-                <div class="grow text-2xl">
-                    "Are you sure you want to delete this cron job?"
-                    <p>
-                        "Id: " {id.get()}
-                    </p>
+                <div class="grow text-xl">
+                    "Are you sure you want to delete the cron job with id: "
+                    {id.get()} "?"
                 </div>
                 <div class="flex items-stretch gap-x-4">
                     <Button on:click=move |_| {

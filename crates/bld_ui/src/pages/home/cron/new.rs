@@ -87,7 +87,8 @@ fn CronJobsNewDialog(
 
     view! {
         <Card>
-            <div class="flex flex-col px-8 py-12 gap-y-4 min-w-[400px] min-h-[600px]">
+            <div class="flex flex-col px-8 py-12 gap-y-4 min-w-[600px] min-h-[600px]">
+                <div class="text-xl">"Add new cron job"</div>
                 <Input placeholder="Pipeline name" value=search />
                 <div class="grow">
                     <List items=filtered_pipelines />
@@ -115,7 +116,7 @@ pub fn CronJobsNewButton() -> impl IntoView {
             app_dialog_content.set(Some(view! {
                 <CronJobsNewDialog app_dialog=app_dialog />
             }));
-            let _ = app_dialog.and_then(|x| x.get()).map(|x| x.show());
+            let _ = app_dialog.and_then(|x| x.get()).map(|x| x.show_modal());
         }>
             "Add new"
         </Button>
