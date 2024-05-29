@@ -22,6 +22,9 @@ pub fn SidebarTop() -> impl IntoView {
 pub fn SidebarItemInstance(#[prop()] item: SidebarItem) -> impl IntoView {
     view! {
         <A class="py-4 px-8 hover:bg-slate-600 hover:cursor-pointer flex items-center" href=item.url>
+            <div class="text-2xl text-indigo-500">
+                <i class=item.icon />
+            </div>
             <div class="ml-4">{item.text}</div>
         </A>
     }
