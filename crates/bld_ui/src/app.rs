@@ -18,8 +18,10 @@ pub fn App() -> impl IntoView {
     provide_context(app_dialog_content);
 
     view! {
-        <dialog _ref=app_dialog>
-            {move || app_dialog_content.get()}
+        <dialog _ref=app_dialog class="w-full h-full backdrop-blur-sm bg-black/20">
+            <div class="h-full grid place-items-center">
+                {move || app_dialog_content.get()}
+            </div>
         </dialog>
         <Router>
             <div class="h-screen bg-slate-900">
