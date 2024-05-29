@@ -1,4 +1,5 @@
 use crate::components::{button::Button, input::Input};
+use super::new::CronJobsNewButton;
 use leptos::*;
 
 #[component]
@@ -22,6 +23,9 @@ pub fn CronJobsFilters(
                 <Button on:click=move |_| refresh.set(())>
                     "Apply"
                 </Button>
+            </div>
+            <div class="w-32">
+                <CronJobsNewButton />
             </div>
         </div>
     }

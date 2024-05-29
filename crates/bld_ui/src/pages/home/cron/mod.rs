@@ -2,6 +2,7 @@ mod edit;
 mod filters;
 mod helpers;
 mod insert;
+mod new;
 mod table;
 mod update;
 
