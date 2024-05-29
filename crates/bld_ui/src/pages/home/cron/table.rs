@@ -1,10 +1,10 @@
-use crate::components::link::Link;
+use crate::components::{link::Link, table::{Table, TableRow}};
 use anyhow::Result;
 use bld_models::dtos::{CronJobResponse, JobFiltersParams};
-use leptos::{leptos_dom::logging, *};
+use leptos::{ev::EventDescriptor, html::Dialog, leptos_dom::logging, *};
 use reqwest::Client;
+use super::delete::CronJobDeleteButton;
 
-use crate::components::table::{Table, TableRow};
 
 async fn get_cron(params: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
     let res = Client::builder()
@@ -24,20 +24,26 @@ async fn get_cron(params: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
 
 fn into_table_rows(data: Vec<CronJobResponse>) -> Vec<TableRow> {
     data.into_iter()
-        .map(|item| TableRow {
-            columns: vec![
-                view! {
-                    <Link href=format!("cron/update?id={}", item.id)>
-                        {item.id}
-                    </Link>
-                }
-                .into_view(),
-                item.pipeline.into_view(),
-                item.schedule.into_view(),
-                item.is_default.into_view(),
-                item.date_created.into_view(),
-                item.date_updated.unwrap_or_default().into_view(),
-            ],
+        .map(|item| {
+            let id_clone = item.id.clone();
+            TableRow {
+                columns: vec![
+                    view! {
+                        <Link href=format!("cron/update?id={}", item.id)>
+                            {item.id}
+                        </Link>
+                    }
+                    .into_view(),
+                    item.pipeline.into_view(),
+                    item.schedule.into_view(),
+                    item.is_default.into_view(),
+                    item.date_created.into_view(),
+                    item.date_updated.unwrap_or_default().into_view(),
+                    view! {
+                        <CronJobDeleteButton id=id_clone />
+                    }.into_view()
+                ],
+            }
         })
         .collect()
 }
@@ -54,8 +60,8 @@ pub fn CronJobsTable(
         "Default".into_view(),
         "Date created".into_view(),
         "Date updated".into_view(),
+        "".into_view(),
     ]);
-
     let (rows, set_rows) = create_signal(vec![]);
 
     let hist_res = create_resource(
