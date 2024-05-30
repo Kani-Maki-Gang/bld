@@ -1,5 +1,5 @@
-mod edit;
 mod delete;
+mod edit;
 mod filters;
 mod helpers;
 mod insert;

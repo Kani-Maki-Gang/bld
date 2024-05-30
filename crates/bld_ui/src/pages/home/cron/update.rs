@@ -118,7 +118,8 @@ pub fn CronJobUpdate() -> impl IntoView {
                 delete_action.dispatch(id);
             }
         },
-        false);
+        false,
+    );
 
     view! {
         <CronJobsEdit

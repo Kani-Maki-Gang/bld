@@ -72,9 +72,7 @@ fn into_table_rows(data: Vec<HistoryEntry>) -> Vec<TableRow> {
 }
 
 #[component]
-pub fn HistoryTable(
-    #[prop(into)] params: Signal<Option<HistQueryParams>>,
-) -> impl IntoView {
+pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> impl IntoView {
     let (headers, _) = create_signal(vec![
         "Id".into_view(),
         "Name".into_view(),

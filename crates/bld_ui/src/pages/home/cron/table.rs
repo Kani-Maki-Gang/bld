@@ -1,9 +1,12 @@
-use crate::components::{link::Link, table::{DataTable, Headers, Header, Body, Row, Cell}};
+use super::delete::CronJobDeleteButton;
+use crate::components::{
+    link::Link,
+    table::{Body, Cell, DataTable, Header, Headers, Row},
+};
 use anyhow::Result;
 use bld_models::dtos::{CronJobResponse, JobFiltersParams};
 use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
-use super::delete::CronJobDeleteButton;
 
 async fn get_cron(params: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
     let res = Client::builder()
@@ -22,9 +25,7 @@ async fn get_cron(params: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
 }
 
 #[component]
-pub fn CronJobsTable(
-    #[prop(into)] params: Signal<Option<JobFiltersParams>>,
-) -> impl IntoView {
+pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> impl IntoView {
     let (data, set_data) = create_signal(vec![]);
     let refresh = use_context::<RwSignal<()>>();
 

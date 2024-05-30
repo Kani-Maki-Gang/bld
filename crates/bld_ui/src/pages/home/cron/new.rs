@@ -1,5 +1,8 @@
-use crate::components::{button::Button, card::Card, input::Input,
-    list::{List, ListItem}
+use crate::components::{
+    button::Button,
+    card::Card,
+    input::Input,
+    list::{List, ListItem},
 };
 use anyhow::Result;
 use bld_models::dtos::ListResponse;
@@ -23,7 +26,10 @@ async fn get_pipelines() -> Result<Vec<ListResponse>> {
     }
 }
 
-fn into_list_items(close_dialog: WriteSignal<Option<()>>, data: Vec<ListResponse>) -> Vec<ListItem> {
+fn into_list_items(
+    close_dialog: WriteSignal<Option<()>>,
+    data: Vec<ListResponse>,
+) -> Vec<ListItem> {
     data.into_iter()
         .map(|x| {
             let pipeline_clone = x.pipeline.clone();
@@ -47,9 +53,7 @@ fn into_list_items(close_dialog: WriteSignal<Option<()>>, data: Vec<ListResponse
 }
 
 #[component]
-fn CronJobsNewDialog(
-    #[prop(into)] app_dialog: Option<NodeRef<Dialog>>,
-) -> impl IntoView {
+fn CronJobsNewDialog(#[prop(into)] app_dialog: Option<NodeRef<Dialog>>) -> impl IntoView {
     let search = create_rw_signal(String::new());
     let (pipelines, set_pipelines) = create_signal(Vec::<ListItem>::new());
     let (close_dialog, set_close_dialog) = create_signal(None);
