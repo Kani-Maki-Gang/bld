@@ -74,7 +74,6 @@ fn into_table_rows(data: Vec<HistoryEntry>) -> Vec<TableRow> {
 #[component]
 pub fn HistoryTable(
     #[prop(into)] params: Signal<Option<HistQueryParams>>,
-    #[prop(into)] refresh: Signal<()>,
 ) -> impl IntoView {
     let (headers, _) = create_signal(vec![
         "Id".into_view(),
@@ -84,8 +83,8 @@ pub fn HistoryTable(
         "End Date".into_view(),
         "State".into_view(),
     ]);
-
     let (rows, set_rows) = create_signal(vec![]);
+    let refresh = use_context::<RwSignal<()>>();
 
     let hist_res = create_resource(
         move || (params, set_rows),
@@ -104,7 +103,7 @@ pub fn HistoryTable(
     );
 
     let _ = watch(
-        move || refresh.get(),
+        move || refresh.map(|x| x.get()),
         move |_, _, _| hist_res.refetch(),
         false,
     );

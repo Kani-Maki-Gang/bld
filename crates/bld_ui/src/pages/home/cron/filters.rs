@@ -6,8 +6,8 @@ use leptos::*;
 pub fn CronJobsFilters(
     #[prop(into)] pipeline: RwSignal<String>,
     #[prop(into)] limit: RwSignal<String>,
-    #[prop(into)] refresh: RwSignal<()>,
 ) -> impl IntoView {
+    let refresh = use_context::<RwSignal<()>>();
     view! {
         <div class="flex items-center gap-x-4">
             <div class="min-w-[400px]">
@@ -20,7 +20,9 @@ pub fn CronJobsFilters(
                     value=limit />
             </div>
             <div class="w-32">
-                <Button on:click=move |_| refresh.set(())>
+                <Button on:click=move |_| {
+                    let _ = refresh.map(|x| x.set(()));
+                }>
                     "Apply"
                 </Button>
             </div>

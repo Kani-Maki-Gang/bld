@@ -34,9 +34,9 @@ fn get_params(limit: String, pipeline: String) -> Option<JobFiltersParams> {
 pub fn CronJobs() -> impl IntoView {
     let pipeline = create_rw_signal(String::new());
     let limit = create_rw_signal("100".to_string());
-    let refresh = create_rw_signal(());
-
     let params = move || get_params(limit.get(), pipeline.get());
+
+    provide_context(create_rw_signal(()));
 
     view! {
         <Card>
@@ -50,14 +50,9 @@ pub fn CronJobs() -> impl IntoView {
                             "A list of cron jobs for the current pipelines on the server"
                         </div>
                     </div>
-                    <CronJobsFilters
-                        limit=limit
-                        pipeline=pipeline
-                        refresh=refresh />
+                    <CronJobsFilters limit=limit pipeline=pipeline />
                 </div>
-                <CronJobsTable
-                    params=params
-                    refresh=refresh />
+                <CronJobsTable params=params />
             </div>
         </Card>
     }

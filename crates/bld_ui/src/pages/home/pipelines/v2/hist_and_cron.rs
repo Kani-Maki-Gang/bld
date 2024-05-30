@@ -24,7 +24,7 @@ pub fn PipelineHistAndCronV2(#[prop(into)] name: Signal<Option<String>>) -> impl
         },
     ]);
     let selected_tab = create_rw_signal("history".to_string());
-    let (refresh, set_refresh) = create_signal(());
+    let refresh = create_rw_signal(());
 
     let hist_params = move || {
         name.get().map(|n| HistQueryParams {
@@ -41,6 +41,8 @@ pub fn PipelineHistAndCronV2(#[prop(into)] name: Signal<Option<String>>) -> impl
         })
     };
 
+    provide_context(refresh);
+
     view! {
         <Card>
             <div class="flex flex-col px-8 py-12 gap-4 h-[600px]">
@@ -54,7 +56,7 @@ pub fn PipelineHistAndCronV2(#[prop(into)] name: Signal<Option<String>>) -> impl
                         </div>
                     </div>
                     <div class="min-w-40">
-                        <Button on:click={move |_| set_refresh.set(())}>"Refresh"</Button>
+                        <Button on:click={move |_| refresh.set(())}>"Refresh"</Button>
                     </div>
                     <Show when=move || selected_tab.get() == "cron" fallback=|| view!{}>
                         <div class="min-w-40">
@@ -71,12 +73,12 @@ pub fn PipelineHistAndCronV2(#[prop(into)] name: Signal<Option<String>>) -> impl
                 <Show
                     when=move || selected_tab.get() == "history"
                     fallback=|| view!{}>
-                    <HistoryTable params=hist_params refresh=refresh />
+                    <HistoryTable params=hist_params />
                 </Show>
                 <Show
                     when=move || selected_tab.get() == "cron"
                     fallback=|| view!{}>
-                    <CronJobsTable params=cron_params refresh=refresh />
+                    <CronJobsTable params=cron_params />
                 </Show>
             </div>
         </Card>

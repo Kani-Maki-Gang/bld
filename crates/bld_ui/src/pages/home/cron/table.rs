@@ -1,7 +1,7 @@
 use crate::components::{link::Link, table::{Table, TableRow}};
 use anyhow::Result;
 use bld_models::dtos::{CronJobResponse, JobFiltersParams};
-use leptos::{ev::EventDescriptor, html::Dialog, leptos_dom::logging, *};
+use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
 use super::delete::CronJobDeleteButton;
 
@@ -51,7 +51,6 @@ fn into_table_rows(data: Vec<CronJobResponse>) -> Vec<TableRow> {
 #[component]
 pub fn CronJobsTable(
     #[prop(into)] params: Signal<Option<JobFiltersParams>>,
-    #[prop(into)] refresh: Signal<()>,
 ) -> impl IntoView {
     let (headers, _) = create_signal(vec![
         "Id".into_view(),
@@ -63,6 +62,7 @@ pub fn CronJobsTable(
         "".into_view(),
     ]);
     let (rows, set_rows) = create_signal(vec![]);
+    let refresh = use_context::<RwSignal<()>>();
 
     let hist_res = create_resource(
         move || (params, set_rows),
@@ -81,7 +81,7 @@ pub fn CronJobsTable(
     );
 
     let _ = watch(
-        move || refresh.get(),
+        move || refresh.map(|x| x.get()),
         move |_, _, _| hist_res.refetch(),
         false,
     );

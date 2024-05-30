@@ -9,7 +9,6 @@ pub fn HistoryFilters(
     #[prop(into)] state: RwSignal<Option<String>>,
     #[prop(into)] limit: RwSignal<String>,
     #[prop(into)] pipeline: RwSignal<String>,
-    #[prop(into)] refresh: RwSignal<()>,
 ) -> impl IntoView {
     let (states, _set_states) = create_signal(vec![
         SelectItem {
@@ -37,6 +36,7 @@ pub fn HistoryFilters(
             label: "Faulted".to_string(),
         },
     ]);
+    let refresh = use_context::<RwSignal<()>>();
 
     view! {
         <div class="flex items-center gap-x-4">
@@ -53,7 +53,9 @@ pub fn HistoryFilters(
                 <Select items=states value=state />
             </div>
             <div class="w-32">
-                <Button on:click=move |_| refresh.set(())>
+                <Button on:click=move |_| {
+                    let _ = refresh.map(|x| x.set(()));
+                }>
                     "Apply"
                 </Button>
             </div>
