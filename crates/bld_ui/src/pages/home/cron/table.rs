@@ -1,10 +1,9 @@
-use crate::components::{link::Link, table::{Table, TableRow}};
+use crate::components::{link::Link, table::{DataTable, Headers, Header, Body, Row, Cell}};
 use anyhow::Result;
 use bld_models::dtos::{CronJobResponse, JobFiltersParams};
 use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
 use super::delete::CronJobDeleteButton;
-
 
 async fn get_cron(params: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
     let res = Client::builder()
@@ -22,51 +21,16 @@ async fn get_cron(params: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
     }
 }
 
-fn into_table_rows(data: Vec<CronJobResponse>) -> Vec<TableRow> {
-    data.into_iter()
-        .map(|item| {
-            let id_clone = item.id.clone();
-            TableRow {
-                columns: vec![
-                    view! {
-                        <Link href=format!("cron/update?id={}", item.id)>
-                            {item.id}
-                        </Link>
-                    }
-                    .into_view(),
-                    item.pipeline.into_view(),
-                    item.schedule.into_view(),
-                    item.is_default.into_view(),
-                    item.date_created.into_view(),
-                    item.date_updated.unwrap_or_default().into_view(),
-                    view! {
-                        <CronJobDeleteButton id=id_clone />
-                    }.into_view()
-                ],
-            }
-        })
-        .collect()
-}
-
 #[component]
 pub fn CronJobsTable(
     #[prop(into)] params: Signal<Option<JobFiltersParams>>,
 ) -> impl IntoView {
-    let (headers, _) = create_signal(vec![
-        "Id".into_view(),
-        "Pipeline".into_view(),
-        "Schedule".into_view(),
-        "Default".into_view(),
-        "Date created".into_view(),
-        "Date updated".into_view(),
-        "".into_view(),
-    ]);
-    let (rows, set_rows) = create_signal(vec![]);
+    let (data, set_data) = create_signal(vec![]);
     let refresh = use_context::<RwSignal<()>>();
 
     let hist_res = create_resource(
-        move || (params, set_rows),
-        |(params, set_rows)| async move {
+        move || (params, set_data),
+        |(params, set_data)| async move {
             let Some(params) = params.get_untracked() else {
                 return;
             };
@@ -76,7 +40,7 @@ pub fn CronJobsTable(
                 .map_err(|e| logging::console_error(e.to_string().as_str()))
                 .unwrap_or_default();
 
-            set_rows.set(into_table_rows(data));
+            set_data.set(data);
         },
     );
 
@@ -87,6 +51,42 @@ pub fn CronJobsTable(
     );
 
     view! {
-        <Table headers=headers rows=rows />
+        <DataTable>
+            <Headers>
+                <Header>"Id"</Header>
+                <Header>"Pipeline"</Header>
+                <Header>"Schedule"</Header>
+                <Header>"Default"</Header>
+                <Header>"Date created"</Header>
+                <Header>"Date updated"</Header>
+                <Header>""</Header>
+            </Headers>
+            <Body>
+                <For
+                    each=move || data
+                        .get()
+                        .into_iter()
+                        .enumerate()
+                        .map(|x| (x.0, x.1.id.clone(), x.1))
+                    key=|(i, _, _)| *i
+                    let:child>
+                    <Row>
+                        <Cell>
+                            <Link href=format!("/cron/update?id={}", child.1)>
+                                {child.1}
+                            </Link>
+                        </Cell>
+                        <Cell>{child.2.pipeline}</Cell>
+                        <Cell>{child.2.schedule}</Cell>
+                        <Cell>{child.2.is_default}</Cell>
+                        <Cell>{child.2.date_created}</Cell>
+                        <Cell>{child.2.date_updated.unwrap_or_default()}</Cell>
+                        <Cell>
+                            <CronJobDeleteButton id=child.2.id />
+                        </Cell>
+                    </Row>
+                </For>
+            </Body>
+        </DataTable>
     }
 }
