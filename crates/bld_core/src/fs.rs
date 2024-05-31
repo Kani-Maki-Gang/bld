@@ -80,7 +80,7 @@ impl FileSystem {
             bail!("server path isn't supported for a local fs");
         };
 
-        let pip = pipeline::select_by_id(conn.as_ref(), &id).await?;
+        let pip = pipeline::select_by_id(conn.as_ref(), id).await?;
         let path = path![config.server_pipelines(), format!("{}.yaml", pip.id)];
         self.read_inner(&path).await
     }
