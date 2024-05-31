@@ -1,7 +1,7 @@
 use super::delete::CronJobDeleteButton;
 use crate::components::{
     link::Link,
-    table::{Body, Cell, DataTable, Header, Headers, Row},
+    table::{Body, Cell, Table, Header, Headers, Row},
 };
 use anyhow::Result;
 use bld_models::dtos::{CronJobResponse, JobFiltersParams};
@@ -52,7 +52,7 @@ pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> 
     );
 
     view! {
-        <DataTable>
+        <Table>
             <Headers>
                 <Header>"Id"</Header>
                 <Header>"Pipeline"</Header>
@@ -88,6 +88,6 @@ pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> 
                     </Row>
                 </For>
             </Body>
-        </DataTable>
+        </Table>
     }
 }

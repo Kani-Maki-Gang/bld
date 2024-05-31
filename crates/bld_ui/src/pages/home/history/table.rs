@@ -1,7 +1,7 @@
 use crate::components::{
     badge::Badge,
     link::Link,
-    table::{Body, Cell, DataTable, Header, Headers, Row},
+    table::{Body, Cell, Table, Header, Headers, Row},
 };
 use anyhow::Result;
 use bld_models::dtos::{HistQueryParams, HistoryEntry};
@@ -81,7 +81,7 @@ pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> im
     );
 
     view! {
-        <DataTable>
+        <Table>
             <Headers>
                 <Header>"Id"</Header>
                 <Header>"Name"</Header>
@@ -109,6 +109,6 @@ pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> im
                     </Row>
                 </For>
             </Body>
-        </DataTable>
+        </Table>
     }
 }

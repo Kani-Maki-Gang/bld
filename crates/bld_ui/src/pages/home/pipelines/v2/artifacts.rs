@@ -1,7 +1,7 @@
 use crate::components::{
     badge::Badge,
     card::Card,
-    table::{DataTable, Headers, Header, Body, Row, Cell},
+    table::{Table, Headers, Header, Body, Row, Cell},
 };
 use bld_runner::artifacts::v2;
 use leptos::*;
@@ -26,7 +26,7 @@ pub fn PipelineArtifactsV2(#[prop(into)] artifacts: Signal<Vec<v2::Artifacts>>) 
                             <Badge>"No artifacts configured."</Badge>
                         </div>
                     }>
-                    <DataTable>
+                    <Table>
                         <Headers>
                             <Header>"Method"</Header>
                             <Header>"From"</Header>
@@ -48,7 +48,7 @@ pub fn PipelineArtifactsV2(#[prop(into)] artifacts: Signal<Vec<v2::Artifacts>>) 
                                 </Row>
                             </For>
                         </Body>
-                    </DataTable>
+                    </Table>
                 </Show>
             </div>
         </Card>

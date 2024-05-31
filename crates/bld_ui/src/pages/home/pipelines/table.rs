@@ -1,6 +1,6 @@
 use crate::components::{
     link::Link,
-    table::{Body, Cell, DataTable, Header, Headers, Row},
+    table::{Body, Cell, Table, Header, Headers, Row},
 };
 use anyhow::Result;
 use bld_models::dtos::ListResponse;
@@ -47,7 +47,7 @@ pub fn PipelinesTable() -> impl IntoView {
     );
 
     view! {
-        <DataTable>
+        <Table>
             <Headers>
                 <Header>"Id"</Header>
                 <Header>"Name"</Header>
@@ -73,6 +73,6 @@ pub fn PipelinesTable() -> impl IntoView {
                     </Row>
                 </For>
             </Body>
-        </DataTable>
+        </Table>
     }
 }

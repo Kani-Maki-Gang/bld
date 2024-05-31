@@ -1,7 +1,7 @@
 use crate::components::{
     badge::Badge,
     card::Card,
-    table::{DataTable, Headers, Header, Body, Row, Cell},
+    table::{Table, Headers, Header, Body, Row, Cell},
     tabs::{TabItem, Tabs},
 };
 use leptos::*;
@@ -10,7 +10,7 @@ use std::collections::HashMap;
 #[component]
 fn VariablesTable(#[prop(into)] data: Signal<HashMap<String, String>>) -> impl IntoView {
     view! {
-        <DataTable>
+        <Table>
             <Headers>
                 <Header>"Name"</Header>
                 <Header>"Default value"</Header>
@@ -26,7 +26,7 @@ fn VariablesTable(#[prop(into)] data: Signal<HashMap<String, String>>) -> impl I
                     </Row>
                 </For>
             </Body>
-        </DataTable>
+        </Table>
     }
 }
 
