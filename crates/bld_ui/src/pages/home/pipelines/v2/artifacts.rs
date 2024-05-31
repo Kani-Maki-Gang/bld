@@ -1,7 +1,7 @@
 use crate::components::{
     badge::Badge,
     card::Card,
-    table::{Table, Headers, Header, Body, Row, Cell},
+    table::{Body, Cell, Header, Headers, Row, Table},
 };
 use bld_runner::artifacts::v2;
 use leptos::*;

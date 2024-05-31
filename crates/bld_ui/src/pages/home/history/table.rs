@@ -1,7 +1,7 @@
 use crate::components::{
     badge::Badge,
     link::Link,
-    table::{Body, Cell, Table, Header, Headers, Row},
+    table::{Body, Cell, Header, Headers, Row, Table},
 };
 use anyhow::Result;
 use bld_models::dtos::{HistQueryParams, HistoryEntry};
