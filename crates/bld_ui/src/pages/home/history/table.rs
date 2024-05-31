@@ -1,8 +1,8 @@
-use crate::components::{
+use crate::{components::{
     badge::Badge,
     link::Link,
     table::{Body, Cell, Header, Headers, Row, Table},
-};
+}, context::RefreshHistory};
 use anyhow::Result;
 use bld_models::dtos::{HistQueryParams, HistoryEntry};
 use leptos::{leptos_dom::logging, *};
@@ -56,7 +56,7 @@ fn HistoryEntryState(#[prop(into)] state: String) -> impl IntoView {
 #[component]
 pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> impl IntoView {
     let (data, set_data) = create_signal(vec![]);
-    let refresh = use_context::<RwSignal<()>>();
+    let refresh = use_context::<RefreshHistory>();
 
     let hist_res = create_resource(
         move || (params, set_data),
@@ -75,7 +75,11 @@ pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> im
     );
 
     let _ = watch(
-        move || refresh.map(|x| x.get()),
+        move || if let Some(RefreshHistory(refresh)) = refresh {
+            refresh.get();
+        } else {
+            logging::console_error("Refresh history signal not found in context");
+        },
         move |_, _, _| hist_res.refetch(),
         false,
     );

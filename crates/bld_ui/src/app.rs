@@ -1,10 +1,13 @@
-use crate::pages::{
-    home::{
-        CronJobInsert, CronJobUpdate, CronJobs, Dashboard, History, Home, Monit, PipelineInfo,
-        Pipelines, RunPipeline,
+use crate::{
+    context::{AppDialog, AppDialogContent},
+    pages::{
+        home::{
+            CronJobInsert, CronJobUpdate, CronJobs, Dashboard, History, Home, Monit, PipelineInfo,
+            Pipelines, RunPipeline,
+        },
+        login::Login,
+        not_found::NotFound,
     },
-    login::Login,
-    not_found::NotFound,
 };
 use leptos::{html::Dialog, *};
 use leptos_router::{Route, Router, Routes};
@@ -14,8 +17,8 @@ pub fn App() -> impl IntoView {
     let app_dialog = create_node_ref::<Dialog>();
     let app_dialog_content: RwSignal<Option<View>> = create_rw_signal(None);
 
-    provide_context(app_dialog);
-    provide_context(app_dialog_content);
+    provide_context(AppDialog(app_dialog));
+    provide_context(AppDialogContent(app_dialog_content));
 
     view! {
         <dialog _ref=app_dialog class="w-full h-full bg-transparent">

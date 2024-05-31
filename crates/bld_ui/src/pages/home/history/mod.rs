@@ -1,7 +1,7 @@
 mod filters;
 pub mod table;
 
-use crate::components::card::Card;
+use crate::{components::card::Card, context::RefreshHistory};
 use bld_models::dtos::HistQueryParams;
 use filters::HistoryFilters;
 use leptos::*;
@@ -27,7 +27,7 @@ pub fn History() -> impl IntoView {
     let pipeline: RwSignal<String> = create_rw_signal(String::new());
     let params = move || get_params(state.get(), limit.get(), pipeline.get());
 
-    provide_context(create_rw_signal(()));
+    provide_context(RefreshHistory(create_rw_signal(())));
 
     view! {
         <div class="flex flex-col gap-8 h-full">

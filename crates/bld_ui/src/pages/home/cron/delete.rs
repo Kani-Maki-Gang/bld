@@ -1,4 +1,7 @@
-use crate::components::{button::Button, card::Card};
+use crate::{
+    components::{button::Button, card::Card},
+    context::{AppDialog, AppDialogContent},
+};
 use anyhow::{bail, Result};
 use leptos::{html::Dialog, leptos_dom::logging, *};
 
@@ -18,7 +21,7 @@ async fn delete(id: String) -> Result<()> {
 #[component]
 fn CronJobDeleteDialog(
     #[prop(into)] id: Signal<String>,
-    #[prop(into)] app_dialog: Option<NodeRef<Dialog>>,
+    #[prop(into)] app_dialog: NodeRef<Dialog>,
     #[prop(into)] refresh: Option<RwSignal<()>>,
 ) -> impl IntoView {
     let delete_action = create_action(|args: &(String, Option<RwSignal<()>>)| {
@@ -40,12 +43,12 @@ fn CronJobDeleteDialog(
                 <div class="flex items-stretch gap-x-4">
                     <Button on:click=move |_| {
                         delete_action.dispatch((id.get(), refresh));
-                        let _ = app_dialog.and_then(|x| x.get().map(|x| x.close()));
+                        let _ = app_dialog.get().map(|x| x.close());
                     }>
                         "Delete"
                     </Button>
                     <Button on:click=move |_| {
-                        let _ = app_dialog.and_then(|x| x.get().map(|x| x.close()));
+                        let _ = app_dialog.get().map(|x| x.close());
                     }>
                         "Cancel"
                     </Button>
@@ -57,8 +60,8 @@ fn CronJobDeleteDialog(
 
 #[component]
 pub fn CronJobDeleteButton(#[prop(into)] id: String) -> impl IntoView {
-    let app_dialog = use_context::<NodeRef<Dialog>>();
-    let app_dialog_content = use_context::<RwSignal<Option<View>>>();
+    let app_dialog = use_context::<AppDialog>();
+    let app_dialog_content = use_context::<AppDialogContent>();
     let (id, _) = create_signal(id);
     let refresh = use_context::<RwSignal<()>>();
 
@@ -66,10 +69,22 @@ pub fn CronJobDeleteButton(#[prop(into)] id: String) -> impl IntoView {
         <button
             class="w-[30px] rounded-lg bg-red-500 text-xl grid place-items-center p-1"
             on:click=move |_| {
-                let _ = app_dialog_content.map(|x| x.set(Some(view! {
-                    <CronJobDeleteDialog id=id app_dialog=app_dialog refresh=refresh />
-                }.into_view())));
-                let _ = app_dialog.and_then(|x| x.get().map(|x| x.show_modal()));
+                let Some(AppDialogContent(content)) = app_dialog_content else {
+                    logging::console_error("App dialog content not found");
+                    return;
+                };
+
+                let Some(AppDialog(dialog)) = app_dialog else {
+                    logging::console_error("App dialog node ref not found");
+                    return;
+                };
+
+                let _ = dialog.get().map(|x| x.show_modal());
+
+                content.set(Some(view! {
+                    <CronJobDeleteDialog id=id app_dialog=dialog refresh=refresh />
+                }.into_view()));
+
             }>
                 <i class="iconoir-bin-full" />
         </button>

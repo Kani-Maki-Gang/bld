@@ -1,8 +1,11 @@
-use crate::components::{
-    button::Button,
-    card::Card,
-    input::Input,
-    list::{List, ListItem},
+use crate::{
+    components::{
+        button::Button,
+        card::Card,
+        input::Input,
+        list::{List, ListItem},
+    },
+    context::{AppDialog, AppDialogContent},
 };
 use anyhow::Result;
 use bld_models::dtos::ListResponse;
@@ -53,7 +56,7 @@ fn into_list_items(
 }
 
 #[component]
-fn CronJobsNewDialog(#[prop(into)] app_dialog: Option<NodeRef<Dialog>>) -> impl IntoView {
+fn CronJobsNewDialog(#[prop(into)] app_dialog: NodeRef<Dialog>) -> impl IntoView {
     let search = create_rw_signal(String::new());
     let (pipelines, set_pipelines) = create_signal(Vec::<ListItem>::new());
     let (close_dialog, set_close_dialog) = create_signal(None);
@@ -85,7 +88,7 @@ fn CronJobsNewDialog(#[prop(into)] app_dialog: Option<NodeRef<Dialog>>) -> impl 
 
     create_effect(move |_| {
         if close_dialog.get().is_some() {
-            let _ = app_dialog.and_then(|x| x.get()).map(|x| x.close());
+            let _ = app_dialog.get().map(|x| x.close());
         }
     });
 
@@ -98,7 +101,7 @@ fn CronJobsNewDialog(#[prop(into)] app_dialog: Option<NodeRef<Dialog>>) -> impl 
                     <List items=filtered_pipelines />
                 </div>
                 <Button on:click=move |_| {
-                    let _ = app_dialog.and_then(|x| x.get()).map(|x| x.close());
+                    let _ = app_dialog.get().map(|x| x.close());
                 }>
                     "Close"
                 </Button>
@@ -109,18 +112,26 @@ fn CronJobsNewDialog(#[prop(into)] app_dialog: Option<NodeRef<Dialog>>) -> impl 
 
 #[component]
 pub fn CronJobsNewButton() -> impl IntoView {
-    let app_dialog = use_context::<NodeRef<Dialog>>();
-    let app_dialog_content = use_context::<RwSignal<Option<View>>>();
+    let app_dialog = use_context::<AppDialog>();
+    let app_dialog_content = use_context::<AppDialogContent>();
 
     view! {
         <Button on:click=move |_| {
-            let Some(app_dialog_content) = app_dialog_content else {
+            let Some(AppDialogContent(content)) = app_dialog_content else {
+                logging::console_error("App dialog content is not set");
                 return;
             };
-            app_dialog_content.set(Some(view! {
-                <CronJobsNewDialog app_dialog=app_dialog />
+
+            let Some(AppDialog(dialog)) = app_dialog else {
+                logging::console_error("App dialog node ref is not set");
+                return;
+            };
+
+            let _ = dialog.get().map(|x| x.show());
+
+            content.set(Some(view! {
+                <CronJobsNewDialog app_dialog=dialog />
             }));
-            let _ = app_dialog.and_then(|x| x.get()).map(|x| x.show_modal());
         }>
             "Add new"
         </Button>

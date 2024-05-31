@@ -7,7 +7,7 @@ mod new;
 mod table;
 mod update;
 
-use crate::components::card::Card;
+use crate::{components::card::Card, context::RefreshCronJobs};
 use bld_models::dtos::JobFiltersParams;
 use filters::CronJobsFilters;
 use leptos::*;
@@ -36,7 +36,7 @@ pub fn CronJobs() -> impl IntoView {
     let limit = create_rw_signal("100".to_string());
     let params = move || get_params(limit.get(), pipeline.get());
 
-    provide_context(create_rw_signal(()));
+    provide_context(RefreshCronJobs(create_rw_signal(())));
 
     view! {
         <Card>

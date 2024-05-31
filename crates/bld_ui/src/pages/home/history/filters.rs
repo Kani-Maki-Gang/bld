@@ -1,7 +1,7 @@
-use crate::components::{
+use crate::{components::{
     button::Button,
     input::{Input, Select, SelectItem},
-};
+}, context::RefreshHistory};
 use leptos::*;
 
 #[component]
@@ -36,7 +36,7 @@ pub fn HistoryFilters(
             label: "Faulted".to_string(),
         },
     ]);
-    let refresh = use_context::<RwSignal<()>>();
+    let refresh = use_context::<RefreshHistory>();
 
     view! {
         <div class="flex items-center gap-x-4">
@@ -53,8 +53,8 @@ pub fn HistoryFilters(
                 <Select items=states value=state />
             </div>
             <div class="w-32">
-                <Button on:click=move |_| {
-                    let _ = refresh.map(|x| x.set(()));
+                <Button on:click=move |_| if let Some(RefreshHistory(refresh)) = refresh {
+                    refresh.set(());
                 }>
                     "Apply"
                 </Button>

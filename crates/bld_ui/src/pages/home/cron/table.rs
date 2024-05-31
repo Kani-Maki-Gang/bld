@@ -1,7 +1,10 @@
 use super::delete::CronJobDeleteButton;
-use crate::components::{
-    link::Link,
-    table::{Body, Cell, Header, Headers, Row, Table},
+use crate::{
+    components::{
+        link::Link,
+        table::{Body, Cell, Header, Headers, Row, Table},
+    },
+    context::RefreshCronJobs,
 };
 use anyhow::Result;
 use bld_models::dtos::{CronJobResponse, JobFiltersParams};
@@ -27,7 +30,7 @@ async fn get_cron(params: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
 #[component]
 pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> impl IntoView {
     let (data, set_data) = create_signal(vec![]);
-    let refresh = use_context::<RwSignal<()>>();
+    let refresh = use_context::<RefreshCronJobs>();
 
     let hist_res = create_resource(
         move || (params, set_data),
@@ -46,7 +49,13 @@ pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> 
     );
 
     let _ = watch(
-        move || refresh.map(|x| x.get()),
+        move || {
+            if let Some(RefreshCronJobs(refresh)) = refresh {
+                refresh.get();
+            } else {
+                logging::console_error("Refresh cron jobs signal not found in context");
+            }
+        },
         move |_, _, _| hist_res.refetch(),
         false,
     );

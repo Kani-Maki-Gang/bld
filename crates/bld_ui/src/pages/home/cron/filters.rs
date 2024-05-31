@@ -1,13 +1,16 @@
 use super::new::CronJobsNewButton;
-use crate::components::{button::Button, input::Input};
-use leptos::*;
+use crate::{
+    components::{button::Button, input::Input},
+    context::RefreshCronJobs,
+};
+use leptos::{leptos_dom::logging, *};
 
 #[component]
 pub fn CronJobsFilters(
     #[prop(into)] pipeline: RwSignal<String>,
     #[prop(into)] limit: RwSignal<String>,
 ) -> impl IntoView {
-    let refresh = use_context::<RwSignal<()>>();
+    let refresh = use_context::<RefreshCronJobs>();
     view! {
         <div class="flex items-center gap-x-4">
             <div class="min-w-[400px]">
@@ -21,7 +24,11 @@ pub fn CronJobsFilters(
             </div>
             <div class="w-32">
                 <Button on:click=move |_| {
-                    let _ = refresh.map(|x| x.set(()));
+                    if let Some(RefreshCronJobs(refresh)) = refresh {
+                        refresh.set(());
+                    } else {
+                        logging::console_error("Refresh cron jobs signal not found in context");
+                    }
                 }>
                     "Apply"
                 </Button>
