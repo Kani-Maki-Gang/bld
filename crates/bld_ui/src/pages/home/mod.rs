@@ -1,10 +1,10 @@
-mod cron_jobs;
+mod cron;
 mod dashboard;
 mod history;
 mod monit;
 mod pipelines;
 
-pub use cron_jobs::*;
+pub use cron::*;
 pub use dashboard::*;
 pub use history::*;
 pub use monit::*;
@@ -14,9 +14,8 @@ use crate::components::sidebar::{Sidebar, SidebarItem};
 use leptos::*;
 use leptos_router::Outlet;
 
-#[component]
-pub fn Home() -> impl IntoView {
-    let nav_items = vec![
+fn get_nav_items() -> Vec<SidebarItem> {
+    vec![
         SidebarItem {
             icon: "iconoir-presentation".to_string(),
             text: "Dashboard".to_string(),
@@ -41,7 +40,12 @@ pub fn Home() -> impl IntoView {
             url: "/cron".to_string(),
             ..Default::default()
         },
-    ];
+    ]
+}
+
+#[component]
+pub fn Home() -> impl IntoView {
+    let nav_items = get_nav_items();
 
     view! {
         <div class="size-full flex">

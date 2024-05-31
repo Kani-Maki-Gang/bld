@@ -9,6 +9,9 @@
 body {
   font-family: "Roboto", sans-serif;
   @apply text-white;
-  padding: 0;
-  margin: 0;
+}
+
+dialog {
+  font-family: "Roboto", sans-serif;
+  @apply text-white;
 }

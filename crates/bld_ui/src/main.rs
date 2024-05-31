@@ -1,5 +1,6 @@
 mod app;
 mod components;
+mod context;
 mod pages;
 
 use app::App;

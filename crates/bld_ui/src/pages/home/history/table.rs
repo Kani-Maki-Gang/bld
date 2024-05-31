@@ -1,13 +1,15 @@
+use crate::{
+    components::{
+        badge::Badge,
+        link::Link,
+        table::{Body, Cell, Header, Headers, Row, Table},
+    },
+    context::RefreshHistory,
+};
 use anyhow::Result;
 use bld_models::dtos::{HistQueryParams, HistoryEntry};
 use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
-
-use crate::components::{
-    badge::Badge,
-    link::Link,
-    table::{Table, TableRow},
-};
 
 async fn get_hist(params: &HistQueryParams) -> Result<Vec<HistoryEntry>> {
     let res = Client::builder()
@@ -25,8 +27,9 @@ async fn get_hist(params: &HistQueryParams) -> Result<Vec<HistoryEntry>> {
     }
 }
 
-fn into_pipeline_state_view(state: &str) -> View {
-    let (icon, label, class) = match state {
+#[component]
+fn HistoryEntryState(#[prop(into)] state: String) -> impl IntoView {
+    let (icon, label, class) = match state.as_str() {
         "initial" => ("iconoir-running", "Intial", "bg-yellow-600".to_string()),
         "queued" => ("iconoir-clock", "Queued", String::new()),
         "running" => ("iconoir-running", "Running", String::new()),
@@ -53,43 +56,14 @@ fn into_pipeline_state_view(state: &str) -> View {
     .into_view()
 }
 
-fn into_table_rows(data: Vec<HistoryEntry>) -> Vec<TableRow> {
-    data.into_iter()
-        .map(|item| TableRow {
-            columns: vec![
-                view! {
-                    <Link href=format!("/monit?id={}", item.id)>{item.id}</Link>
-                }
-                .into_view(),
-                item.name.into_view(),
-                item.user.into_view(),
-                item.start_date_time.unwrap_or_default().into_view(),
-                item.end_date_time.unwrap_or_default().into_view(),
-                into_pipeline_state_view(&item.state),
-            ],
-        })
-        .collect()
-}
-
 #[component]
-pub fn HistoryTable(
-    #[prop(into)] params: Signal<Option<HistQueryParams>>,
-    #[prop(into)] refresh: Signal<()>,
-) -> impl IntoView {
-    let (headers, _) = create_signal(vec![
-        "Id".into_view(),
-        "Name".into_view(),
-        "User".into_view(),
-        "Start Date".into_view(),
-        "End Date".into_view(),
-        "State".into_view(),
-    ]);
-
-    let (rows, set_rows) = create_signal(vec![]);
+pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> impl IntoView {
+    let (data, set_data) = create_signal(vec![]);
+    let refresh = use_context::<RefreshHistory>();
 
     let hist_res = create_resource(
-        move || (params, set_rows),
-        |(params, set_rows)| async move {
+        move || (params, set_data),
+        |(params, set_data)| async move {
             let Some(params) = params.get_untracked() else {
                 return;
             };
@@ -99,17 +73,51 @@ pub fn HistoryTable(
                 .map_err(|e| logging::console_error(e.to_string().as_str()))
                 .unwrap_or_default();
 
-            set_rows.set(into_table_rows(data));
+            set_data.set(data);
         },
     );
 
     let _ = watch(
-        move || refresh.get(),
+        move || {
+            if let Some(RefreshHistory(refresh)) = refresh {
+                refresh.get();
+            } else {
+                logging::console_error("Refresh history signal not found in context");
+            }
+        },
         move |_, _, _| hist_res.refetch(),
         false,
     );
 
     view! {
-        <Table headers=headers rows=rows />
+        <Table>
+            <Headers>
+                <Header>"Id"</Header>
+                <Header>"Name"</Header>
+                <Header>"User"</Header>
+                <Header>"Start Date"</Header>
+                <Header>"End Date"</Header>
+                <Header>"State"</Header>
+            </Headers>
+            <Body>
+                <For
+                    each=move || data.get().into_iter().enumerate()
+                    key=move |(i, _)| *i
+                    let:child>
+                    <Row>
+                        <Cell>
+                            <Link href=format!("/monit?id={}", child.1.id)>{child.1.id}</Link>
+                        </Cell>
+                        <Cell>{child.1.name}</Cell>
+                        <Cell>{child.1.user}</Cell>
+                        <Cell>{child.1.start_date_time.unwrap_or_default()}</Cell>
+                        <Cell>{child.1.end_date_time.unwrap_or_default()}</Cell>
+                        <Cell>
+                            <HistoryEntryState state=child.1.state />
+                        </Cell>
+                    </Row>
+                </For>
+            </Body>
+        </Table>
     }
 }

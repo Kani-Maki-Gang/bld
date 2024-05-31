@@ -5,7 +5,7 @@ pub fn Input(
     #[prop(optional)] input_type: Option<String>,
     #[prop(optional)] min: Option<i32>,
     #[prop(optional)] max: Option<i32>,
-    #[prop(optional)] placeholder: Option<String>,
+    #[prop(into, optional)] placeholder: Option<String>,
     #[prop()] value: RwSignal<String>,
 ) -> impl IntoView {
     view! {

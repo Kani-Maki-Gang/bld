@@ -53,7 +53,7 @@ impl UpdateJobRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct JobFiltersParams {
     pub id: Option<String>,
     pub pipeline: Option<String>,
@@ -80,7 +80,7 @@ impl JobFiltersParams {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct CronJobResponse {
     pub id: String,
     pub schedule: String,

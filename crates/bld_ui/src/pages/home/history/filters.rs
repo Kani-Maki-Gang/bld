@@ -1,6 +1,9 @@
-use crate::components::{
-    button::Button,
-    input::{Input, Select, SelectItem},
+use crate::{
+    components::{
+        button::Button,
+        input::{Input, Select, SelectItem},
+    },
+    context::RefreshHistory,
 };
 use leptos::*;
 
@@ -9,7 +12,6 @@ pub fn HistoryFilters(
     #[prop(into)] state: RwSignal<Option<String>>,
     #[prop(into)] limit: RwSignal<String>,
     #[prop(into)] pipeline: RwSignal<String>,
-    #[prop(into)] refresh: RwSignal<()>,
 ) -> impl IntoView {
     let (states, _set_states) = create_signal(vec![
         SelectItem {
@@ -37,6 +39,7 @@ pub fn HistoryFilters(
             label: "Faulted".to_string(),
         },
     ]);
+    let refresh = use_context::<RefreshHistory>();
 
     view! {
         <div class="flex items-center gap-x-4">
@@ -53,7 +56,9 @@ pub fn HistoryFilters(
                 <Select items=states value=state />
             </div>
             <div class="w-32">
-                <Button on:click=move |_| refresh.set(())>
+                <Button on:click=move |_| if let Some(RefreshHistory(refresh)) = refresh {
+                    refresh.set(());
+                }>
                     "Apply"
                 </Button>
             </div>
