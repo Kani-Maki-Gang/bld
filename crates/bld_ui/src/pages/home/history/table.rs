@@ -1,8 +1,11 @@
-use crate::{components::{
-    badge::Badge,
-    link::Link,
-    table::{Body, Cell, Header, Headers, Row, Table},
-}, context::RefreshHistory};
+use crate::{
+    components::{
+        badge::Badge,
+        link::Link,
+        table::{Body, Cell, Header, Headers, Row, Table},
+    },
+    context::RefreshHistory,
+};
 use anyhow::Result;
 use bld_models::dtos::{HistQueryParams, HistoryEntry};
 use leptos::{leptos_dom::logging, *};
@@ -75,10 +78,12 @@ pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> im
     );
 
     let _ = watch(
-        move || if let Some(RefreshHistory(refresh)) = refresh {
-            refresh.get();
-        } else {
-            logging::console_error("Refresh history signal not found in context");
+        move || {
+            if let Some(RefreshHistory(refresh)) = refresh {
+                refresh.get();
+            } else {
+                logging::console_error("Refresh history signal not found in context");
+            }
         },
         move |_, _, _| hist_res.refetch(),
         false,

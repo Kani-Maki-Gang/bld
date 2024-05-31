@@ -1,7 +1,10 @@
-use crate::{components::{
-    button::Button,
-    input::{Input, Select, SelectItem},
-}, context::RefreshHistory};
+use crate::{
+    components::{
+        button::Button,
+        input::{Input, Select, SelectItem},
+    },
+    context::RefreshHistory,
+};
 use leptos::*;
 
 #[component]
