@@ -1,10 +1,10 @@
-use anyhow::Result;
-use bld_models::dtos::{HistQueryParams, HistoryEntry};
 use crate::components::{
     badge::Badge,
     link::Link,
-    table::{DataTable, Headers, Header, Body, Row, Cell},
+    table::{Body, Cell, DataTable, Header, Headers, Row},
 };
+use anyhow::Result;
+use bld_models::dtos::{HistQueryParams, HistoryEntry};
 use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
 
