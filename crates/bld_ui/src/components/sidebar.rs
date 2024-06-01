@@ -2,13 +2,6 @@ use crate::components::button::Button;
 use leptos::*;
 use leptos_router::A;
 
-#[derive(Clone, Default)]
-pub struct SidebarItem {
-    pub icon: String,
-    pub text: String,
-    pub url: String,
-}
-
 #[component]
 pub fn SidebarTop() -> impl IntoView {
     view! {
@@ -19,28 +12,18 @@ pub fn SidebarTop() -> impl IntoView {
 }
 
 #[component]
-pub fn SidebarItemInstance(#[prop(into)] item: Signal<SidebarItem>) -> impl IntoView {
+pub fn SidebarItem(
+    #[prop(into)] icon: String,
+    #[prop(into)] text: String,
+    #[prop(into)] url: String,
+) -> impl IntoView {
     view! {
-        <A class="py-4 px-8 hover:bg-slate-600 hover:cursor-pointer flex items-center" href=item.get().url>
+        <A class="py-4 px-8 hover:bg-slate-600 hover:cursor-pointer flex items-center" href=url>
             <div class="text-2xl text-indigo-500">
-                <i class={item.get().icon} />
+                <i class={icon} />
             </div>
-            <div class="ml-4">{item.get().text}</div>
+            <div class="ml-4">{text}</div>
         </A>
-    }
-}
-
-#[component]
-pub fn SidebarContent(#[prop(into)] items: Signal<Vec<SidebarItem>>) -> impl IntoView {
-    view! {
-        <div class="flex flex-col divide-y divide-slate-600">
-            <For
-                each=move || items.get().into_iter().enumerate()
-                key=move |(i, _)| *i
-                let:child>
-                <SidebarItemInstance item=move || child.1.clone() />
-            </For>
-        </div>
     }
 }
 
@@ -60,12 +43,12 @@ pub fn SidebarBottom() -> impl IntoView {
 }
 
 #[component]
-pub fn Sidebar(#[prop(into)] items: Signal<Vec<SidebarItem>>) -> impl IntoView {
+pub fn Sidebar(children: Children) -> impl IntoView {
     view! {
         <div class="bg-slate-700 w-64 shadow-md flex flex-col divide-y divide-slate-600">
             <SidebarTop />
-            <div class="grow">
-                <SidebarContent items=items />
+            <div class="grow flex flex-col divide-y divide-slate-600">
+                {children()}
             </div>
             <SidebarBottom />
         </div>
