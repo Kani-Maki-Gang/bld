@@ -45,12 +45,12 @@ fn get_nav_items() -> Vec<SidebarItem> {
 
 #[component]
 pub fn Home() -> impl IntoView {
-    let nav_items = get_nav_items();
+    let nav_items = create_rw_signal(get_nav_items());
 
     view! {
         <div class="size-full flex">
             <div class="grow-0 flex self-stretch">
-                <Sidebar items=nav_items />
+                <Sidebar items=move || nav_items.get() />
             </div>
             <div class="grow overflow-auto">
                 <div class="m-12">

@@ -2,7 +2,7 @@ use crate::components::button::Button;
 use leptos::*;
 use leptos_router::A;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct SidebarItem {
     pub icon: String,
     pub text: String,
@@ -19,25 +19,27 @@ pub fn SidebarTop() -> impl IntoView {
 }
 
 #[component]
-pub fn SidebarItemInstance(#[prop()] item: SidebarItem) -> impl IntoView {
+pub fn SidebarItemInstance(#[prop(into)] item: Signal<SidebarItem>) -> impl IntoView {
     view! {
-        <A class="py-4 px-8 hover:bg-slate-600 hover:cursor-pointer flex items-center" href=item.url>
+        <A class="py-4 px-8 hover:bg-slate-600 hover:cursor-pointer flex items-center" href=item.get().url>
             <div class="text-2xl text-indigo-500">
-                <i class=item.icon />
+                <i class={item.get().icon} />
             </div>
-            <div class="ml-4">{item.text}</div>
+            <div class="ml-4">{item.get().text}</div>
         </A>
     }
 }
 
 #[component]
-pub fn SidebarContent(#[prop()] items: Vec<SidebarItem>) -> impl IntoView {
+pub fn SidebarContent(#[prop(into)] items: Signal<Vec<SidebarItem>>) -> impl IntoView {
     view! {
         <div class="flex flex-col divide-y divide-slate-600">
-            {items
-                .into_iter()
-                .map(|i| view!{ <SidebarItemInstance item=i /> })
-                .collect_view()}
+            <For
+                each=move || items.get().into_iter().enumerate()
+                key=move |(i, _)| *i
+                let:child>
+                <SidebarItemInstance item=move || child.1.clone() />
+            </For>
         </div>
     }
 }
@@ -58,7 +60,7 @@ pub fn SidebarBottom() -> impl IntoView {
 }
 
 #[component]
-pub fn Sidebar(#[prop()] items: Vec<SidebarItem>) -> impl IntoView {
+pub fn Sidebar(#[prop(into)] items: Signal<Vec<SidebarItem>>) -> impl IntoView {
     view! {
         <div class="bg-slate-700 w-64 shadow-md flex flex-col divide-y divide-slate-600">
             <SidebarTop />

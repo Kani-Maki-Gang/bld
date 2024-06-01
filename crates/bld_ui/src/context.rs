@@ -29,10 +29,6 @@ impl PipelineSelectedView {
 pub struct RefreshCronJobs(pub RwSignal<()>);
 
 impl RefreshCronJobs {
-    pub fn get(&self) -> () {
-        self.0.get()
-    }
-
     pub fn set(&self) {
         self.0.set(());
     }
@@ -42,10 +38,6 @@ impl RefreshCronJobs {
 pub struct RefreshHistory(pub RwSignal<()>);
 
 impl RefreshHistory {
-    pub fn get(&self) -> () {
-        self.0.get()
-    }
-
     pub fn set(&self) {
         self.0.set(());
     }
