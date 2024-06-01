@@ -2,7 +2,7 @@ use crate::components::{
     badge::Badge,
     card::Card,
     table::{Body, Cell, Header, Headers, Row, Table},
-    tabs::{TabItem, Tabs},
+    tabs::{Tab, Tabs},
 };
 use leptos::*;
 use std::collections::HashMap;
@@ -35,18 +35,7 @@ pub fn PipelineVariablesV2(
     #[prop(into)] variables: Signal<HashMap<String, String>>,
     #[prop(into)] environment: Signal<HashMap<String, String>>,
 ) -> impl IntoView {
-    let (tabs, _set_tabs) = create_signal(vec![
-        TabItem {
-            id: "variables".to_string(),
-            label: "Variables".to_string(),
-        },
-        TabItem {
-            id: "environment".to_string(),
-            label: "Environment".to_string(),
-        },
-    ]);
     let selected_tab = create_rw_signal("variables".to_string());
-
     view! {
         <Card>
             <div class="flex flex-col px-8 py-12 gap-y-4 min-h-96 max-h-[600px]">
@@ -56,7 +45,18 @@ pub fn PipelineVariablesV2(
                 <div class="text-gray-400">
                     "The configured variables and environment variables for this pipeline."
                 </div>
-                <Tabs items=tabs selected=selected_tab />
+                <Tabs>
+                    <Tab
+                        is_selected=move || selected_tab.get() == "variables"
+                        on:click=move |_| selected_tab.set("variables".to_string())>
+                        "Variables"
+                    </Tab>
+                    <Tab
+                        is_selected=move || selected_tab.get() == "environment"
+                        on:click=move |_| selected_tab.set("environment".to_string())>
+                        "Environment"
+                    </Tab>
+                </Tabs>
                 <Show
                     when=move || selected_tab.get() == "variables" && !variables.get().is_empty()
                     fallback=|| view! {}>

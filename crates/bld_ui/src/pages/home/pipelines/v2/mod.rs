@@ -5,7 +5,7 @@ mod hist_and_cron;
 mod jobs;
 mod variables;
 
-use crate::components::card::Card;
+use crate::{components::card::Card, context::{RefreshCronJobs, RefreshHistory}};
 use bld_runner::pipeline::versioned::VersionedPipeline;
 use leptos::{leptos_dom::logging, *};
 
@@ -37,6 +37,8 @@ pub fn PipelineV2(
     };
 
     let selected_group_item = create_rw_signal("view".to_string());
+    provide_context(RefreshHistory(create_rw_signal(())));
+    provide_context(RefreshCronJobs(create_rw_signal(())));
 
     view! {
         <Show
