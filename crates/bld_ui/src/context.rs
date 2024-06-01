@@ -9,7 +9,7 @@ pub struct AppDialogContent(pub RwSignal<Option<View>>);
 #[derive(Copy, Clone)]
 pub enum PipelineView {
     UI,
-    RawFile
+    RawFile,
 }
 
 #[derive(Copy, Clone)]

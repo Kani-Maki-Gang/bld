@@ -1,9 +1,12 @@
-use crate::{components::{
-    badge::Badge,
-    button_group::{ButtonGroup, ButtonGroupItem},
-    card::Card,
-    link::LinkButton,
-}, context::{PipelineSelectedView, PipelineView}};
+use crate::{
+    components::{
+        badge::Badge,
+        button_group::{ButtonGroup, ButtonGroupItem},
+        card::Card,
+        link::LinkButton,
+    },
+    context::{PipelineSelectedView, PipelineView},
+};
 use bld_runner::pipeline::v2::Pipeline;
 use leptos::*;
 
@@ -11,7 +14,7 @@ use leptos::*;
 pub fn PipelineDetailsV2(
     #[prop(into)] id: Signal<Option<String>>,
     #[prop(into)] name: Signal<Option<String>>,
-    #[prop(into)] pipeline: Signal<Pipeline>
+    #[prop(into)] pipeline: Signal<Pipeline>,
 ) -> impl IntoView {
     let pipeline_name = move || pipeline.get().name;
     let cron = move || pipeline.get().cron.map(|x| format!("Cron: {}", x));

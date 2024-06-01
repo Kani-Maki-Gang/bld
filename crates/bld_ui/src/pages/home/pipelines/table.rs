@@ -1,7 +1,10 @@
-use crate::{components::{
-    link::Link,
-    table::{Body, Cell, Header, Headers, Row, Table},
-}, context::RefreshPipelines};
+use crate::{
+    components::{
+        link::Link,
+        table::{Body, Cell, Header, Headers, Row, Table},
+    },
+    context::RefreshPipelines,
+};
 use anyhow::Result;
 use bld_models::dtos::ListResponse;
 use leptos::{leptos_dom::logging, *};

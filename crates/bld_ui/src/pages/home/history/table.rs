@@ -33,11 +33,7 @@ pub fn HistoryEntryState(#[prop(into)] state: String) -> impl IntoView {
         "initial" => ("iconoir-running", "Intial", "bg-yellow-600"),
         "queued" => ("iconoir-clock", "Queued", ""),
         "running" => ("iconoir-running", "Running", ""),
-        "finished" => (
-            "iconoir-check-circle",
-            "Finished",
-            "bg-emerable-600",
-        ),
+        "finished" => ("iconoir-check-circle", "Finished", "bg-emerable-600"),
         "faulted" => ("iconoir-minus-circle", "Faulted", "bg-red-600"),
         _ => ("", "Unknown", "bg-black"),
     };

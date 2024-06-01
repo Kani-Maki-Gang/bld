@@ -12,12 +12,14 @@ pub fn ButtonGroup(children: Children) -> impl IntoView {
 #[component]
 pub fn ButtonGroupItem(
     #[prop(into, optional)] is_selected: Signal<bool>,
-    children: Children
+    children: Children,
 ) -> impl IntoView {
-    let class = move || if is_selected.get() {
-        "inline-block rounded-md px-4 py-2 text-sm text-gray-200 shadow-sm focus:relative bg-slate-800"
-    } else {
-        "inline-block rounded-md px-4 py-2 text-sm text-gray-400 hover:text-gray-200 focus:relative"
+    let class = move || {
+        if is_selected.get() {
+            "inline-block rounded-md px-4 py-2 text-sm text-gray-200 shadow-sm focus:relative bg-slate-800"
+        } else {
+            "inline-block rounded-md px-4 py-2 text-sm text-gray-400 hover:text-gray-200 focus:relative"
+        }
     };
     view! {
         <button class=class>{children()}</button>

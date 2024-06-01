@@ -3,7 +3,10 @@ mod run;
 mod table;
 mod v2;
 
-use crate::{components::{button::Button, card::Card}, context::RefreshPipelines};
+use crate::{
+    components::{button::Button, card::Card},
+    context::RefreshPipelines,
+};
 use leptos::*;
 use table::PipelinesTable;
 
