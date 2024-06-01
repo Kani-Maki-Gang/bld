@@ -4,7 +4,7 @@ use crate::{
         card::Card,
         tabs::{Tab, Tabs},
     },
-    context::{RefreshHistory, RefreshCronJobs},
+    context::{RefreshCronJobs, RefreshHistory},
     pages::home::cron::CronJobsTable,
     pages::home::history::table::HistoryTable,
 };

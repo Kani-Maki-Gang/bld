@@ -1,7 +1,7 @@
 use crate::components::{
     badge::Badge,
     card::Card,
-    list::{List, ListItem},
+    list::List,
     tabs::{Tab, Tabs},
 };
 use bld_runner::step::v2::BuildStep;
@@ -20,25 +20,14 @@ pub fn PipelineJobsV2(
                     k,
                     v.into_iter()
                         .map(|x| {
-                            let mut item = ListItem::default();
-                            item.icon = "iconoir-minus".to_string();
-                            let content = serde_yaml::to_string(&x)
+                            serde_yaml::to_string(&x)
                                 .map_err(|e| logging::console_error(&format!("{:?}", e)))
-                                .unwrap_or_default();
-                            item.content = Some(
-                                view! {
-                                    <pre class="text-sm text-gray-200">
-                                        {content}
-                                    </pre>
-                                }
-                                .into_view(),
-                            );
-                            item
+                                .unwrap_or_default()
                         })
-                        .collect::<Vec<ListItem>>(),
+                        .collect::<Vec<String>>(),
                 )
             })
-            .collect::<HashMap<String, Vec<ListItem>>>()
+            .collect::<HashMap<String, Vec<String>>>()
     };
 
     let selected_tab = create_rw_signal(String::default());
@@ -80,7 +69,16 @@ pub fn PipelineJobsV2(
                             </Tab>
                         </For>
                     </Tabs>
-                    <List items=items />
+                    <List>
+                        <For
+                            each=move || items().into_iter().enumerate()
+                            key=|(i, _)| *i
+                            let:child>
+                            <pre class="text-sm text-gray-200">
+                                {child.1}
+                            </pre>
+                        </For>
+                    </List>
                 </Show>
             </div>
         </Card>

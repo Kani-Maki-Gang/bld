@@ -5,7 +5,10 @@ mod hist_and_cron;
 mod jobs;
 mod variables;
 
-use crate::{components::card::Card, context::{RefreshCronJobs, RefreshHistory}};
+use crate::{
+    components::card::Card,
+    context::{RefreshCronJobs, RefreshHistory},
+};
 use bld_runner::pipeline::versioned::VersionedPipeline;
 use leptos::{leptos_dom::logging, *};
 
