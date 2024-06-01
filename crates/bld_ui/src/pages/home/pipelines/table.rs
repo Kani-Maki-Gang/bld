@@ -1,7 +1,7 @@
-use crate::components::{
+use crate::{components::{
     link::Link,
     table::{Body, Cell, Header, Headers, Row, Table},
-};
+}, context::RefreshPipelines};
 use anyhow::Result;
 use bld_models::dtos::ListResponse;
 use leptos::{leptos_dom::logging, *};
@@ -26,7 +26,7 @@ async fn get_pipelines() -> Result<Vec<ListResponse>> {
 #[component]
 pub fn PipelinesTable() -> impl IntoView {
     let (data, set_data) = create_signal(vec![]);
-    let refresh = use_context::<RwSignal<()>>();
+    let refresh = use_context::<RefreshPipelines>();
 
     let list_res = create_resource(
         move || set_data,

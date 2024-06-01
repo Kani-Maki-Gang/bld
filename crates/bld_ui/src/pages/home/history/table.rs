@@ -28,7 +28,7 @@ async fn get_hist(params: &HistQueryParams) -> Result<Vec<HistoryEntry>> {
 }
 
 #[component]
-fn HistoryEntryState(#[prop(into)] state: String) -> impl IntoView {
+pub fn HistoryEntryState(#[prop(into)] state: String) -> impl IntoView {
     let (icon, label, class) = match state.as_str() {
         "initial" => ("iconoir-running", "Intial", "bg-yellow-600"),
         "queued" => ("iconoir-clock", "Queued", ""),
@@ -39,7 +39,7 @@ fn HistoryEntryState(#[prop(into)] state: String) -> impl IntoView {
             "bg-emerable-600",
         ),
         "faulted" => ("iconoir-minus-circle", "Faulted", "bg-red-600"),
-        _ => return view! {}.into_view(),
+        _ => ("", "Unknown", "bg-black"),
     };
 
     let icon = format!("{icon} mr-2");
@@ -53,7 +53,6 @@ fn HistoryEntryState(#[prop(into)] state: String) -> impl IntoView {
             </Badge>
         </div>
     }
-    .into_view()
 }
 
 #[component]

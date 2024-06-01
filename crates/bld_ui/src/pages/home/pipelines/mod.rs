@@ -3,7 +3,7 @@ mod run;
 mod table;
 mod v2;
 
-use crate::components::{button::Button, card::Card};
+use crate::{components::{button::Button, card::Card}, context::RefreshPipelines};
 use leptos::*;
 use table::PipelinesTable;
 
@@ -12,7 +12,7 @@ pub use run::{variables::RunPipelineVariables, RunPipeline};
 
 #[component]
 pub fn Pipelines() -> impl IntoView {
-    let refresh = create_rw_signal(());
+    let refresh = RefreshPipelines(create_rw_signal(()));
 
     provide_context(refresh);
 
@@ -30,7 +30,7 @@ pub fn Pipelines() -> impl IntoView {
                             </div>
                         </div>
                         <div class="w-40 flex items-end">
-                            <Button on:click=move |_| refresh.set(())>
+                            <Button on:click=move |_| refresh.set()>
                                 "Refresh"
                             </Button>
                         </div>
