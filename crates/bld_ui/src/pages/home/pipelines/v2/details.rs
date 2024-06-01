@@ -55,7 +55,7 @@ pub fn PipelineDetailsV2(
                                 on:click=move |_| {
                                     let _ = selected_view.map(|x| x.set(PipelineView::RawFile));
                                 }>
-                                "View"
+                                "Raw file"
                             </ButtonGroupItem>
                         </ButtonGroup>
                     </div>

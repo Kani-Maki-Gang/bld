@@ -12,9 +12,15 @@ use bld_models::dtos::{HistQueryParams, JobFiltersParams};
 use leptos::*;
 use leptos_router::*;
 
+#[derive(Copy, Clone)]
+pub enum TabType {
+    History,
+    Cron,
+}
+
 #[component]
 pub fn PipelineHistAndCronV2(#[prop(into)] name: Signal<Option<String>>) -> impl IntoView {
-    let selected_tab = create_rw_signal("history".to_string());
+    let selected_tab = create_rw_signal(TabType::History);
 
     let hist_params = move || {
         name.get().map(|n| HistQueryParams {
@@ -35,18 +41,18 @@ pub fn PipelineHistAndCronV2(#[prop(into)] name: Signal<Option<String>>) -> impl
     let cron_refresh = use_context::<RefreshCronJobs>();
 
     let refresh = move || {
-        if selected_tab.get() == "history" {
-            let Some(RefreshHistory(refresh)) = hist_refresh else {
+        if matches!(selected_tab.get(), TabType::History) {
+            let Some(hist) = hist_refresh else {
                 logging::error!("RefreshHistory context not found");
                 return;
             };
-            refresh.set(());
+            hist.set();
         } else {
-            let Some(RefreshCronJobs(refresh)) = cron_refresh else {
+            let Some(cron) = cron_refresh else {
                 logging::error!("RefreshHistory context not found");
                 return;
             };
-            refresh.set(());
+            cron.set();
         }
     };
 
@@ -65,7 +71,7 @@ pub fn PipelineHistAndCronV2(#[prop(into)] name: Signal<Option<String>>) -> impl
                     <div class="min-w-40">
                         <Button on:click={move |_| refresh()}>"Refresh"</Button>
                     </div>
-                    <Show when=move || selected_tab.get() == "cron" fallback=|| view!{}>
+                    <Show when=move || matches!(selected_tab.get(), TabType::History) fallback=|| view!{}>
                         <div class="min-w-40">
                             <Button on:click=move |_| {
                                 let nav = use_navigate();
@@ -78,25 +84,22 @@ pub fn PipelineHistAndCronV2(#[prop(into)] name: Signal<Option<String>>) -> impl
                 </div>
                 <Tabs>
                     <Tab
-                        is_selected=move || selected_tab.get() == "history"
-                        on:click=move |_| selected_tab.set("history".to_string())>
+                        is_selected=move || matches!(selected_tab.get(), TabType::History)
+                        on:click=move |_| selected_tab.set(TabType::History)>
                         "History"
                     </Tab>
                     <Tab
-                        is_selected=move || selected_tab.get() == "cron"
-                        on:click=move |_| selected_tab.set("cron".to_string())>
+                        is_selected=move || matches!(selected_tab.get(), TabType::Cron)
+                        on:click=move |_| selected_tab.set(TabType::Cron)>
                         "Cron jobs"
                     </Tab>
                 </Tabs>
                 <Show
-                    when=move || selected_tab.get() == "history"
-                    fallback=|| view!{}>
+                    when=move || matches!(selected_tab.get(), TabType::History)
+                    fallback=move || view!{
+                        <CronJobsTable params=cron_params />
+                    }>
                     <HistoryTable params=hist_params />
-                </Show>
-                <Show
-                    when=move || selected_tab.get() == "cron"
-                    fallback=|| view!{}>
-                    <CronJobsTable params=cron_params />
                 </Show>
             </div>
         </Card>
