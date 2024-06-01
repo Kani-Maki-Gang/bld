@@ -1,13 +1,33 @@
 use leptos::{html::Dialog, *};
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct AppDialog(pub NodeRef<Dialog>);
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct AppDialogContent(pub RwSignal<Option<View>>);
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
+pub enum PipelineView {
+    UI,
+    RawFile
+}
+
+#[derive(Copy, Clone)]
+pub struct PipelineSelectedView(pub RwSignal<PipelineView>);
+
+impl PipelineSelectedView {
+    pub fn get(&self) -> PipelineView {
+        self.0.get()
+    }
+
+    pub fn set(&self, view: PipelineView) {
+        self.0.set(view);
+    }
+}
+
+#[derive(Copy, Clone)]
 pub struct RefreshCronJobs(pub RwSignal<()>);
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct RefreshHistory(pub RwSignal<()>);
+
