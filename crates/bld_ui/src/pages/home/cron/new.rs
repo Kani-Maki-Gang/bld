@@ -27,32 +27,28 @@ async fn get_pipelines() -> Result<Vec<ListResponse>> {
 #[component]
 fn CronJobsNewDialog(#[prop(into)] app_dialog: NodeRef<Dialog>) -> impl IntoView {
     let search = create_rw_signal(String::new());
-    let (pipelines, set_pipelines) = create_signal(vec![]);
+
+    let data = create_resource(
+        move || (),
+        |_| async move {
+            get_pipelines()
+                .await
+                .map_err(|e| logging::console_log(&e.to_string()))
+                .unwrap_or_default()
+        },
+    );
 
     let filtered_pipelines = move || {
         let search = search.get();
+        let data = data.get().unwrap_or_default();
         if search.is_empty() {
-            pipelines.get()
+            data
         } else {
-            pipelines
-                .get()
-                .into_iter()
+            data.into_iter()
                 .filter(|x: &ListResponse| x.pipeline.contains(&search))
                 .collect()
         }
     };
-
-    create_resource(
-        move || set_pipelines,
-        |set_pipelines| async move {
-            let data = get_pipelines()
-                .await
-                .map_err(|e| logging::console_log(&e.to_string()))
-                .unwrap_or_default();
-
-            set_pipelines.set(data);
-        },
-    );
 
     view! {
         <Card>

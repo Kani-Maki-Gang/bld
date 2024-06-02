@@ -7,7 +7,8 @@ use reqwest::Client;
 
 use super::v2::PipelineV2;
 
-async fn get_pipeline(id: String) -> Result<Option<VersionedPipeline>> {
+async fn get_pipeline(id: Option<String>) -> Result<VersionedPipeline> {
+    let id = id.ok_or_else(|| anyhow::anyhow!("Id not provided as query parameter"))?;
     let params = PipelineInfoQueryParams::Id { id };
 
     let res = Client::builder()
@@ -31,37 +32,27 @@ pub fn PipelineInfo() -> impl IntoView {
     let params = use_query_map();
     let id = move || params.with(|p| p.get("id").cloned());
     let name = move || params.with(|p| p.get("name").cloned());
-    let (data, set_data) = create_signal(None);
 
-    let _ = create_resource(
-        move || (id(), set_data),
-        |(id, set_data)| async move {
-            let Some(id) = id else {
-                return;
-            };
-
-            let value = get_pipeline(id)
+    let data = create_resource(
+        move || id(),
+        |id| async move {
+            get_pipeline(id)
                 .await
                 .map_err(|e| logging::console_error(&e.to_string()))
-                .unwrap_or_else(|_| None);
-
-            if value.is_some() {
-                set_data.set(value);
-            }
         },
     );
 
     view! {
         <div class="flex flex-col spacing-4">
             <Show
-                when=move || matches!(data.get(), Some(VersionedPipeline::Version1(_)))
+                when=move || matches!(data.get(), Some(Ok(VersionedPipeline::Version1(_))))
                 fallback=|| view! { }>
                 "TODO!"
             </Show>
             <Show
-                when=move || matches!(data.get(), Some(VersionedPipeline::Version2(_)))
+                when=move || matches!(data.get(), Some(Ok(VersionedPipeline::Version2(_))))
                 fallback=|| view! { }>
-                <PipelineV2 id=id name=name pipeline=move || data.get() />
+                <PipelineV2 id=id name=name pipeline=move || data.get().unwrap().ok() />
             </Show>
             <Show
                 when=move || data.get().is_none()

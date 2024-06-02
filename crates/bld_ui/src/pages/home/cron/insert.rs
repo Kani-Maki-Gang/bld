@@ -31,31 +31,26 @@ async fn insert(data: AddJobRequest) -> Result<()> {
 pub fn CronJobInsert() -> impl IntoView {
     let params = use_query_map();
     let name = move || params.with(|p| p.get("name").cloned());
-    let (cron, set_cron) = create_signal(None);
-    let (pipeline, set_pipeline) = create_signal(None);
     let (save, set_save) = create_signal(None);
 
-    create_resource(
-        move || (name(), set_pipeline, set_cron),
-        |(name, set_pipeline, set_cron)| async move {
-            let Some(name) = name else {
-                return;
-            };
-
+    let cron = move || {
+        if let Some(name) = name() {
             let job = CronJobResponse {
                 pipeline: name.clone(),
                 ..Default::default()
             };
+            Some(job)
+        } else {
+            None
+        }
+    };
 
-            let pipeline_resp = get_pipeline(name.to_string())
+    let data = create_resource(
+        move || name(),
+        |name| async move {
+            get_pipeline(name)
                 .await
-                .map_err(|e| logging::console_error(e.to_string().as_str()))
-                .ok();
-
-            if let Some(pipeline_resp) = pipeline_resp {
-                set_pipeline.set(pipeline_resp);
-                set_cron.set(Some(job));
-            }
+                .map_err(|e| logging::console_error(&e.to_string()))
         },
     );
 
@@ -82,6 +77,14 @@ pub fn CronJobInsert() -> impl IntoView {
     });
 
     view! {
-        <CronJobsEdit cron=cron pipeline=pipeline save=set_save />
+        <Show
+            when=move || data.get().is_some()
+            fallback=|| view! {
+                <div class="text-2xl">
+                    "Loading..."
+                </div>
+            }>
+            <CronJobsEdit cron=move || cron() pipeline=move || data.get().unwrap().ok() save=set_save />
+        </Show>
     }
 }

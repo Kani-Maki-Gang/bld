@@ -17,9 +17,9 @@ pub fn PipelineDetailsV2(
     #[prop(into)] pipeline: Signal<Pipeline>,
 ) -> impl IntoView {
     let pipeline_name = move || pipeline.get().name;
-    let cron = move || pipeline.get().cron.map(|x| format!("Cron: {}", x));
-    let runs_on = move || format!("Runs on: {}", pipeline.get().runs_on);
-    let dispose = move || format!("Dispose: {}", pipeline.get().dispose);
+    let cron = move || pipeline.with(|p| p.cron.as_ref().map(|x| format!("Cron: {x}")));
+    let runs_on = move || pipeline.with(|p| format!("Runs on: {}", p.runs_on));
+    let dispose = move || pipeline.with(|p| format!("Dispose: {}", p.dispose));
     let selected_view = use_context::<PipelineSelectedView>();
 
     view! {
@@ -31,16 +31,16 @@ pub fn PipelineDetailsV2(
                     </div>
                     <Show when=move || pipeline_name().is_some() fallback=|| view! { }>
                         <div class="text-gray-400">
-                            {pipeline_name()}
+                            {move || pipeline_name()}
                         </div>
                     </Show>
                     <div class="flex gap-x-2">
                         <Badge>"Version: 2"</Badge>
-                        <Badge>{runs_on()}</Badge>
+                        <Badge>{move || runs_on()}</Badge>
                         <Show when=move || cron().is_some() fallback=|| view! { }>
-                            <Badge>{cron().unwrap()}</Badge>
+                            <Badge>{move || cron().unwrap()}</Badge>
                         </Show>
-                        <Badge>{dispose()}</Badge>
+                        <Badge>{move || dispose()}</Badge>
                     </div>
                 </div>
                 <div class="flex items-center gap-x-4">

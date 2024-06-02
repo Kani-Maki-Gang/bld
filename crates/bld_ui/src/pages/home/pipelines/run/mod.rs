@@ -31,7 +31,8 @@ enum RunParams {
     },
 }
 
-async fn get_pipeline(id: String) -> Result<Option<VersionedPipeline>> {
+async fn get_pipeline(id: Option<String>) -> Result<VersionedPipeline> {
+    let id = id.ok_or_else(|| anyhow!("Pipeline id not provided in query"))?;
     let params = PipelineInfoQueryParams::Id { id };
 
     let res = Client::builder()
@@ -97,25 +98,15 @@ pub fn RunPipeline() -> impl IntoView {
     let params = use_query_map();
     let id = move || params.with(|p| p.get("id").cloned());
     let name = move || params.with(|p| p.get("name").cloned());
-    let (data, set_data) = create_signal(None);
     let variables = create_rw_signal(HashMap::new());
     let environment = create_rw_signal(HashMap::new());
 
-    let _ = create_resource(
-        move || (id(), set_data),
-        |(id, set_data)| async move {
-            let Some(id) = id else {
-                return;
-            };
-
-            let value = get_pipeline(id)
+    let data = create_resource(
+        move || id(),
+        |id| async move {
+            get_pipeline(id)
                 .await
                 .map_err(|e| logging::console_error(&e.to_string()))
-                .unwrap_or_else(|_| None);
-
-            if value.is_some() {
-                set_data.set(value);
-            }
         },
     );
 
@@ -128,16 +119,16 @@ pub fn RunPipeline() -> impl IntoView {
     });
 
     create_effect(move |_| match data.get() {
-        Some(VersionedPipeline::Version1(v1::Pipeline {
+        Some(Ok(VersionedPipeline::Version1(v1::Pipeline {
             variables: var,
             environment: env,
             ..
-        }))
-        | Some(VersionedPipeline::Version2(v2::Pipeline {
+        })))
+        | Some(Ok(VersionedPipeline::Version2(v2::Pipeline {
             variables: var,
             environment: env,
             ..
-        })) => {
+        }))) => {
             variables.set(hash_map_rw_signals(var));
             environment.set(hash_map_rw_signals(env));
         }

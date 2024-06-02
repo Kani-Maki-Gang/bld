@@ -28,24 +28,21 @@ async fn get_pipelines() -> Result<Vec<ListResponse>> {
 
 #[component]
 pub fn PipelinesTable() -> impl IntoView {
-    let (data, set_data) = create_signal(vec![]);
     let refresh = use_context::<RefreshPipelines>();
 
-    let list_res = create_resource(
-        move || set_data,
-        |set_data| async move {
-            let data = get_pipelines()
+    let data = create_resource(
+        || (),
+        |_| async move {
+            get_pipelines()
                 .await
                 .map_err(|e| logging::console_log(e.to_string().as_str()))
-                .unwrap_or_default();
-
-            set_data.set(data);
+                .unwrap_or_default()
         },
     );
 
     let _ = watch(
         move || refresh.map(|x| x.get()),
-        move |_, _, _| list_res.refetch(),
+        move |_, _, _| data.refetch(),
         false,
     );
 
@@ -59,6 +56,7 @@ pub fn PipelinesTable() -> impl IntoView {
                 <For
                     each=move || data
                         .get()
+                        .unwrap_or_default()
                         .into_iter()
                         .enumerate()
                         .map(|(i, x)| (i, x.pipeline.clone(), x))
