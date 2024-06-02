@@ -12,6 +12,7 @@ use std::collections::HashMap;
 pub fn PipelineJobsV2(
     #[prop(into)] jobs: Signal<HashMap<String, Vec<BuildStep>>>,
 ) -> impl IntoView {
+    let items_cache = create_rw_signal(HashMap::new());
     let selected_tab = create_rw_signal(String::new());
 
     let jobs = move || {
@@ -37,13 +38,29 @@ pub fn PipelineJobsV2(
 
     let items = move || {
         let key = selected_tab.get();
-        jobs()
+
+        if !items_cache.get_untracked().contains_key(&key) {
+            let key = key.clone();
+
+            let steps: Vec<(String, String)> = jobs()
+                .get(&key)
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .enumerate()
+                .map(|(i, x)| (format!("{key}_{i}"), x))
+                .collect();
+
+            items_cache.update_untracked(|x| {
+                x.insert(key, steps);
+            });
+        }
+
+        items_cache
+            .get_untracked()
             .get(&key)
             .cloned()
             .unwrap_or_default()
-            .into_iter()
-            .enumerate()
-            .map(move |(i, x)| (format!("{key}_{i}"), x))
     };
 
     let _ = watch(
