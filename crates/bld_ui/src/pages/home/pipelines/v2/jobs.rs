@@ -34,11 +34,16 @@ pub fn PipelineJobsV2(
     selected_tab
         .update(|x: &mut String| *x = jobs().keys().next().map(|x| x.clone()).unwrap_or_default());
 
-    let items = move || jobs().get(&selected_tab.get()).cloned().unwrap_or_default();
+    let items = move || {
+        logging::console_log("Refreshing job items");
+        let data = jobs().get(&selected_tab.get()).cloned().unwrap_or_default();
+        logging::console_log(&format!("{:?}", data));
+        data
+    };
 
     view! {
         <Card>
-            <div class="flex flex-col px-8 py-12 gap-y-4 min-h-96 max-h-[500]px">
+            <div class="flex flex-col px-8 py-12 gap-y-4 min-h-96 max-h-[600px]">
                 <div class="flex flex-col">
                     <div class="text-xl">
                         "Jobs"
@@ -74,7 +79,7 @@ pub fn PipelineJobsV2(
                             each=move || items().into_iter().enumerate()
                             key=|(i, _)| *i
                             let:child>
-                            <pre class="text-sm text-gray-200">
+                            <pre class="text-sm text-gray-200 p-4 rounded-lg bg-slate-800">
                                 {child.1}
                             </pre>
                         </For>
