@@ -11,11 +11,12 @@ use bld_models::dtos::{CronJobResponse, JobFiltersParams};
 use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
 
-async fn get_cron(params: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
+async fn get_cron(params: Option<JobFiltersParams>) -> Result<Vec<CronJobResponse>> {
+    let params = params.ok_or_else(|| anyhow::anyhow!("Params not provided for /v1/cron request"))?;
     let res = Client::builder()
         .build()?
         .get("http://localhost:6080/v1/cron")
-        .query(params)
+        .query(&params)
         .send()
         .await?;
 
@@ -29,22 +30,15 @@ async fn get_cron(params: &JobFiltersParams) -> Result<Vec<CronJobResponse>> {
 
 #[component]
 pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> impl IntoView {
-    let (data, set_data) = create_signal(vec![]);
     let refresh = use_context::<RefreshCronJobs>();
 
-    let hist_res = create_resource(
-        move || (params, set_data),
-        |(params, set_data)| async move {
-            let Some(params) = params.get_untracked() else {
-                return;
-            };
-
-            let data = get_cron(&params)
+    let data = create_resource(
+        move || params.get(),
+        |params| async move {
+            get_cron(params)
                 .await
                 .map_err(|e| logging::console_error(e.to_string().as_str()))
-                .unwrap_or_default();
-
-            set_data.set(data);
+                .unwrap_or_default()
         },
     );
 
@@ -56,7 +50,7 @@ pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> 
                 logging::console_error("Refresh cron jobs signal not found in context");
             }
         },
-        move |_, _, _| hist_res.refetch(),
+        move |_, _, _| data.refetch(),
         false,
     );
 
@@ -75,6 +69,7 @@ pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> 
                 <For
                     each=move || data
                         .get()
+                        .unwrap_or_default()
                         .into_iter()
                         .enumerate()
                         .map(|x| (x.0, x.1.id.clone(), x.1))
