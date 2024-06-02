@@ -29,7 +29,8 @@ pub fn hash_map_strings(items: HashMap<String, RwSignal<String>>) -> HashMap<Str
         .collect()
 }
 
-pub async fn get_cron(id: String) -> Result<CronJobResponse> {
+pub async fn get_cron(id: Option<String>) -> Result<CronJobResponse> {
+    let id = id.ok_or_else(|| anyhow!("Id not provided as query parameter"))?;
     let params = JobFiltersParams {
         id: Some(id),
         ..Default::default()
@@ -53,7 +54,8 @@ pub async fn get_cron(id: String) -> Result<CronJobResponse> {
     }
 }
 
-pub async fn get_pipeline(name: String) -> Result<Option<VersionedPipeline>> {
+pub async fn get_pipeline(name: Option<String>) -> Result<VersionedPipeline> {
+    let name = name.ok_or_else(|| anyhow!("Name not provided as query parameter"))?;
     let params = PipelineInfoQueryParams::Name { name };
 
     let res = Client::builder()

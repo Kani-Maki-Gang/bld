@@ -49,37 +49,36 @@ async fn delete(id: String) -> Result<()> {
 pub fn CronJobUpdate() -> impl IntoView {
     let params = use_query_map();
     let id = move || params.with(|p| p.get("id").cloned());
-    let (cron, set_cron) = create_signal(None);
-    let (pipeline, set_pipeline) = create_signal(None);
     let (save, set_save) = create_signal(None);
     let (get_delete, set_delete) = create_signal(());
 
-    create_resource(
-        move || (id(), set_pipeline, set_cron),
-        |(id, set_pipeline, set_cron)| async move {
-            let Some(id) = id else {
-                return;
-            };
-
-            let cron_resp = get_cron(id.to_string())
+    let data = create_resource(
+        move || id(),
+        |id| async move {
+            let cron = get_cron(id)
                 .await
                 .map_err(|e| logging::console_error(e.to_string().as_str()))
                 .ok();
 
-            if let Some(name) = cron_resp.as_ref().map(|x| x.pipeline.clone()) {
-                let pipeline_resp = get_pipeline(name)
-                    .await
-                    .map_err(|e| logging::console_error(e.to_string().as_str()))
-                    .ok();
+            let name = cron.as_ref().map(|x| x.pipeline.clone());
+            let pipeline = get_pipeline(name)
+                .await
+                .map_err(|e| logging::console_error(e.to_string().as_str()))
+                .ok();
 
-                if let Some(pipeline_resp) = pipeline_resp {
-                    set_pipeline.set(pipeline_resp);
-                }
-            }
-
-            set_cron.set(cron_resp);
+            (cron, pipeline)
         },
     );
+
+    let cron = move || match data.get() {
+        Some((cron, _)) => cron,
+        None => None
+    };
+
+    let pipeline = move || match data.get() {
+        Some((_, pipeline)) => pipeline,
+        None => None
+    };
 
     let save_action = create_action(|args: &(Option<String>, SaveCronJob)| {
         let (id, (schedule, vars, env)) = args;
