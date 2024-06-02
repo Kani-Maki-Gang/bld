@@ -2,19 +2,23 @@ use leptos::*;
 
 #[component]
 pub fn Input(
-    #[prop(optional)] input_type: Option<String>,
-    #[prop(optional)] min: Option<i32>,
-    #[prop(optional)] max: Option<i32>,
+    #[prop(into, optional)] id: String,
+    #[prop(into, optional)] input_type: String,
+    #[prop(into, optional)] min: i32,
+    #[prop(into, optional)] max: i32,
     #[prop(into, optional)] placeholder: Option<String>,
+    #[prop(into, optional)] disabled: Option<bool>,
     #[prop()] value: RwSignal<String>,
 ) -> impl IntoView {
     view! {
         <input
+            id=id
             type=input_type
             min=min
             max=max
             class="h-[40px] w-full rounded-lg text-sm bg-slate-600 text-white px-4 py-2 focus:ring focus:ring-slate-500 focus:outline-none"
             placeholder=placeholder
+            prop:disabled=disabled
             prop:value=move || value.get()
             on:input=move |ev| value.set(event_target_value(&ev))/>
     }
