@@ -12,8 +12,9 @@ use std::collections::HashMap;
 pub fn PipelineJobsV2(
     #[prop(into)] jobs: Signal<HashMap<String, Vec<BuildStep>>>,
 ) -> impl IntoView {
+    let selected_tab = create_rw_signal(String::default());
     let jobs = move || {
-        jobs.get()
+        let data = jobs.get()
             .into_iter()
             .map(|(k, v)| {
                 (
@@ -27,19 +28,15 @@ pub fn PipelineJobsV2(
                         .collect::<Vec<String>>(),
                 )
             })
-            .collect::<HashMap<String, Vec<String>>>()
-    };
+            .collect::<HashMap<String, Vec<String>>>();
 
-    let selected_tab = create_rw_signal(String::default());
-    selected_tab
-        .update(|x: &mut String| *x = jobs().keys().next().map(|x| x.clone()).unwrap_or_default());
+        selected_tab
+            .update(|x: &mut String| *x = data.keys().next().map(|x| x.clone()).unwrap_or_default());
 
-    let items = move || {
-        logging::console_log("Refreshing job items");
-        let data = jobs().get(&selected_tab.get()).cloned().unwrap_or_default();
-        logging::console_log(&format!("{:?}", data));
         data
     };
+
+    let items = move || jobs().get(&selected_tab.get()).cloned().unwrap_or_default();
 
     view! {
         <Card>
@@ -59,6 +56,7 @@ pub fn PipelineJobsV2(
                             <Badge>"No jobs configured."</Badge>
                         </div>
                     }>
+                    "Hello"
                     <Tabs>
                         <For
                             each=move || jobs()

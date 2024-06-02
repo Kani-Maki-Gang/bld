@@ -75,7 +75,7 @@ pub fn PipelineV2(
                     <Card>
                         <div class="px-8 py-12">
                             <pre class="text-sm text-gray-200">
-                                {raw()}
+                                {move || raw()}
                             </pre>
                         </div>
                     </Card>
