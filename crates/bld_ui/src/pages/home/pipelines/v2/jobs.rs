@@ -14,7 +14,8 @@ pub fn PipelineJobsV2(
 ) -> impl IntoView {
     let selected_tab = create_rw_signal(String::default());
     let jobs = move || {
-        let data = jobs.get()
+        let data = jobs
+            .get()
             .into_iter()
             .map(|(k, v)| {
                 (
@@ -30,8 +31,9 @@ pub fn PipelineJobsV2(
             })
             .collect::<HashMap<String, Vec<String>>>();
 
-        selected_tab
-            .update(|x: &mut String| *x = data.keys().next().map(|x| x.clone()).unwrap_or_default());
+        selected_tab.update(|x: &mut String| {
+            *x = data.keys().next().map(|x| x.clone()).unwrap_or_default()
+        });
 
         data
     };

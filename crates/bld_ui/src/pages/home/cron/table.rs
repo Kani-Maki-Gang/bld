@@ -12,7 +12,8 @@ use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
 
 async fn get_cron(params: Option<JobFiltersParams>) -> Result<Vec<CronJobResponse>> {
-    let params = params.ok_or_else(|| anyhow::anyhow!("Params not provided for /v1/cron request"))?;
+    let params =
+        params.ok_or_else(|| anyhow::anyhow!("Params not provided for /v1/cron request"))?;
     let res = Client::builder()
         .build()?
         .get("http://localhost:6080/v1/cron")

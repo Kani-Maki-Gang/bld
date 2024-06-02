@@ -72,12 +72,12 @@ pub fn CronJobUpdate() -> impl IntoView {
 
     let cron = move || match data.get() {
         Some((cron, _)) => cron,
-        None => None
+        None => None,
     };
 
     let pipeline = move || match data.get() {
         Some((_, pipeline)) => pipeline,
-        None => None
+        None => None,
     };
 
     let save_action = create_action(|args: &(Option<String>, SaveCronJob)| {
