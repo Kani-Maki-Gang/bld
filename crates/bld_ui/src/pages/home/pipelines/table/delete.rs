@@ -1,5 +1,5 @@
 use crate::{
-    components::{button::{Button, IconButton, ButtonMode}, card::Card},
+    components::{button::{Button, IconButton}, card::Card, colors::Colors},
     context::{AppDialog, AppDialogContent, RefreshPipelines}
 };
 use anyhow::{bail, Result};
@@ -78,7 +78,7 @@ pub fn PipelineTableDeleteButton(#[prop(into)] name: Signal<String>) -> impl Int
     view! {
         <IconButton
             icon="iconoir-bin-full"
-            mode=ButtonMode::Danger
+            color=Colors::Red
             on:click=move |_| {
                 let Some(AppDialog(dialog)) = app_dialog else {
                     logging::console_error("App dialog context not found");

@@ -1,5 +1,5 @@
 use crate::{
-    components::{button::{Button, IconButton, ButtonMode}, card::Card},
+    components::{button::{Button, IconButton}, card::Card, colors::Colors},
     context::{AppDialog, AppDialogContent},
 };
 use anyhow::{bail, Result};
@@ -68,7 +68,7 @@ pub fn CronJobDeleteButton(#[prop(into)] id: String) -> impl IntoView {
     view! {
         <IconButton
             icon="iconoir-bin-full"
-            mode=ButtonMode::Danger
+            color=Colors::Red
             on:click=move |_| {
                 let Some(AppDialogContent(content)) = app_dialog_content else {
                     logging::console_error("App dialog content not found");

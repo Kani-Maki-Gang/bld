@@ -1,5 +1,5 @@
 use crate::{
-    components::{button::{Button, IconButton, ButtonMode}, input::Input, card::Card},
+    components::{button::{Button, IconButton}, card::Card, colors::Colors, input::Input},
     context::{AppDialog, AppDialogContent, RefreshPipelines}
 };
 use anyhow::{bail, Result};
@@ -92,7 +92,7 @@ pub fn PipelineTableCopyButton(#[prop(into)] name: Signal<String>) -> impl IntoV
     view! {
         <IconButton
             icon="iconoir-copy"
-            mode=ButtonMode::Success
+            color=Colors::Teal
             on:click=move |_| {
                 let Some(AppDialog(dialog)) = app_dialog else {
                     logging::console_error("App dialog context not found");
