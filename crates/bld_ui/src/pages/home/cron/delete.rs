@@ -38,7 +38,7 @@ fn CronJobDeleteDialog(
             <div class="flex flex-col px-8 py-12 w-[500px] h-[300px]">
                 <div class="grow">
                     "Are you sure you want to delete the cron job with id: "
-                    {id.get()} "?"
+                    {move || id.get()} "?"
                 </div>
                 <div class="flex items-stretch gap-x-4">
                     <Button on:click=move |_| {
