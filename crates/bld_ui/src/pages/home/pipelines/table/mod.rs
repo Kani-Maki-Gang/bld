@@ -1,12 +1,14 @@
+mod delete;
+
 use crate::{
     components::{
-        link::Link,
-        table::{Body, Cell, Header, Headers, Row, Table},
+        link::Link, table::{Body, Cell, Header, Headers, Row, Table}
     },
     context::RefreshPipelines,
 };
 use anyhow::Result;
 use bld_models::dtos::ListResponse;
+use delete::PipelineTableDeleteButton;
 use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
 
@@ -51,6 +53,7 @@ pub fn PipelinesTable() -> impl IntoView {
             <Headers>
                 <Header>"Id"</Header>
                 <Header>"Name"</Header>
+                <Header>"Actions"</Header>
             </Headers>
             <Body>
                 <For
@@ -58,18 +61,22 @@ pub fn PipelinesTable() -> impl IntoView {
                         .get()
                         .unwrap_or_default()
                         .into_iter()
-                        .enumerate()
-                        .map(|(i, x)| (i, x.pipeline.clone(), x))
-                    key=move |(i, _, _)| *i
+                        .map(|x| (x.id.clone(), x.pipeline.clone(), x.pipeline.clone(), x))
+                    key=move |(i, _, _, _)| i.clone()
                     let:child>
                     <Row>
                         <Cell>
-                            <Link href={format!("/pipelines/info?id={}&name={}", child.2.id, child.2.pipeline)}>
-                                {child.2.id}
+                            <Link href={format!("/pipelines/info?id={}&name={}", child.3.id, child.3.pipeline)}>
+                                {child.3.id}
                             </Link>
                         </Cell>
                         <Cell>
-                            {child.1}
+                            {child.2}
+                        </Cell>
+                        <Cell>
+                            <div class="flex gap-2">
+                                <PipelineTableDeleteButton name=child.1/>
+                            </div>
                         </Cell>
                     </Row>
                 </For>
