@@ -2,8 +2,9 @@ use crate::{
     components::{
         button::Button,
         card::Card,
-        tabs::{TabItem, Tabs},
+        tabs::{Tab, Tabs},
     },
+    context::{RefreshCronJobs, RefreshHistory},
     pages::home::cron::CronJobsTable,
     pages::home::history::table::HistoryTable,
 };
@@ -11,20 +12,15 @@ use bld_models::dtos::{HistQueryParams, JobFiltersParams};
 use leptos::*;
 use leptos_router::*;
 
+#[derive(Copy, Clone)]
+pub enum TabType {
+    History,
+    Cron,
+}
+
 #[component]
 pub fn PipelineHistAndCronV2(#[prop(into)] name: Signal<Option<String>>) -> impl IntoView {
-    let (tabs, _) = create_signal(vec![
-        TabItem {
-            id: "history".to_string(),
-            label: "History".to_string(),
-        },
-        TabItem {
-            id: "cron".to_string(),
-            label: "Cron jobs".to_string(),
-        },
-    ]);
-    let selected_tab = create_rw_signal("history".to_string());
-    let refresh = create_rw_signal(());
+    let selected_tab = create_rw_signal(TabType::History);
 
     let hist_params = move || {
         name.get().map(|n| HistQueryParams {
@@ -41,7 +37,24 @@ pub fn PipelineHistAndCronV2(#[prop(into)] name: Signal<Option<String>>) -> impl
         })
     };
 
-    provide_context(refresh);
+    let hist_refresh = use_context::<RefreshHistory>();
+    let cron_refresh = use_context::<RefreshCronJobs>();
+
+    let refresh = move || {
+        if matches!(selected_tab.get(), TabType::History) {
+            let Some(hist) = hist_refresh else {
+                logging::error!("RefreshHistory context not found");
+                return;
+            };
+            hist.set();
+        } else {
+            let Some(cron) = cron_refresh else {
+                logging::error!("RefreshHistory context not found");
+                return;
+            };
+            cron.set();
+        }
+    };
 
     view! {
         <Card>
@@ -56,9 +69,9 @@ pub fn PipelineHistAndCronV2(#[prop(into)] name: Signal<Option<String>>) -> impl
                         </div>
                     </div>
                     <div class="min-w-40">
-                        <Button on:click={move |_| refresh.set(())}>"Refresh"</Button>
+                        <Button on:click={move |_| refresh()}>"Refresh"</Button>
                     </div>
-                    <Show when=move || selected_tab.get() == "cron" fallback=|| view!{}>
+                    <Show when=move || matches!(selected_tab.get(), TabType::History) fallback=|| view!{}>
                         <div class="min-w-40">
                             <Button on:click=move |_| {
                                 let nav = use_navigate();
@@ -69,16 +82,24 @@ pub fn PipelineHistAndCronV2(#[prop(into)] name: Signal<Option<String>>) -> impl
                         </div>
                     </Show>
                 </div>
-                <Tabs items=tabs selected=selected_tab />
+                <Tabs>
+                    <Tab
+                        is_selected=move || matches!(selected_tab.get(), TabType::History)
+                        on:click=move |_| selected_tab.set(TabType::History)>
+                        "History"
+                    </Tab>
+                    <Tab
+                        is_selected=move || matches!(selected_tab.get(), TabType::Cron)
+                        on:click=move |_| selected_tab.set(TabType::Cron)>
+                        "Cron jobs"
+                    </Tab>
+                </Tabs>
                 <Show
-                    when=move || selected_tab.get() == "history"
-                    fallback=|| view!{}>
+                    when=move || matches!(selected_tab.get(), TabType::History)
+                    fallback=move || view!{
+                        <CronJobsTable params=cron_params />
+                    }>
                     <HistoryTable params=hist_params />
-                </Show>
-                <Show
-                    when=move || selected_tab.get() == "cron"
-                    fallback=|| view!{}>
-                    <CronJobsTable params=cron_params />
                 </Show>
             </div>
         </Card>

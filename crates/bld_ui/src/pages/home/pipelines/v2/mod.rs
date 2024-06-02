@@ -5,7 +5,10 @@ mod hist_and_cron;
 mod jobs;
 mod variables;
 
-use crate::components::card::Card;
+use crate::{
+    components::card::Card,
+    context::{PipelineSelectedView, PipelineView, RefreshCronJobs, RefreshHistory},
+};
 use bld_runner::pipeline::versioned::VersionedPipeline;
 use leptos::{leptos_dom::logging, *};
 
@@ -20,6 +23,8 @@ pub fn PipelineV2(
     #[prop(into)] name: Signal<Option<String>>,
     #[prop(into)] pipeline: Signal<Option<VersionedPipeline>>,
 ) -> impl IntoView {
+    let selected_view = PipelineSelectedView(create_rw_signal(PipelineView::UI));
+
     let raw = move || {
         pipeline.get().map(|x| {
             serde_yaml::to_string(&x)
@@ -36,7 +41,9 @@ pub fn PipelineV2(
         }
     };
 
-    let selected_group_item = create_rw_signal("view".to_string());
+    provide_context(RefreshHistory(create_rw_signal(())));
+    provide_context(RefreshCronJobs(create_rw_signal(())));
+    provide_context(selected_view);
 
     view! {
         <Show
@@ -46,10 +53,9 @@ pub fn PipelineV2(
                 <PipelineDetailsV2
                     id=id
                     name=name
-                    pipeline=move || pipeline().unwrap()
-                    selected_group_item=selected_group_item />
+                    pipeline=move || pipeline().unwrap() />
                 <Show
-                    when=move || selected_group_item.get() == "view"
+                    when=move || matches!(selected_view.get(), PipelineView::UI)
                     fallback=|| view! {}>
                     <div class="grid grid-cols-2 gap-8">
                         <PipelineJobsV2 jobs=move || pipeline().unwrap().jobs />
@@ -64,7 +70,7 @@ pub fn PipelineV2(
                     <PipelineHistAndCronV2 name=move || name.get() />
                 </Show>
                 <Show
-                    when=move || selected_group_item.get() == "rawfile"
+                    when=move || matches!(selected_view.get(), PipelineView::RawFile)
                     fallback=|| view! {}>
                     <Card>
                         <div class="px-8 py-12">

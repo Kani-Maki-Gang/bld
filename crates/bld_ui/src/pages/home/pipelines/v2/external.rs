@@ -1,8 +1,4 @@
-use crate::components::{
-    badge::Badge,
-    card::Card,
-    list::{List, ListItem},
-};
+use crate::components::{badge::Badge, card::Card, list::List};
 use bld_runner::external::v2::External;
 use leptos::{leptos_dom::logging, *};
 
@@ -13,27 +9,16 @@ pub fn PipelineExternalV2(#[prop(into)] external: Signal<Vec<External>>) -> impl
             .get()
             .into_iter()
             .map(|x| {
-                let mut item = ListItem::default();
-                item.icon = "iconoir-minus".to_string();
-                let content = serde_yaml::to_string(&x)
+                serde_yaml::to_string(&x)
                     .map_err(|e| logging::console_error(&format!("{:?}", e)))
-                    .unwrap_or_default();
-                item.content = Some(
-                    view! {
-                        <pre class="text-sm text-gray-200">
-                            {content}
-                        </pre>
-                    }
-                    .into_view(),
-                );
-                item
+                    .unwrap_or_default()
             })
-            .collect::<Vec<ListItem>>()
+            .collect::<Vec<String>>()
     };
 
     view! {
         <Card>
-            <div class="flex flex-col px-8 py-12 gap-y-4 min-h-96 max-h-[600]px">
+            <div class="flex flex-col px-8 py-12 gap-y-4 min-h-96 max-h-[600px]">
                 <div class="flex flex-col">
                     <div class="text-xl">
                         "External"
@@ -49,7 +34,16 @@ pub fn PipelineExternalV2(#[prop(into)] external: Signal<Vec<External>>) -> impl
                             <Badge>"No external pipelines configured."</Badge>
                         </div>
                     }>
-                    <List items=external />
+                    <List>
+                        <For
+                            each=move || external().into_iter().enumerate()
+                            key=|(i, _)| *i
+                            let:child>
+                            <pre class="text-sm text-gray-200 p-4 rounded-lg bg-slate-800">
+                                {child.1}
+                            </pre>
+                        </For>
+                    </List>
                 </Show>
             </div>
         </Card>

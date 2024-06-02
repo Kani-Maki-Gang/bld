@@ -54,13 +54,13 @@ pub fn Monit() -> impl IntoView {
 
     view! {
         <Card>
-            <div class="flex flex-col px-8 py-12">
+            <div class="flex flex-col px-8 py-12 gap-4">
                 <div class="flex mb-8 gap-x-4">
-                    <div class="grow text-2xl mb-4 ">
-                        "Monitoring pipeline run"
-                    </div>
-                    <div class="flex-shrink">
-                        <Badge><span class="font-bold">"Id: "</span>{id()}</Badge>
+                    <div class="grow flex flex-col">
+                        <div class="text-2xl">"Monitoring pipeline run"</div>
+                        <div class="text-gray-400">
+                            "Currently monitoring pipeline run with id: "{id()}
+                        </div>
                     </div>
                     <div class="flex-shrink">
                         <Badge><span class="font-bold">"Socket state: "</span>{socket_state()}</Badge>

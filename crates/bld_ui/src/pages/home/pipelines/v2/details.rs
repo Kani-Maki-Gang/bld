@@ -1,8 +1,11 @@
-use crate::components::{
-    badge::Badge,
-    button_group::{ButtonGroup, ButtonGroupItem},
-    card::Card,
-    link::LinkButton,
+use crate::{
+    components::{
+        badge::Badge,
+        button_group::{ButtonGroup, ButtonGroupItem},
+        card::Card,
+        link::LinkButton,
+    },
+    context::{PipelineSelectedView, PipelineView},
 };
 use bld_runner::pipeline::v2::Pipeline;
 use leptos::*;
@@ -12,25 +15,12 @@ pub fn PipelineDetailsV2(
     #[prop(into)] id: Signal<Option<String>>,
     #[prop(into)] name: Signal<Option<String>>,
     #[prop(into)] pipeline: Signal<Pipeline>,
-    #[prop(into)] selected_group_item: RwSignal<String>,
 ) -> impl IntoView {
-    let group = Signal::from(|| {
-        vec![
-            ButtonGroupItem {
-                id: "view".to_string(),
-                label: "View".to_string(),
-            },
-            ButtonGroupItem {
-                id: "rawfile".to_string(),
-                label: "Raw file".to_string(),
-            },
-        ]
-    });
-
     let pipeline_name = move || pipeline.get().name;
     let cron = move || pipeline.get().cron.map(|x| format!("Cron: {}", x));
     let runs_on = move || format!("Runs on: {}", pipeline.get().runs_on);
     let dispose = move || format!("Dispose: {}", pipeline.get().dispose);
+    let selected_view = use_context::<PipelineSelectedView>();
 
     view! {
         <Card>
@@ -55,7 +45,22 @@ pub fn PipelineDetailsV2(
                 </div>
                 <div class="flex items-center gap-x-4">
                     <div class="flex-shrink">
-                        <ButtonGroup items=group selected=selected_group_item />
+                        <ButtonGroup>
+                            <ButtonGroupItem
+                                is_selected=move || selected_view.map(|x| matches!(x.get(), PipelineView::UI)).unwrap_or_default()
+                                on:click=move |_| {
+                                    let _ = selected_view.map(|x| x.set(PipelineView::UI));
+                                }>
+                                "View"
+                            </ButtonGroupItem>
+                            <ButtonGroupItem
+                                is_selected=move || selected_view.map(|x| matches!(x.get(), PipelineView::RawFile)).unwrap_or_default()
+                                on:click=move |_| {
+                                    let _ = selected_view.map(|x| x.set(PipelineView::RawFile));
+                                }>
+                                "Raw file"
+                            </ButtonGroupItem>
+                        </ButtonGroup>
                     </div>
                     <Show
                         when=move || id.get().is_some() && name.get().is_some()

@@ -1,10 +1,5 @@
 use crate::{
-    components::{
-        button::Button,
-        card::Card,
-        input::Input,
-        list::{List, ListItem},
-    },
+    components::{button::Button, card::Card, input::Input, list::List},
     context::{AppDialog, AppDialogContent},
 };
 use anyhow::Result;
@@ -29,37 +24,10 @@ async fn get_pipelines() -> Result<Vec<ListResponse>> {
     }
 }
 
-fn into_list_items(
-    close_dialog: WriteSignal<Option<()>>,
-    data: Vec<ListResponse>,
-) -> Vec<ListItem> {
-    data.into_iter()
-        .map(|x| {
-            let pipeline_clone = x.pipeline.clone();
-            ListItem {
-                id: x.pipeline.clone(),
-                content: Some(view! {
-                    <button
-                        class="w-full py-4 px-8 hover:bg-slate-600 hover:cursor-pointer flex items-center"
-                        on:click=move |_| {
-                            close_dialog.set(Some(()));
-                            let nav = use_navigate();
-                            nav(&format!("/cron/insert?name={}", pipeline_clone), NavigateOptions::default());
-                        }>
-                        {x.pipeline}
-                    </button>
-                }.into_view()),
-                ..Default::default()
-            }
-        })
-        .collect()
-}
-
 #[component]
 fn CronJobsNewDialog(#[prop(into)] app_dialog: NodeRef<Dialog>) -> impl IntoView {
     let search = create_rw_signal(String::new());
-    let (pipelines, set_pipelines) = create_signal(Vec::<ListItem>::new());
-    let (close_dialog, set_close_dialog) = create_signal(None);
+    let (pipelines, set_pipelines) = create_signal(vec![]);
 
     let filtered_pipelines = move || {
         let search = search.get();
@@ -69,28 +37,22 @@ fn CronJobsNewDialog(#[prop(into)] app_dialog: NodeRef<Dialog>) -> impl IntoView
             pipelines
                 .get()
                 .into_iter()
-                .filter(|x| x.id.contains(&search))
+                .filter(|x: &ListResponse| x.pipeline.contains(&search))
                 .collect()
         }
     };
 
     create_resource(
-        move || (set_close_dialog, set_pipelines),
-        |(set_close_dialog, set_pipelines)| async move {
+        move || set_pipelines,
+        |set_pipelines| async move {
             let data = get_pipelines()
                 .await
                 .map_err(|e| logging::console_log(&e.to_string()))
                 .unwrap_or_default();
 
-            set_pipelines.set(into_list_items(set_close_dialog, data));
+            set_pipelines.set(data);
         },
     );
-
-    create_effect(move |_| {
-        if close_dialog.get().is_some() {
-            let _ = app_dialog.get().map(|x| x.close());
-        }
-    });
 
     view! {
         <Card>
@@ -98,7 +60,25 @@ fn CronJobsNewDialog(#[prop(into)] app_dialog: NodeRef<Dialog>) -> impl IntoView
                 <div class="text-xl">"Add new cron job"</div>
                 <Input placeholder="Pipeline name" value=search />
                 <div class="grow">
-                    <List items=filtered_pipelines />
+                    <List>
+                        <For
+                            each=move || filtered_pipelines()
+                                .into_iter()
+                                .enumerate()
+                                .map(|(i, x)| (i, x.pipeline.clone(), x))
+                            key=|(i, _, _)| *i
+                            let:child>
+                            <button
+                                class="w-full py-4 px-8 hover:bg-slate-600 hover:cursor-pointer flex items-center"
+                                on:click=move |_| {
+                                    let _ = app_dialog.get().map(|x| x.close());
+                                    let nav = use_navigate();
+                                    nav(&format!("/cron/insert?name={}", child.1), NavigateOptions::default());
+                                }>
+                                {child.2.pipeline}
+                            </button>
+                        </For>
+                    </List>
                 </div>
                 <Button on:click=move |_| {
                     let _ = app_dialog.get().map(|x| x.close());
