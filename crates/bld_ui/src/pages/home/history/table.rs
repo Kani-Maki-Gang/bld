@@ -6,16 +6,17 @@ use crate::{
     },
     context::RefreshHistory,
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use bld_models::dtos::{HistQueryParams, HistoryEntry};
 use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
 
-async fn get_hist(params: &HistQueryParams) -> Result<Vec<HistoryEntry>> {
+async fn get_hist(params: Option<HistQueryParams>) -> Result<Vec<HistoryEntry>> {
+    let params = params.ok_or_else(|| anyhow!("No query params provided for /v1/hist request"))?;
     let res = Client::builder()
         .build()?
         .get("http://localhost:6080/v1/hist")
-        .query(params)
+        .query(&params)
         .send()
         .await?;
 
@@ -53,22 +54,15 @@ pub fn HistoryEntryState(#[prop(into)] state: String) -> impl IntoView {
 
 #[component]
 pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> impl IntoView {
-    let (data, set_data) = create_signal(vec![]);
     let refresh = use_context::<RefreshHistory>();
 
-    let hist_res = create_resource(
-        move || (params, set_data),
-        |(params, set_data)| async move {
-            let Some(params) = params.get_untracked() else {
-                return;
-            };
-
-            let data = get_hist(&params)
+    let data = create_resource(
+        move || params.get(),
+        |params| async move {
+            get_hist(params)
                 .await
                 .map_err(|e| logging::console_error(e.to_string().as_str()))
-                .unwrap_or_default();
-
-            set_data.set(data);
+                .unwrap_or_default()
         },
     );
 
@@ -80,7 +74,7 @@ pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> im
                 logging::console_error("Refresh history signal not found in context");
             }
         },
-        move |_, _, _| hist_res.refetch(),
+        move |_, _, _| data.refetch(),
         false,
     );
 
@@ -96,7 +90,7 @@ pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> im
             </Headers>
             <Body>
                 <For
-                    each=move || data.get().into_iter().enumerate()
+                    each=move || data.get().unwrap_or_default().into_iter().enumerate()
                     key=move |(i, _)| *i
                     let:child>
                     <Row>
