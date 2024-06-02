@@ -1,10 +1,7 @@
 use leptos::*;
 
 #[component]
-pub fn List(
-    #[prop(into, optional)] class: String,
-    children: Children
-) -> impl IntoView {
+pub fn List(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
     let class = format!("flex flex-col gap-y-4 pr-2 overflow-y-auto {class}");
     view! {
         <div class=class>
@@ -19,7 +16,7 @@ pub fn ComplexListItem(
     #[prop(into)] title: Signal<String>,
     #[prop(into, optional)] sub_title: Signal<String>,
     #[prop(into, optional)] stat: Signal<String>,
-    #[prop(into, optional)] class: String
+    #[prop(into, optional)] class: String,
 ) -> impl IntoView {
     let class = format!("flex justify-items-stretch items-center {class}");
     view! {
