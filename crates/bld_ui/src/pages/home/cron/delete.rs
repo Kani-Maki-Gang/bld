@@ -1,5 +1,5 @@
 use crate::{
-    components::{button::Button, card::Card},
+    components::{button::{Button, IconButton, ButtonMode}, card::Card},
     context::{AppDialog, AppDialogContent},
 };
 use anyhow::{bail, Result};
@@ -66,8 +66,9 @@ pub fn CronJobDeleteButton(#[prop(into)] id: String) -> impl IntoView {
     let refresh = use_context::<RwSignal<()>>();
 
     view! {
-        <button
-            class="w-[30px] rounded-lg bg-red-500 text-xl grid place-items-center p-1"
+        <IconButton
+            icon="iconoir-bin-full"
+            mode=ButtonMode::Danger
             on:click=move |_| {
                 let Some(AppDialogContent(content)) = app_dialog_content else {
                     logging::console_error("App dialog content not found");
@@ -84,9 +85,6 @@ pub fn CronJobDeleteButton(#[prop(into)] id: String) -> impl IntoView {
                 content.set(Some(view! {
                     <CronJobDeleteDialog id=id app_dialog=dialog refresh=refresh />
                 }.into_view()));
-
-            }>
-                <i class="iconoir-bin-full" />
-        </button>
+            }/>
     }
 }
