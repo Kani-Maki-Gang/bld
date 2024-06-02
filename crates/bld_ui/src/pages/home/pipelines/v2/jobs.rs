@@ -12,7 +12,8 @@ use std::collections::HashMap;
 pub fn PipelineJobsV2(
     #[prop(into)] jobs: Signal<HashMap<String, Vec<BuildStep>>>,
 ) -> impl IntoView {
-    let selected_tab = create_rw_signal(String::default());
+    let selected_tab = create_rw_signal(String::new());
+
     let jobs = move || {
         let data = jobs
             .get()
@@ -31,14 +32,27 @@ pub fn PipelineJobsV2(
             })
             .collect::<HashMap<String, Vec<String>>>();
 
-        selected_tab.update(|x: &mut String| {
-            *x = data.keys().next().map(|x| x.clone()).unwrap_or_default()
-        });
-
         data
     };
 
-    let items = move || jobs().get(&selected_tab.get()).cloned().unwrap_or_default();
+    let items = move || {
+        let key = selected_tab.get();
+        jobs()
+            .get(&key)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .enumerate()
+            .map(move |(i, x)| (format!("{key}_{i}"), x))
+    };
+
+    let _ = watch(
+        move || jobs(),
+        move |x, _, _| {
+            selected_tab.set(x.keys().next().cloned().unwrap_or_default());
+        },
+        true,
+    );
 
     view! {
         <Card>
@@ -76,8 +90,8 @@ pub fn PipelineJobsV2(
                     </Tabs>
                     <List>
                         <For
-                            each=move || items().into_iter().enumerate()
-                            key=|(i, _)| *i
+                            each=move || items()
+                            key=|(k, _)| k.clone()
                             let:child>
                             <pre class="text-sm text-gray-200 p-4 rounded-lg bg-slate-800">
                                 {child.1}
