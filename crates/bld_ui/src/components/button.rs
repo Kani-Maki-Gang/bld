@@ -27,7 +27,7 @@ pub fn Button(
     children: Children
 ) -> impl IntoView {
     let mode = get_mode_classes(mode);
-    let class=format!("h-[40px] w-full flex-none rounded-lg p-2 focus:outline-none {mode} {class}");
+    let class=format!("h-[40px] w-full rounded-lg p-2 focus:outline-none {mode} {class}");
     view! {
         <button class=class>
             {children()}
@@ -42,7 +42,7 @@ pub fn IconButton(
     #[prop(into)] icon: String
 ) -> impl IntoView {
     let mode = get_mode_classes(mode);
-    let class=format!("h-[40px] w-[40px] flex-none text-xl rounded-lg p-2 focus:outline-none {mode} {class}");
+    let class=format!("h-[40px] w-[40px] text-xl rounded-lg p-2 focus:outline-none {mode} {class}");
     view! {
         <button class=class>
             <i class=icon />
