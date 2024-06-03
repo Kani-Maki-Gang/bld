@@ -1,7 +1,7 @@
 use leptos::*;
 use super::colors::Colors;
 
-fn get_color_classes(color: Option<Colors>) -> &'static str {
+pub fn get_button_color_classes(color: Option<Colors>) -> &'static str {
     let color = color.unwrap_or_else(|| Colors::Indigo);
     match color {
         Colors::Slate => "bg-slate-600 hover:bg-slate-700 focus:bg-slate-700",
@@ -35,7 +35,7 @@ pub fn Button(
     #[prop(into, optional)] class: String,
     children: Children
 ) -> impl IntoView {
-    let color = get_color_classes(color);
+    let color = get_button_color_classes(color);
     let class=format!("h-[40px] w-full rounded-lg p-2 focus:outline-none {color} {class}");
     view! {
         <button class=class>
@@ -50,7 +50,7 @@ pub fn IconButton(
     #[prop(into, optional)] class: String,
     #[prop(into)] icon: String
 ) -> impl IntoView {
-    let color = get_color_classes(color);
+    let color = get_button_color_classes(color);
     let class=format!("h-[40px] w-[40px] text-xl rounded-lg p-2 focus:outline-none {color} {class}");
     view! {
         <button class=class>
