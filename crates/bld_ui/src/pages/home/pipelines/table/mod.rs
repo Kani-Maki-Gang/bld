@@ -1,6 +1,7 @@
 mod copy;
 mod delete;
 mod r#move;
+mod run;
 
 use crate::{
     components::{
@@ -13,6 +14,7 @@ use bld_models::dtos::ListResponse;
 use copy::PipelineTableCopyButton;
 use delete::PipelineTableDeleteButton;
 use r#move::PipelineTableMoveButton;
+use run::PipelineTableRunButton;
 use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
 
@@ -78,6 +80,7 @@ pub fn PipelinesTable() -> impl IntoView {
                         </Cell>
                         <Cell>
                             <div class="flex gap-2">
+                                <PipelineTableRunButton id=move || child.get().id name=move || child.get().pipeline/>
                                 <PipelineTableMoveButton name=move || child.get().pipeline/>
                                 <PipelineTableCopyButton name=move || child.get().pipeline/>
                                 <PipelineTableDeleteButton name=move || child.get().pipeline/>
