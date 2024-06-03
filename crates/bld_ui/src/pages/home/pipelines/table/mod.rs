@@ -1,5 +1,6 @@
 mod copy;
 mod delete;
+mod r#move;
 
 use crate::{
     components::{
@@ -11,6 +12,7 @@ use anyhow::Result;
 use bld_models::dtos::ListResponse;
 use copy::PipelineTableCopyButton;
 use delete::PipelineTableDeleteButton;
+use r#move::PipelineTableMoveButton;
 use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
 
@@ -41,18 +43,11 @@ pub fn PipelinesTable() -> impl IntoView {
                 .await
                 .map_err(|e| logging::console_log(e.to_string().as_str()))
                 .unwrap_or_default()
+                .into_iter()
+                .map(|x| create_rw_signal(x))
+                .collect::<Vec<RwSignal<ListResponse>>>()
         },
     );
-
-    let items = move || {
-        data.get()
-            .unwrap_or_default()
-            .into_iter()
-            .map(|x| {
-                let (read, _) = create_signal(x);
-                read
-            })
-    };
 
     let _ = watch(
         move || refresh.map(|x| x.get()),
@@ -69,22 +64,23 @@ pub fn PipelinesTable() -> impl IntoView {
             </Headers>
             <Body>
                 <For
-                    each=move || items()
-                    key=move |r| r.get().id.clone()
+                    each=move || data.get().unwrap_or_default()
+                    key=move |r| r.get().pipeline.clone()
                     let:child>
                     <Row>
                         <Cell>
                             <Link href=child.with_untracked(|c| format!("/pipelines/info?id={}&name={}", c.id, c.pipeline))>
-                                {move || child.get_untracked().id}
+                                {move || child.get().id}
                             </Link>
                         </Cell>
                         <Cell>
-                            {move || child.get_untracked().pipeline}
+                            {move || child.get().pipeline}
                         </Cell>
                         <Cell>
                             <div class="flex gap-2">
-                                <PipelineTableCopyButton name=move || child.get_untracked().pipeline/>
-                                <PipelineTableDeleteButton name=move || child.get_untracked().pipeline/>
+                                <PipelineTableMoveButton name=move || child.get().pipeline/>
+                                <PipelineTableCopyButton name=move || child.get().pipeline/>
+                                <PipelineTableDeleteButton name=move || child.get().pipeline/>
                             </div>
                         </Cell>
                     </Row>
