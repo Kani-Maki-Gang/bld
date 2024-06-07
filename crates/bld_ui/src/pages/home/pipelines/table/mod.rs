@@ -1,11 +1,12 @@
 mod copy;
 mod delete;
+mod edit;
 mod r#move;
 mod run;
 
 use crate::{
     components::{
-        link::Link, table::{Body, Cell, Header, Headers, Row, Table}
+        list::List
     },
     context::RefreshPipelines,
 };
@@ -13,10 +14,11 @@ use anyhow::Result;
 use bld_models::dtos::ListResponse;
 use copy::PipelineTableCopyButton;
 use delete::PipelineTableDeleteButton;
-use r#move::PipelineTableMoveButton;
-use run::PipelineTableRunButton;
+use edit::PipelineTableEditButton;
 use leptos::{leptos_dom::logging, *};
+use r#move::PipelineTableMoveButton;
 use reqwest::Client;
+use run::PipelineTableRunButton;
 
 async fn get_pipelines() -> Result<Vec<ListResponse>> {
     let res = Client::builder()
@@ -58,37 +60,32 @@ pub fn PipelinesTable() -> impl IntoView {
     );
 
     view! {
-        <Table>
-            <Headers>
-                <Header>"Id"</Header>
-                <Header>"Name"</Header>
-                <Header>"Actions"</Header>
-            </Headers>
-            <Body>
+        <List>
+            <div class="divide-y divide-slate-600">
                 <For
                     each=move || data.get().unwrap_or_default()
                     key=move |r| r.get().pipeline.clone()
                     let:child>
-                    <Row>
-                        <Cell>
-                            <Link href=child.with_untracked(|c| format!("/pipelines/info?id={}&name={}", c.id, c.pipeline))>
-                                {move || child.get().id}
-                            </Link>
-                        </Cell>
-                        <Cell>
-                            {move || child.get().pipeline}
-                        </Cell>
-                        <Cell>
-                            <div class="flex gap-2">
-                                <PipelineTableRunButton id=move || child.get().id name=move || child.get().pipeline/>
-                                <PipelineTableMoveButton name=move || child.get().pipeline/>
-                                <PipelineTableCopyButton name=move || child.get().pipeline/>
-                                <PipelineTableDeleteButton name=move || child.get().pipeline/>
+                    <div class="flex items-center gap-4 py-4">
+                        <div class="rounded-full w-16 h-16 bg-slate-800 grid place-items-center text-xl">
+                            <i class="iconoir-ease-curve-control-points"></i>
+                        </div>
+                        <div class="grow flex flex-col gap-2">
+                            <div>{move || child.get().pipeline}</div>
+                            <div class="flex text-sm text-gray-400">
+                                "Id: "{move || child.get().id}
                             </div>
-                        </Cell>
-                    </Row>
+                        </div>
+                        <div class="flex gap-2">
+                            <PipelineTableEditButton id=move || child.get().id name=move || child.get().pipeline/>
+                            <PipelineTableRunButton id=move || child.get().id name=move || child.get().pipeline/>
+                            <PipelineTableMoveButton name=move || child.get().pipeline/>
+                            <PipelineTableCopyButton name=move || child.get().pipeline/>
+                            <PipelineTableDeleteButton name=move || child.get().pipeline/>
+                        </div>
+                    </div>
                 </For>
-            </Body>
-        </Table>
+            </div>
+        </List>
     }
 }

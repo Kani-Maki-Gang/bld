@@ -1,16 +1,18 @@
 use crate::{
-    components::{button::{Button, IconButton}, card::Card, colors::Colors},
-    context::{AppDialog, AppDialogContent, RefreshPipelines}
+    components::{
+        button::{Button, IconButton},
+        card::Card,
+        colors::Colors,
+    },
+    context::{AppDialog, AppDialogContent, RefreshPipelines},
 };
 use anyhow::{bail, Result};
 use bld_models::dtos::PipelineQueryParams;
-use leptos::{leptos_dom::logging, html::Dialog, *};
+use leptos::{html::Dialog, leptos_dom::logging, *};
 use reqwest::Client;
 
 async fn delete(name: String) -> Result<()> {
-    let params = PipelineQueryParams {
-        pipeline: name
-    };
+    let params = PipelineQueryParams { pipeline: name };
 
     let res = Client::builder()
         .build()?
@@ -18,7 +20,6 @@ async fn delete(name: String) -> Result<()> {
         .query(&params)
         .send()
         .await?;
-
 
     if res.status().is_success() {
         Ok(())
@@ -94,7 +95,7 @@ pub fn PipelineTableDeleteButton(#[prop(into)] name: Signal<String>) -> impl Int
                     <PipelineTableDeleteButtonDialog name=name app_dialog=dialog refresh=refresh />
                 }));
 
-                let _ = dialog.get().map(|x| x.show());
+                let _ = dialog.get().map(|x| x.show_modal());
             }/>
     }
 }

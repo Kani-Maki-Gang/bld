@@ -4,7 +4,7 @@ mod table;
 mod v2;
 
 use crate::{
-    components::{button::Button, card::Card},
+    components::{button::IconButton, card::Card},
     context::RefreshPipelines,
 };
 use leptos::*;
@@ -20,27 +20,25 @@ pub fn Pipelines() -> impl IntoView {
     provide_context(refresh);
 
     view! {
-        <div class="flex flex-col gap-8 h-full">
-            <Card>
-                <div class="flex flex-col px-8 py-12">
-                    <div class="flex justify-items-center gap-x-4 items-center">
-                        <div class="grow flex flex-col">
-                            <div class="text-2xl">
-                                "Pipelines"
+        <div class="h-full flex flex-col items-center gap-8">
+            <div class="container">
+                <Card>
+                    <div class="flex flex-col px-8 py-12">
+                        <div class="flex justify-items-center gap-x-4 pr-2 items-center">
+                            <div class="grow flex flex-col">
+                                <div class="text-2xl">
+                                    "Pipelines"
+                                </div>
+                                <div class="text-gray-400 mb-8">
+                                    "The list of all available pipelines"
+                                </div>
                             </div>
-                            <div class="text-gray-400 mb-8">
-                                "The list of all available pipelines"
-                            </div>
+                            <IconButton icon="iconoir-refresh-double" on:click=move |_| refresh.set()/>
                         </div>
-                        <div class="w-40 flex items-end">
-                            <Button on:click=move |_| refresh.set()>
-                                "Refresh"
-                            </Button>
-                        </div>
+                        <PipelinesTable />
                     </div>
-                    <PipelinesTable />
-                </div>
-            </Card>
+                </Card>
+            </div>
         </div>
     }
 }

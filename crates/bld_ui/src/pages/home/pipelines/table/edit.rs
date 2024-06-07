@@ -2,14 +2,12 @@ use crate::components::{colors::Colors, link::LinkIconButton};
 use leptos::*;
 
 #[component]
-pub fn PipelineTableRunButton(
+pub fn PipelineTableEditButton(
     #[prop(into)] id: Signal<String>,
     #[prop(into)] name: Signal<String>,
 ) -> impl IntoView {
+    let href = move || with!(|id, name| format!("/pipelines/info?id={}&name={}", id, name));
     view! {
-        <LinkIconButton
-            icon="iconoir-play"
-            color=Colors::Zinc
-            href=move || format!("/pipelines/run?id={}&name={}", id.get(), name.get()) />
+        <LinkIconButton href=href icon="iconoir-edit" color=Colors::Zinc />
     }
 }

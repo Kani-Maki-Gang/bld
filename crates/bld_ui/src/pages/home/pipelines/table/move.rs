@@ -1,17 +1,19 @@
 use crate::{
-    components::{button::{Button, IconButton}, card::Card, colors::Colors, input::Input},
-    context::{AppDialog, AppDialogContent, RefreshPipelines}
+    components::{
+        button::{Button, IconButton},
+        card::Card,
+        colors::Colors,
+        input::Input,
+    },
+    context::{AppDialog, AppDialogContent, RefreshPipelines},
 };
 use anyhow::{bail, Result};
 use bld_models::dtos::PipelinePathRequest;
-use leptos::{leptos_dom::logging, html::Dialog, *};
+use leptos::{html::Dialog, leptos_dom::logging, *};
 use reqwest::Client;
 
 async fn api_move(pipeline: String, target: String) -> Result<()> {
-    let params = PipelinePathRequest{
-        pipeline,
-        target
-    };
+    let params = PipelinePathRequest { pipeline, target };
 
     let res = Client::builder()
         .build()?
@@ -19,7 +21,6 @@ async fn api_move(pipeline: String, target: String) -> Result<()> {
         .json(&params)
         .send()
         .await?;
-
 
     if res.status().is_success() {
         Ok(())
@@ -88,7 +89,7 @@ pub fn PipelineTableMoveButton(#[prop(into)] name: Signal<String>) -> impl IntoV
     view! {
         <IconButton
             icon="iconoir-scissor"
-            color=Colors::Emerald
+            color=Colors::Zinc
             on:click=move |_| {
                 let Some(AppDialog(dialog)) = app_dialog else {
                     logging::console_error("App dialog context not found");
@@ -104,7 +105,7 @@ pub fn PipelineTableMoveButton(#[prop(into)] name: Signal<String>) -> impl IntoV
                     <PipelineTableMoveButtonDialog name=name app_dialog=dialog refresh=refresh />
                 }));
 
-                let _ = dialog.get().map(|x| x.show());
+                let _ = dialog.get().map(|x| x.show_modal());
             }/>
     }
 }
