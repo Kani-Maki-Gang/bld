@@ -1,5 +1,9 @@
 use crate::{
-    components::{button::{Button, IconButton}, card::Card, colors::Colors},
+    components::{
+        button::{Button, IconButton},
+        card::Card,
+        colors::Colors,
+    },
     context::{AppDialog, AppDialogContent},
 };
 use anyhow::{bail, Result};

@@ -103,7 +103,7 @@ pub fn CronJobsNewButton() -> impl IntoView {
                 return;
             };
 
-            let _ = dialog.get().map(|x| x.show());
+            let _ = dialog.get().map(|x| x.show_modal());
 
             content.set(Some(view! {
                 <CronJobsNewDialog app_dialog=dialog />
