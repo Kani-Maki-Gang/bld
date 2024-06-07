@@ -1,8 +1,8 @@
 pub mod badge;
 pub mod button;
 pub mod button_group;
-pub mod colors;
 pub mod card;
+pub mod colors;
 pub mod input;
 pub mod kpi;
 pub mod link;

@@ -22,5 +22,5 @@ pub enum Colors {
     Purple,
     Fuchsia,
     Pink,
-    Rose
+    Rose,
 }

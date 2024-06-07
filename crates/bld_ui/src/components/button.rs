@@ -1,5 +1,5 @@
-use leptos::*;
 use super::colors::Colors;
+use leptos::*;
 
 pub fn get_button_color_classes(color: Option<Colors>) -> &'static str {
     let color = color.unwrap_or_else(|| Colors::Indigo);
@@ -33,10 +33,10 @@ pub fn get_button_color_classes(color: Option<Colors>) -> &'static str {
 pub fn Button(
     #[prop(into, optional)] color: Option<Colors>,
     #[prop(into, optional)] class: String,
-    children: Children
+    children: Children,
 ) -> impl IntoView {
     let color = get_button_color_classes(color);
-    let class=format!("h-[40px] w-full rounded-lg p-2 focus:outline-none {color} {class}");
+    let class = format!("h-[40px] w-full rounded-lg p-2 focus:outline-none {color} {class}");
     view! {
         <button class=class>
             {children()}
@@ -48,10 +48,11 @@ pub fn Button(
 pub fn IconButton(
     #[prop(into, optional)] color: Option<Colors>,
     #[prop(into, optional)] class: String,
-    #[prop(into)] icon: String
+    #[prop(into)] icon: String,
 ) -> impl IntoView {
     let color = get_button_color_classes(color);
-    let class=format!("h-[40px] w-[40px] text-xl rounded-lg p-2 focus:outline-none {color} {class}");
+    let class =
+        format!("h-[40px] w-[40px] text-xl rounded-lg p-2 focus:outline-none {color} {class}");
     view! {
         <button class=class>
             <i class=icon />
