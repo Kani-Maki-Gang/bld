@@ -50,10 +50,12 @@ pub fn PipelineDetailsV2(
                                         .map(|x| matches!(x.get(), PipelineView::UI))
                                         .unwrap_or_default()
                                 }
+
                                 on:click=move |_| {
                                     let _ = selected_view.map(|x| x.set(PipelineView::UI));
                                 }
                             >
+
                                 "View"
                             </ButtonGroupItem>
                             <ButtonGroupItem
@@ -62,10 +64,12 @@ pub fn PipelineDetailsV2(
                                         .map(|x| matches!(x.get(), PipelineView::RawFile))
                                         .unwrap_or_default()
                                 }
+
                                 on:click=move |_| {
                                     let _ = selected_view.map(|x| x.set(PipelineView::RawFile));
                                 }
                             >
+
                                 "Raw file"
                             </ButtonGroupItem>
                         </ButtonGroup>
@@ -84,7 +88,7 @@ pub fn PipelineDetailsV2(
                                 name=move || name.get().unwrap()
                                 redirect=true
                             />
-                            <PipelineCopyButton name=move || name.get().unwrap()/>
+                            <PipelineCopyButton name=move || name.get().unwrap() redirect=true/>
                             <PipelineDeleteButton name=move || name.get().unwrap() redirect=true/>
                         </div>
                     </Show>
