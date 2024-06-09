@@ -3,22 +3,21 @@ use crate::{
         button::{Button, IconButton},
         card::Card,
         colors::Colors,
-        input::Input,
     },
     context::{AppDialog, AppDialogContent, RefreshPipelines},
 };
 use anyhow::{bail, Result};
-use bld_models::dtos::PipelinePathRequest;
+use bld_models::dtos::PipelineQueryParams;
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use reqwest::Client;
 
-async fn api_move(pipeline: String, target: String) -> Result<()> {
-    let params = PipelinePathRequest { pipeline, target };
+async fn delete(name: String) -> Result<()> {
+    let params = PipelineQueryParams { pipeline: name };
 
     let res = Client::builder()
         .build()?
-        .patch("http://localhost:6080/v1/move")
-        .json(&params)
+        .delete("http://localhost:6080/v1/remove")
+        .query(&params)
         .send()
         .await?;
 
@@ -30,17 +29,15 @@ async fn api_move(pipeline: String, target: String) -> Result<()> {
 }
 
 #[component]
-fn PipelineTableMoveButtonDialog(
+fn PipelineDeleteButtonDialog(
     #[prop(into)] name: Signal<String>,
     #[prop(into)] app_dialog: NodeRef<Dialog>,
     #[prop()] refresh: Option<RefreshPipelines>,
 ) -> impl IntoView {
-    let name_rw = create_rw_signal(name.get_untracked());
-    let target = create_rw_signal(String::new());
-    let delete_action = create_action(|args: &(String, String, Option<RefreshPipelines>)| {
-        let (pipeline, target, refresh) = args.clone();
+    let delete_action = create_action(|args: &(String, Option<RefreshPipelines>)| {
+        let (id, refresh) = args.clone();
         async move {
-            let _ = api_move(pipeline, target)
+            let _ = delete(id)
                 .await
                 .map_err(|e| logging::console_error(&e.to_string()));
             let _ = refresh.map(|x| x.set());
@@ -49,26 +46,19 @@ fn PipelineTableMoveButtonDialog(
 
     view! {
         <Card>
-            <div class="flex flex-col px-8 py-12 gap-4 w-[500px] h-[400px]">
-                <div>
-                    "Move(Rename) pipeline"
-                </div>
-                <div class="grow flex flex-col gap-4">
-                    <div>
-                        <label for="pipeline">Current:</label>
-                        <Input id="pipeline" disabled=true value=name_rw/>
-                    </div>
-                    <div>
-                        <label for="target">New:</label>
-                        <Input id="target" value=target />
-                    </div>
+            <div class="flex flex-col px-8 py-12 w-[500px] h-[300px]">
+                <div class="grow">
+                    "Are you sure you want to delete this pipeline?"
+                    <p>
+                        {move || name.get()}
+                    </p>
                 </div>
                 <div class="flex gap-x-4">
                     <Button on:click=move |_| {
-                        delete_action.dispatch((name.get(), target.get(), refresh));
+                        delete_action.dispatch((name.get(), refresh));
                         let _ = app_dialog.get().map(|x| x.close());
                     }>
-                        "Ok"
+                        "Delete"
                     </Button>
                     <Button on:click=move |_| {
                         let _ = app_dialog.get().map(|x| x.close());
@@ -82,14 +72,14 @@ fn PipelineTableMoveButtonDialog(
 }
 
 #[component]
-pub fn PipelineTableMoveButton(#[prop(into)] name: Signal<String>) -> impl IntoView {
+pub fn PipelineDeleteButton(#[prop(into)] name: Signal<String>) -> impl IntoView {
     let app_dialog = use_context::<AppDialog>();
     let app_dialog_content = use_context::<AppDialogContent>();
     let refresh = use_context::<RefreshPipelines>();
     view! {
         <IconButton
-            icon="iconoir-scissor"
-            color=Colors::Zinc
+            icon="iconoir-bin-full"
+            color=Colors::Red
             on:click=move |_| {
                 let Some(AppDialog(dialog)) = app_dialog else {
                     logging::console_error("App dialog context not found");
@@ -102,7 +92,7 @@ pub fn PipelineTableMoveButton(#[prop(into)] name: Signal<String>) -> impl IntoV
                 };
 
                 let _ = content.set(Some(view! {
-                    <PipelineTableMoveButtonDialog name=name app_dialog=dialog refresh=refresh />
+                    <PipelineDeleteButtonDialog name=name app_dialog=dialog refresh=refresh />
                 }));
 
                 let _ = dialog.get().map(|x| x.show_modal());

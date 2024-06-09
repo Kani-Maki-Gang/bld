@@ -12,12 +12,12 @@ use bld_models::dtos::PipelinePathRequest;
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use reqwest::Client;
 
-async fn copy(pipeline: String, target: String) -> Result<()> {
+async fn api_move(pipeline: String, target: String) -> Result<()> {
     let params = PipelinePathRequest { pipeline, target };
 
     let res = Client::builder()
         .build()?
-        .post("http://localhost:6080/v1/copy")
+        .patch("http://localhost:6080/v1/move")
         .json(&params)
         .send()
         .await?;
@@ -30,40 +30,36 @@ async fn copy(pipeline: String, target: String) -> Result<()> {
 }
 
 #[component]
-fn PipelineTableCopyButtonDialog(
+fn PipelineMoveButtonDialog(
     #[prop(into)] name: Signal<String>,
     #[prop(into)] app_dialog: NodeRef<Dialog>,
     #[prop()] refresh: Option<RefreshPipelines>,
 ) -> impl IntoView {
-    let name_rw = create_rw_signal(String::new());
+    let name_rw = create_rw_signal(name.get_untracked());
     let target = create_rw_signal(String::new());
     let delete_action = create_action(|args: &(String, String, Option<RefreshPipelines>)| {
         let (pipeline, target, refresh) = args.clone();
         async move {
-            let _ = copy(pipeline, target)
+            let _ = api_move(pipeline, target)
                 .await
                 .map_err(|e| logging::console_error(&e.to_string()));
             let _ = refresh.map(|x| x.set());
         }
     });
 
-    create_effect(move |_| {
-        name_rw.set(name.get());
-    });
-
     view! {
         <Card>
             <div class="flex flex-col px-8 py-12 gap-4 w-[500px] h-[400px]">
                 <div>
-                    "Create a new copy"
+                    "Move(Rename) pipeline"
                 </div>
                 <div class="grow flex flex-col gap-4">
                     <div>
-                        <label for="pipeline">Pipeline:</label>
+                        <label for="pipeline">Current:</label>
                         <Input id="pipeline" disabled=true value=name_rw/>
                     </div>
                     <div>
-                        <label for="target">Copy:</label>
+                        <label for="target">New:</label>
                         <Input id="target" value=target />
                     </div>
                 </div>
@@ -86,13 +82,13 @@ fn PipelineTableCopyButtonDialog(
 }
 
 #[component]
-pub fn PipelineTableCopyButton(#[prop(into)] name: Signal<String>) -> impl IntoView {
+pub fn PipelineMoveButton(#[prop(into)] name: Signal<String>) -> impl IntoView {
     let app_dialog = use_context::<AppDialog>();
     let app_dialog_content = use_context::<AppDialogContent>();
     let refresh = use_context::<RefreshPipelines>();
     view! {
         <IconButton
-            icon="iconoir-copy"
+            icon="iconoir-scissor"
             color=Colors::Zinc
             on:click=move |_| {
                 let Some(AppDialog(dialog)) = app_dialog else {
@@ -106,7 +102,7 @@ pub fn PipelineTableCopyButton(#[prop(into)] name: Signal<String>) -> impl IntoV
                 };
 
                 let _ = content.set(Some(view! {
-                    <PipelineTableCopyButtonDialog name=move || name.get() app_dialog=dialog refresh=refresh/>
+                    <PipelineMoveButtonDialog name=name app_dialog=dialog refresh=refresh />
                 }));
 
                 let _ = dialog.get().map(|x| x.show_modal());

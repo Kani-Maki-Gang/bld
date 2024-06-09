@@ -1,3 +1,4 @@
+mod actions;
 mod info;
 mod run;
 mod table;
