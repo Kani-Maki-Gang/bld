@@ -1,3 +1,4 @@
+use super::{button::get_button_color_classes, colors::Colors};
 use leptos::*;
 use leptos_router::A;
 
@@ -12,11 +13,36 @@ pub fn Link(#[prop(into)] href: String, children: Children) -> impl IntoView {
 }
 
 #[component]
-pub fn LinkButton(#[prop(into)] href: Signal<String>, children: Children) -> impl IntoView {
+pub fn LinkButton(
+    #[prop(into)] href: Signal<String>,
+    #[prop(into, optional)] color: Option<Colors>,
+    #[prop(into, optional)] class: String,
+    children: Children,
+) -> impl IntoView {
+    let color = get_button_color_classes(color);
+    let class =
+        format!("h-[40px] w-full text-center rounded-lg p-2 focus:outline-none {color} {class}");
     view! {
-        <A href=move || href.get()
-            class="h-[40px] text-center text-white rounded-lg w-full bg-indigo-600 p-2 hover:bg-indigo-700 focus:bg-indigo-700 focus:outline-none">
+        <A href=move || href.get() class=class>
             {children()}
+        </A>
+    }
+}
+
+#[component]
+pub fn LinkIconButton(
+    #[prop(into)] href: Signal<String>,
+    #[prop(into)] icon: String,
+    #[prop(into, optional)] color: Option<Colors>,
+    #[prop(into, optional)] class: String,
+) -> impl IntoView {
+    let color = get_button_color_classes(color);
+    let class = format!(
+        "h-[40px] w-[40px] text-xl text-center rounded-lg p-2 focus:outline-none {color} {class}"
+    );
+    view! {
+        <A href=move || href.get() class=class>
+            <i class=icon></i>
         </A>
     }
 }

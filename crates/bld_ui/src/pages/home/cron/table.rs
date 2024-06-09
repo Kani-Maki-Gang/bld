@@ -64,7 +64,7 @@ pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> 
                 <Header>"Default"</Header>
                 <Header>"Date created"</Header>
                 <Header>"Date updated"</Header>
-                <Header>""</Header>
+                <Header>"Actions"</Header>
             </Headers>
             <Body>
                 <For
