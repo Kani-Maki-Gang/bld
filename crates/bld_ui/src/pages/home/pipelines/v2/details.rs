@@ -3,9 +3,11 @@ use crate::{
         badge::Badge,
         button_group::{ButtonGroup, ButtonGroupItem},
         card::Card,
-        link::LinkButton,
     },
     context::{PipelineSelectedView, PipelineView},
+    pages::home::pipelines::actions::{
+        PipelineRunButton, PipelineCopyButton, PipelineDeleteButton, PipelineMoveButton,
+    },
 };
 use bld_runner::pipeline::v2::Pipeline;
 use leptos::*;
@@ -65,11 +67,11 @@ pub fn PipelineDetailsV2(
                     <Show
                         when=move || id.get().is_some() && name.get().is_some()
                         fallback=|| view! { }>
-                        <div class="w-40 flex">
-                            <LinkButton
-                                href=move || format!("/pipelines/run?id={}&name={}", id.get().unwrap(), name.get().unwrap())>
-                                "Run"
-                            </LinkButton>
+                        <div class="flex gap-2">
+                            <PipelineRunButton id=move || id.get().unwrap() name=move || name.get().unwrap() />
+                            <PipelineMoveButton name=move || name.get().unwrap() />
+                            <PipelineCopyButton name=move || name.get().unwrap() />
+                            <PipelineDeleteButton name=move || name.get().unwrap() redirect=true />
                         </div>
                     </Show>
                 </div>
