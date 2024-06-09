@@ -36,7 +36,7 @@ fn PipelineDeleteButtonDialog(
     #[prop(into)] name: Signal<String>,
     #[prop(into)] app_dialog: NodeRef<Dialog>,
     #[prop()] refresh: Option<RefreshPipelines>,
-    #[prop(into, optional)] redirect: bool
+    #[prop(into, optional)] redirect: bool,
 ) -> impl IntoView {
     let delete_action = create_action(|args: &DeleteActionArgs| {
         let (id, refresh, redirect) = args.clone();
@@ -76,7 +76,7 @@ fn PipelineDeleteButtonDialog(
 #[component]
 pub fn PipelineDeleteButton(
     #[prop(into)] name: Signal<String>,
-    #[prop(into, optional)] redirect: bool
+    #[prop(into, optional)] redirect: bool,
 ) -> impl IntoView {
     let app_dialog = use_context::<AppDialog>();
     let app_dialog_content = use_context::<AppDialogContent>();

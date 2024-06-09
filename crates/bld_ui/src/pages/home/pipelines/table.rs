@@ -74,7 +74,10 @@ pub fn PipelinesTable() -> impl IntoView {
                                 id=move || child.get().id
                                 name=move || child.get().pipeline
                             />
-                            <PipelineMoveButton name=move || child.get().pipeline/>
+                            <PipelineMoveButton
+                                id=move || child.get().id
+                                name=move || child.get().pipeline
+                            />
                             <PipelineCopyButton name=move || child.get().pipeline/>
                             <PipelineDeleteButton name=move || child.get().pipeline/>
                         </div>

@@ -6,7 +6,7 @@ use crate::{
     },
     context::{PipelineSelectedView, PipelineView},
     pages::home::pipelines::actions::{
-        PipelineRunButton, PipelineCopyButton, PipelineDeleteButton, PipelineMoveButton,
+        PipelineCopyButton, PipelineDeleteButton, PipelineMoveButton, PipelineRunButton,
     },
 };
 use bld_runner::pipeline::v2::Pipeline;
@@ -28,18 +28,14 @@ pub fn PipelineDetailsV2(
         <Card>
             <div class="flex items-start px-8 py-12">
                 <div class="grow flex flex-col gap-y-2">
-                    <div class="text-2xl">
-                        {name}
-                    </div>
-                    <Show when=move || pipeline_name().is_some() fallback=|| view! { }>
-                        <div class="text-gray-400">
-                            {move || pipeline_name()}
-                        </div>
+                    <div class="text-2xl">{name}</div>
+                    <Show when=move || pipeline_name().is_some() fallback=|| view! {}>
+                        <div class="text-gray-400">{move || pipeline_name()}</div>
                     </Show>
                     <div class="flex gap-x-2">
                         <Badge>"Version: 2"</Badge>
                         <Badge>{move || runs_on()}</Badge>
-                        <Show when=move || cron().is_some() fallback=|| view! { }>
+                        <Show when=move || cron().is_some() fallback=|| view! {}>
                             <Badge>{move || cron().unwrap()}</Badge>
                         </Show>
                         <Badge>{move || dispose()}</Badge>
@@ -49,29 +45,47 @@ pub fn PipelineDetailsV2(
                     <div class="flex-shrink">
                         <ButtonGroup>
                             <ButtonGroupItem
-                                is_selected=move || selected_view.map(|x| matches!(x.get(), PipelineView::UI)).unwrap_or_default()
+                                is_selected=move || {
+                                    selected_view
+                                        .map(|x| matches!(x.get(), PipelineView::UI))
+                                        .unwrap_or_default()
+                                }
                                 on:click=move |_| {
                                     let _ = selected_view.map(|x| x.set(PipelineView::UI));
-                                }>
+                                }
+                            >
                                 "View"
                             </ButtonGroupItem>
                             <ButtonGroupItem
-                                is_selected=move || selected_view.map(|x| matches!(x.get(), PipelineView::RawFile)).unwrap_or_default()
+                                is_selected=move || {
+                                    selected_view
+                                        .map(|x| matches!(x.get(), PipelineView::RawFile))
+                                        .unwrap_or_default()
+                                }
                                 on:click=move |_| {
                                     let _ = selected_view.map(|x| x.set(PipelineView::RawFile));
-                                }>
+                                }
+                            >
                                 "Raw file"
                             </ButtonGroupItem>
                         </ButtonGroup>
                     </div>
                     <Show
                         when=move || id.get().is_some() && name.get().is_some()
-                        fallback=|| view! { }>
+                        fallback=|| view! {}
+                    >
                         <div class="flex gap-2">
-                            <PipelineRunButton id=move || id.get().unwrap() name=move || name.get().unwrap() />
-                            <PipelineMoveButton name=move || name.get().unwrap() />
-                            <PipelineCopyButton name=move || name.get().unwrap() />
-                            <PipelineDeleteButton name=move || name.get().unwrap() redirect=true />
+                            <PipelineRunButton
+                                id=move || id.get().unwrap()
+                                name=move || name.get().unwrap()
+                            />
+                            <PipelineMoveButton
+                                id=move || id.get().unwrap()
+                                name=move || name.get().unwrap()
+                                redirect=true
+                            />
+                            <PipelineCopyButton name=move || name.get().unwrap()/>
+                            <PipelineDeleteButton name=move || name.get().unwrap() redirect=true/>
                         </div>
                     </Show>
                 </div>
