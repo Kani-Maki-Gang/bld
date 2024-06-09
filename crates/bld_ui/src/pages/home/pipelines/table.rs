@@ -6,6 +6,7 @@ use crate::{components::list::List, context::RefreshPipelines};
 use anyhow::Result;
 use bld_models::dtos::ListResponse;
 use leptos::{leptos_dom::logging, *};
+use leptos_use::signal_debounced;
 use reqwest::Client;
 
 async fn get_pipelines() -> Result<Vec<ListResponse>> {
@@ -25,8 +26,9 @@ async fn get_pipelines() -> Result<Vec<ListResponse>> {
 }
 
 #[component]
-pub fn PipelinesTable() -> impl IntoView {
+pub fn PipelinesTable(#[prop(into)] filter: Signal<String>) -> impl IntoView {
     let refresh = use_context::<RefreshPipelines>();
+    let debounced_filter = signal_debounced(filter, 500.0);
 
     let data = create_resource(
         || (),
@@ -41,6 +43,19 @@ pub fn PipelinesTable() -> impl IntoView {
         },
     );
 
+    let filtered_data = move || {
+        logging::console_log("filtering data...");
+        if debounced_filter.get().is_empty() {
+            data.get()
+        } else {
+            data.get().map(|x| {
+                x.into_iter()
+                    .filter(|x| x.get().pipeline.contains(filter.get().as_str()))
+                    .collect()
+            })
+        }
+    };
+
     let _ = watch(
         move || refresh.map(|x| x.get()),
         move |_, _, _| data.refetch(),
@@ -51,7 +66,7 @@ pub fn PipelinesTable() -> impl IntoView {
         <List>
             <div class="divide-y divide-slate-600">
                 <For
-                    each=move || data.get().unwrap_or_default()
+                    each=move || filtered_data().unwrap_or_default()
                     key=move |r| r.get().pipeline.clone()
                     let:child
                 >

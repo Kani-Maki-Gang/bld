@@ -5,7 +5,7 @@ mod table;
 mod v2;
 
 use crate::{
-    components::{button::IconButton, card::Card},
+    components::{button::IconButton, card::Card, input::Input},
     context::RefreshPipelines,
 };
 use leptos::*;
@@ -17,6 +17,7 @@ pub use run::{variables::RunPipelineVariables, RunPipeline};
 #[component]
 pub fn Pipelines() -> impl IntoView {
     let refresh = RefreshPipelines(create_rw_signal(()));
+    let filter = create_rw_signal(String::new());
 
     provide_context(refresh);
 
@@ -25,7 +26,7 @@ pub fn Pipelines() -> impl IntoView {
             <div class="container">
                 <Card>
                     <div class="flex flex-col px-8 py-12">
-                        <div class="flex items-start gap-x-4 pr-2">
+                        <div class="grid grid-cols-4 pr-2">
                             <div class="grow flex flex-col">
                                 <div class="text-2xl">
                                     "Pipelines"
@@ -34,9 +35,14 @@ pub fn Pipelines() -> impl IntoView {
                                     "The list of all available pipelines"
                                 </div>
                             </div>
-                            <IconButton icon="iconoir-refresh-double" on:click=move |_| refresh.set()/>
+                            <div class="col-span-2">
+                                <Input placeholder="Search..." value=filter />
+                            </div>
+                            <div class="flex justify-end">
+                                <IconButton icon="iconoir-refresh-double" on:click=move |_| refresh.set()/>
+                            </div>
                         </div>
-                        <PipelinesTable />
+                        <PipelinesTable filter=move || filter.get() />
                     </div>
                 </Card>
             </div>
