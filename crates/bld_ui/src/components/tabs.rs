@@ -2,19 +2,22 @@ use leptos::*;
 
 #[derive(Clone, Default)]
 pub enum TabsDirection {
-    #[default] Horizontal,
+    #[default]
+    Horizontal,
     Vertical,
 }
 
 #[component]
 pub fn Tabs(
     #[prop(into, optional)] direction: Signal<TabsDirection>,
-    children: Children
+    children: Children,
 ) -> impl IntoView {
-    let nav_class = move || direction.with(|d| match d {
+    let nav_class = move || {
+        direction.with(|d| match d {
             TabsDirection::Horizontal => "flex gap-6",
             TabsDirection::Vertical => "flex flex-col gap-6",
-    });
+        })
+    };
     view! {
         <div class="flex flex-col">
             <div class="hidden sm:block">
