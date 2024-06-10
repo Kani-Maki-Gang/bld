@@ -17,8 +17,8 @@ pub fn PipelineExternalV2(#[prop(into)] external: Signal<Vec<External>>) -> impl
     };
 
     view! {
-        <Card>
-            <div class="flex flex-col px-8 py-12 gap-y-4 min-h-96 max-h-[600px]">
+        <Card class="min-h-full">
+            <div class="flex flex-col px-8 py-12 gap-y-4">
                 <div class="flex flex-col">
                     <div class="text-xl">
                         "External"

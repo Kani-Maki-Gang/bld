@@ -1,10 +1,5 @@
 use crate::{
-    components::{
-        badge::Badge,
-        button_group::{ButtonGroup, ButtonGroupItem},
-        card::Card,
-    },
-    context::{PipelineSelectedView, PipelineView},
+    components::{badge::Badge, card::Card},
     pages::home::pipelines::actions::{
         PipelineCopyButton, PipelineDeleteButton, PipelineMoveButton, PipelineRunButton,
     },
@@ -22,7 +17,6 @@ pub fn PipelineDetailsV2(
     let cron = move || pipeline.with(|p| p.cron.as_ref().map(|x| format!("Cron: {x}")));
     let runs_on = move || pipeline.with(|p| format!("Runs on: {}", p.runs_on));
     let dispose = move || pipeline.with(|p| format!("Dispose: {}", p.dispose));
-    let selected_view = use_context::<PipelineSelectedView>();
 
     view! {
         <Card>
@@ -42,38 +36,6 @@ pub fn PipelineDetailsV2(
                     </div>
                 </div>
                 <div class="flex items-center gap-x-4">
-                    <div class="flex-shrink">
-                        <ButtonGroup>
-                            <ButtonGroupItem
-                                is_selected=move || {
-                                    selected_view
-                                        .map(|x| matches!(x.get(), PipelineView::UI))
-                                        .unwrap_or_default()
-                                }
-
-                                on:click=move |_| {
-                                    let _ = selected_view.map(|x| x.set(PipelineView::UI));
-                                }
-                            >
-
-                                "View"
-                            </ButtonGroupItem>
-                            <ButtonGroupItem
-                                is_selected=move || {
-                                    selected_view
-                                        .map(|x| matches!(x.get(), PipelineView::RawFile))
-                                        .unwrap_or_default()
-                                }
-
-                                on:click=move |_| {
-                                    let _ = selected_view.map(|x| x.set(PipelineView::RawFile));
-                                }
-                            >
-
-                                "Raw file"
-                            </ButtonGroupItem>
-                        </ButtonGroup>
-                    </div>
                     <Show
                         when=move || id.get().is_some() && name.get().is_some()
                         fallback=|| view! {}

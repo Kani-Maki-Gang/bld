@@ -38,10 +38,8 @@ pub fn Home() -> impl IntoView {
                         url="/cron" />
                 </Sidebar>
             </div>
-            <div class="grow overflow-auto">
-                <div class="m-12">
-                    <Outlet />
-                </div>
+            <div class="grow overflow-auto p-4">
+                <Outlet />
             </div>
         </div>
     }

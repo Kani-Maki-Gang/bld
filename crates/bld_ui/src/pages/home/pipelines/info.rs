@@ -43,22 +43,20 @@ pub fn PipelineInfo() -> impl IntoView {
     );
 
     view! {
-        <div class="flex flex-col spacing-4">
-            <Show
-                when=move || matches!(data.get(), Some(Ok(VersionedPipeline::Version1(_))))
-                fallback=|| view! { }>
-                "TODO!"
-            </Show>
-            <Show
-                when=move || matches!(data.get(), Some(Ok(VersionedPipeline::Version2(_))))
-                fallback=|| view! { }>
-                <PipelineV2 id=id name=name pipeline=move || data.get().unwrap().ok() />
-            </Show>
-            <Show
-                when=move || data.get().is_none()
-                fallback=|| view! { }>
-                "No pipeline found!"
-            </Show>
-        </div>
+        <Show
+            when=move || matches!(data.get(), Some(Ok(VersionedPipeline::Version1(_))))
+            fallback=|| view! { }>
+            "TODO!"
+        </Show>
+        <Show
+            when=move || matches!(data.get(), Some(Ok(VersionedPipeline::Version2(_))))
+            fallback=|| view! { }>
+            <PipelineV2 id=id name=name pipeline=move || data.get().unwrap().ok() />
+        </Show>
+        <Show
+            when=move || data.get().is_none()
+            fallback=|| view! { }>
+            "No pipeline found!"
+        </Show>
     }
 }
