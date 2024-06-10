@@ -2,16 +2,9 @@ use crate::components::{
     badge::Badge,
     card::Card,
     table::{Body, Cell, Header, Headers, Row, Table},
-    tabs::{Tab, Tabs},
 };
 use leptos::*;
 use std::collections::HashMap;
-
-#[derive(Copy, Clone)]
-enum TabType {
-    Variables,
-    Environment,
-}
 
 #[component]
 fn VariablesTable(#[prop(into)] data: Signal<HashMap<String, String>>) -> impl IntoView {
@@ -45,7 +38,7 @@ pub fn PipelineVariablesV2(
 ) -> impl IntoView {
     view! {
         <Card class="min-h-full">
-            <div class="flex flex-col px-8 py-12 gap-y-4 min-h-96 max-h-[600px]">
+            <div class="flex flex-col px-8 py-12 gap-y-4">
                 <div class="flex flex-col">
                     <div class="text-xl">
                         {title}

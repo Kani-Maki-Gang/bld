@@ -8,10 +8,7 @@ mod menu;
 mod raw_file;
 mod variables;
 
-use crate::{
-    components::card::Card,
-    context::{PipelineView, RefreshCronJobs, RefreshHistory},
-};
+use crate::context::{RefreshCronJobs, RefreshHistory};
 use bld_runner::pipeline::versioned::VersionedPipeline;
 use leptos::{leptos_dom::logging, *};
 
