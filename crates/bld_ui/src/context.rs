@@ -7,12 +7,6 @@ pub struct AppDialog(pub NodeRef<Dialog>);
 pub struct AppDialogContent(pub RwSignal<Option<View>>);
 
 #[derive(Copy, Clone)]
-pub enum PipelineView {
-    UI,
-    RawFile,
-}
-
-#[derive(Copy, Clone)]
 pub struct RefreshCronJobs(pub RwSignal<()>);
 
 impl RefreshCronJobs {
