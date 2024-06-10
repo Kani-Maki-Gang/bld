@@ -13,19 +13,6 @@ pub enum PipelineView {
 }
 
 #[derive(Copy, Clone)]
-pub struct PipelineSelectedView(pub RwSignal<PipelineView>);
-
-impl PipelineSelectedView {
-    pub fn get(&self) -> PipelineView {
-        self.0.get()
-    }
-
-    pub fn set(&self, view: PipelineView) {
-        self.0.set(view);
-    }
-}
-
-#[derive(Copy, Clone)]
 pub struct RefreshCronJobs(pub RwSignal<()>);
 
 impl RefreshCronJobs {
