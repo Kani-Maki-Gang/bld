@@ -72,8 +72,8 @@ pub fn PipelineJobsV2(
     );
 
     view! {
-        <Card>
-            <div class="flex flex-col px-8 py-12 gap-y-4 min-h-96 max-h-[600px]">
+        <Card class="min-h-full">
+            <div class="flex flex-col px-8 py-12 gap-y-4">
                 <div class="flex flex-col">
                     <div class="text-xl">
                         "Jobs"
@@ -89,7 +89,6 @@ pub fn PipelineJobsV2(
                             <Badge>"No jobs configured."</Badge>
                         </div>
                     }>
-                    "Hello"
                     <Tabs>
                         <For
                             each=move || jobs()

@@ -3,7 +3,7 @@ use leptos::*;
 #[component]
 pub fn Table(children: Children) -> impl IntoView {
     view! {
-        <div class="overflow-x-auto">
+        <div class="overflow-auto overscroll-auto">
             <table class="min-w-full bg-slate-700 text-sm">
                 {children()}
             </table>
