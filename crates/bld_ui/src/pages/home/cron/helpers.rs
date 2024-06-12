@@ -2,6 +2,7 @@ use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::{CronJobResponse, JobFiltersParams, PipelineInfoQueryParams};
 use bld_runner::VersionedPipeline;
 use leptos::*;
+use leptos_dom::logging;
 use reqwest::Client;
 use std::collections::HashMap;
 
@@ -66,10 +67,14 @@ pub async fn get_pipeline(name: Option<String>) -> Result<VersionedPipeline> {
         .send()
         .await?;
 
-    if res.status().is_success() {
+    let status = res.status();
+    if status.is_success() {
         let body = res.text().await?;
         Ok(serde_json::from_str(&body)?)
     } else {
-        bail!("Request failed with status: {}", res.status())
+        let body = res.text().await?;
+        let error = format!("Status {status} {body}");
+        logging::console_error(&error);
+        bail!(error)
     }
 }
