@@ -2,14 +2,18 @@ pub mod variables;
 
 use std::collections::HashMap;
 
-use crate::components::{badge::Badge, button::Button, card::Card};
+use crate::{
+    components::{badge::Badge, button::Button, card::Card},
+    context::{AppDialog, AppDialogContent},
+    error::Error,
+};
 use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::PipelineInfoQueryParams;
 use bld_runner::{
     pipeline::{v1, v2},
     VersionedPipeline,
 };
-use leptos::{leptos_dom::logging, *};
+use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
 use reqwest::Client;
 use serde::Serialize;
@@ -20,6 +24,8 @@ type RequestInterRepr = (
     String,
     HashMap<String, RwSignal<String>>,
     HashMap<String, RwSignal<String>>,
+    NodeRef<Dialog>,
+    RwSignal<Option<View>>,
 );
 
 #[derive(Serialize)]
@@ -43,39 +49,44 @@ async fn get_pipeline(id: Option<String>) -> Result<VersionedPipeline> {
         .send()
         .await?;
 
-    if res.status().is_success() {
+    let status = res.status();
+    if status.is_success() {
         let body = res.text().await?;
         Ok(serde_json::from_str(&body)?)
     } else {
-        bail!("unable to fetch pipeline")
+        let body = res.text().await?;
+        let error = format!("Status {status} {body}");
+        logging::console_error(&error);
+        bail!(error)
     }
 }
 
-async fn start_run(name: &str, vars: HashMap<String, String>, env: HashMap<String, String>) {
-    let name = name.to_string();
-    let fut = async move {
-        let data = RunParams::EnqueueRun {
-            name,
-            variables: Some(vars),
-            environment: Some(env),
-        };
-
-        let res = Client::builder()
-            .build()?
-            .post("http://localhost:6080/v1/run")
-            .json(&data)
-            .send()
-            .await?;
-
-        res.json::<String>().await.map_err(|e| anyhow!(e))
+async fn start_run(
+    name: &str,
+    vars: HashMap<String, String>,
+    env: HashMap<String, String>,
+) -> Result<String> {
+    let data = RunParams::EnqueueRun {
+        name: name.to_string(),
+        variables: Some(vars),
+        environment: Some(env),
     };
 
-    match fut.await {
-        Ok(id) => {
-            let nav = use_navigate();
-            nav(&format!("/monit?id={}", id), NavigateOptions::default());
-        }
-        Err(e) => logging::console_error(&e.to_string()),
+    let res = Client::builder()
+        .build()?
+        .post("http://localhost:6080/v1/run")
+        .json(&data)
+        .send()
+        .await?;
+
+    let status = res.status();
+    if status.is_success() {
+        Ok(res.json::<String>().await?)
+    } else {
+        let body = res.text().await?;
+        let error = format!("Status {status} {body}");
+        logging::console_error(&error);
+        bail!(error)
     }
 }
 
@@ -94,28 +105,54 @@ fn hash_map_strings(items: HashMap<String, RwSignal<String>>) -> HashMap<String,
 }
 
 #[component]
+pub fn RunPipelineErrorDialog(
+    #[prop(into)] error: Signal<String>,
+    dialog: NodeRef<Dialog>,
+) -> impl IntoView {
+    view! {
+        <Card class="px-8 py-12 h-[600px] w-[500px]">
+            <div class="grow">
+                <Error error=error/>
+            </div>
+            <Button on:click=move |_| {
+                let _ = dialog.get().map(|x| x.close());
+            }>"Close"</Button>
+        </Card>
+    }
+}
+
+#[component]
 pub fn RunPipeline() -> impl IntoView {
     let params = use_query_map();
     let id = move || params.with(|p| p.get("id").cloned());
     let name = move || params.with(|p| p.get("name").cloned());
     let variables = create_rw_signal(HashMap::new());
     let environment = create_rw_signal(HashMap::new());
+    let app_dialog = use_context::<AppDialog>();
+    let app_dialog_content = use_context::<AppDialogContent>();
 
     let data = create_resource(
         move || id(),
-        |id| async move {
-            get_pipeline(id)
-                .await
-                .map_err(|e| logging::console_error(&e.to_string()))
-        },
+        |id| async move { get_pipeline(id).await.map_err(|e| e.to_string()) },
     );
 
     let start_run = create_action(|args: &RequestInterRepr| {
-        let (name, vars, env) = args;
-        let name = name.to_owned();
-        let vars = hash_map_strings(vars.clone());
-        let env = hash_map_strings(env.clone());
-        async move { start_run(&name, vars, env).await }
+        let (name, vars, env, dialog, dialog_content) = args.clone();
+        let vars = hash_map_strings(vars);
+        let env = hash_map_strings(env);
+        async move {
+            let result = start_run(&name, vars, env).await;
+            match result {
+                Ok(id) => {
+                    let nav = use_navigate();
+                    nav(&format!("/monit?id={}", id), NavigateOptions::default());
+                }
+                Err(e) => {
+                    dialog_content.set(Some(view! { <RunPipelineErrorDialog error=move || e.to_string() dialog=dialog/> }));
+                    let _ = dialog.get().map(|x| x.show_modal());
+                }
+            }
+        }
     });
 
     create_effect(move |_| match data.get() {
@@ -136,64 +173,74 @@ pub fn RunPipeline() -> impl IntoView {
     });
 
     view! {
-        <div class="flex flex-col gap-4">
-            <Card>
-                <div class="flex flex-col px-8 py-12 gap-y-4">
+        <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
+            <div class="flex flex-col items-center">
+                <Card class="container px-8 py-12">
+                    <Error error=move || data.get().unwrap().unwrap_err()/>
+                </Card>
+            </div>
+        </Show>
+        <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
+            <div class="flex flex-col gap-4">
+                <Card class="px-8 py-12">
                     <div class="flex">
                         <div class="grow flex flex-col">
-                            <div class="text-2xl">
-                                "Start a new run"
-                            </div>
-                            <div class="text-gray-400">
-                                {name}
-                            </div>
+                            <div class="text-2xl">"Start a new run"</div>
+                            <div class="text-gray-400">{name}</div>
                             <div class="flex gap-4">
                                 <Show
                                     when=move || variables.get().is_empty()
-                                    fallback=move || view!{}>
+                                    fallback=move || view! {}
+                                >
                                     <div class="flex-shrink">
-                                        <Badge>
-                                            "Pipeline has no variables"
-                                        </Badge>
+                                        <Badge>"Pipeline has no variables"</Badge>
                                     </div>
                                 </Show>
                                 <Show
                                     when=move || environment.get().is_empty()
-                                    fallback=move || view!{}>
+                                    fallback=move || view! {}
+                                >
                                     <div class="flex-shrink">
-                                        <Badge>
-                                            "Pipeline has no environment variables"
-                                        </Badge>
+                                        <Badge>"Pipeline has no environment variables"</Badge>
                                     </div>
                                 </Show>
                             </div>
                         </div>
                         <div class="min-w-40">
-                            <Button on:click={move |_| {
-                                start_run.dispatch((name().unwrap(), variables.get(), environment.get()))
-                            }}>
-                                "Start"
-                            </Button>
+                            <Button on:click=move |_| {
+                                let Some(AppDialog(dialog)) = app_dialog else {
+                                    return;
+                                };
+                                let Some(AppDialogContent(content)) = app_dialog_content else {
+                                    return;
+                                };
+                                start_run
+                                    .dispatch((
+                                        name().unwrap(),
+                                        variables.get(),
+                                        environment.get(),
+                                        dialog,
+                                        content,
+                                    ))
+                            }>"Start"</Button>
                         </div>
                     </div>
-                </div>
-            </Card>
-            <Show
-                when=move || !variables.get().is_empty()
-                fallback=move || view!{}>
-                <RunPipelineVariables
-                    title="Variables"
-                    subtitle="The inputs that are provided based on bld expressions for each step."
-                    items=variables />
-            </Show>
-            <Show
-                when=move || !variables.get().is_empty()
-                fallback=move || view!{}>
-                <RunPipelineVariables
-                    title="Environment"
-                    subtitle="The environment variables that are provided based on bld expressions or bash expressions for each step."
-                    items=environment />
-            </Show>
-        </div>
+                </Card>
+                <Show when=move || !variables.get().is_empty() fallback=move || view! {}>
+                    <RunPipelineVariables
+                        title="Variables"
+                        subtitle="The inputs that are provided based on bld expressions for each step."
+                        items=variables
+                    />
+                </Show>
+                <Show when=move || !variables.get().is_empty() fallback=move || view! {}>
+                    <RunPipelineVariables
+                        title="Environment"
+                        subtitle="The environment variables that are provided based on bld expressions or bash expressions for each step."
+                        items=environment
+                    />
+                </Show>
+            </div>
+        </Show>
     }
 }
