@@ -5,8 +5,9 @@ use crate::{
         table::{Body, Cell, Header, Headers, Row, Table},
     },
     context::RefreshHistory,
+    error::Error,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::{HistQueryParams, HistoryEntry};
 use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
@@ -20,11 +21,14 @@ async fn get_hist(params: Option<HistQueryParams>) -> Result<Vec<HistoryEntry>> 
         .send()
         .await?;
 
-    if res.status().is_success() {
+    let status = res.status();
+    if status.is_success() {
         let body = res.text().await?;
         Ok(serde_json::from_str(&body)?)
     } else {
-        Ok(vec![])
+        let body = res.text().await?;
+        let error = format!("Status {status} {body}");
+        bail!(error)
     }
 }
 
@@ -45,7 +49,8 @@ pub fn HistoryEntryState(#[prop(into)] state: String) -> impl IntoView {
         <div class="w-28">
             <Badge class=class>
                 <div class="flex items-center">
-                    <i class=icon></i>{label}
+                    <i class=icon></i>
+                    {label}
                 </div>
             </Badge>
         </div>
@@ -59,10 +64,11 @@ pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> im
     let data = create_resource(
         move || params.get(),
         |params| async move {
-            get_hist(params)
-                .await
-                .map_err(|e| logging::console_error(e.to_string().as_str()))
-                .unwrap_or_default()
+            get_hist(params).await.map_err(|e| {
+                let e = e.to_string();
+                logging::console_error(&e);
+                e
+            })
         },
     );
 
@@ -79,34 +85,40 @@ pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> im
     );
 
     view! {
-        <Table>
-            <Headers>
-                <Header>"Id"</Header>
-                <Header>"Name"</Header>
-                <Header>"User"</Header>
-                <Header>"Start Date"</Header>
-                <Header>"End Date"</Header>
-                <Header>"State"</Header>
-            </Headers>
-            <Body>
-                <For
-                    each=move || data.get().unwrap_or_default().into_iter().enumerate()
-                    key=move |(i, _)| *i
-                    let:child>
-                    <Row>
-                        <Cell>
-                            <Link href=format!("/monit?id={}", child.1.id)>{child.1.id}</Link>
-                        </Cell>
-                        <Cell>{child.1.name}</Cell>
-                        <Cell>{child.1.user}</Cell>
-                        <Cell>{child.1.start_date_time.unwrap_or_default()}</Cell>
-                        <Cell>{child.1.end_date_time.unwrap_or_default()}</Cell>
-                        <Cell>
-                            <HistoryEntryState state=child.1.state />
-                        </Cell>
-                    </Row>
-                </For>
-            </Body>
-        </Table>
+        <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
+            <Error error=move || data.get().unwrap().unwrap_err()/>
+        </Show>
+        <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
+            <Table>
+                <Headers>
+                    <Header>"Id"</Header>
+                    <Header>"Name"</Header>
+                    <Header>"User"</Header>
+                    <Header>"Start Date"</Header>
+                    <Header>"End Date"</Header>
+                    <Header>"State"</Header>
+                </Headers>
+                <Body>
+                    <For
+                        each=move || data.get().unwrap().unwrap().into_iter().enumerate()
+                        key=move |(i, _)| *i
+                        let:child
+                    >
+                        <Row>
+                            <Cell>
+                                <Link href=format!("/monit?id={}", child.1.id)>{child.1.id}</Link>
+                            </Cell>
+                            <Cell>{child.1.name}</Cell>
+                            <Cell>{child.1.user}</Cell>
+                            <Cell>{child.1.start_date_time.unwrap_or_default()}</Cell>
+                            <Cell>{child.1.end_date_time.unwrap_or_default()}</Cell>
+                            <Cell>
+                                <HistoryEntryState state=child.1.state/>
+                            </Cell>
+                        </Row>
+                    </For>
+                </Body>
+            </Table>
+        </Show>
     }
 }
