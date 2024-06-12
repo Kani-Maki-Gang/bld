@@ -28,6 +28,7 @@ async fn get_hist(params: Option<HistQueryParams>) -> Result<Vec<HistoryEntry>> 
     } else {
         let body = res.text().await?;
         let error = format!("Status {status} {body}");
+        logging::console_error(&error);
         bail!(error)
     }
 }
@@ -63,13 +64,7 @@ pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> im
 
     let data = create_resource(
         move || params.get(),
-        |params| async move {
-            get_hist(params).await.map_err(|e| {
-                let e = e.to_string();
-                logging::console_error(&e);
-                e
-            })
-        },
+        |params| async move { get_hist(params).await.map_err(|e| e.to_string()) },
     );
 
     let _ = watch(

@@ -27,6 +27,7 @@ async fn get_pipeline(id: Option<String>) -> Result<VersionedPipeline> {
     } else {
         let body = res.text().await?;
         let error = format!("Status {status} {body}");
+        logging::console_error(&error);
         bail!(error)
     }
 }
@@ -39,12 +40,7 @@ pub fn PipelineInfo() -> impl IntoView {
 
     let data = create_resource(
         move || id(),
-        |id| async move {
-            get_pipeline(id).await.map_err(|e| {
-                logging::console_error(&e.to_string());
-                e.to_string()
-            })
-        },
+        |id| async move { get_pipeline(id).await.map_err(|e| e.to_string()) },
     );
 
     view! {

@@ -29,6 +29,7 @@ async fn get_cron(params: Option<JobFiltersParams>) -> Result<Vec<CronJobRespons
     } else {
         let body = res.text().await?;
         let error = format!("Status {status} {body}");
+        logging::console_error(&error);
         bail!(error)
     }
 }
@@ -39,13 +40,7 @@ pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> 
 
     let data = create_resource(
         move || params.get(),
-        |params| async move {
-            get_cron(params).await.map_err(|e| {
-                let error = e.to_string();
-                logging::console_error(&error);
-                error
-            })
-        },
+        |params| async move { get_cron(params).await.map_err(|e| e.to_string()) },
     );
 
     let _ = watch(
@@ -78,14 +73,14 @@ pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> 
                 <Body>
                     <For
                         each=move || {
-                            data
-                                .get()
+                            data.get()
                                 .unwrap()
                                 .unwrap()
                                 .into_iter()
                                 .enumerate()
                                 .map(|x| (x.0, x.1.id.clone(), x.1))
                         }
+
                         key=|(i, _, _)| *i
                         let:child
                     >

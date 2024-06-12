@@ -24,6 +24,7 @@ async fn get_pipelines() -> Result<Vec<ListResponse>> {
     } else {
         let body = res.text().await?;
         let error = format!("Status {} {body}", status);
+        logging::console_log(&error);
         bail!(error)
     }
 }
@@ -36,17 +37,11 @@ pub fn PipelinesTable(#[prop(into)] filter: Signal<String>) -> impl IntoView {
     let data = create_resource(
         || (),
         |_| async move {
-            get_pipelines()
-                .await
-                .map_err(|e| {
-                    logging::console_log(e.to_string().as_str());
-                    e.to_string()
-                })
-                .map(|x| {
-                    x.into_iter()
-                        .map(|x| create_rw_signal(x))
-                        .collect::<Vec<RwSignal<ListResponse>>>()
-                })
+            get_pipelines().await.map_err(|e| e.to_string()).map(|x| {
+                x.into_iter()
+                    .map(|x| create_rw_signal(x))
+                    .collect::<Vec<RwSignal<ListResponse>>>()
+            })
         },
     );
 
