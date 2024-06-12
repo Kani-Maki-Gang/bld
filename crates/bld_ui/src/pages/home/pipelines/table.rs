@@ -2,7 +2,7 @@ use super::actions::{
     PipelineCopyButton, PipelineDeleteButton, PipelineEditButton, PipelineMoveButton,
     PipelineRunButton,
 };
-use crate::{components::list::List, context::RefreshPipelines};
+use crate::{components::list::List, context::RefreshPipelines, error::Error};
 use anyhow::{bail, Result};
 use bld_models::dtos::ListResponse;
 use leptos::{leptos_dom::logging, *};
@@ -72,13 +72,7 @@ pub fn PipelinesTable(#[prop(into)] filter: Signal<String>) -> impl IntoView {
 
     view! {
         <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
-            <div class="text-red-500 text-center text-8xl">
-                <i class="iconoir-cloud-xmark"></i>
-            </div>
-            <div class="text-center">
-                "Failed to fetch pipelines due to: " {move || data.get().unwrap().unwrap_err()}
-            </div>
-            <div class="text-center text-gray-400">"Please try again later"</div>
+            <Error error=move || data.get().unwrap().unwrap_err()/>
         </Show>
         <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=move || view! {}>
             <List>

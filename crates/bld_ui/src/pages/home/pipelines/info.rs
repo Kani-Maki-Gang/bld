@@ -1,7 +1,7 @@
+use crate::{components::card::Card, error::Error};
 use anyhow::{bail, Result};
 use bld_models::dtos::PipelineInfoQueryParams;
 use bld_runner::VersionedPipeline;
-use crate::components::card::Card;
 use leptos::{leptos_dom::logging, *};
 use leptos_router::*;
 use reqwest::Client;
@@ -40,45 +40,34 @@ pub fn PipelineInfo() -> impl IntoView {
     let data = create_resource(
         move || id(),
         |id| async move {
-            get_pipeline(id)
-                .await
-                .map_err(|e| {
-                    logging::console_error(&e.to_string());
-                    e.to_string()
-                })
+            get_pipeline(id).await.map_err(|e| {
+                logging::console_error(&e.to_string());
+                e.to_string()
+            })
         },
     );
 
     view! {
         <Show
             when=move || matches!(data.get(), Some(Ok(VersionedPipeline::Version1(_))))
-            fallback=|| view! { }>
+            fallback=|| view! {}
+        >
             "TODO!"
         </Show>
         <Show
             when=move || matches!(data.get(), Some(Ok(VersionedPipeline::Version2(_))))
-            fallback=|| view! { }>
-            <PipelineV2 id=id name=name pipeline=move || data.get().unwrap().ok() />
+            fallback=|| view! {}
+        >
+            <PipelineV2 id=id name=name pipeline=move || data.get().unwrap().ok()/>
         </Show>
-        <Show when=move || matches!(data.get(), Some(Err(_)))
-        fallback=|| view! {}>
+        <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
             <div class="flex flex-col items-center">
                 <Card class="container flex flex-col px-8 py-12">
-                    <div class="text-red-500 text-center text-8xl">
-                        <i class="iconoir-cloud-xmark"></i>
-                    </div>
-                    <div class="text-center">
-                        "Failed to load pipeline due to: " {move || data.get().unwrap().unwrap_err().to_string()}
-                    </div>
-                    <div class="text-center text-gray-400">
-                        "Please try refreshing the page later"
-                    </div>
+                    <Error error=move || data.get().unwrap().unwrap_err()/>
                 </Card>
             </div>
         </Show>
-        <Show
-            when=move || data.loading().get()
-            fallback=|| view! { }>
+        <Show when=move || data.loading().get() fallback=|| view! {}>
             "Loading..."
         </Show>
     }
