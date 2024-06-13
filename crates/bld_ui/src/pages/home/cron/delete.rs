@@ -38,7 +38,7 @@ async fn delete(id: String) -> Result<()> {
 fn CronJobDeleteDialog(
     #[prop(into)] id: Signal<String>,
     #[prop(into)] app_dialog: NodeRef<Dialog>,
-    #[prop(into)] refresh: Option<RefreshCronJobs>
+    #[prop(into)] refresh: Option<RefreshCronJobs>,
 ) -> impl IntoView {
     let error = create_rw_signal(None);
 
