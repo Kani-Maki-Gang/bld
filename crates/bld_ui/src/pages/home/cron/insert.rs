@@ -30,8 +30,6 @@ async fn insert(data: AddJobRequest) -> Result<()> {
 
     let status = resp.status();
     if status.is_success() {
-        let nav = use_navigate();
-        nav("/cron?={}", NavigateOptions::default());
         Ok(())
     } else {
         let body = resp.text().await?;
@@ -83,6 +81,9 @@ pub fn CronJobInsert() -> impl IntoView {
                     view! { <ErrorDialog dialog=dialog error=move || e.to_string()/> },
                 ));
                 let _ = dialog.get().map(|x| x.show_modal());
+            } else {
+                let nav = use_navigate();
+                nav("/cron?={}", NavigateOptions::default());
             }
         }
     });
