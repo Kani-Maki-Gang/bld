@@ -21,23 +21,6 @@ pub type SaveCronJob = (
 );
 
 #[component]
-pub fn CronJobsEditErrorDialog(
-    #[prop(into)] dialog: NodeRef<Dialog>,
-    #[prop(into)] error: Signal<String>,
-) -> impl IntoView {
-    view! {
-        <Card class="flex flex-col gap-4 px-8 py-12 h-[600px] w-[500px]">
-            <div class="grow">
-                <Error error=move || error.get()/>
-            </div>
-            <Button on:click=move |_| {
-                let _ = dialog.get().map(|x| x.close());
-            }>"Close"</Button>
-        </Card>
-    }
-}
-
-#[component]
 pub fn CronJobsEdit(
     #[prop(into)] cron: Signal<Option<CronJobResponse>>,
     #[prop(into)] pipeline: Signal<Option<VersionedPipeline>>,

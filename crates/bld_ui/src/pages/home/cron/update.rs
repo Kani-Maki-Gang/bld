@@ -1,11 +1,11 @@
 use super::{
-    edit::{CronJobsEdit, CronJobsEditErrorDialog, SaveCronJob},
+    edit::{CronJobsEdit, SaveCronJob},
     helpers::{get_cron, get_pipeline, hash_map_strings},
 };
 use crate::{
     components::card::Card,
     context::{AppDialog, AppDialogContent},
-    error::Error,
+    error::{Error, ErrorDialog},
 };
 use anyhow::{bail, Result};
 use bld_models::dtos::{CronJobResponse, UpdateJobRequest};
@@ -106,7 +106,7 @@ pub fn CronJobUpdate() -> impl IntoView {
             let res = update(data).await;
             if let Err(e) = res {
                 content.set(Some(
-                    view! { <CronJobsEditErrorDialog dialog=dialog error=move || e.to_string()/> },
+                    view! { <ErrorDialog dialog=dialog error=move || e.to_string()/> },
                 ));
                 let _ = dialog.get().map(|x| x.show_modal());
             }
@@ -119,7 +119,7 @@ pub fn CronJobUpdate() -> impl IntoView {
             let res = delete(id).await;
             if let Err(e) = res {
                 content.set(Some(
-                    view! { <CronJobsEditErrorDialog dialog=dialog error=move || e.to_string()/> },
+                    view! { <ErrorDialog dialog=dialog error=move || e.to_string()/> },
                 ));
                 let _ = dialog.get().map(|x| x.show_modal());
             }
