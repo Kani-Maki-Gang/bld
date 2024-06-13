@@ -28,6 +28,17 @@ pub fn SmallError(#[prop(into)] error: Signal<String>) -> impl IntoView {
 }
 
 #[component]
+pub fn ErrorCard(#[prop(into)] error: Signal<String>) -> impl IntoView {
+    view! {
+        <div class="flex flex-col items-center">
+            <Card class="container px-8 py-12">
+                <Error error=move || error.get()/>
+            </Card>
+        </div>
+    }
+}
+
+#[component]
 pub fn ErrorDialog(
     #[prop(into)] dialog: NodeRef<Dialog>,
     #[prop(into)] error: Signal<String>,
