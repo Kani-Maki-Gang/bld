@@ -2,15 +2,11 @@ mod details;
 mod schedule;
 
 use super::helpers::hash_map_rw_signals;
-use crate::{
-    components::{button::Button, card::Card},
-    error::Error,
-    pages::home::RunPipelineVariables,
-};
+use crate::pages::home::RunPipelineVariables;
 use bld_models::dtos::CronJobResponse;
 use bld_runner::VersionedPipeline;
 use details::CronJobsEditDetails;
-use leptos::{html::Dialog, *};
+use leptos::*;
 use schedule::CronJobsEditSchedule;
 use std::collections::HashMap;
 
