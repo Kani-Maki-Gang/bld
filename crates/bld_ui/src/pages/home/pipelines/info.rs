@@ -1,4 +1,4 @@
-use crate::{components::card::Card, error::Error};
+use crate::{components::card::Card, error::ErrorCard};
 use anyhow::{bail, Result};
 use bld_models::dtos::PipelineInfoQueryParams;
 use bld_runner::VersionedPipeline;
@@ -57,11 +57,7 @@ pub fn PipelineInfo() -> impl IntoView {
             <PipelineV2 id=id name=name pipeline=move || data.get().unwrap().ok()/>
         </Show>
         <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
-            <div class="flex flex-col items-center">
-                <Card class="container flex flex-col px-8 py-12">
-                    <Error error=move || data.get().unwrap().unwrap_err()/>
-                </Card>
-            </div>
+            <ErrorCard error=move || data.get().unwrap().unwrap_err()/>
         </Show>
         <Show when=move || data.loading().get() fallback=|| view! {}>
             "Loading..."

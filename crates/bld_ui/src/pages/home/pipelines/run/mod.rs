@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use crate::{
     components::{badge::Badge, button::Button, card::Card},
     context::{AppDialog, AppDialogContent},
-    error::{Error, ErrorDialog}
+    error::{ErrorCard, ErrorDialog}
 };
 use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::PipelineInfoQueryParams;
@@ -157,11 +157,7 @@ pub fn RunPipeline() -> impl IntoView {
 
     view! {
         <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
-            <div class="flex flex-col items-center">
-                <Card class="container px-8 py-12">
-                    <Error error=move || data.get().unwrap().unwrap_err()/>
-                </Card>
-            </div>
+            <ErrorCard error=move || data.get().unwrap().unwrap_err()/>
         </Show>
         <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
             <div class="flex flex-col gap-4">

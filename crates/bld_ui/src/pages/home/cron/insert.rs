@@ -5,7 +5,7 @@ use super::{
 use crate::{
     components::card::Card,
     context::{AppDialog, AppDialogContent},
-    error::{Error, ErrorDialog},
+    error::{ErrorCard, ErrorDialog},
 };
 use anyhow::{bail, Result};
 use bld_models::dtos::{AddJobRequest, CronJobResponse};
@@ -102,11 +102,7 @@ pub fn CronJobInsert() -> impl IntoView {
 
     view! {
         <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
-            <div class="flex flex-col items-center">
-                <Card class="container flex flex-col gap-4 px-8 py-12">
-                    <Error error=move || data.get().unwrap().unwrap_err()/>
-                </Card>
-            </div>
+            <ErrorCard error=move || data.get().unwrap().unwrap_err()/>
         </Show>
         <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
             <CronJobsEdit
