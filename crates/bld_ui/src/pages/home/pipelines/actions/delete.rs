@@ -5,6 +5,7 @@ use crate::{
         colors::Colors,
     },
     context::{AppDialog, AppDialogContent, RefreshPipelines},
+    error::SmallError,
 };
 use anyhow::{bail, Result};
 use bld_models::dtos::PipelineQueryParams;
@@ -12,7 +13,13 @@ use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
 use reqwest::Client;
 
-type DeleteActionArgs = (String, Option<RefreshPipelines>, bool);
+type DeleteActionArgs = (
+    String,
+    RwSignal<Option<String>>,
+    Option<RefreshPipelines>,
+    bool,
+    NodeRef<Dialog>,
+);
 
 async fn delete(name: String) -> Result<()> {
     let params = PipelineQueryParams { pipeline: name };
@@ -24,10 +31,14 @@ async fn delete(name: String) -> Result<()> {
         .send()
         .await?;
 
-    if res.status().is_success() {
+    let status = res.status();
+    if status.is_success() {
         Ok(())
     } else {
-        bail!("Request failed with status: {}", res.status())
+        let body = res.text().await?;
+        let error = format!("Status {status} {body}");
+        logging::console_log(&error);
+        bail!(error)
     }
 }
 
@@ -38,36 +49,42 @@ fn PipelineDeleteButtonDialog(
     #[prop()] refresh: Option<RefreshPipelines>,
     #[prop(into, optional)] redirect: bool,
 ) -> impl IntoView {
+    let error = create_rw_signal(None);
     let delete_action = create_action(|args: &DeleteActionArgs| {
-        let (id, refresh, redirect) = args.clone();
+        let (id, error, refresh, redirect, dialog) = args.clone();
         async move {
-            let _ = delete(id)
-                .await
-                .map_err(|e| logging::console_error(&e.to_string()));
-            if redirect {
-                let nav = use_navigate();
-                nav("/pipelines", NavigateOptions::default());
-            } else {
-                let _ = refresh.map(|x| x.set());
+            match delete(id).await {
+                Ok(_) if redirect => {
+                    let nav = use_navigate();
+                    nav("/pipelines", NavigateOptions::default());
+                    let _ = dialog.get().map(|x| x.close());
+                }
+                Ok(_) => {
+                    let _ = refresh.map(|x| x.set());
+                    let _ = dialog.get().map(|x| x.close());
+                }
+                Err(e) => {
+                    error.set(Some(e.to_string()));
+                }
             }
         }
     });
 
     view! {
-        <Card>
-            <div class="flex flex-col px-8 py-12 w-[500px] h-[300px]">
-                <div class="grow">
-                    "Are you sure you want to delete this pipeline?" <p>{move || name.get()}</p>
-                </div>
-                <div class="flex gap-x-4">
-                    <Button on:click=move |_| {
-                        delete_action.dispatch((name.get(), refresh, redirect));
-                        let _ = app_dialog.get().map(|x| x.close());
-                    }>"Delete"</Button>
-                    <Button on:click=move |_| {
-                        let _ = app_dialog.get().map(|x| x.close());
-                    }>"Cancel"</Button>
-                </div>
+        <Card class="px-8 py-12 gap-4 w-[500px] h-[300px]">
+            <div class="grow">
+                "Are you sure you want to delete this pipeline?" <p>{move || name.get()}</p>
+            </div>
+            <Show when=move || error.get().is_some() fallback=|| view! {}>
+                <SmallError error=move || error.get().unwrap()/>
+            </Show>
+            <div class="flex gap-x-4">
+                <Button on:click=move |_| {
+                    delete_action.dispatch((name.get(), error, refresh, redirect, app_dialog));
+                }>"Delete"</Button>
+                <Button on:click=move |_| {
+                    let _ = app_dialog.get().map(|x| x.close());
+                }>"Cancel"</Button>
             </div>
         </Card>
     }
