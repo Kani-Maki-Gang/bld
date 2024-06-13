@@ -1,9 +1,9 @@
 use super::{
-    edit::{CronJobsEdit, SaveCronJob},
+    edit::{CronJobsEdit, CronJobsEditErrorDialog, SaveCronJob},
     helpers::{get_pipeline, hash_map_strings},
 };
 use crate::{
-    components::{button::Button, card::Card},
+    components::card::Card,
     context::{AppDialog, AppDialogContent},
     error::Error,
 };
@@ -38,23 +38,6 @@ async fn insert(data: AddJobRequest) -> Result<()> {
         let error = format!("Status {status} {body}");
         logging::console_error(&error);
         bail!(error)
-    }
-}
-
-#[component]
-fn CronJobInsertErrorDialog(
-    #[prop(into)] dialog: NodeRef<Dialog>,
-    #[prop(into)] error: Signal<String>,
-) -> impl IntoView {
-    view! {
-        <Card class="flex flex-col gap-4 px-8 py-12 h-[600px] w-[500px]">
-            <div class="grow">
-                <Error error=move || error.get()/>
-            </div>
-            <Button on:click=move |_| {
-                let _ = dialog.get().map(|x| x.close());
-            }>"Close"</Button>
-        </Card>
     }
 }
 
@@ -97,7 +80,7 @@ pub fn CronJobInsert() -> impl IntoView {
 
             if let Err(e) = res {
                 dialog_content.set(Some(
-                    view! { <CronJobInsertErrorDialog dialog=dialog error=move || e.to_string()/> },
+                    view! { <CronJobsEditErrorDialog dialog=dialog error=move || e.to_string()/> },
                 ));
                 let _ = dialog.get().map(|x| x.show_modal());
             }

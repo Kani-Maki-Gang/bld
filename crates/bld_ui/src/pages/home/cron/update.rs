@@ -1,12 +1,27 @@
 use super::{
-    edit::{CronJobsEdit, SaveCronJob},
+    edit::{CronJobsEdit, CronJobsEditErrorDialog, SaveCronJob},
     helpers::{get_cron, get_pipeline, hash_map_strings},
 };
+use crate::{
+    components::card::Card,
+    context::{AppDialog, AppDialogContent},
+    error::Error,
+};
 use anyhow::{bail, Result};
-use bld_models::dtos::UpdateJobRequest;
-use leptos::{leptos_dom::logging, *};
+use bld_models::dtos::{CronJobResponse, UpdateJobRequest};
+use bld_runner::VersionedPipeline;
+use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
 use reqwest::Client;
+
+type UpdateActionArgs = (
+    Option<String>,
+    NodeRef<Dialog>,
+    RwSignal<Option<View>>,
+    SaveCronJob,
+);
+
+type DeleteActionArgs = (String, NodeRef<Dialog>, RwSignal<Option<View>>);
 
 async fn update(data: UpdateJobRequest) -> Result<()> {
     let resp = Client::builder()
@@ -16,14 +31,16 @@ async fn update(data: UpdateJobRequest) -> Result<()> {
         .send()
         .await?;
 
-    if resp.status().is_success() {
+    let status = resp.status();
+    if status.is_success() {
         let nav = use_navigate();
         nav("/cron?={}", NavigateOptions::default());
         Ok(())
     } else {
-        let msg = format!("Request failed with status: {:?}", resp);
-        logging::console_error(&msg);
-        bail!(msg)
+        let body = resp.text().await?;
+        let error = format!("Status {status} {body}");
+        logging::console_error(&error);
+        bail!(error)
     }
 }
 
@@ -34,14 +51,16 @@ async fn delete(id: String) -> Result<()> {
         .send()
         .await?;
 
-    if resp.status().is_success() {
+    let status = resp.status();
+    if status.is_success() {
         let nav = use_navigate();
         nav("/cron?={}", NavigateOptions::default());
         Ok(())
     } else {
-        let msg = format!("Request failed with status: {:?}", resp);
-        logging::console_error(&msg);
-        bail!(msg)
+        let body = resp.text().await?;
+        let error = format!("Status {status} {body}");
+        logging::console_error(&error);
+        bail!(error)
     }
 }
 
@@ -50,81 +69,101 @@ pub fn CronJobUpdate() -> impl IntoView {
     let params = use_query_map();
     let id = move || params.with(|p| p.get("id").cloned());
     let (save, set_save) = create_signal(None);
-    let (get_delete, set_delete) = create_signal(());
+    let (get_delete, set_delete) = create_signal(false);
+    let app_dialog = use_context::<AppDialog>();
+    let app_dialog_content = use_context::<AppDialogContent>();
 
     let data = create_resource(
         move || id(),
         |id| async move {
-            let cron = get_cron(id)
-                .await
-                .map_err(|e| logging::console_error(e.to_string().as_str()))
-                .ok();
-
-            let name = cron.as_ref().map(|x| x.pipeline.clone());
-            let pipeline = get_pipeline(name)
-                .await
-                .map_err(|e| logging::console_error(e.to_string().as_str()))
-                .ok();
-
-            (cron, pipeline)
+            let cron = get_cron(id).await.map_err(|e| e.to_string())?;
+            let name = cron.pipeline.clone();
+            let pipeline = get_pipeline(Some(name)).await.map_err(|e| e.to_string())?;
+            Ok::<(CronJobResponse, VersionedPipeline), String>((cron, pipeline))
         },
     );
 
     let cron = move || match data.get() {
-        Some((cron, _)) => cron,
-        None => None,
+        Some(Ok((cron, _))) => Some(cron),
+        _ => None,
     };
 
     let pipeline = move || match data.get() {
-        Some((_, pipeline)) => pipeline,
-        None => None,
+        Some(Ok((_, pipeline))) => Some(pipeline),
+        _ => None,
     };
 
-    let save_action = create_action(|args: &(Option<String>, SaveCronJob)| {
-        let (id, (schedule, vars, env)) = args;
-        let id = id.clone();
-        let schedule = schedule.clone();
-        let vars = hash_map_strings(vars.clone());
-        let env = hash_map_strings(env.clone());
+    let save_action = create_action(|args: &UpdateActionArgs| {
+        let (id, dialog, content, (schedule, vars, env)) = args.clone();
+        let vars = hash_map_strings(vars);
+        let env = hash_map_strings(env);
 
         async move {
             let Some(id) = id else {
                 return;
             };
             let data = UpdateJobRequest::new(id.to_string(), schedule, Some(vars), Some(env));
-            let _ = update(data).await;
+            let res = update(data).await;
+            if let Err(e) = res {
+                content.set(Some(
+                    view! { <CronJobsEditErrorDialog dialog=dialog error=move || e.to_string()/> },
+                ));
+                let _ = dialog.get().map(|x| x.show_modal());
+            }
         }
     });
 
-    let delete_action = create_action(|args: &String| {
-        let id = args.clone();
+    let delete_action = create_action(|args: &DeleteActionArgs| {
+        let (id, dialog, content) = args.clone();
         async move {
-            let _ = delete(id).await;
+            let res = delete(id).await;
+            if let Err(e) = res {
+                content.set(Some(
+                    view! { <CronJobsEditErrorDialog dialog=dialog error=move || e.to_string()/> },
+                ));
+                let _ = dialog.get().map(|x| x.show_modal());
+            }
         }
     });
 
     create_effect(move |_| {
         if let Some(data) = save.get() {
-            save_action.dispatch((id(), data));
+            let Some(AppDialog(dialog)) = app_dialog else {
+                return;
+            };
+            let Some(AppDialogContent(content)) = app_dialog_content else {
+                return;
+            };
+            save_action.dispatch((id(), dialog, content, data));
         }
     });
 
-    let _ = watch(
-        move || (get_delete.get(), id()),
-        move |args: &((), Option<String>), _, _| {
-            let ((), id) = args;
-            if let Some(id) = id.as_ref().cloned() {
-                delete_action.dispatch(id);
+    create_effect(move |_| {
+        if get_delete.get() {
+            let Some(AppDialog(dialog)) = app_dialog else {
+                return;
+            };
+
+            let Some(AppDialogContent(content)) = app_dialog_content else {
+                return;
+            };
+
+            if let Some(id) = id().as_ref().cloned() {
+                delete_action.dispatch((id, dialog, content));
             }
-        },
-        false,
-    );
+        }
+    });
 
     view! {
-        <CronJobsEdit
-            cron=cron
-            pipeline=pipeline
-            save=set_save
-            delete=set_delete />
+        <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
+            <div class="flex flex-col items-center">
+                <Card class="container px-8 py-12">
+                    <Error error=move || data.get().unwrap().unwrap_err()/>
+                </Card>
+            </div>
+        </Show>
+        <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
+            <CronJobsEdit cron=cron pipeline=pipeline save=set_save delete=set_delete/>
+        </Show>
     }
 }
