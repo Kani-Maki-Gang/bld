@@ -6,6 +6,7 @@ use crate::{
         input::Input,
     },
     context::{AppDialog, AppDialogContent, RefreshPipelines},
+    error::SmallError,
 };
 use anyhow::{bail, Result};
 use bld_models::dtos::PipelinePathRequest;
@@ -13,7 +14,14 @@ use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
 use reqwest::Client;
 
-type CopyActionArgs = (String, String, Option<RefreshPipelines>, bool);
+type CopyActionArgs = (
+    String,
+    String,
+    RwSignal<Option<String>>,
+    Option<RefreshPipelines>,
+    bool,
+    NodeRef<Dialog>,
+);
 
 async fn copy(pipeline: String, target: String) -> Result<()> {
     let params = PipelinePathRequest { pipeline, target };
@@ -25,10 +33,14 @@ async fn copy(pipeline: String, target: String) -> Result<()> {
         .send()
         .await?;
 
-    if res.status().is_success() {
+    let status = res.status();
+    if status.is_success() {
         Ok(())
     } else {
-        bail!("Request failed with status: {}", res.status())
+        let body = res.text().await?;
+        let error = format!("Status {status} {body}");
+        logging::console_error(&error);
+        bail!(error)
     }
 }
 
@@ -41,17 +53,24 @@ fn PipelineCopyButtonDialog(
 ) -> impl IntoView {
     let name_rw = create_rw_signal(String::new());
     let target = create_rw_signal(String::new());
+    let error = create_rw_signal(None);
+
     let copy_action = create_action(|args: &CopyActionArgs| {
-        let (pipeline, target, refresh, redirect) = args.clone();
+        let (pipeline, target, error, refresh, redirect, dialog) = args.clone();
         async move {
-            let copy_res = copy(pipeline, target)
-                .await
-                .map_err(|e| logging::console_error(&e.to_string()));
-            if redirect && copy_res.is_ok() {
-                let nav = use_navigate();
-                nav("/pipelines", NavigateOptions::default());
-            } else if copy_res.is_ok() {
-                let _ = refresh.map(|x| x.set());
+            match copy(pipeline, target).await {
+                Ok(_) if redirect => {
+                    let nav = use_navigate();
+                    nav("/pipelines", NavigateOptions::default());
+                    let _ = dialog.get().map(|x| x.close());
+                }
+                Ok(_) => {
+                    let _ = refresh.map(|x| x.set());
+                    let _ = dialog.get().map(|x| x.close());
+                }
+                Err(e) => {
+                    error.set(Some(e.to_string()));
+                }
             }
         }
     });
@@ -74,10 +93,20 @@ fn PipelineCopyButtonDialog(
                         <Input id="target" value=target/>
                     </div>
                 </div>
+                <Show when=move || error.get().is_some() fallback=|| view! {}>
+                    <SmallError error=move || error.get().unwrap()/>
+                </Show>
                 <div class="flex gap-x-4">
                     <Button on:click=move |_| {
-                        copy_action.dispatch((name.get(), target.get(), refresh, redirect));
-                        let _ = app_dialog.get().map(|x| x.close());
+                        copy_action
+                            .dispatch((
+                                name.get(),
+                                target.get(),
+                                error,
+                                refresh,
+                                redirect,
+                                app_dialog,
+                            ));
                     }>"Ok"</Button>
                     <Button on:click=move |_| {
                         let _ = app_dialog.get().map(|x| x.close());
