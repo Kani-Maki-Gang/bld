@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use crate::{
     components::{badge::Badge, button::Button, card::Card},
     context::{AppDialog, AppDialogContent},
-    error::Error,
+    error::{Error, ErrorDialog}
 };
 use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::PipelineInfoQueryParams;
@@ -105,23 +105,6 @@ fn hash_map_strings(items: HashMap<String, RwSignal<String>>) -> HashMap<String,
 }
 
 #[component]
-pub fn RunPipelineErrorDialog(
-    #[prop(into)] error: Signal<String>,
-    dialog: NodeRef<Dialog>,
-) -> impl IntoView {
-    view! {
-        <Card class="px-8 py-12 h-[600px] w-[500px]">
-            <div class="grow">
-                <Error error=error/>
-            </div>
-            <Button on:click=move |_| {
-                let _ = dialog.get().map(|x| x.close());
-            }>"Close"</Button>
-        </Card>
-    }
-}
-
-#[component]
 pub fn RunPipeline() -> impl IntoView {
     let params = use_query_map();
     let id = move || params.with(|p| p.get("id").cloned());
@@ -148,7 +131,7 @@ pub fn RunPipeline() -> impl IntoView {
                     nav(&format!("/monit?id={}", id), NavigateOptions::default());
                 }
                 Err(e) => {
-                    dialog_content.set(Some(view! { <RunPipelineErrorDialog error=move || e.to_string() dialog=dialog/> }));
+                    dialog_content.set(Some(view! { <ErrorDialog error=move || e.to_string() dialog=dialog/> }));
                     let _ = dialog.get().map(|x| x.show_modal());
                 }
             }
