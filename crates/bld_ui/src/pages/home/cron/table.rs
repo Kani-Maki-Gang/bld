@@ -5,8 +5,9 @@ use crate::{
         table::{Body, Cell, Header, Headers, Row, Table},
     },
     context::RefreshCronJobs,
+    error::Error,
 };
-use anyhow::Result;
+use anyhow::{bail, Result};
 use bld_models::dtos::{CronJobResponse, JobFiltersParams};
 use leptos::{leptos_dom::logging, *};
 use reqwest::Client;
@@ -21,11 +22,15 @@ async fn get_cron(params: Option<JobFiltersParams>) -> Result<Vec<CronJobRespons
         .send()
         .await?;
 
-    if res.status().is_success() {
+    let status = res.status();
+    if status.is_success() {
         let body = res.text().await?;
         Ok(serde_json::from_str(&body)?)
     } else {
-        Ok(vec![])
+        let body = res.text().await?;
+        let error = format!("Status {status} {body}");
+        logging::console_error(&error);
+        bail!(error)
     }
 }
 
@@ -35,12 +40,7 @@ pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> 
 
     let data = create_resource(
         move || params.get(),
-        |params| async move {
-            get_cron(params)
-                .await
-                .map_err(|e| logging::console_error(e.to_string().as_str()))
-                .unwrap_or_default()
-        },
+        |params| async move { get_cron(params).await.map_err(|e| e.to_string()) },
     );
 
     let _ = watch(
@@ -56,43 +56,50 @@ pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> 
     );
 
     view! {
-        <Table>
-            <Headers>
-                <Header>"Id"</Header>
-                <Header>"Pipeline"</Header>
-                <Header>"Schedule"</Header>
-                <Header>"Default"</Header>
-                <Header>"Date created"</Header>
-                <Header>"Date updated"</Header>
-                <Header>"Actions"</Header>
-            </Headers>
-            <Body>
-                <For
-                    each=move || data
-                        .get()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .enumerate()
-                        .map(|x| (x.0, x.1.id.clone(), x.1))
-                    key=|(i, _, _)| *i
-                    let:child>
-                    <Row>
-                        <Cell>
-                            <Link href=format!("/cron/update?id={}", child.1)>
-                                {child.1}
-                            </Link>
-                        </Cell>
-                        <Cell>{child.2.pipeline}</Cell>
-                        <Cell>{child.2.schedule}</Cell>
-                        <Cell>{child.2.is_default}</Cell>
-                        <Cell>{child.2.date_created}</Cell>
-                        <Cell>{child.2.date_updated.unwrap_or_default()}</Cell>
-                        <Cell>
-                            <CronJobDeleteButton id=child.2.id />
-                        </Cell>
-                    </Row>
-                </For>
-            </Body>
-        </Table>
+        <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
+            <Error error=move || data.get().unwrap().unwrap_err()/>
+        </Show>
+        <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
+            <Table>
+                <Headers>
+                    <Header>"Id"</Header>
+                    <Header>"Pipeline"</Header>
+                    <Header>"Schedule"</Header>
+                    <Header>"Default"</Header>
+                    <Header>"Date created"</Header>
+                    <Header>"Date updated"</Header>
+                    <Header>"Actions"</Header>
+                </Headers>
+                <Body>
+                    <For
+                        each=move || {
+                            data.get()
+                                .unwrap()
+                                .unwrap()
+                                .into_iter()
+                                .enumerate()
+                                .map(|x| (x.0, x.1.id.clone(), x.1))
+                        }
+
+                        key=|(i, _, _)| *i
+                        let:child
+                    >
+                        <Row>
+                            <Cell>
+                                <Link href=format!("/cron/update?id={}", child.1)>{child.1}</Link>
+                            </Cell>
+                            <Cell>{child.2.pipeline}</Cell>
+                            <Cell>{child.2.schedule}</Cell>
+                            <Cell>{child.2.is_default}</Cell>
+                            <Cell>{child.2.date_created}</Cell>
+                            <Cell>{child.2.date_updated.unwrap_or_default()}</Cell>
+                            <Cell>
+                                <CronJobDeleteButton id=child.2.id/>
+                            </Cell>
+                        </Row>
+                    </For>
+                </Body>
+            </Table>
+        </Show>
     }
 }

@@ -6,7 +6,7 @@ use leptos::*;
 pub fn CronJobsEditDetails<F: Fn() -> () + 'static>(
     #[prop(into)] job: Signal<CronJobResponse>,
     save: F,
-    delete: Option<WriteSignal<()>>,
+    delete: Option<WriteSignal<bool>>,
 ) -> impl IntoView {
     view! {
         <Card>
@@ -34,7 +34,7 @@ pub fn CronJobsEditDetails<F: Fn() -> () + 'static>(
                     <div class="min-w-40">
                         <Button on:click=move |_| {
                             if let Some(delete) = delete {
-                                delete.set(());
+                                delete.set(true);
                             }
                         }>
                             "Delete"

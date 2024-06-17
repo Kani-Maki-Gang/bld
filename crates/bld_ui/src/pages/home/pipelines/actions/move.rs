@@ -6,6 +6,7 @@ use crate::{
         input::Input,
     },
     context::{AppDialog, AppDialogContent, RefreshPipelines},
+    error::SmallError,
 };
 use anyhow::{bail, Result};
 use bld_models::dtos::PipelinePathRequest;
@@ -13,7 +14,15 @@ use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
 use reqwest::Client;
 
-type MoveActionArgs = (String, String, String, Option<RefreshPipelines>, bool);
+type MoveActionArgs = (
+    String,
+    String,
+    String,
+    RwSignal<Option<String>>,
+    Option<RefreshPipelines>,
+    bool,
+    NodeRef<Dialog>,
+);
 
 async fn api_move(pipeline: String, target: String) -> Result<()> {
     let params = PipelinePathRequest { pipeline, target };
@@ -25,10 +34,14 @@ async fn api_move(pipeline: String, target: String) -> Result<()> {
         .send()
         .await?;
 
-    if res.status().is_success() {
+    let status = res.status();
+    if status.is_success() {
         Ok(())
     } else {
-        bail!("Request failed with status: {}", res.status())
+        let body = res.text().await?;
+        let error = format!("Status {status} {body}");
+        logging::console_error(&error);
+        bail!(error)
     }
 }
 
@@ -42,19 +55,24 @@ fn PipelineMoveButtonDialog(
 ) -> impl IntoView {
     let name_rw = create_rw_signal(name.get_untracked());
     let target = create_rw_signal(String::new());
+    let error = create_rw_signal(None);
+
     let delete_action = create_action(|args: &MoveActionArgs| {
-        let (id, pipeline, target, refresh, redirect) = args.clone();
+        let (id, pipeline, target, error, refresh, redirect, dialog) = args.clone();
         async move {
-            let move_res = api_move(pipeline, target.clone())
-                .await
-                .map_err(|e| logging::console_error(&e.to_string()));
-            if redirect && move_res.is_ok() {
-                let nav = use_navigate();
-                let route = format!("/pipelines/info?id={id}&name={target}");
-                logging::console_log(&format!("rerouting to {route}"));
-                nav(&route, NavigateOptions::default());
-            } else if move_res.is_ok() {
-                let _ = refresh.map(|x| x.set());
+            match api_move(pipeline, target.clone()).await {
+                Ok(_) if redirect => {
+                    let nav = use_navigate();
+                    let route = format!("/pipelines/info?id={id}&name={target}");
+                    logging::console_log(&format!("rerouting to {route}"));
+                    nav(&route, NavigateOptions::default());
+                    let _ = dialog.get().map(|x| x.close());
+                }
+                Ok(_) => {
+                    let _ = refresh.map(|x| x.set());
+                    let _ = dialog.get().map(|x| x.close());
+                }
+                Err(e) => error.set(Some(e.to_string())),
             }
         }
     });
@@ -73,11 +91,21 @@ fn PipelineMoveButtonDialog(
                         <Input id="target" value=target/>
                     </div>
                 </div>
+                <Show when=move || error.get().is_some() fallback=|| view! {}>
+                    <SmallError error=move || error.get().unwrap()/>
+                </Show>
                 <div class="flex gap-x-4">
                     <Button on:click=move |_| {
                         delete_action
-                            .dispatch((id.get(), name.get(), target.get(), refresh, redirect));
-                        let _ = app_dialog.get().map(|x| x.close());
+                            .dispatch((
+                                id.get(),
+                                name.get(),
+                                target.get(),
+                                error,
+                                refresh,
+                                redirect,
+                                app_dialog,
+                            ));
                     }>"Ok"</Button>
                     <Button on:click=move |_| {
                         let _ = app_dialog.get().map(|x| x.close());

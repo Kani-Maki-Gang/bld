@@ -21,7 +21,7 @@ pub fn CronJobsEdit(
     #[prop(into)] cron: Signal<Option<CronJobResponse>>,
     #[prop(into)] pipeline: Signal<Option<VersionedPipeline>>,
     #[prop(into)] save: WriteSignal<Option<SaveCronJob>>,
-    #[prop(into, optional)] delete: Option<WriteSignal<()>>,
+    #[prop(into, optional)] delete: Option<WriteSignal<bool>>,
 ) -> impl IntoView {
     let schedule = create_rw_signal(String::new());
     let variables = create_rw_signal(HashMap::new());
@@ -41,32 +41,28 @@ pub fn CronJobsEdit(
     view! {
         <Show
             when=move || cron.get().is_some()
-            fallback=|| view! {
-                <div class="text-2xl">
-                    "Loading..."
-                </div>
-            }>
+            fallback=|| view! { <div class="text-2xl">"Loading..."</div> }
+        >
             <div class="flex flex-col gap-4">
                 <CronJobsEditDetails
                     job=move || cron.get().unwrap()
                     save=move || save.set(Some(save_data()))
-                    delete=delete />
-                <CronJobsEditSchedule schedule=schedule />
-                <Show
-                    when=move || !variables.get().is_empty()
-                    fallback=|| view! {}>
+                    delete=delete
+                />
+                <CronJobsEditSchedule schedule=schedule/>
+                <Show when=move || !variables.get().is_empty() fallback=|| view! {}>
                     <RunPipelineVariables
                         title="Variables"
                         subtitle="The variables provided in the cron job run"
-                        items=variables />
+                        items=variables
+                    />
                 </Show>
-                <Show
-                    when=move || !environment.get().is_empty()
-                    fallback=|| view! {}>
+                <Show when=move || !environment.get().is_empty() fallback=|| view! {}>
                     <RunPipelineVariables
                         title="Environment"
                         subtitle="The environment variables provided in the cron job run"
-                        items=environment />
+                        items=environment
+                    />
                 </Show>
             </div>
         </Show>

@@ -1,3 +1,4 @@
+use crate::{components::card::Card, error::ErrorCard};
 use anyhow::{bail, Result};
 use bld_models::dtos::PipelineInfoQueryParams;
 use bld_runner::VersionedPipeline;
@@ -19,11 +20,15 @@ async fn get_pipeline(id: Option<String>) -> Result<VersionedPipeline> {
         .send()
         .await?;
 
-    if res.status().is_success() {
+    let status = res.status();
+    if status.is_success() {
         let body = res.text().await?;
         Ok(serde_json::from_str(&body)?)
     } else {
-        bail!("unable to fetch pipeline")
+        let body = res.text().await?;
+        let error = format!("Status {status} {body}");
+        logging::console_error(&error);
+        bail!(error)
     }
 }
 
@@ -35,28 +40,27 @@ pub fn PipelineInfo() -> impl IntoView {
 
     let data = create_resource(
         move || id(),
-        |id| async move {
-            get_pipeline(id)
-                .await
-                .map_err(|e| logging::console_error(&e.to_string()))
-        },
+        |id| async move { get_pipeline(id).await.map_err(|e| e.to_string()) },
     );
 
     view! {
         <Show
             when=move || matches!(data.get(), Some(Ok(VersionedPipeline::Version1(_))))
-            fallback=|| view! { }>
+            fallback=|| view! {}
+        >
             "TODO!"
         </Show>
         <Show
             when=move || matches!(data.get(), Some(Ok(VersionedPipeline::Version2(_))))
-            fallback=|| view! { }>
-            <PipelineV2 id=id name=name pipeline=move || data.get().unwrap().ok() />
+            fallback=|| view! {}
+        >
+            <PipelineV2 id=id name=name pipeline=move || data.get().unwrap().ok()/>
         </Show>
-        <Show
-            when=move || data.get().is_none()
-            fallback=|| view! { }>
-            "No pipeline found!"
+        <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
+            <ErrorCard error=move || data.get().unwrap().unwrap_err()/>
+        </Show>
+        <Show when=move || data.loading().get() fallback=|| view! {}>
+            "Loading..."
         </Show>
     }
 }
