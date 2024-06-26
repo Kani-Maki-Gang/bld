@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use crate::{
     components::{badge::Badge, button::Button, card::Card},
     context::{AppDialog, AppDialogContent},
-    error::{ErrorCard, ErrorDialog}
+    error::{ErrorCard, ErrorDialog},
 };
 use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::PipelineInfoQueryParams;
@@ -131,7 +131,9 @@ pub fn RunPipeline() -> impl IntoView {
                     nav(&format!("/monit?id={}", id), NavigateOptions::default());
                 }
                 Err(e) => {
-                    dialog_content.set(Some(view! { <ErrorDialog error=move || e.to_string() dialog=dialog/> }));
+                    dialog_content.set(Some(
+                        view! { <ErrorDialog error=move || e.to_string() dialog=dialog/> },
+                    ));
                     let _ = dialog.get().map(|x| x.show_modal());
                 }
             }
