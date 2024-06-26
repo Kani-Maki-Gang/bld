@@ -22,28 +22,26 @@ pub fn App() -> impl IntoView {
 
     view! {
         <dialog _ref=app_dialog class="w-full h-full bg-transparent">
-            <div class="h-full grid place-items-center">
-                {move || app_dialog_content.get()}
-            </div>
+            <div class="h-full grid place-items-center">{move || app_dialog_content.get()}</div>
         </dialog>
         <Router>
             <div class="h-screen bg-slate-900">
                 <div class="h-screen flex bg-grid">
                     <Routes>
                         <Route path="/" view=Home>
-                            <Route path="/" view=Dashboard />
-                            <Route path="/dashboard" view=Dashboard />
-                            <Route path="/history" view=History />
-                            <Route path="/pipelines" view=Pipelines />
-                            <Route path="/pipelines/info" view=PipelineInfo />
-                            <Route path="/pipelines/run" view=RunPipeline />
-                            <Route path="/cron" view=CronJobs />
-                            <Route path="/cron/insert" view=CronJobInsert />
-                            <Route path="/cron/update" view=CronJobUpdate />
-                            <Route path="/monit" view=Monit />
+                            <Route path="/" view=Dashboard/>
+                            <Route path="/dashboard" view=Dashboard/>
+                            <Route path="/history" view=History/>
+                            <Route path="/pipelines" view=Pipelines/>
+                            <Route path="/pipelines/info" view=PipelineInfo/>
+                            <Route path="/pipelines/run" view=RunPipeline/>
+                            <Route path="/cron" view=CronJobs/>
+                            <Route path="/cron/insert" view=CronJobInsert/>
+                            <Route path="/cron/update" view=CronJobUpdate/>
+                            <Route path="/monit" view=Monit/>
                         </Route>
-                        <Route path="/login" view=Login />
-                        <Route path="/*any" view=NotFound />
+                        <Route path="/login" view=Login/>
+                        <Route path="/*any" view=NotFound/>
                     </Routes>
                 </div>
             </div>

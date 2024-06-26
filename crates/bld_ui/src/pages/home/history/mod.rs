@@ -35,19 +35,14 @@ pub fn History() -> impl IntoView {
                 <div class="flex flex-col px-8 py-12">
                     <div class="flex justify-items-center gap-x-4 items-center">
                         <div class="grow flex flex-col">
-                            <div class="text-2xl">
-                                "History"
-                            </div>
+                            <div class="text-2xl">"History"</div>
                             <div class="text-gray-400 mb-8">
                                 "A list of pipelines and their state order by their start date"
                             </div>
                         </div>
-                        <HistoryFilters
-                            state=state
-                            limit=limit
-                            pipeline=pipeline />
+                        <HistoryFilters state=state limit=limit pipeline=pipeline/>
                     </div>
-                    <HistoryTable params=params />
+                    <HistoryTable params=params/>
                 </div>
             </Card>
         </div>

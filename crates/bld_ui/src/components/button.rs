@@ -37,11 +37,7 @@ pub fn Button(
 ) -> impl IntoView {
     let color = get_button_color_classes(color);
     let class = format!("h-[40px] w-full rounded-lg p-2 focus:outline-none {color} {class}");
-    view! {
-        <button class=class>
-            {children()}
-        </button>
-    }
+    view! { <button class=class>{children()}</button> }
 }
 
 #[component]
@@ -55,7 +51,7 @@ pub fn IconButton(
         format!("h-[40px] w-[40px] text-xl rounded-lg p-2 focus:outline-none {color} {class}");
     view! {
         <button class=class>
-            <i class=icon />
+            <i class=icon></i>
         </button>
     }
 }

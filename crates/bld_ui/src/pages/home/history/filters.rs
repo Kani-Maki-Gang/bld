@@ -44,23 +44,20 @@ pub fn HistoryFilters(
     view! {
         <div class="flex items-center gap-x-4">
             <div class="min-w-[400px]">
-                <Input placeholder="Search".to_string() value=pipeline />
+                <Input placeholder="Search".to_string() value=pipeline/>
             </div>
             <div class="min-w-[70px]">
-                <Input
-                    input_type="number".to_string()
-                    placeholder="Limit".to_string()
-                    value=limit />
+                <Input input_type="number".to_string() placeholder="Limit".to_string() value=limit/>
             </div>
             <div class="min-w-[100px]">
-                <Select items=states value=state />
+                <Select items=states value=state/>
             </div>
             <div class="w-32">
-                <Button on:click=move |_| if let Some(RefreshHistory(refresh)) = refresh {
-                    refresh.set(());
-                }>
-                    "Apply"
-                </Button>
+                <Button on:click=move |_| {
+                    if let Some(RefreshHistory(refresh)) = refresh {
+                        refresh.set(());
+                    }
+                }>"Apply"</Button>
             </div>
         </div>
     }

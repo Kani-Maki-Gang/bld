@@ -21,7 +21,5 @@ pub fn ButtonGroupItem(
             "inline-block rounded-md px-4 py-2 text-sm text-gray-400 hover:text-gray-200 focus:relative"
         }
     };
-    view! {
-        <button class=class>{children()}</button>
-    }
+    view! { <button class=class>{children()}</button> }
 }

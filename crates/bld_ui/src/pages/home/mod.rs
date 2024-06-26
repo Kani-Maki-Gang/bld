@@ -20,26 +20,14 @@ pub fn Home() -> impl IntoView {
         <div class="size-full flex">
             <div class="grow-0 flex self-stretch">
                 <Sidebar>
-                    <SidebarItem
-                        icon="iconoir-presentation"
-                        text="Dashboard"
-                        url="/" />
-                    <SidebarItem
-                        icon="iconoir-book"
-                        text="History"
-                        url="/history" />
-                    <SidebarItem
-                        icon="iconoir-wrench"
-                        text="Pipelines"
-                        url="/pipelines" />
-                    <SidebarItem
-                        icon="iconoir-clock-rotate-right"
-                        text="Cron jobs"
-                        url="/cron" />
+                    <SidebarItem icon="iconoir-presentation" text="Dashboard" url="/"/>
+                    <SidebarItem icon="iconoir-book" text="History" url="/history"/>
+                    <SidebarItem icon="iconoir-wrench" text="Pipelines" url="/pipelines"/>
+                    <SidebarItem icon="iconoir-clock-rotate-right" text="Cron jobs" url="/cron"/>
                 </Sidebar>
             </div>
             <div class="grow overflow-auto p-4">
-                <Outlet />
+                <Outlet/>
             </div>
         </div>
     }

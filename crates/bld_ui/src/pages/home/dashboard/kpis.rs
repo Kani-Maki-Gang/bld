@@ -33,9 +33,9 @@ pub fn DashboardKpis() -> impl IntoView {
     });
 
     view! {
-        <KpiInfo info=queued />
-        <KpiInfo info=running />
-        <KpiInfo info=completed />
-        <KpiInfo info=faulted />
+        <KpiInfo info=queued/>
+        <KpiInfo info=running/>
+        <KpiInfo info=completed/>
+        <KpiInfo info=faulted/>
     }
 }

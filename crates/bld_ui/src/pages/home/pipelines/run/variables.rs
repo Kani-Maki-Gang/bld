@@ -11,22 +11,13 @@ pub fn RunPipelineVariables(
     view! {
         <Card>
             <div class="flex flex-col px-8 py-12 gap-4 max-h-[600px]">
-                <div class="text-2xl">
-                    {title}
-                </div>
-                <div class="text-gray-400 mb-8">
-                    {subtitle}
-                </div>
+                <div class="text-2xl">{title}</div>
+                <div class="text-gray-400 mb-8">{subtitle}</div>
                 <div class="grid grid-cols-3 gap-4">
-                    <For
-                        each=move || items.get().into_iter().enumerate()
-                        key=|(i, _)| *i
-                        let:item>
-                        <div>
-                            {item.1.0}
-                        </div>
+                    <For each=move || items.get().into_iter().enumerate() key=|(i, _)| *i let:item>
+                        <div>{item.1.0}</div>
                         <div class="col-span-2">
-                            <Input value=item.1.1 />
+                            <Input value=item.1.1/>
                         </div>
                     </For>
                 </div>

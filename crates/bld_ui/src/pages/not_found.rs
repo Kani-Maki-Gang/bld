@@ -11,7 +11,7 @@ pub fn NotFound() -> impl IntoView {
                     <div class="flex flex-col p-8">
                         <div class="flex items-center space-x-4 mb-12">
                             <div class="text-6xl text-red-400">
-                                <i class="iconoir-info-circle" />
+                                <i class="iconoir-info-circle"></i>
                             </div>
                             <div class="text-2xl">"Page not found!"</div>
                         </div>
