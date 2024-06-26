@@ -38,9 +38,5 @@ pub fn Tab(#[prop(into)] is_selected: Signal<bool>, children: Children) -> impl 
             "shrink-0 rounded-lg px-4 py-2 text-sm font-medium text-gray-400 hover:text-gray-200"
         }
     };
-    view! {
-        <button class=class>
-            {children()}
-        </button>
-    }
+    view! { <button class=class>{children()}</button> }
 }

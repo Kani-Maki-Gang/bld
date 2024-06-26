@@ -4,9 +4,7 @@ use leptos::*;
 pub fn Table(children: Children) -> impl IntoView {
     view! {
         <div class="overflow-auto overscroll-auto">
-            <table class="min-w-full bg-slate-700 text-sm">
-                {children()}
-            </table>
+            <table class="min-w-full bg-slate-700 text-sm">{children()}</table>
         </div>
     }
 }
@@ -15,9 +13,7 @@ pub fn Table(children: Children) -> impl IntoView {
 pub fn Headers(children: Children) -> impl IntoView {
     view! {
         <thead>
-            <tr>
-                {children()}
-            </tr>
+            <tr>{children()}</tr>
         </thead>
     }
 }
@@ -33,27 +29,15 @@ pub fn Header(children: Children) -> impl IntoView {
 
 #[component]
 pub fn Body(children: Children) -> impl IntoView {
-    view! {
-        <tbody>
-            {children()}
-        </tbody>
-    }
+    view! { <tbody>{children()}</tbody> }
 }
 
 #[component]
 pub fn Row(children: Children) -> impl IntoView {
-    view! {
-        <tr>
-            {children()}
-        </tr>
-    }
+    view! { <tr>{children()}</tr> }
 }
 
 #[component]
 pub fn Cell(children: Children) -> impl IntoView {
-    view! {
-        <td class="border border-slate-600 whitespace-nowrap p-4 text-left">
-            {children()}
-        </td>
-    }
+    view! { <td class="border border-slate-600 whitespace-nowrap p-4 text-left">{children()}</td> }
 }

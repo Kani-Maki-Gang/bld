@@ -10,6 +10,7 @@ pub fn PipelineRunButton(
         <LinkIconButton
             icon="iconoir-play"
             color=Colors::Zinc
-            href=move || format!("/pipelines/run?id={}&name={}", id.get(), name.get()) />
+            href=move || format!("/pipelines/run?id={}&name={}", id.get(), name.get())
+        />
     }
 }

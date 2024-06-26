@@ -4,9 +4,5 @@ use leptos::*;
 pub fn Badge(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
     let class =
         format!("whitespace-nowrap rounded-full bg-indigo-700 px-3 py-1 text-indigo-100 {class}");
-    view! {
-        <div class=class>
-            {children()}
-        </div>
-    }
+    view! { <div class=class>{children()}</div> }
 }

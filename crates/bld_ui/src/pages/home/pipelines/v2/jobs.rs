@@ -75,40 +75,40 @@ pub fn PipelineJobsV2(
         <Card class="min-h-full">
             <div class="flex flex-col px-8 py-12 gap-y-4">
                 <div class="flex flex-col">
-                    <div class="text-xl">
-                        "Jobs"
-                    </div>
-                    <div class="text-gray-400">
-                        "The parallel jobs for this pipeline."
-                    </div>
+                    <div class="text-xl">"Jobs"</div>
+                    <div class="text-gray-400">"The parallel jobs for this pipeline."</div>
                 </div>
                 <Show
                     when=move || !jobs().is_empty()
-                    fallback= || view! {
-                        <div class="grid justify-items-center">
-                            <Badge>"No jobs configured."</Badge>
-                        </div>
-                    }>
+                    fallback=|| {
+                        view! {
+                            <div class="grid justify-items-center">
+                                <Badge>"No jobs configured."</Badge>
+                            </div>
+                        }
+                    }
+                >
                     <Tabs>
                         <For
-                            each=move || jobs()
-                                .into_keys()
-                                .enumerate()
-                                .map(|(i, x)| (i, x.clone(), x.clone(), x))
+                            each=move || {
+                                jobs()
+                                    .into_keys()
+                                    .enumerate()
+                                    .map(|(i, x)| (i, x.clone(), x.clone(), x))
+                            }
                             key=|(i, _, _, _)| *i
-                            let:child>
+                            let:child
+                        >
                             <Tab
                                 is_selected=move || selected_tab.get() == *child.1
-                                on:click=move |_| selected_tab.set(child.2.to_owned())>
+                                on:click=move |_| selected_tab.set(child.2.to_owned())
+                            >
                                 {child.3}
                             </Tab>
                         </For>
                     </Tabs>
                     <List>
-                        <For
-                            each=move || items()
-                            key=|(k, _)| k.clone()
-                            let:child>
+                        <For each=move || items() key=|(k, _)| k.clone() let:child>
                             <pre class="text-sm text-gray-200 p-4 rounded-lg bg-slate-800">
                                 {child.1}
                             </pre>

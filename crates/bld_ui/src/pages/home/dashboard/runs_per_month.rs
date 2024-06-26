@@ -69,7 +69,9 @@ pub fn DashboardRunsPerMonth() -> impl IntoView {
         <Card>
             <div class="flex flex-col px-8 py-12">
                 <div class="text-2xl">"Total runs per month"</div>
-                <div class="text-gray-400 mb-8">"Aggregated data for all pipelines on the server"</div>
+                <div class="text-gray-400 mb-8">
+                    "Aggregated data for all pipelines on the server"
+                </div>
                 <div class="grow">
                     <Chart
                         aspect_ratio=AspectRatio::from_inner_ratio(1150.0, 500.0)
@@ -81,6 +83,7 @@ pub fn DashboardRunsPerMonth() -> impl IntoView {
                             AxisMarker::bottom_edge().into_inner(),
                         ]
                     />
+
                 </div>
             </div>
         </Card>

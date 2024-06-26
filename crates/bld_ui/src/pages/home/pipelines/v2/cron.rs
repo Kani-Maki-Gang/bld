@@ -23,26 +23,35 @@ pub fn PipelineCronV2(#[prop(into)] name: Signal<Option<String>>) -> impl IntoVi
             <div class="flex flex-col px-8 py-12 gap-4">
                 <div class="flex gap-4 items-start">
                     <div class="grow">
-                        <div class="text-xl">
-                            "Cron jobs"
-                        </div>
+                        <div class="text-xl">"Cron jobs"</div>
                         <div class="text-gray-400">
                             "The cron jobs for the pipeline (with a 10k limit)"
                         </div>
                     </div>
-                    <IconButton class="justify-end" icon="iconoir-plus" on:click=move |_| {
-                        let nav = use_navigate();
-                        nav(&format!("cron/insert?name={}", name.get().unwrap_or_default()), NavigateOptions::default());
-                    } />
-                    <IconButton class="justify-end" icon="iconoir-refresh-double" on:click=move |_| {
-                        let Some(refresh) = refresh else {
-                            logging::error!("RefreshCronJobs context not found");
-                            return;
-                        };
-                        refresh.set()
-                    } />
+                    <IconButton
+                        class="justify-end"
+                        icon="iconoir-plus"
+                        on:click=move |_| {
+                            let nav = use_navigate();
+                            nav(
+                                &format!("cron/insert?name={}", name.get().unwrap_or_default()),
+                                NavigateOptions::default(),
+                            );
+                        }
+                    />
+                    <IconButton
+                        class="justify-end"
+                        icon="iconoir-refresh-double"
+                        on:click=move |_| {
+                            let Some(refresh) = refresh else {
+                                logging::error!("RefreshCronJobs context not found");
+                                return;
+                            };
+                            refresh.set()
+                        }
+                    />
                 </div>
-                <CronJobsTable params=params />
+                <CronJobsTable params=params/>
             </div>
         </Card>
     }

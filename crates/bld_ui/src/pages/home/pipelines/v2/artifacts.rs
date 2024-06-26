@@ -12,20 +12,21 @@ pub fn PipelineArtifactsV2(#[prop(into)] artifacts: Signal<Vec<v2::Artifacts>>) 
         <Card class="min-h-full">
             <div class="flex flex-col px-8 py-12 gap-y-4">
                 <div class="flex flex-col">
-                    <div class="text-xl">
-                        "Artifacts"
-                    </div>
+                    <div class="text-xl">"Artifacts"</div>
                     <div class="text-gray-400">
                         "The configured artifact operations for this pipeline."
                     </div>
                 </div>
                 <Show
                     when=move || !artifacts.get().is_empty()
-                    fallback=|| view! {
-                        <div class="grid justify-items-center">
-                            <Badge>"No artifacts configured."</Badge>
-                        </div>
-                    }>
+                    fallback=|| {
+                        view! {
+                            <div class="grid justify-items-center">
+                                <Badge>"No artifacts configured."</Badge>
+                            </div>
+                        }
+                    }
+                >
                     <Table>
                         <Headers>
                             <Header>"Method"</Header>
@@ -36,9 +37,10 @@ pub fn PipelineArtifactsV2(#[prop(into)] artifacts: Signal<Vec<v2::Artifacts>>) 
                         </Headers>
                         <Body>
                             <For
-                                each=move ||  artifacts.get().into_iter().enumerate()
+                                each=move || artifacts.get().into_iter().enumerate()
                                 key=move |(i, _)| *i
-                                let:child>
+                                let:child
+                            >
                                 <Row>
                                     <Cell>{child.1.method}</Cell>
                                     <Cell>{child.1.from}</Cell>

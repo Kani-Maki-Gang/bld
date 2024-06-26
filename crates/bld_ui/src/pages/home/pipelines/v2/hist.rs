@@ -23,22 +23,24 @@ pub fn PipelineHistV2(#[prop(into)] name: Signal<Option<String>>) -> impl IntoVi
             <div class="flex flex-col px-8 py-12 gap-4">
                 <div class="flex gap-4 items-start">
                     <div class="grow">
-                        <div class="text-xl">
-                            "History"
-                        </div>
+                        <div class="text-xl">"History"</div>
                         <div class="text-gray-400">
                             "The last runs for the pipeline (with a 10k limit)"
                         </div>
                     </div>
-                    <IconButton class="justify-end" icon="iconoir-refresh-double" on:click=move |_| {
-                        let Some(refresh) = refresh else {
-                            logging::error!("RefreshHistory context not found");
-                            return;
-                        };
-                        refresh.set()
-                    }/>
+                    <IconButton
+                        class="justify-end"
+                        icon="iconoir-refresh-double"
+                        on:click=move |_| {
+                            let Some(refresh) = refresh else {
+                                logging::error!("RefreshHistory context not found");
+                                return;
+                            };
+                            refresh.set()
+                        }
+                    />
                 </div>
-                <HistoryTable params=params />
+                <HistoryTable params=params/>
             </div>
         </Card>
     }

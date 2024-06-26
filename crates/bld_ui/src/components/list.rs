@@ -3,11 +3,7 @@ use leptos::*;
 #[component]
 pub fn List(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
     let class = format!("flex flex-col gap-y-4 pr-2 overflow-y-auto {class}");
-    view! {
-        <div class=class>
-            {children()}
-        </div>
-    }
+    view! { <div class=class>{children()}</div> }
 }
 
 #[component]
@@ -22,19 +18,13 @@ pub fn ComplexListItem(
     view! {
         <div class=class>
             <div class="text-5xl text-indigo-500">
-                <i class=icon.get() />
+                <i class=icon.get()></i>
             </div>
             <div class="flex flex-col ml-4 grow">
-                <div>
-                    {title.get()}
-                </div>
-                <div class="text-sm text-gray-400">
-                    {sub_title.get()}
-                </div>
+                <div>{title.get()}</div>
+                <div class="text-sm text-gray-400">{sub_title.get()}</div>
             </div>
-            <div class="text-xl">
-                {stat.get()}
-            </div>
+            <div class="text-xl">{stat.get()}</div>
         </div>
     }
 }

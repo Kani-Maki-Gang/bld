@@ -20,7 +20,8 @@ pub fn Input(
             placeholder=placeholder
             prop:disabled=disabled
             prop:value=move || value.get()
-            on:input=move |ev| value.set(event_target_value(&ev))/>
+            on:input=move |ev| value.set(event_target_value(&ev))
+        />
     }
 }
 
@@ -38,13 +39,11 @@ pub fn Select(
     view! {
         <select
             class="px-4 py-2 h-[40px] w-full rounded-lg bg-slate-600 text-sm focus:ring focus:ring-slate-500 focus:outline-none"
-            prop:value={move || value.get().unwrap_or("".to_string())}
-            on:change=move |ev| value.set(Some(event_target_value(&ev))) >
-            <For
-                each=move || items.get()
-                key=|state| state.value.clone()
-                let:child>
-                <option value={child.value}>{child.label}</option>
+            prop:value=move || value.get().unwrap_or("".to_string())
+            on:change=move |ev| value.set(Some(event_target_value(&ev)))
+        >
+            <For each=move || items.get() key=|state| state.value.clone() let:child>
+                <option value=child.value>{child.label}</option>
             </For>
         </select>
     }

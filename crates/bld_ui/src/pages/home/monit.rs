@@ -83,7 +83,9 @@ pub fn Monit() -> impl IntoView {
         async move {
             let res = stop(id).await;
             if let Err(e) = res {
-                content.set(Some(view! { <ErrorDialog dialog=dialog error=move || e.to_string()/> }));
+                content.set(Some(
+                    view! { <ErrorDialog dialog=dialog error=move || e.to_string()/> },
+                ));
                 let _ = dialog.get().map(|x| x.show_modal());
             }
         }
