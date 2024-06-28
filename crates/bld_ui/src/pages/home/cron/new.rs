@@ -1,22 +1,13 @@
 use crate::{
-    components::{button::Button, card::Card, input::Input, list::List},
-    context::{AppDialog, AppDialogContent},
-    error::Error,
+    api, components::{button::Button, card::Card, input::Input, list::List}, context::{AppDialog, AppDialogContent}, error::Error
 };
 use anyhow::{bail, Result};
 use bld_models::dtos::ListResponse;
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
-use reqwest::Client;
 
 async fn get_pipelines() -> Result<Vec<ListResponse>> {
-    let res = Client::builder()
-        .build()?
-        .get("http://localhost:6080/v1/list")
-        .header("Accept", "application/json")
-        .send()
-        .await?;
-
+    let res = api::list().await?;
     let status = res.status();
     if status.is_success() {
         let body = res.text().await?;

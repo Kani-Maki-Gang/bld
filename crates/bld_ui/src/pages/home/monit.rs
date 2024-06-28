@@ -1,13 +1,10 @@
 use crate::{
-    components::{badge::Badge, button::Button, card::Card, colors::Colors},
-    context::{AppDialog, AppDialogContent},
-    error::ErrorDialog,
+    api, components::{badge::Badge, button::Button, card::Card, colors::Colors}, context::{AppDialog, AppDialogContent}, error::ErrorDialog
 };
 use anyhow::{bail, Result};
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
 use leptos_use::{core::ConnectionReadyState, use_websocket, UseWebsocketReturn};
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 type StopActionArgs = (String, NodeRef<Dialog>, RwSignal<Option<View>>);
@@ -20,13 +17,7 @@ struct MonitInfo {
 }
 
 async fn stop(id: String) -> Result<()> {
-    let res = Client::builder()
-        .build()?
-        .post("http://localhost:6080/v1/stop")
-        .json(&id)
-        .send()
-        .await?;
-
+    let res = api::stop(id).await?;
     let status = res.status();
     if status.is_success() {
         Ok(())

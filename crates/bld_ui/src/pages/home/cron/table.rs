@@ -1,27 +1,18 @@
 use super::delete::CronJobDeleteButton;
 use crate::{
-    components::{
+    api, components::{
         link::Link,
         table::{Body, Cell, Header, Headers, Row, Table},
-    },
-    context::RefreshCronJobs,
-    error::Error,
+    }, context::RefreshCronJobs, error::Error
 };
 use anyhow::{bail, Result};
 use bld_models::dtos::{CronJobResponse, JobFiltersParams};
 use leptos::{leptos_dom::logging, *};
-use reqwest::Client;
 
 async fn get_cron(params: Option<JobFiltersParams>) -> Result<Vec<CronJobResponse>> {
     let params =
         params.ok_or_else(|| anyhow::anyhow!("Params not provided for /v1/cron request"))?;
-    let res = Client::builder()
-        .build()?
-        .get("http://localhost:6080/v1/cron")
-        .query(&params)
-        .send()
-        .await?;
-
+    let res = api::cron(params).await?;
     let status = res.status();
     if status.is_success() {
         let body = res.text().await?;

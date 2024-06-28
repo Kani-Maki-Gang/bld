@@ -3,15 +3,12 @@ use super::{
     helpers::{get_pipeline, hash_map_strings},
 };
 use crate::{
-    components::card::Card,
-    context::{AppDialog, AppDialogContent},
-    error::{ErrorCard, ErrorDialog},
+    api, context::{AppDialog, AppDialogContent}, error::{ErrorCard, ErrorDialog}
 };
 use anyhow::{bail, Result};
 use bld_models::dtos::{AddJobRequest, CronJobResponse};
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
-use reqwest::Client;
 
 type SaveActionArgs = (
     Option<String>,
@@ -21,18 +18,12 @@ type SaveActionArgs = (
 );
 
 async fn insert(data: AddJobRequest) -> Result<()> {
-    let resp = Client::builder()
-        .build()?
-        .post("http://localhost:6080/v1/cron")
-        .json(&data)
-        .send()
-        .await?;
-
-    let status = resp.status();
+    let res = api::cron_insert(data).await?;
+    let status = res.status();
     if status.is_success() {
         Ok(())
     } else {
-        let body = resp.text().await?;
+        let body = res.text().await?;
         let error = format!("Status {status} {body}");
         logging::console_error(&error);
         bail!(error)

@@ -3,9 +3,7 @@ pub mod variables;
 use std::collections::HashMap;
 
 use crate::{
-    components::{badge::Badge, button::Button, card::Card},
-    context::{AppDialog, AppDialogContent},
-    error::{ErrorCard, ErrorDialog},
+    api::{self, RunParams}, components::{badge::Badge, button::Button, card::Card}, context::{AppDialog, AppDialogContent}, error::{ErrorCard, ErrorDialog}
 };
 use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::PipelineInfoQueryParams;
@@ -15,8 +13,6 @@ use bld_runner::{
 };
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
-use reqwest::Client;
-use serde::Serialize;
 
 use self::variables::RunPipelineVariables;
 
@@ -28,27 +24,10 @@ type RequestInterRepr = (
     RwSignal<Option<View>>,
 );
 
-#[derive(Serialize)]
-enum RunParams {
-    EnqueueRun {
-        name: String,
-        variables: Option<HashMap<String, String>>,
-        environment: Option<HashMap<String, String>>,
-    },
-}
-
 async fn get_pipeline(id: Option<String>) -> Result<VersionedPipeline> {
     let id = id.ok_or_else(|| anyhow!("Pipeline id not provided in query"))?;
     let params = PipelineInfoQueryParams::Id { id };
-
-    let res = Client::builder()
-        .build()?
-        .get("http://localhost:6080/v1/print")
-        .header("Accept", "application/json")
-        .query(&params)
-        .send()
-        .await?;
-
+    let res = api::print(params).await?;
     let status = res.status();
     if status.is_success() {
         let body = res.text().await?;
@@ -71,14 +50,7 @@ async fn start_run(
         variables: Some(vars),
         environment: Some(env),
     };
-
-    let res = Client::builder()
-        .build()?
-        .post("http://localhost:6080/v1/run")
-        .json(&data)
-        .send()
-        .await?;
-
+    let res = api::run(data).await?;
     let status = res.status();
     if status.is_success() {
         Ok(res.json::<String>().await?)

@@ -3,16 +3,13 @@ use super::{
     helpers::{get_cron, get_pipeline, hash_map_strings},
 };
 use crate::{
-    components::card::Card,
-    context::{AppDialog, AppDialogContent},
-    error::{ErrorCard, ErrorDialog},
+    api, context::{AppDialog, AppDialogContent}, error::{ErrorCard, ErrorDialog}
 };
 use anyhow::{bail, Result};
 use bld_models::dtos::{CronJobResponse, UpdateJobRequest};
 use bld_runner::VersionedPipeline;
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
-use reqwest::Client;
 
 type UpdateActionArgs = (
     Option<String>,
@@ -24,20 +21,14 @@ type UpdateActionArgs = (
 type DeleteActionArgs = (String, NodeRef<Dialog>, RwSignal<Option<View>>);
 
 async fn update(data: UpdateJobRequest) -> Result<()> {
-    let resp = Client::builder()
-        .build()?
-        .patch("http://localhost:6080/v1/cron")
-        .json(&data)
-        .send()
-        .await?;
-
-    let status = resp.status();
+    let res = api::cron_update(data).await?;
+    let status = res.status();
     if status.is_success() {
         let nav = use_navigate();
         nav("/cron?={}", NavigateOptions::default());
         Ok(())
     } else {
-        let body = resp.text().await?;
+        let body = res.text().await?;
         let error = format!("Status {status} {body}");
         logging::console_error(&error);
         bail!(error)
@@ -45,19 +36,14 @@ async fn update(data: UpdateJobRequest) -> Result<()> {
 }
 
 async fn delete(id: String) -> Result<()> {
-    let resp = Client::builder()
-        .build()?
-        .delete(format!("http://localhost:6080/v1/cron/{}", id))
-        .send()
-        .await?;
-
-    let status = resp.status();
+    let res = api::cron_delete(id).await?;
+    let status = res.status();
     if status.is_success() {
         let nav = use_navigate();
         nav("/cron?={}", NavigateOptions::default());
         Ok(())
     } else {
-        let body = resp.text().await?;
+        let body = res.text().await?;
         let error = format!("Status {status} {body}");
         logging::console_error(&error);
         bail!(error)

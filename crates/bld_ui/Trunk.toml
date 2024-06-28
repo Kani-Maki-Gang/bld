@@ -12,3 +12,7 @@ command_arguments = ["-c", "cp ../../assets/logo.png $TRUNK_STAGING_DIR"]
 stage = "post_build"
 command = "sh"
 command_arguments = ["-c", "cp -r ./assets/* $TRUNK_STAGING_DIR"]
+
+[[proxy]]
+rewrite = "/v1/"
+backend = "http://localhost:6080/v1/"

@@ -2,21 +2,14 @@ use super::actions::{
     PipelineCopyButton, PipelineDeleteButton, PipelineEditButton, PipelineMoveButton,
     PipelineRunButton,
 };
-use crate::{components::list::List, context::RefreshPipelines, error::Error};
+use crate::{api, components::list::List, context::RefreshPipelines, error::Error};
 use anyhow::{bail, Result};
 use bld_models::dtos::ListResponse;
 use leptos::{leptos_dom::logging, *};
 use leptos_use::signal_debounced;
-use reqwest::Client;
 
 async fn get_pipelines() -> Result<Vec<ListResponse>> {
-    let res = Client::builder()
-        .build()?
-        .get("http://localhost:6080/v1/list")
-        .header("Accept", "application/json")
-        .send()
-        .await?;
-
+    let res = api::list().await?;
     let status = res.status();
     if status.is_success() {
         let body = res.text().await?;
