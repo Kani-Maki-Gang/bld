@@ -1,17 +1,14 @@
 use crate::{
-    components::{
+    api, components::{
         button::{Button, IconButton},
         card::Card,
         colors::Colors,
-    },
-    context::{AppDialog, AppDialogContent, RefreshPipelines},
-    error::SmallError,
+    }, context::{AppDialog, AppDialogContent, RefreshPipelines}, error::SmallError
 };
 use anyhow::{bail, Result};
 use bld_models::dtos::PipelineQueryParams;
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
-use reqwest::Client;
 
 type DeleteActionArgs = (
     String,
@@ -23,14 +20,7 @@ type DeleteActionArgs = (
 
 async fn delete(name: String) -> Result<()> {
     let params = PipelineQueryParams { pipeline: name };
-
-    let res = Client::builder()
-        .build()?
-        .delete("http://localhost:6080/v1/remove")
-        .query(&params)
-        .send()
-        .await?;
-
+    let res = api::remove(params).await?;
     let status = res.status();
     if status.is_success() {
         Ok(())

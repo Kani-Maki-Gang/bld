@@ -1,18 +1,15 @@
 use crate::{
-    components::{
+    api, components::{
         button::{Button, IconButton},
         card::Card,
         colors::Colors,
         input::Input,
-    },
-    context::{AppDialog, AppDialogContent, RefreshPipelines},
-    error::SmallError,
+    }, context::{AppDialog, AppDialogContent, RefreshPipelines}, error::SmallError
 };
 use anyhow::{bail, Result};
 use bld_models::dtos::PipelinePathRequest;
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
-use reqwest::Client;
 
 type CopyActionArgs = (
     String,
@@ -25,14 +22,7 @@ type CopyActionArgs = (
 
 async fn copy(pipeline: String, target: String) -> Result<()> {
     let params = PipelinePathRequest { pipeline, target };
-
-    let res = Client::builder()
-        .build()?
-        .post("http://localhost:6080/v1/copy")
-        .json(&params)
-        .send()
-        .await?;
-
+    let res = api::copy(params).await?;
     let status = res.status();
     if status.is_success() {
         Ok(())

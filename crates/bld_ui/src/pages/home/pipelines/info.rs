@@ -1,25 +1,16 @@
-use crate::{components::card::Card, error::ErrorCard};
+use crate::{api, error::ErrorCard};
 use anyhow::{bail, Result};
 use bld_models::dtos::PipelineInfoQueryParams;
 use bld_runner::VersionedPipeline;
 use leptos::{leptos_dom::logging, *};
 use leptos_router::*;
-use reqwest::Client;
 
 use super::v2::PipelineV2;
 
 async fn get_pipeline(id: Option<String>) -> Result<VersionedPipeline> {
     let id = id.ok_or_else(|| anyhow::anyhow!("Id not provided as query parameter"))?;
     let params = PipelineInfoQueryParams::Id { id };
-
-    let res = Client::builder()
-        .build()?
-        .get("http://localhost:6080/v1/print")
-        .header("Accept", "application/json")
-        .query(&params)
-        .send()
-        .await?;
-
+    let res = api::print(params).await?;
     let status = res.status();
     if status.is_success() {
         let body = res.text().await?;
