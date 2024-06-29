@@ -1,8 +1,11 @@
 use anyhow::{anyhow, Result};
-use bld_models::dtos::{AddJobRequest, HistQueryParams, JobFiltersParams, PipelineInfoQueryParams, PipelinePathRequest, PipelineQueryParams, UpdateJobRequest};
+use bld_models::dtos::{
+    AddJobRequest, HistQueryParams, JobFiltersParams, PipelineInfoQueryParams, PipelinePathRequest,
+    PipelineQueryParams, UpdateJobRequest,
+};
 use reqwest::{Client, Response};
-use std::{collections::HashMap, fmt::Display};
 use serde::Serialize;
+use std::{collections::HashMap, fmt::Display};
 use web_sys::window;
 
 #[derive(Serialize)]
@@ -14,7 +17,6 @@ pub enum RunParams {
     },
 }
 
-
 pub fn build_url<T: Into<String> + Display>(route: T) -> Result<String> {
     let window = window().ok_or_else(|| anyhow!("window not found"))?;
     let origin = window
@@ -22,6 +24,12 @@ pub fn build_url<T: Into<String> + Display>(route: T) -> Result<String> {
         .origin()
         .map_err(|_| anyhow!("unable to find window origin"))?;
     Ok(format!("{origin}{route}"))
+}
+
+pub async fn auth_available() -> Result<Response> {
+    let url = build_url("/v1/auth/available")?;
+    let res = Client::builder().build()?.get(&url).send().await?;
+    Ok(res)
 }
 
 pub async fn stop(id: String) -> Result<Response> {
@@ -46,7 +54,7 @@ pub async fn cron(params: JobFiltersParams) -> Result<Response> {
     Ok(res)
 }
 
-pub async fn cron_insert(data: AddJobRequest) -> Result<Response>{
+pub async fn cron_insert(data: AddJobRequest) -> Result<Response> {
     let url = build_url("/v1/cron")?;
     let res = Client::builder()
         .build()?

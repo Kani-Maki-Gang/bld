@@ -4,6 +4,7 @@ use actix_web::{
     HttpResponse, Responder,
 };
 use anyhow::{bail, Result};
+use bld_config::BldConfig;
 use bld_core::auth::Logins;
 use bld_models::dtos::AuthRedirectParams;
 use bld_utils::fs::{AuthTokens, RefreshTokenParams};
@@ -15,6 +16,15 @@ use tracing::{error, info};
 const AUTH_REDIRECT_SUCCESS: &str =
     "Login completed, you can close this browser tab and go back to your terminal.";
 const AUTH_REDIRECT_FAILED: &str = "An error occured while completing the login process.";
+
+#[get("/v1/auth/available")]
+pub async fn auth_available(config: Data<BldConfig>) -> impl Responder {
+    if config.local.server.auth.is_some() {
+        HttpResponse::Ok().body("")
+    } else {
+        HttpResponse::BadRequest().body("auth not available")
+    }
+}
 
 #[get("/v1/auth/redirect")]
 pub async fn redirect(info: Query<AuthRedirectParams>, logins: Data<Logins>) -> impl Responder {
