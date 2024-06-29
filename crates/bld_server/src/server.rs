@@ -59,6 +59,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .wrap(middleware::Logger::default())
             .wrap(cors)
             .service(home::get)
+            .service(auth::available)
             .service(auth::redirect)
             .service(auth::refresh)
             .service(check::get)

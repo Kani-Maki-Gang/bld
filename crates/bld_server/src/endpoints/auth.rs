@@ -18,7 +18,7 @@ const AUTH_REDIRECT_SUCCESS: &str =
 const AUTH_REDIRECT_FAILED: &str = "An error occured while completing the login process.";
 
 #[get("/v1/auth/available")]
-pub async fn auth_available(config: Data<BldConfig>) -> impl Responder {
+pub async fn available(config: Data<BldConfig>) -> impl Responder {
     if config.local.server.auth.is_some() {
         HttpResponse::Ok().body("")
     } else {
