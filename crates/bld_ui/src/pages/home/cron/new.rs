@@ -1,5 +1,8 @@
 use crate::{
-    api, components::{button::Button, card::Card, input::Input, list::List}, context::{AppDialog, AppDialogContent}, error::Error
+    api,
+    components::{button::Button, card::Card, input::Input, list::List},
+    context::{AppDialog, AppDialogContent},
+    error::Error,
 };
 use anyhow::{bail, Result};
 use bld_models::dtos::ListResponse;

@@ -1,5 +1,8 @@
 use crate::{
-    api, components::{badge::Badge, button::Button, card::Card, colors::Colors}, context::{AppDialog, AppDialogContent}, error::ErrorDialog
+    api,
+    components::{badge::Badge, button::Button, card::Card, colors::Colors},
+    context::{AppDialog, AppDialogContent},
+    error::ErrorDialog,
 };
 use anyhow::{bail, Result};
 use leptos::{html::Dialog, leptos_dom::logging, *};

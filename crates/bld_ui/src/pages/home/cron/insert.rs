@@ -3,7 +3,9 @@ use super::{
     helpers::{get_pipeline, hash_map_strings},
 };
 use crate::{
-    api, context::{AppDialog, AppDialogContent}, error::{ErrorCard, ErrorDialog}
+    api,
+    context::{AppDialog, AppDialogContent},
+    error::{ErrorCard, ErrorDialog},
 };
 use anyhow::{bail, Result};
 use bld_models::dtos::{AddJobRequest, CronJobResponse};

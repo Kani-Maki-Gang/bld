@@ -3,7 +3,10 @@ pub mod variables;
 use std::collections::HashMap;
 
 use crate::{
-    api::{self, RunParams}, components::{badge::Badge, button::Button, card::Card}, context::{AppDialog, AppDialogContent}, error::{ErrorCard, ErrorDialog}
+    api::{self, RunParams},
+    components::{badge::Badge, button::Button, card::Card},
+    context::{AppDialog, AppDialogContent},
+    error::{ErrorCard, ErrorDialog},
 };
 use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::PipelineInfoQueryParams;

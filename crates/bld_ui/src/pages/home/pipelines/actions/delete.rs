@@ -1,9 +1,12 @@
 use crate::{
-    api, components::{
+    api,
+    components::{
         button::{Button, IconButton},
         card::Card,
         colors::Colors,
-    }, context::{AppDialog, AppDialogContent, RefreshPipelines}, error::SmallError
+    },
+    context::{AppDialog, AppDialogContent, RefreshPipelines},
+    error::SmallError,
 };
 use anyhow::{bail, Result};
 use bld_models::dtos::PipelineQueryParams;

@@ -1,9 +1,12 @@
 use crate::{
-    api, components::{
+    api,
+    components::{
         badge::Badge,
         link::Link,
         table::{Body, Cell, Header, Headers, Row, Table},
-    }, context::RefreshHistory, error::Error
+    },
+    context::RefreshHistory,
+    error::Error,
 };
 use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::{HistQueryParams, HistoryEntry};

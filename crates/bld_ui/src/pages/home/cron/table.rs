@@ -1,9 +1,12 @@
 use super::delete::CronJobDeleteButton;
 use crate::{
-    api, components::{
+    api,
+    components::{
         link::Link,
         table::{Body, Cell, Header, Headers, Row, Table},
-    }, context::RefreshCronJobs, error::Error
+    },
+    context::RefreshCronJobs,
+    error::Error,
 };
 use anyhow::{bail, Result};
 use bld_models::dtos::{CronJobResponse, JobFiltersParams};
