@@ -26,6 +26,22 @@ pub fn build_url<T: Into<String> + Display>(route: T) -> Result<String> {
     Ok(format!("{origin}{route}"))
 }
 
+#[allow(dead_code)]
+fn get_bearer_token() -> Result<String> {
+    let window = window().ok_or_else(|| anyhow!("window not found"))?;
+
+    let local_storage = window
+        .local_storage()
+        .map_err(|_| anyhow!("unable to find local storage"))?
+        .ok_or_else(|| anyhow!("local storage not found"))?;
+
+    let _auth = local_storage
+        .get("auth")
+        .map_err(|_| anyhow!("unable to get auth value"))?;
+
+    Ok(String::new())
+}
+
 pub async fn auth_available() -> Result<Response> {
     let url = build_url("/v1/auth/available")?;
     let res = Client::builder().build()?.get(&url).send().await?;
