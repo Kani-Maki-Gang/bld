@@ -39,7 +39,6 @@ pub fn PipelinesTable(#[prop(into)] filter: Signal<String>) -> impl IntoView {
     );
 
     let filtered_data = move || {
-        logging::console_log("filtering data...");
         let Some(Ok(data)) = data.get() else {
             return vec![];
         };
