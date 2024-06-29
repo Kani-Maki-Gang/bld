@@ -1,10 +1,12 @@
 use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::{
-    AddJobRequest, HistQueryParams, JobFiltersParams, PipelineInfoQueryParams, PipelinePathRequest,
-    PipelineQueryParams, UpdateJobRequest,
+    AddJobRequest, CronJobResponse, HistQueryParams, HistoryEntry, JobFiltersParams, ListResponse,
+    PipelineInfoQueryParams, PipelinePathRequest, PipelineQueryParams, UpdateJobRequest,
 };
+use bld_runner::VersionedPipeline;
+use leptos::leptos_dom::logging;
 use leptos_router::{use_navigate, NavigateOptions};
-use reqwest::{Client, RequestBuilder, Response};
+use reqwest::{Client, RequestBuilder, Response, StatusCode};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Display};
 use web_sys::window;
@@ -31,6 +33,20 @@ pub fn build_url<T: Into<String> + Display>(route: T) -> Result<String> {
         .origin()
         .map_err(|_| anyhow!("unable to find window origin"))?;
     Ok(format!("{origin}{route}"))
+}
+
+fn navigate_to_login() {
+    let nav = use_navigate();
+    nav("/login", NavigateOptions::default());
+}
+
+fn handle_error<T>(status: StatusCode, body: String) -> Result<T> {
+    if status == StatusCode::UNAUTHORIZED {
+        navigate_to_login();
+    }
+    let error = format!("Status {status} {body}");
+    logging::console_error(&error);
+    bail!(error)
 }
 
 fn get_auth_available() -> Result<bool> {
@@ -76,8 +92,7 @@ fn get_authorization_header() -> Result<Option<(String, String)>> {
     let access_token = match get_access_token() {
         Ok(token) => token,
         Err(e) => {
-            let nav = use_navigate();
-            nav("/login", NavigateOptions::default());
+            navigate_to_login();
             bail!(e)
         }
     };
@@ -102,90 +117,150 @@ pub async fn auth_available() -> Result<Response> {
     Ok(res)
 }
 
-pub async fn stop(id: String) -> Result<Response> {
+pub async fn stop(id: String) -> Result<()> {
     let url = build_url("/v1/stop")?;
-    let mut res = Client::builder().build()?.post(&url);
-    res = add_authorization_header(res)?;
-    Ok(res.json(&id).send().await?)
+    let request = add_authorization_header(Client::builder().build()?.post(&url))?;
+    let response = request.json(&id).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        Ok(())
+    }
 }
 
-pub async fn cron(params: JobFiltersParams) -> Result<Response> {
+pub async fn cron(params: JobFiltersParams) -> Result<Vec<CronJobResponse>> {
     let url = build_url("/v1/cron")?;
-    let mut res = Client::builder().build()?.get(&url);
-    res = add_authorization_header(res)?;
-    Ok(res.query(&params).send().await?)
+    let request = add_authorization_header(Client::builder().build()?.get(&url))?;
+    let response = request.query(&params).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        Ok(response.json().await?)
+    }
 }
 
-pub async fn cron_insert(data: AddJobRequest) -> Result<Response> {
+pub async fn cron_insert(data: AddJobRequest) -> Result<()> {
     let url = build_url("/v1/cron")?;
-    let mut res = Client::builder().build()?.post(&url);
-    res = add_authorization_header(res)?;
-    Ok(res.json(&data).send().await?)
+    let request = add_authorization_header(Client::builder().build()?.post(&url))?;
+    let response = request.json(&data).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        Ok(())
+    }
 }
 
-pub async fn cron_update(data: UpdateJobRequest) -> Result<Response> {
+pub async fn cron_update(data: UpdateJobRequest) -> Result<()> {
     let url = build_url("/v1/cron")?;
-    let mut res = Client::builder().build()?.patch(&url);
-    res = add_authorization_header(res)?;
-    Ok(res.json(&data).send().await?)
+    let request = add_authorization_header(Client::builder().build()?.patch(&url))?;
+    let response = request.json(&data).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        Ok(())
+    }
 }
 
-pub async fn cron_delete(id: String) -> Result<Response> {
+pub async fn cron_delete(id: String) -> Result<()> {
     let url = build_url(format!("/v1/cron/{id}"))?;
-    let mut res = Client::builder().build()?.delete(&url);
-    res = add_authorization_header(res)?;
-    Ok(res.json(&id).send().await?)
+    let request = add_authorization_header(Client::builder().build()?.delete(&url))?;
+    let response = request.json(&id).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        Ok(())
+    }
 }
 
-pub async fn list() -> Result<Response> {
+pub async fn list() -> Result<Vec<ListResponse>> {
     let url = build_url("/v1/list")?;
-    let mut res = Client::builder().build()?.get(&url);
-    res = add_authorization_header(res)?;
-    Ok(res.header("Accept", "application/json").send().await?)
+    let request = add_authorization_header(Client::builder().build()?.get(&url))?;
+    let response = request.header("Accept", "application/json").send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        Ok(response.json().await?)
+    }
 }
 
-pub async fn hist(params: HistQueryParams) -> Result<Response> {
+pub async fn hist(params: HistQueryParams) -> Result<Vec<HistoryEntry>> {
     let url = build_url("/v1/hist")?;
-    let mut res = Client::builder().build()?.get(&url);
-    res = add_authorization_header(res)?;
-    Ok(res.query(&params).send().await?)
+    let request = add_authorization_header(Client::builder().build()?.get(&url))?;
+    let response = request.query(&params).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        Ok(response.json().await?)
+    }
 }
 
-pub async fn print(params: PipelineInfoQueryParams) -> Result<Response> {
+pub async fn print(params: PipelineInfoQueryParams) -> Result<VersionedPipeline> {
     let url = build_url("/v1/print")?;
-    let mut res = Client::builder().build()?.get(&url);
-    res = add_authorization_header(res)?;
-    Ok(res
+    let request = add_authorization_header(Client::builder().build()?.get(&url))?;
+    let response = request
         .header("Accept", "application/json")
         .query(&params)
         .send()
-        .await?)
+        .await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        Ok(response.json().await?)
+    }
 }
 
-pub async fn run(data: RunParams) -> Result<Response> {
+pub async fn run(data: RunParams) -> Result<String> {
     let url = build_url("/v1/run")?;
-    let mut res = Client::builder().build()?.post(&url);
-    res = add_authorization_header(res)?;
-    Ok(res.json(&data).send().await?)
+    let request = add_authorization_header(Client::builder().build()?.post(&url))?;
+    let response = request.json(&data).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        Ok(response.json().await?)
+    }
 }
 
-pub async fn pipeline_move(params: PipelinePathRequest) -> Result<Response> {
+pub async fn pipeline_move(params: PipelinePathRequest) -> Result<()> {
     let url = build_url("/v1/move")?;
-    let mut res = Client::builder().build()?.patch(&url);
-    res = add_authorization_header(res)?;
-    Ok(res.json(&params).send().await?)
+    let request = add_authorization_header(Client::builder().build()?.patch(&url))?;
+    let response = request.json(&params).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        Ok(())
+    }
 }
 
-pub async fn remove(params: PipelineQueryParams) -> Result<Response> {
+pub async fn remove(params: PipelineQueryParams) -> Result<()> {
     let url = build_url("/v1/remove")?;
-    let mut res = Client::builder().build()?.delete(&url);
-    res = add_authorization_header(res)?;
-    Ok(res.query(&params).send().await?)
+    let request = add_authorization_header(Client::builder().build()?.delete(&url))?;
+    let response = request.query(&params).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        Ok(())
+    }
 }
 
-pub async fn copy(params: PipelinePathRequest) -> Result<Response> {
+pub async fn copy(params: PipelinePathRequest) -> Result<()> {
     let url = build_url("/v1/copy")?;
-    let mut res = Client::builder().build()?.post(&url);
-    res = add_authorization_header(res)?;
-    Ok(res.json(&params).send().await?)
+    let request = add_authorization_header(Client::builder().build()?.post(&url))?;
+    let response = request.json(&params).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        Ok(())
+    }
 }
