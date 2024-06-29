@@ -1,12 +1,18 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::{
     AddJobRequest, HistQueryParams, JobFiltersParams, PipelineInfoQueryParams, PipelinePathRequest,
     PipelineQueryParams, UpdateJobRequest,
 };
-use reqwest::{Client, Response};
-use serde::Serialize;
+use reqwest::{Client, RequestBuilder, Response};
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Display};
 use web_sys::window;
+
+#[derive(Serialize, Deserialize)]
+struct AuthInfo {
+    access_token: String,
+    refresh_token: String,
+}
 
 #[derive(Serialize)]
 pub enum RunParams {
@@ -26,8 +32,7 @@ pub fn build_url<T: Into<String> + Display>(route: T) -> Result<String> {
     Ok(format!("{origin}{route}"))
 }
 
-#[allow(dead_code)]
-fn get_bearer_token() -> Result<String> {
+fn get_auth_available() -> Result<bool> {
     let window = window().ok_or_else(|| anyhow!("window not found"))?;
 
     let local_storage = window
@@ -35,11 +40,50 @@ fn get_bearer_token() -> Result<String> {
         .map_err(|_| anyhow!("unable to find local storage"))?
         .ok_or_else(|| anyhow!("local storage not found"))?;
 
-    let _auth = local_storage
-        .get("auth")
-        .map_err(|_| anyhow!("unable to get auth value"))?;
+    let auth_available = local_storage
+        .get("auth_available")
+        .map_err(|_| anyhow!("unable to get auth_available value"))?
+        .ok_or_else(|| anyhow!("auth_available value not found"))?;
 
-    Ok(String::new())
+    Ok(serde_json::from_str::<bool>(&auth_available)?)
+}
+
+fn get_access_token() -> Result<String> {
+    let window = window().ok_or_else(|| anyhow!("window not found"))?;
+
+    let local_storage = window
+        .local_storage()
+        .map_err(|_| anyhow!("unable to find local storage"))?
+        .ok_or_else(|| anyhow!("local storage not found"))?;
+
+    let auth = local_storage
+        .get("auth")
+        .map_err(|_| anyhow!("unable to get auth value"))?
+        .ok_or_else(|| anyhow!("auth value not found"))?;
+
+    let info = serde_json::from_str::<AuthInfo>(&auth)?;
+
+    Ok(info.access_token)
+}
+
+fn get_authorization_header() -> Result<(String, String)> {
+    let auth_available = get_auth_available()?;
+    if !auth_available {
+        bail!("auth not available")
+    }
+    let access_token = get_access_token()?;
+    Ok((
+        "Authorization".to_owned(),
+        format!("Bearer {}", access_token),
+    ))
+}
+
+fn add_authorization_header(req_builder: RequestBuilder) -> RequestBuilder {
+    if let Ok((auth_header, auth_value)) = get_authorization_header() {
+        req_builder.header(auth_header, auth_value)
+    } else {
+        req_builder
+    }
 }
 
 pub async fn auth_available() -> Result<Response> {
@@ -50,133 +94,88 @@ pub async fn auth_available() -> Result<Response> {
 
 pub async fn stop(id: String) -> Result<Response> {
     let url = build_url("/v1/stop")?;
-    let res = Client::builder()
-        .build()?
-        .post(&url)
-        .json(&id)
-        .send()
-        .await?;
-    Ok(res)
+    let mut res = Client::builder().build()?.post(&url);
+    res = add_authorization_header(res);
+    Ok(res.json(&id).send().await?)
 }
 
 pub async fn cron(params: JobFiltersParams) -> Result<Response> {
     let url = build_url("/v1/cron")?;
-    let res = Client::builder()
-        .build()?
-        .get(&url)
-        .query(&params)
-        .send()
-        .await?;
-    Ok(res)
+    let mut res = Client::builder().build()?.get(&url);
+    res = add_authorization_header(res);
+    Ok(res.query(&params).send().await?)
 }
 
 pub async fn cron_insert(data: AddJobRequest) -> Result<Response> {
     let url = build_url("/v1/cron")?;
-    let res = Client::builder()
-        .build()?
-        .post(&url)
-        .json(&data)
-        .send()
-        .await?;
-    Ok(res)
+    let mut res = Client::builder().build()?.post(&url);
+    res = add_authorization_header(res);
+    Ok(res.json(&data).send().await?)
 }
 
 pub async fn cron_update(data: UpdateJobRequest) -> Result<Response> {
     let url = build_url("/v1/cron")?;
-    let res = Client::builder()
-        .build()?
-        .patch(&url)
-        .json(&data)
-        .send()
-        .await?;
-    Ok(res)
+    let mut res = Client::builder().build()?.patch(&url);
+    res = add_authorization_header(res);
+    Ok(res.json(&data).send().await?)
 }
 
 pub async fn cron_delete(id: String) -> Result<Response> {
     let url = build_url(format!("/v1/cron/{id}"))?;
-    let res = Client::builder()
-        .build()?
-        .delete(&url)
-        .json(&id)
-        .send()
-        .await?;
-    Ok(res)
+    let mut res = Client::builder().build()?.delete(&url);
+    res = add_authorization_header(res);
+    Ok(res.json(&id).send().await?)
 }
 
 pub async fn list() -> Result<Response> {
     let url = build_url("/v1/list")?;
-    let res = Client::builder()
-        .build()?
-        .get(&url)
-        .header("Accept", "application/json")
-        .send()
-        .await?;
-    Ok(res)
+    let mut res = Client::builder().build()?.get(&url);
+    res = add_authorization_header(res);
+    Ok(res.header("Accept", "application/json").send().await?)
 }
 
 pub async fn hist(params: HistQueryParams) -> Result<Response> {
     let url = build_url("/v1/hist")?;
-    let res = Client::builder()
-        .build()?
-        .get(&url)
-        .query(&params)
-        .send()
-        .await?;
-    Ok(res)
+    let mut res = Client::builder().build()?.get(&url);
+    res = add_authorization_header(res);
+    Ok(res.query(&params).send().await?)
 }
 
 pub async fn print(params: PipelineInfoQueryParams) -> Result<Response> {
     let url = build_url("/v1/print")?;
-    let res = Client::builder()
-        .build()?
-        .get(&url)
+    let mut res = Client::builder().build()?.get(&url);
+    res = add_authorization_header(res);
+    Ok(res
         .header("Accept", "application/json")
         .query(&params)
         .send()
-        .await?;
-    Ok(res)
+        .await?)
 }
 
 pub async fn run(data: RunParams) -> Result<Response> {
     let url = build_url("/v1/run")?;
-    let res = Client::builder()
-        .build()?
-        .post(&url)
-        .json(&data)
-        .send()
-        .await?;
-    Ok(res)
+    let mut res = Client::builder().build()?.post(&url);
+    res = add_authorization_header(res);
+    Ok(res.json(&data).send().await?)
 }
 
 pub async fn pipeline_move(params: PipelinePathRequest) -> Result<Response> {
     let url = build_url("/v1/move")?;
-    let res = Client::builder()
-        .build()?
-        .patch(&url)
-        .json(&params)
-        .send()
-        .await?;
-    Ok(res)
+    let mut res = Client::builder().build()?.patch(&url);
+    res = add_authorization_header(res);
+    Ok(res.json(&params).send().await?)
 }
 
 pub async fn remove(params: PipelineQueryParams) -> Result<Response> {
     let url = build_url("/v1/remove")?;
-    let res = Client::builder()
-        .build()?
-        .delete(&url)
-        .query(&params)
-        .send()
-        .await?;
-    Ok(res)
+    let mut res = Client::builder().build()?.delete(&url);
+    res = add_authorization_header(res);
+    Ok(res.query(&params).send().await?)
 }
 
 pub async fn copy(params: PipelinePathRequest) -> Result<Response> {
     let url = build_url("/v1/copy")?;
-    let res = Client::builder()
-        .build()?
-        .post(&url)
-        .json(&params)
-        .send()
-        .await?;
-    Ok(res)
+    let mut res = Client::builder().build()?.post(&url);
+    res = add_authorization_header(res);
+    Ok(res.json(&params).send().await?)
 }
