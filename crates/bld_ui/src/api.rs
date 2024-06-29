@@ -3,6 +3,7 @@ use bld_models::dtos::{
     AddJobRequest, HistQueryParams, JobFiltersParams, PipelineInfoQueryParams, PipelinePathRequest,
     PipelineQueryParams, UpdateJobRequest,
 };
+use leptos_router::{use_navigate, NavigateOptions};
 use reqwest::{Client, RequestBuilder, Response};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Display};
@@ -66,23 +67,32 @@ fn get_access_token() -> Result<String> {
     Ok(info.access_token)
 }
 
-fn get_authorization_header() -> Result<(String, String)> {
+fn get_authorization_header() -> Result<Option<(String, String)>> {
     let auth_available = get_auth_available()?;
     if !auth_available {
         bail!("auth not available")
     }
-    let access_token = get_access_token()?;
-    Ok((
+
+    let access_token = match get_access_token() {
+        Ok(token) => token,
+        Err(e) => {
+            let nav = use_navigate();
+            nav("/login", NavigateOptions::default());
+            bail!(e)
+        }
+    };
+
+    Ok(Some((
         "Authorization".to_owned(),
         format!("Bearer {}", access_token),
-    ))
+    )))
 }
 
-fn add_authorization_header(req_builder: RequestBuilder) -> RequestBuilder {
-    if let Ok((auth_header, auth_value)) = get_authorization_header() {
-        req_builder.header(auth_header, auth_value)
-    } else {
-        req_builder
+fn add_authorization_header(req_builder: RequestBuilder) -> Result<RequestBuilder> {
+    match get_authorization_header() {
+        Ok(Some((auth_header, auth_value))) => Ok(req_builder.header(auth_header, auth_value)),
+        Ok(None) => Ok(req_builder),
+        Err(e) => bail!(e),
     }
 }
 
@@ -95,56 +105,56 @@ pub async fn auth_available() -> Result<Response> {
 pub async fn stop(id: String) -> Result<Response> {
     let url = build_url("/v1/stop")?;
     let mut res = Client::builder().build()?.post(&url);
-    res = add_authorization_header(res);
+    res = add_authorization_header(res)?;
     Ok(res.json(&id).send().await?)
 }
 
 pub async fn cron(params: JobFiltersParams) -> Result<Response> {
     let url = build_url("/v1/cron")?;
     let mut res = Client::builder().build()?.get(&url);
-    res = add_authorization_header(res);
+    res = add_authorization_header(res)?;
     Ok(res.query(&params).send().await?)
 }
 
 pub async fn cron_insert(data: AddJobRequest) -> Result<Response> {
     let url = build_url("/v1/cron")?;
     let mut res = Client::builder().build()?.post(&url);
-    res = add_authorization_header(res);
+    res = add_authorization_header(res)?;
     Ok(res.json(&data).send().await?)
 }
 
 pub async fn cron_update(data: UpdateJobRequest) -> Result<Response> {
     let url = build_url("/v1/cron")?;
     let mut res = Client::builder().build()?.patch(&url);
-    res = add_authorization_header(res);
+    res = add_authorization_header(res)?;
     Ok(res.json(&data).send().await?)
 }
 
 pub async fn cron_delete(id: String) -> Result<Response> {
     let url = build_url(format!("/v1/cron/{id}"))?;
     let mut res = Client::builder().build()?.delete(&url);
-    res = add_authorization_header(res);
+    res = add_authorization_header(res)?;
     Ok(res.json(&id).send().await?)
 }
 
 pub async fn list() -> Result<Response> {
     let url = build_url("/v1/list")?;
     let mut res = Client::builder().build()?.get(&url);
-    res = add_authorization_header(res);
+    res = add_authorization_header(res)?;
     Ok(res.header("Accept", "application/json").send().await?)
 }
 
 pub async fn hist(params: HistQueryParams) -> Result<Response> {
     let url = build_url("/v1/hist")?;
     let mut res = Client::builder().build()?.get(&url);
-    res = add_authorization_header(res);
+    res = add_authorization_header(res)?;
     Ok(res.query(&params).send().await?)
 }
 
 pub async fn print(params: PipelineInfoQueryParams) -> Result<Response> {
     let url = build_url("/v1/print")?;
     let mut res = Client::builder().build()?.get(&url);
-    res = add_authorization_header(res);
+    res = add_authorization_header(res)?;
     Ok(res
         .header("Accept", "application/json")
         .query(&params)
@@ -155,27 +165,27 @@ pub async fn print(params: PipelineInfoQueryParams) -> Result<Response> {
 pub async fn run(data: RunParams) -> Result<Response> {
     let url = build_url("/v1/run")?;
     let mut res = Client::builder().build()?.post(&url);
-    res = add_authorization_header(res);
+    res = add_authorization_header(res)?;
     Ok(res.json(&data).send().await?)
 }
 
 pub async fn pipeline_move(params: PipelinePathRequest) -> Result<Response> {
     let url = build_url("/v1/move")?;
     let mut res = Client::builder().build()?.patch(&url);
-    res = add_authorization_header(res);
+    res = add_authorization_header(res)?;
     Ok(res.json(&params).send().await?)
 }
 
 pub async fn remove(params: PipelineQueryParams) -> Result<Response> {
     let url = build_url("/v1/remove")?;
     let mut res = Client::builder().build()?.delete(&url);
-    res = add_authorization_header(res);
+    res = add_authorization_header(res)?;
     Ok(res.query(&params).send().await?)
 }
 
 pub async fn copy(params: PipelinePathRequest) -> Result<Response> {
     let url = build_url("/v1/copy")?;
     let mut res = Client::builder().build()?.post(&url);
-    res = add_authorization_header(res);
+    res = add_authorization_header(res)?;
     Ok(res.json(&params).send().await?)
 }
