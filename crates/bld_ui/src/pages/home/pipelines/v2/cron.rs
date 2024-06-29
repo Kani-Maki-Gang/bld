@@ -39,6 +39,7 @@ pub fn PipelineCronV2(#[prop(into)] name: Signal<Option<String>>) -> impl IntoVi
                             );
                         }
                     />
+
                     <IconButton
                         class="justify-end"
                         icon="iconoir-refresh-double"
@@ -50,6 +51,7 @@ pub fn PipelineCronV2(#[prop(into)] name: Signal<Option<String>>) -> impl IntoVi
                             refresh.set()
                         }
                     />
+
                 </div>
                 <CronJobsTable params=params/>
             </div>

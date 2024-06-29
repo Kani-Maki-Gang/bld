@@ -35,6 +35,7 @@ pub fn PipelineExternalV2(#[prop(into)] external: Signal<Vec<External>>) -> impl
                         }
                     }
                 >
+
                     <List>
                         <For
                             each=move || external().into_iter().enumerate()

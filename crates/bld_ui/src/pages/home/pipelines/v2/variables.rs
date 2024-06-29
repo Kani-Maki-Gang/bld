@@ -50,6 +50,7 @@ pub fn PipelineVariablesV2(
                         }
                     }
                 >
+
                     <VariablesTable data=variables/>
                 </Show>
             </div>

@@ -88,6 +88,7 @@ pub fn PipelineJobsV2(
                         }
                     }
                 >
+
                     <Tabs>
                         <For
                             each=move || {
@@ -96,6 +97,7 @@ pub fn PipelineJobsV2(
                                     .enumerate()
                                     .map(|(i, x)| (i, x.clone(), x.clone(), x))
                             }
+
                             key=|(i, _, _, _)| *i
                             let:child
                         >
