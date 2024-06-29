@@ -8,7 +8,6 @@ use crate::{
     context::{AppDialog, AppDialogContent, RefreshPipelines},
     error::SmallError,
 };
-use anyhow::{bail, Result};
 use bld_models::dtos::PipelineQueryParams;
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
@@ -21,20 +20,6 @@ type DeleteActionArgs = (
     NodeRef<Dialog>,
 );
 
-async fn delete(name: String) -> Result<()> {
-    let params = PipelineQueryParams { pipeline: name };
-    let res = api::remove(params).await?;
-    let status = res.status();
-    if status.is_success() {
-        Ok(())
-    } else {
-        let body = res.text().await?;
-        let error = format!("Status {status} {body}");
-        logging::console_log(&error);
-        bail!(error)
-    }
-}
-
 #[component]
 fn PipelineDeleteButtonDialog(
     #[prop(into)] name: Signal<String>,
@@ -44,9 +29,10 @@ fn PipelineDeleteButtonDialog(
 ) -> impl IntoView {
     let error = create_rw_signal(None);
     let delete_action = create_action(|args: &DeleteActionArgs| {
-        let (id, error, refresh, redirect, dialog) = args.clone();
+        let (name, error, refresh, redirect, dialog) = args.clone();
         async move {
-            match delete(id).await {
+            let params = PipelineQueryParams { pipeline: name };
+            match api::remove(params).await {
                 Ok(_) if redirect => {
                     let nav = use_navigate();
                     nav("/pipelines", NavigateOptions::default());

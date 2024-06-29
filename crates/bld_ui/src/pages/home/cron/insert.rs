@@ -7,9 +7,8 @@ use crate::{
     context::{AppDialog, AppDialogContent},
     error::{ErrorCard, ErrorDialog},
 };
-use anyhow::{bail, Result};
 use bld_models::dtos::{AddJobRequest, CronJobResponse};
-use leptos::{html::Dialog, leptos_dom::logging, *};
+use leptos::{html::Dialog, *};
 use leptos_router::*;
 
 type SaveActionArgs = (
@@ -18,19 +17,6 @@ type SaveActionArgs = (
     RwSignal<Option<View>>,
     SaveCronJob,
 );
-
-async fn insert(data: AddJobRequest) -> Result<()> {
-    let res = api::cron_insert(data).await?;
-    let status = res.status();
-    if status.is_success() {
-        Ok(())
-    } else {
-        let body = res.text().await?;
-        let error = format!("Status {status} {body}");
-        logging::console_error(&error);
-        bail!(error)
-    }
-}
 
 #[component]
 pub fn CronJobInsert() -> impl IntoView {
@@ -67,16 +53,17 @@ pub fn CronJobInsert() -> impl IntoView {
                 return;
             };
             let data = AddJobRequest::new(schedule, name.to_string(), Some(vars), Some(env), false);
-            let res = insert(data).await;
-
-            if let Err(e) = res {
-                dialog_content.set(Some(
-                    view! { <ErrorDialog dialog=dialog error=move || e.to_string()/> },
-                ));
-                let _ = dialog.get().map(|x| x.show_modal());
-            } else {
-                let nav = use_navigate();
-                nav("/cron?={}", NavigateOptions::default());
+            match api::cron_insert(data).await {
+                Ok(_) => {
+                    let nav = use_navigate();
+                    nav("/cron?={}", NavigateOptions::default());
+                }
+                Err(e) => {
+                    dialog_content.set(Some(
+                        view! { <ErrorDialog dialog=dialog error=move || e.to_string()/> },
+                    ));
+                    let _ = dialog.get().map(|x| x.show_modal());
+                }
             }
         }
     });

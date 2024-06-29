@@ -9,7 +9,6 @@ use crate::{
     context::{AppDialog, AppDialogContent, RefreshPipelines},
     error::SmallError,
 };
-use anyhow::{bail, Result};
 use bld_models::dtos::PipelinePathRequest;
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
@@ -23,20 +22,6 @@ type MoveActionArgs = (
     bool,
     NodeRef<Dialog>,
 );
-
-async fn api_move(pipeline: String, target: String) -> Result<()> {
-    let params = PipelinePathRequest { pipeline, target };
-    let res = api::pipeline_move(params).await?;
-    let status = res.status();
-    if status.is_success() {
-        Ok(())
-    } else {
-        let body = res.text().await?;
-        let error = format!("Status {status} {body}");
-        logging::console_error(&error);
-        bail!(error)
-    }
-}
 
 #[component]
 fn PipelineMoveButtonDialog(
@@ -53,7 +38,11 @@ fn PipelineMoveButtonDialog(
     let delete_action = create_action(|args: &MoveActionArgs| {
         let (id, pipeline, target, error, refresh, redirect, dialog) = args.clone();
         async move {
-            match api_move(pipeline, target.clone()).await {
+            let params = PipelinePathRequest {
+                pipeline,
+                target: target.clone(),
+            };
+            match api::pipeline_move(params).await {
                 Ok(_) if redirect => {
                     let nav = use_navigate();
                     let route = format!("/pipelines/info?id={id}&name={target}");

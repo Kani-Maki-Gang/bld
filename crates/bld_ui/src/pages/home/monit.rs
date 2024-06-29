@@ -4,7 +4,6 @@ use crate::{
     context::{AppDialog, AppDialogContent},
     error::ErrorDialog,
 };
-use anyhow::{bail, Result};
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
 use leptos_use::{core::ConnectionReadyState, use_websocket, UseWebsocketReturn};
@@ -17,19 +16,6 @@ struct MonitInfo {
     id: Option<String>,
     pipeline: Option<String>,
     last: bool,
-}
-
-async fn stop(id: String) -> Result<()> {
-    let res = api::stop(id).await?;
-    let status = res.status();
-    if status.is_success() {
-        Ok(())
-    } else {
-        let body = res.text().await?;
-        let error = format!("Status {status} {body}");
-        logging::console_error(&error);
-        bail!(error)
-    }
 }
 
 #[component]
@@ -75,8 +61,7 @@ pub fn Monit() -> impl IntoView {
     let stop_action = create_action(|args: &StopActionArgs| {
         let (id, dialog, content) = args.clone();
         async move {
-            let res = stop(id).await;
-            if let Err(e) = res {
+            if let Err(e) = api::stop(id).await {
                 content.set(Some(
                     view! { <ErrorDialog dialog=dialog error=move || e.to_string()/> },
                 ));

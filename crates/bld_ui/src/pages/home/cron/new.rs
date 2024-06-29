@@ -4,24 +4,9 @@ use crate::{
     context::{AppDialog, AppDialogContent},
     error::Error,
 };
-use anyhow::{bail, Result};
 use bld_models::dtos::ListResponse;
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
-
-async fn get_pipelines() -> Result<Vec<ListResponse>> {
-    let res = api::list().await?;
-    let status = res.status();
-    if status.is_success() {
-        let body = res.text().await?;
-        Ok(serde_json::from_str(&body)?)
-    } else {
-        let body = res.text().await?;
-        let error = format!("Status {status} {body}");
-        logging::console_error(&error);
-        bail!(error)
-    }
-}
 
 #[component]
 fn CronJobsNewDialog(#[prop(into)] app_dialog: NodeRef<Dialog>) -> impl IntoView {
@@ -29,7 +14,7 @@ fn CronJobsNewDialog(#[prop(into)] app_dialog: NodeRef<Dialog>) -> impl IntoView
 
     let data = create_resource(
         move || (),
-        |_| async move { get_pipelines().await.map_err(|e| e.to_string()) },
+        |_| async move { api::list().await.map_err(|e| e.to_string()) },
     );
 
     let filtered_pipelines = move || {

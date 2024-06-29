@@ -1,9 +1,8 @@
 use crate::api;
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 use bld_models::dtos::{CronJobResponse, JobFiltersParams, PipelineInfoQueryParams};
 use bld_runner::VersionedPipeline;
 use leptos::*;
-use leptos_dom::logging;
 use std::collections::HashMap;
 
 pub fn hash_map_rw_signals(
@@ -36,30 +35,13 @@ pub async fn get_cron(id: Option<String>) -> Result<CronJobResponse> {
         id: Some(id),
         ..Default::default()
     };
-    let res = api::cron(params).await?;
-    if res.status().is_success() {
-        let body = res.text().await?;
-        let data: Vec<CronJobResponse> = serde_json::from_str(&body)?;
-        data.into_iter()
-            .next()
-            .ok_or_else(|| anyhow!("No data found"))
-    } else {
-        bail!("Request failed with status: {}", res.status())
-    }
+    api::cron(params)
+        .await
+        .and_then(|x| x.into_iter().next().ok_or_else(|| anyhow!("No data found")))
 }
 
 pub async fn get_pipeline(name: Option<String>) -> Result<VersionedPipeline> {
     let name = name.ok_or_else(|| anyhow!("Name not provided as query parameter"))?;
     let params = PipelineInfoQueryParams::Name { name };
-    let res = api::print(params).await?;
-    let status = res.status();
-    if status.is_success() {
-        let body = res.text().await?;
-        Ok(serde_json::from_str(&body)?)
-    } else {
-        let body = res.text().await?;
-        let error = format!("Status {status} {body}");
-        logging::console_error(&error);
-        bail!(error)
-    }
+    api::print(params).await
 }
