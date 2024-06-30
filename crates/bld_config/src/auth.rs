@@ -29,6 +29,7 @@ impl Display for UserInfoProperty {
 pub struct OpenIdInfo {
     pub issuer_url: IssuerUrl,
     pub redirect_url: RedirectUrl,
+    pub redirect_url_for_web: Option<RedirectUrl>,
     pub client_id: ClientId,
     pub client_secret: ClientSecret,
     pub scopes: Vec<Scope>,
@@ -39,6 +40,7 @@ pub struct OAuth2Info {
     pub auth_url: AuthUrl,
     pub token_url: TokenUrl,
     pub redirect_url: RedirectUrl,
+    pub redirect_url_for_web: Option<RedirectUrl>,
     pub client_id: ClientId,
     pub client_secret: ClientSecret,
     pub scopes: Vec<Scope>,
