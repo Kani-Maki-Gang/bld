@@ -10,6 +10,8 @@ pub struct Model {
     pub csrf_token: String,
     pub nonce: String,
     pub pkce_verifier: String,
+    pub access_token: Option<String>,
+    pub refresh_token: Option<String>,
     pub status: String,
     pub date_created: DateTime,
     pub date_updated: Option<DateTime>,
