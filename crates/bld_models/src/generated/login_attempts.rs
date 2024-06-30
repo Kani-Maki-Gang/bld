@@ -10,8 +10,10 @@ pub struct Model {
     pub csrf_token: String,
     pub nonce: String,
     pub pkce_verifier: String,
-    pub created_at: DateTime,
-    pub expires_at: DateTime,
+    pub status: String,
+    pub date_created: DateTime,
+    pub date_updated: Option<DateTime>,
+    pub date_expires: DateTime,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
