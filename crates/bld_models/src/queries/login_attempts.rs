@@ -1,5 +1,5 @@
 use crate::generated::login_attempts::{self, Entity as LoginAttemptsEntity};
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use bld_migrations::Expr;
 use chrono::{Duration, Utc};
 use sea_orm::{
@@ -21,6 +21,19 @@ pub enum LoginAttemptStatus {
     Active,
     Failed,
     Completed,
+}
+
+impl TryFrom<String> for LoginAttemptStatus {
+    type Error = anyhow::Error;
+
+    fn try_from(value: String) -> Result<Self> {
+        match value.as_str() {
+            "active" => Ok(LoginAttemptStatus::Active),
+            "failed" => Ok(LoginAttemptStatus::Failed),
+            "completed" => Ok(LoginAttemptStatus::Completed),
+            _ => bail!("invalid login attempt status"),
+        }
+    }
 }
 
 impl Display for LoginAttemptStatus {
@@ -86,14 +99,16 @@ pub async fn insert(conn: &DatabaseConnection, model: InsertLoginAttempt) -> Res
         })
 }
 
-pub async fn update_status_by_csrf_token(
+async fn update(
     conn: &DatabaseConnection,
     csrf_token: &str,
     status: LoginAttemptStatus,
+    access_token: Option<&str>,
+    refresh_token: Option<&str>,
 ) -> Result<()> {
     debug!("updating the status of login attempt with csrf_token: {csrf_token}");
 
-    LoginAttemptsEntity::update_many()
+    let mut update_statement = LoginAttemptsEntity::update_many()
         .col_expr(
             login_attempts::Column::Status,
             Expr::value(status.to_string()),
@@ -101,7 +116,23 @@ pub async fn update_status_by_csrf_token(
         .col_expr(
             login_attempts::Column::DateUpdated,
             Expr::value(Utc::now().naive_utc()),
-        )
+        );
+
+    if let Some(access_token) = access_token {
+        update_statement = update_statement.col_expr(
+            login_attempts::Column::AccessToken,
+            Expr::value(access_token),
+        );
+    }
+
+    if let Some(refresh_token) = refresh_token {
+        update_statement = update_statement.col_expr(
+            login_attempts::Column::RefreshToken,
+            Expr::value(refresh_token),
+        );
+    }
+
+    update_statement
         .filter(login_attempts::Column::CsrfToken.eq(csrf_token))
         .exec(conn)
         .await
@@ -112,6 +143,29 @@ pub async fn update_status_by_csrf_token(
             error!("could not update login attempt status due to: {e}");
             anyhow!(e)
         })
+}
+
+pub async fn update_as_completed_by_csrf_token(
+    conn: &DatabaseConnection,
+    csrf_token: &str,
+    access_token: &str,
+    refresh_token: Option<&str>,
+) -> Result<()> {
+    update(
+        conn,
+        csrf_token,
+        LoginAttemptStatus::Completed,
+        Some(access_token),
+        refresh_token,
+    )
+    .await
+}
+
+pub async fn update_as_failed_by_csrf_token(
+    conn: &DatabaseConnection,
+    csrf_token: &str,
+) -> Result<()> {
+    update(conn, csrf_token, LoginAttemptStatus::Failed, None, None).await
 }
 
 pub async fn delete_by_csrf_token(conn: &DatabaseConnection, csrf_token: &str) -> Result<()> {
