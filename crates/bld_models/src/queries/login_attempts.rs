@@ -76,7 +76,7 @@ pub async fn insert(conn: &DatabaseConnection, model: InsertLoginAttempt) -> Res
     debug!("inserting login attemp to the database");
 
     let utc_now = Utc::now();
-    let date_expires = utc_now + Duration::minutes(10);
+    let date_expires = utc_now + Duration::minutes(5);
     let active_model = login_attempts::ActiveModel {
         csrf_token: Set(model.csrf_token),
         nonce: Set(model.nonce),

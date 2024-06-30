@@ -5,25 +5,23 @@ use actix::{
     Actor, ActorContext, AsyncContext, StreamHandler, WrapFuture,
 };
 use actix_web::{
-    web::{Data, Payload}, Error, HttpRequest, HttpResponse
+    web::{Data, Payload},
+    Error, HttpRequest, HttpResponse,
 };
 use actix_web_actors::ws::{start, Message, ProtocolError, WebsocketContext};
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use bld_config::{Auth, BldConfig};
 use bld_models::{
     dtos::{LoginClientMessage, LoginServerMessage},
-    login_attempts::{self, InsertLoginAttempt, LoginAttempt, LoginAttemptStatus},
+    login_attempts::{self, InsertLoginAttempt, LoginAttemptStatus},
 };
 use bld_utils::fs::AuthTokens;
 use chrono::Utc;
 use openidconnect::{
     core::{CoreAuthenticationFlow, CoreClient},
-    reqwest::async_http_client,
-    AccessTokenHash, AuthorizationCode, CsrfToken, Nonce, OAuth2TokenResponse, PkceCodeChallenge,
-    PkceCodeVerifier, TokenResponse,
+    CsrfToken, Nonce, PkceCodeChallenge,
 };
 use sea_orm::DatabaseConnection;
-use tokio::sync::oneshot;
 use tracing::error;
 
 pub struct LoginSocket {
@@ -176,14 +174,14 @@ impl LoginSocket {
                         return ready(());
                     }
 
-                    // if login_attempt.date_expires > Utc::now().naive_utc() {
-                    //     let message = LoginServerMessage::Failed("Operation timeout".to_string());
-                    //     if let Ok(text) = serde_json::to_string(&message) {
-                    //         ctx.text(text);
-                    //     }
-                    //     ctx.stop();
-                    //     return ready(());
-                    // }
+                    if Utc::now().naive_utc() > login_attempt.date_expires {
+                        let message = LoginServerMessage::Failed("Operation timeout".to_string());
+                        if let Ok(text) = serde_json::to_string(&message) {
+                            ctx.text(text);
+                        }
+                        ctx.stop();
+                        return ready(());
+                    }
 
                     return ready(());
                 });
@@ -242,55 +240,6 @@ impl StreamHandler<Result<Message, ProtocolError>> for LoginSocket {
             _ => {}
         }
     }
-}
-
-async fn openid_authorize_code(
-    code_rx: oneshot::Receiver<String>,
-    client: Data<Option<CoreClient>>,
-    pkce_verifier: PkceCodeVerifier,
-    nonce: Nonce,
-) -> Result<AuthTokens> {
-    let Ok(code) = code_rx.await else {
-        bail!("unable to verify authentication code");
-    };
-
-    let Some(client) = client.get_ref() else {
-        bail!("openid core client hasn't been registered for the server");
-    };
-
-    let authorization_code = AuthorizationCode::new(code);
-
-    let token_response = client
-        .exchange_code(authorization_code)
-        .set_pkce_verifier(pkce_verifier)
-        .request_async(async_http_client)
-        .await;
-
-    let Ok(token_response) = token_response else {
-        bail!("unable to exhange authorization code");
-    };
-
-    let id_token = token_response
-        .id_token()
-        .ok_or_else(|| anyhow!("server didn't return an ID token"))?;
-
-    let claims = id_token.claims(&client.id_token_verifier(), &nonce)?;
-
-    if let Some(access_token_hash) = claims.access_token_hash() {
-        let actual_access_token_hash =
-            AccessTokenHash::from_token(token_response.access_token(), &id_token.signing_alg()?)?;
-        if actual_access_token_hash != *access_token_hash {
-            bail!("invalid access token");
-        }
-    }
-
-    let access_token = token_response.access_token().secret().to_owned();
-
-    let refresh_token = token_response
-        .refresh_token()
-        .map(|x| x.secret().to_owned());
-
-    Ok(AuthTokens::new(access_token, refresh_token))
 }
 
 pub async fn ws(
