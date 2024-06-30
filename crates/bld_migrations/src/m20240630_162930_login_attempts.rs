@@ -20,14 +20,20 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(LoginAttempts::CsrfToken).string().not_null())
                     .col(ColumnDef::new(LoginAttempts::Nonce).string().not_null())
-                    .col(ColumnDef::new(LoginAttempts::PkceVerifier).string().not_null())
                     .col(
-                        ColumnDef::new(LoginAttempts::CreatedAt)
+                        ColumnDef::new(LoginAttempts::PkceVerifier)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(ColumnDef::new(LoginAttempts::Status).string().not_null())
+                    .col(
+                        ColumnDef::new(LoginAttempts::DateCreated)
                             .date_time()
                             .not_null(),
                     )
+                    .col(ColumnDef::new(LoginAttempts::DateUpdated).date_time())
                     .col(
-                        ColumnDef::new(LoginAttempts::ExpiresAt)
+                        ColumnDef::new(LoginAttempts::DateExpires)
                             .date_time()
                             .not_null(),
                     )
@@ -50,6 +56,8 @@ enum LoginAttempts {
     CsrfToken,
     Nonce,
     PkceVerifier,
-    CreatedAt,
-    ExpiresAt,
+    Status,
+    DateCreated,
+    DateUpdated,
+    DateExpires,
 }
