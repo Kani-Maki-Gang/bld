@@ -25,6 +25,8 @@ impl MigrationTrait for Migration {
                             .string()
                             .not_null(),
                     )
+                    .col(ColumnDef::new(LoginAttempts::AccessToken).string())
+                    .col(ColumnDef::new(LoginAttempts::RefreshToken).string())
                     .col(ColumnDef::new(LoginAttempts::Status).string().not_null())
                     .col(
                         ColumnDef::new(LoginAttempts::DateCreated)
@@ -56,6 +58,8 @@ enum LoginAttempts {
     CsrfToken,
     Nonce,
     PkceVerifier,
+    AccessToken,
+    RefreshToken,
     Status,
     DateCreated,
     DateUpdated,
