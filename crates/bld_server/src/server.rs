@@ -1,4 +1,5 @@
 use crate::cron::CronScheduler;
+use crate::endpoints::auth::WebCoreClient;
 use crate::endpoints::{
     auth, check, copy, cron, deps, hist, home, list, print, pull, push, r#move, remove, run, stop,
 };
@@ -27,6 +28,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
 
     let config = config.into_data();
     let client = config.openid_core_client().await?.into_data();
+    let web_client = WebCoreClient(config.openid_web_core_client().await?).into_data();
     let config_clone = config.clone();
     let conn = new_connection_pool(Arc::clone(&config)).await?;
     let supervisor_sender = SupervisorMessageSender::new(Arc::clone(&config)).into_data();
@@ -51,6 +53,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
         App::new()
             .app_data(config_clone.clone())
             .app_data(client.clone())
+            .app_data(web_client.clone())
             .app_data(supervisor_sender.clone())
             .app_data(logins.clone())
             .app_data(pool.clone())
@@ -62,6 +65,8 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .service(auth::available)
             .service(auth::redirect)
             .service(auth::refresh)
+            .service(auth::web_client_start)
+            .service(auth::web_client_validate)
             .service(check::get)
             .service(copy::post)
             .service(hist::get)

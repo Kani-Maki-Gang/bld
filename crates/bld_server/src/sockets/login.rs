@@ -12,10 +12,9 @@ use actix_web_actors::ws::{start, Message, ProtocolError, WebsocketContext};
 use anyhow::{bail, Result};
 use bld_config::{Auth, BldConfig};
 use bld_models::{
-    dtos::{LoginClientMessage, LoginServerMessage},
+    dtos::{AuthTokens, LoginClientMessage, LoginServerMessage},
     login_attempts::{self, InsertLoginAttempt, LoginAttemptStatus},
 };
-use bld_utils::fs::AuthTokens;
 use chrono::Utc;
 use openidconnect::{
     core::{CoreAuthenticationFlow, CoreClient},
