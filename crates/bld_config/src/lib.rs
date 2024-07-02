@@ -162,6 +162,14 @@ impl BldConfig {
         }
     }
 
+    pub async fn openid_web_core_client(&self) -> Result<Option<CoreClient>> {
+        if let Some(auth) = &self.local.server.auth {
+            auth.web_core_client().await.map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
     pub fn server_pipelines(&self) -> PathBuf {
         path![&self.root_dir, &self.local.server.pipelines]
     }

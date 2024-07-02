@@ -1,6 +1,6 @@
 use anyhow::{anyhow, bail, Result};
 use bld_config::definitions::TOOL_DEFAULT_CONFIG;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
 use tokio::fs::{create_dir_all, read_to_string, remove_file, File};
@@ -66,35 +66,7 @@ impl IsYaml for DirEntry {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuthTokens {
-    pub access_token: String,
-    pub refresh_token: Option<String>,
-}
-
-impl AuthTokens {
-    pub fn new(access_token: String, refresh_token: Option<String>) -> Self {
-        Self {
-            access_token,
-            refresh_token,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RefreshTokenParams {
-    pub refresh_token: String,
-}
-
-impl RefreshTokenParams {
-    pub fn new(refresh_token: &str) -> Self {
-        Self {
-            refresh_token: refresh_token.to_owned(),
-        }
-    }
-}
-
-pub async fn read_tokens(path: &Path) -> Result<AuthTokens> {
+pub async fn read_tokens<T: DeserializeOwned>(path: &Path) -> Result<T> {
     if !path.is_file() {
         bail!("file not found");
     }
@@ -103,7 +75,7 @@ pub async fn read_tokens(path: &Path) -> Result<AuthTokens> {
     serde_json::from_str(&content).map_err(|e| anyhow!(e))
 }
 
-pub async fn write_tokens(path: &Path, tokens: AuthTokens) -> Result<()> {
+pub async fn write_tokens<T: Serialize>(path: &Path, tokens: T) -> Result<()> {
     if let Some(parent) = path.parent() {
         create_dir_all(parent).await?;
     }

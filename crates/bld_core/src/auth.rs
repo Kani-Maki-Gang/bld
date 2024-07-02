@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use actix_web::rt::spawn;
 use anyhow::{anyhow, bail, Result};
-use serde::{Deserialize, Serialize};
+use bld_models::dtos::AuthTokens;
 use tokio::{
     fs::{create_dir_all, read_to_string, remove_file, File},
     io::AsyncWriteExt,
@@ -104,21 +104,6 @@ impl Logins {
             .send(LoginsMessage::Code(token, code))
             .await
             .map_err(|e| anyhow!(e.to_string()))
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuthTokens {
-    pub access_token: String,
-    pub refresh_token: Option<String>,
-}
-
-impl AuthTokens {
-    pub fn new(access_token: String, refresh_token: Option<String>) -> Self {
-        Self {
-            access_token,
-            refresh_token,
-        }
     }
 }
 

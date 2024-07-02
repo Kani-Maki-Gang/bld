@@ -23,14 +23,12 @@ pub use common::*;
 pub use cron::*;
 pub use hist::*;
 pub use list::*;
+pub use login::*;
 pub use pull::*;
 pub use push::*;
 
 #[cfg(feature = "web_socket")]
 pub use exec::*;
-
-#[cfg(feature = "web_socket")]
-pub use login::*;
 
 #[cfg(feature = "web_socket")]
 pub use monit::*;
