@@ -3,14 +3,12 @@ mod common;
 mod cron;
 mod hist;
 mod list;
+mod login;
 mod pull;
 mod push;
 
 #[cfg(feature = "web_socket")]
 mod exec;
-
-#[cfg(feature = "web_socket")]
-mod login;
 
 #[cfg(feature = "web_socket")]
 mod monit;
