@@ -6,7 +6,7 @@ use crate::{
             Pipelines, RunPipeline,
         },
         login::Login,
-        not_found::NotFound,
+        not_found::NotFound, validate::Validate,
     },
 };
 use leptos::{html::Dialog, *};
@@ -41,6 +41,7 @@ pub fn App() -> impl IntoView {
                             <Route path="/monit" view=Monit/>
                         </Route>
                         <Route path="/login" view=Login/>
+                        <Route path="/validate" view=Validate />
                         <Route path="/*any" view=NotFound/>
                     </Routes>
                 </div>

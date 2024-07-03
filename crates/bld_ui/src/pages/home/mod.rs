@@ -7,17 +7,16 @@ mod pipelines;
 pub use cron::*;
 pub use dashboard::*;
 pub use history::*;
-use leptos_dom::logging;
 use leptos_use::{storage::use_local_storage, utils::FromToStringCodec};
 pub use monit::*;
 pub use pipelines::*;
 
 use crate::{
     api,
-    components::sidebar::{Sidebar, SidebarItem},
+    components::{button::Button, sidebar::{Sidebar, SidebarBottom, SidebarItem, SidebarTop}}
 };
-use leptos::*;
-use leptos_router::Outlet;
+use leptos::{leptos_dom::logging, *};
+use leptos_router::*;
 
 #[component]
 pub fn Home() -> impl IntoView {
@@ -46,14 +45,28 @@ pub fn Home() -> impl IntoView {
             <div class="size-full flex">
                 <div class="grow-0 flex self-stretch">
                     <Sidebar>
-                        <SidebarItem icon="iconoir-presentation" text="Dashboard" url="/"/>
-                        <SidebarItem icon="iconoir-book" text="History" url="/history"/>
-                        <SidebarItem icon="iconoir-wrench" text="Pipelines" url="/pipelines"/>
-                        <SidebarItem
-                            icon="iconoir-clock-rotate-right"
-                            text="Cron jobs"
-                            url="/cron"
-                        />
+                        <SidebarTop/>
+                        <div class="grow flex flex-col divide-y divide-slate-600">
+                            <SidebarItem icon="iconoir-presentation" text="Dashboard" url="/"/>
+                            <SidebarItem icon="iconoir-book" text="History" url="/history"/>
+                            <SidebarItem icon="iconoir-wrench" text="Pipelines" url="/pipelines"/>
+                            <SidebarItem
+                                icon="iconoir-clock-rotate-right"
+                                text="Cron jobs"
+                                url="/cron"
+                            />
+                        </div>
+                        <SidebarBottom>
+                            <Button on:click=move |_| {
+                                if let Err(e) = api::remove_auth_tokens() {
+                                    logging::console_error(&e.to_string());
+                                }
+                                let nav = use_navigate();
+                                nav("/login", NavigateOptions::default());
+                            }>
+                                "Logout"
+                            </Button>
+                        </SidebarBottom>
                     </Sidebar>
                 </div>
                 <div class="grow overflow-auto p-4">

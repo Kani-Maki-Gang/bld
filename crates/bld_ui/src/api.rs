@@ -1,21 +1,19 @@
 use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::{
-    AddJobRequest, CronJobResponse, HistQueryParams, HistoryEntry, JobFiltersParams, ListResponse,
-    PipelineInfoQueryParams, PipelinePathRequest, PipelineQueryParams, UpdateJobRequest,
+    AddJobRequest, AuthTokens, CronJobResponse, HistQueryParams, HistoryEntry, JobFiltersParams,
+    ListResponse, PipelineInfoQueryParams, PipelinePathRequest, PipelineQueryParams,
+    UpdateJobRequest,
 };
 use bld_runner::VersionedPipeline;
 use leptos::leptos_dom::logging;
 use leptos_router::{use_navigate, NavigateOptions};
 use reqwest::{Client, RequestBuilder, Response, StatusCode};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{collections::HashMap, fmt::Display};
 use web_sys::window;
 
-#[derive(Serialize, Deserialize)]
-struct AuthInfo {
-    access_token: String,
-    refresh_token: String,
-}
+const LOCAL_STORAGE_AUTH_AVAILABLE_KEY: &str = "auth_available";
+const LOCAL_STORAGE_AUTH_TOKENS_KEY: &str = "auth_tokens";
 
 #[derive(Serialize)]
 pub enum RunParams {
@@ -58,11 +56,29 @@ fn get_auth_available() -> Result<bool> {
         .ok_or_else(|| anyhow!("local storage not found"))?;
 
     let auth_available = local_storage
-        .get("auth_available")
+        .get(LOCAL_STORAGE_AUTH_AVAILABLE_KEY)
         .map_err(|_| anyhow!("unable to get auth_available value"))?
         .ok_or_else(|| anyhow!("auth_available value not found"))?;
 
     Ok(serde_json::from_str::<bool>(&auth_available)?)
+}
+
+fn set_auth_tokens(info: AuthTokens) -> Result<()> {
+    let window = window().ok_or_else(|| anyhow!("window not found"))?;
+
+    let local_storage = window
+        .local_storage()
+        .map_err(|_| anyhow!("unable to find local storage"))?
+        .ok_or_else(|| anyhow!("local storage not found"))?;
+
+    local_storage
+        .set_item(
+            LOCAL_STORAGE_AUTH_TOKENS_KEY,
+            &serde_json::to_string(&info)?,
+        )
+        .map_err(|_| anyhow!("unable to set auth tokens"))?;
+
+    Ok(())
 }
 
 fn get_access_token() -> Result<String> {
@@ -74,13 +90,28 @@ fn get_access_token() -> Result<String> {
         .ok_or_else(|| anyhow!("local storage not found"))?;
 
     let auth = local_storage
-        .get("auth")
-        .map_err(|_| anyhow!("unable to get auth value"))?
+        .get(LOCAL_STORAGE_AUTH_TOKENS_KEY)
+        .map_err(|_| anyhow!("unable to get auth tokens"))?
         .ok_or_else(|| anyhow!("auth value not found"))?;
 
-    let info = serde_json::from_str::<AuthInfo>(&auth)?;
+    let info = serde_json::from_str::<AuthTokens>(&auth)?;
 
     Ok(info.access_token)
+}
+
+pub fn remove_auth_tokens() -> Result<()> {
+    let window = window().ok_or_else(|| anyhow!("window not found"))?;
+
+    let local_storage = window
+        .local_storage()
+        .map_err(|_| anyhow!("unable to find local storage"))?
+        .ok_or_else(|| anyhow!("local storage not found"))?;
+
+    local_storage
+        .remove_item(LOCAL_STORAGE_AUTH_TOKENS_KEY)
+        .map_err(|_| anyhow!("unable to remove auth tokens"))?;
+
+    Ok(())
 }
 
 fn get_authorization_header() -> Result<Option<(String, String)>> {
@@ -115,6 +146,19 @@ pub async fn auth_available() -> Result<Response> {
     let url = build_url("/v1/auth/available")?;
     let res = Client::builder().build()?.get(&url).send().await?;
     Ok(res)
+}
+
+pub async fn auth_validate(query: String) -> Result<()> {
+    let url = build_url(format!("/v1/auth/web-client/validate{query}"))?;
+    let request = Client::builder().build()?.get(&url);
+    let response = request.send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        set_auth_tokens(response.json::<AuthTokens>().await?)?;
+        Ok(())
+    }
 }
 
 pub async fn stop(id: String) -> Result<()> {
