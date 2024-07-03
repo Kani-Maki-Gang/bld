@@ -7,7 +7,7 @@ use bld_models::dtos::{
 use bld_runner::VersionedPipeline;
 use leptos::leptos_dom::logging;
 use leptos_router::{use_navigate, NavigateOptions};
-use reqwest::{Client, RequestBuilder, Response, StatusCode};
+use reqwest::{Client, RequestBuilder, StatusCode};
 use serde::Serialize;
 use std::{collections::HashMap, fmt::Display};
 use web_sys::window;
@@ -142,10 +142,25 @@ fn add_authorization_header(req_builder: RequestBuilder) -> Result<RequestBuilde
     }
 }
 
-pub async fn auth_available() -> Result<Response> {
+pub async fn check_auth_available() -> Result<()> {
     let url = build_url("/v1/auth/available")?;
-    let res = Client::builder().build()?.get(&url).send().await?;
-    Ok(res)
+    let response = Client::builder().build()?.get(&url).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        let window = window().ok_or_else(|| anyhow!("window not found"))?;
+
+        let local_storage = window
+            .local_storage()
+            .map_err(|_| anyhow!("unable to find local storage"))?
+            .ok_or_else(|| anyhow!("local storage not found"))?;
+
+        local_storage
+            .set_item(LOCAL_STORAGE_AUTH_AVAILABLE_KEY, "true")
+            .map_err(|_| anyhow!("unable to set auth availability"))?;
+        Ok(())
+    }
 }
 
 pub async fn auth_validate(query: String) -> Result<()> {

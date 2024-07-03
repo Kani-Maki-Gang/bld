@@ -7,13 +7,15 @@ mod pipelines;
 pub use cron::*;
 pub use dashboard::*;
 pub use history::*;
-use leptos_use::{storage::use_local_storage, utils::FromToStringCodec};
 pub use monit::*;
 pub use pipelines::*;
 
 use crate::{
     api,
-    components::{button::Button, sidebar::{Sidebar, SidebarBottom, SidebarItem, SidebarTop}}
+    components::{
+        button::Button,
+        sidebar::{Sidebar, SidebarBottom, SidebarItem, SidebarTop},
+    },
 };
 use leptos::{leptos_dom::logging, *};
 use leptos_router::*;
@@ -22,20 +24,7 @@ use leptos_router::*;
 pub fn Home() -> impl IntoView {
     let auth_resource = create_resource(
         || (),
-        |_| async move {
-            let res = api::auth_available().await;
-            let (_, write, _) = use_local_storage::<bool, FromToStringCodec>("auth_available");
-            match res {
-                Ok(_) => {
-                    write.set(true);
-                }
-                Err(e) => {
-                    let error = format!("Error checking auth availability: {e}");
-                    logging::console_log(&error);
-                    write.set(false);
-                }
-            }
-        },
+        |_| async move { api::check_auth_available().await.map_err(|e| e.to_string()) },
     );
     view! {
         <Show
