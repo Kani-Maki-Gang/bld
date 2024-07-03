@@ -117,7 +117,7 @@ pub fn remove_auth_tokens() -> Result<()> {
 fn get_authorization_header() -> Result<Option<(String, String)>> {
     let auth_available = get_auth_available()?;
     if !auth_available {
-        bail!("auth not available")
+        return Ok(None);
     }
 
     let access_token = match get_access_token() {
@@ -147,6 +147,16 @@ pub async fn check_auth_available() -> Result<()> {
     let response = Client::builder().build()?.get(&url).send().await?;
     let status = response.status();
     if !status.is_success() {
+        let window = window().ok_or_else(|| anyhow!("window not found"))?;
+
+        let local_storage = window
+            .local_storage()
+            .map_err(|_| anyhow!("unable to find local storage"))?
+            .ok_or_else(|| anyhow!("local storage not found"))?;
+
+        local_storage
+            .set_item(LOCAL_STORAGE_AUTH_AVAILABLE_KEY, "false")
+            .map_err(|_| anyhow!("unable to set auth availability"))?;
         handle_error(status, response.text().await?)
     } else {
         let window = window().ok_or_else(|| anyhow!("window not found"))?;
