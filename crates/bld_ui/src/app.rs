@@ -42,7 +42,7 @@ pub fn App() -> impl IntoView {
                             <Route path="/monit" view=Monit/>
                         </Route>
                         <Route path="/login" view=Login/>
-                        <Route path="/validate" view=Validate />
+                        <Route path="/validate" view=Validate/>
                         <Route path="/*any" view=NotFound/>
                     </Routes>
                 </div>

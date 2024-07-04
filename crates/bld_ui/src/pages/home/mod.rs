@@ -52,9 +52,7 @@ pub fn Home() -> impl IntoView {
                                 }
                                 let nav = use_navigate();
                                 nav("/login", NavigateOptions::default());
-                            }>
-                                "Logout"
-                            </Button>
+                            }>"Logout"</Button>
                         </SidebarBottom>
                     </Sidebar>
                 </div>
