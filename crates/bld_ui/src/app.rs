@@ -6,7 +6,8 @@ use crate::{
             Pipelines, RunPipeline,
         },
         login::Login,
-        not_found::NotFound, validate::Validate,
+        not_found::NotFound,
+        validate::Validate,
     },
 };
 use leptos::{html::Dialog, *};
