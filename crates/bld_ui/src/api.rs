@@ -10,7 +10,7 @@ use leptos_router::{use_navigate, NavigateOptions};
 use reqwest::{Client, RequestBuilder, StatusCode};
 use serde::Serialize;
 use std::{collections::HashMap, fmt::Display};
-use web_sys::window;
+use web_sys::{window, Storage};
 
 const LOCAL_STORAGE_AUTH_AVAILABLE_KEY: &str = "auth_available";
 const LOCAL_STORAGE_AUTH_TOKENS_KEY: &str = "auth_tokens";
@@ -24,6 +24,12 @@ pub enum RunParams {
     },
 }
 
+#[cfg(debug_assertions)]
+pub fn build_url<T: Into<String> + Display>(route: T) -> Result<String> {
+    Ok(format!("http://localhost:6080{route}"))
+}
+
+#[cfg(not(debug_assertions))]
 pub fn build_url<T: Into<String> + Display>(route: T) -> Result<String> {
     let window = window().ok_or_else(|| anyhow!("window not found"))?;
     let origin = window
@@ -31,6 +37,15 @@ pub fn build_url<T: Into<String> + Display>(route: T) -> Result<String> {
         .origin()
         .map_err(|_| anyhow!("unable to find window origin"))?;
     Ok(format!("{origin}{route}"))
+}
+
+fn get_local_storage() -> Result<Storage> {
+    let window = window().ok_or_else(|| anyhow!("window not found"))?;
+
+    window
+        .local_storage()
+        .map_err(|_| anyhow!("unable to find local storage"))?
+        .ok_or_else(|| anyhow!("local storage not found"))
 }
 
 fn navigate_to_login() {
@@ -48,13 +63,7 @@ fn handle_error<T>(status: StatusCode, body: String) -> Result<T> {
 }
 
 fn get_auth_available() -> Result<bool> {
-    let window = window().ok_or_else(|| anyhow!("window not found"))?;
-
-    let local_storage = window
-        .local_storage()
-        .map_err(|_| anyhow!("unable to find local storage"))?
-        .ok_or_else(|| anyhow!("local storage not found"))?;
-
+    let local_storage = get_local_storage()?;
     let auth_available = local_storage
         .get(LOCAL_STORAGE_AUTH_AVAILABLE_KEY)
         .map_err(|_| anyhow!("unable to get auth_available value"))?
@@ -64,31 +73,17 @@ fn get_auth_available() -> Result<bool> {
 }
 
 fn set_auth_tokens(info: AuthTokens) -> Result<()> {
-    let window = window().ok_or_else(|| anyhow!("window not found"))?;
-
-    let local_storage = window
-        .local_storage()
-        .map_err(|_| anyhow!("unable to find local storage"))?
-        .ok_or_else(|| anyhow!("local storage not found"))?;
-
+    let local_storage = get_local_storage()?;
     local_storage
         .set_item(
             LOCAL_STORAGE_AUTH_TOKENS_KEY,
             &serde_json::to_string(&info)?,
         )
-        .map_err(|_| anyhow!("unable to set auth tokens"))?;
-
-    Ok(())
+        .map_err(|_| anyhow!("unable to set auth tokens"))
 }
 
 fn get_access_token() -> Result<String> {
-    let window = window().ok_or_else(|| anyhow!("window not found"))?;
-
-    let local_storage = window
-        .local_storage()
-        .map_err(|_| anyhow!("unable to find local storage"))?
-        .ok_or_else(|| anyhow!("local storage not found"))?;
-
+    let local_storage = get_local_storage()?;
     let auth = local_storage
         .get(LOCAL_STORAGE_AUTH_TOKENS_KEY)
         .map_err(|_| anyhow!("unable to get auth tokens"))?
@@ -100,18 +95,10 @@ fn get_access_token() -> Result<String> {
 }
 
 pub fn remove_auth_tokens() -> Result<()> {
-    let window = window().ok_or_else(|| anyhow!("window not found"))?;
-
-    let local_storage = window
-        .local_storage()
-        .map_err(|_| anyhow!("unable to find local storage"))?
-        .ok_or_else(|| anyhow!("local storage not found"))?;
-
+    let local_storage = get_local_storage()?;
     local_storage
         .remove_item(LOCAL_STORAGE_AUTH_TOKENS_KEY)
-        .map_err(|_| anyhow!("unable to remove auth tokens"))?;
-
-    Ok(())
+        .map_err(|_| anyhow!("unable to remove auth tokens"))
 }
 
 fn get_authorization_header() -> Result<Option<(String, String)>> {
@@ -146,31 +133,28 @@ pub async fn check_auth_available() -> Result<()> {
     let url = build_url("/v1/auth/available")?;
     let response = Client::builder().build()?.get(&url).send().await?;
     let status = response.status();
+    let local_storage = get_local_storage()?;
+    local_storage
+        .set_item(
+            LOCAL_STORAGE_AUTH_AVAILABLE_KEY,
+            &status.is_success().to_string(),
+        )
+        .map_err(|_| anyhow!("unable to set auth availability"))?;
     if !status.is_success() {
-        let window = window().ok_or_else(|| anyhow!("window not found"))?;
-
-        let local_storage = window
-            .local_storage()
-            .map_err(|_| anyhow!("unable to find local storage"))?
-            .ok_or_else(|| anyhow!("local storage not found"))?;
-
-        local_storage
-            .set_item(LOCAL_STORAGE_AUTH_AVAILABLE_KEY, "false")
-            .map_err(|_| anyhow!("unable to set auth availability"))?;
         handle_error(status, response.text().await?)
     } else {
-        let window = window().ok_or_else(|| anyhow!("window not found"))?;
-
-        let local_storage = window
-            .local_storage()
-            .map_err(|_| anyhow!("unable to find local storage"))?
-            .ok_or_else(|| anyhow!("local storage not found"))?;
-
-        local_storage
-            .set_item(LOCAL_STORAGE_AUTH_AVAILABLE_KEY, "true")
-            .map_err(|_| anyhow!("unable to set auth availability"))?;
         Ok(())
     }
+}
+
+pub fn auth_start() -> Result<()> {
+    let window = window().ok_or_else(|| anyhow!("window not found"))?;
+    let url = build_url("/v1/auth/web-client/start")?;
+    window
+        .location()
+        .set_href(&url)
+        .map_err(|_| anyhow!("unable to set window location"))?;
+    Ok(())
 }
 
 pub async fn auth_validate(query: String) -> Result<()> {

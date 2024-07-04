@@ -1,4 +1,6 @@
+use crate::{api, components::button::Button};
 use leptos::*;
+use leptos_dom::logging;
 
 #[component]
 pub fn Login() -> impl IntoView {
@@ -13,12 +15,17 @@ pub fn Login() -> impl IntoView {
                     <div class="grow mt-4 text-lg text-gray-500">
                         "Use the below button to redirect to your OIDC provider"
                     </div>
-                    <a
-                        class="h-[40px] w-full text-center rounded-lg p-2 focus:outline-none bg-indigo-600 hover:bg-indigo-700 focus:bg-indigo-700"
-                        href="http://localhost:6080/v1/auth/web-client/start"
-                    >
-                        "Login"
-                    </a>
+                    // <a
+                    // class="h-[40px] w-full text-center rounded-lg p-2 focus:outline-none bg-indigo-600 hover:bg-indigo-700 focus:bg-indigo-700"
+                    // href="/v1/auth/web-client/start"
+                    // >
+                    // "Login"
+                    // </a>
+                    <Button on:click=move |_| {
+                        if let Err(e) = api::auth_start() {
+                            logging::console_error(&e.to_string());
+                        }
+                    }>"Login"</Button>
                 </div>
             </div>
         </div>
