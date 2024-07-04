@@ -156,7 +156,9 @@ impl BldConfig {
 
     pub async fn openid_core_client(&self) -> Result<Option<CoreClient>> {
         if let Some(auth) = &self.local.server.auth {
-            auth.core_client().await.map(Some)
+            auth.core_client(&self.local.server.base_url_http())
+                .await
+                .map(Some)
         } else {
             Ok(None)
         }
@@ -164,7 +166,9 @@ impl BldConfig {
 
     pub async fn openid_web_core_client(&self) -> Result<Option<CoreClient>> {
         if let Some(auth) = &self.local.server.auth {
-            auth.web_core_client().await.map(Some)
+            auth.web_core_client(&self.local.server.base_url_http())
+                .await
+                .map(Some)
         } else {
             Ok(None)
         }

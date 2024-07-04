@@ -38,6 +38,38 @@ impl BldLocalServerConfig {
     fn default_logs() -> String {
         definitions::LOCAL_LOGS.to_owned()
     }
+
+    /// Checks the value of the tls field and returns the appropriate form
+    /// of the http protocol to be used, either http or https.
+    fn http_protocol(&self) -> String {
+        if self.tls.is_some() {
+            "https".to_string()
+        } else {
+            "http".to_string()
+        }
+    }
+
+    // Returns the base url for the server using the http or https protocol
+    // depending on the server's tls options.
+    pub fn base_url_http(&self) -> String {
+        format!("{}://{}:{}", self.http_protocol(), self.host, self.port)
+    }
+
+    /// Checks the value of the tls field and returns the appropriate form
+    /// of th ws protocol to be used, either ws or wss.
+    fn ws_protocol(&self) -> String {
+        if self.tls.is_some() {
+            "wss".to_string()
+        } else {
+            "ws".to_string()
+        }
+    }
+
+    // Returns the base url for the server using the ws or wss protocol
+    // depending on the server's tls options.
+    pub fn base_url_ws(&self) -> String {
+        format!("{}://{}:{}", self.ws_protocol(), self.host, self.port)
+    }
 }
 
 impl Default for BldLocalServerConfig {

@@ -44,7 +44,6 @@ impl BldLocalConfig {
         if let Some(Auth::OpenId(openid)) = &self.server.auth {
             debug!("auth > method: openid");
             debug!("auth > issuer_url: {:?}", openid.issuer_url);
-            debug!("auth > redirect_url: {:?}", openid.redirect_url);
             debug!("auth > client_id: {:?}", openid.client_id);
             debug!("auth > client_secret: ********");
 

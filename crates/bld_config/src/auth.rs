@@ -28,8 +28,6 @@ impl Display for UserInfoProperty {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenIdInfo {
     pub issuer_url: IssuerUrl,
-    pub redirect_url: RedirectUrl,
-    pub redirect_url_for_web: RedirectUrl,
     pub client_id: ClientId,
     pub client_secret: ClientSecret,
     pub scopes: Vec<Scope>,
@@ -52,22 +50,20 @@ impl OpenIdInfo {
         Ok(client)
     }
 
-    pub async fn core_client(&self) -> Result<CoreClient> {
-        return self.build_core_client(self.redirect_url.clone()).await;
+    pub async fn core_client(&self, origin: &str) -> Result<CoreClient> {
+        let redirect_url = RedirectUrl::new(format!("{origin}/v1/auth/redirect"))?;
+        self.build_core_client(redirect_url).await
     }
 
-    pub async fn web_core_client(&self) -> Result<CoreClient> {
-        return self
-            .build_core_client(self.redirect_url_for_web.clone())
-            .await;
+    pub async fn web_core_client(&self, origin: &str) -> Result<CoreClient> {
+        let redirect_url = RedirectUrl::new(format!("{origin}/validate"))?;
+        self.build_core_client(redirect_url).await
     }
 }
 
 pub struct OAuth2Info {
     pub auth_url: AuthUrl,
     pub token_url: TokenUrl,
-    pub redirect_url: RedirectUrl,
-    pub redirect_url_for_web: Option<RedirectUrl>,
     pub client_id: ClientId,
     pub client_secret: ClientSecret,
     pub scopes: Vec<Scope>,
@@ -81,13 +77,13 @@ pub enum Auth {
 }
 
 impl Auth {
-    pub async fn core_client(&self) -> Result<CoreClient> {
+    pub async fn core_client(&self, origin: &str) -> Result<CoreClient> {
         let Auth::OpenId(open_id) = self;
-        open_id.core_client().await
+        open_id.core_client(origin).await
     }
 
-    pub async fn web_core_client(&self) -> Result<CoreClient> {
+    pub async fn web_core_client(&self, origin: &str) -> Result<CoreClient> {
         let Auth::OpenId(open_id) = self;
-        open_id.web_core_client().await
+        open_id.web_core_client(origin).await
     }
 }
