@@ -13,7 +13,7 @@ use actix_web::{
 };
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::{auth::Logins, fs::FileSystem};
+use bld_core::fs::FileSystem;
 use bld_models::new_connection_pool;
 use bld_utils::{
     sync::IntoData,
@@ -32,7 +32,6 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
     let config_clone = config.clone();
     let conn = new_connection_pool(Arc::clone(&config)).await?;
     let supervisor_sender = SupervisorMessageSender::new(Arc::clone(&config)).into_data();
-    let logins = Logins::default().into_data();
     let pool = conn.into_data();
     let fs = FileSystem::server(Arc::clone(&config), Arc::clone(&pool)).into_data();
     let cron = CronScheduler::new(
@@ -55,7 +54,6 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .app_data(client.clone())
             .app_data(web_client.clone())
             .app_data(supervisor_sender.clone())
-            .app_data(logins.clone())
             .app_data(pool.clone())
             .app_data(fs.clone())
             .app_data(cron.clone())
