@@ -3,14 +3,12 @@ mod common;
 mod cron;
 mod hist;
 mod list;
+mod login;
 mod pull;
 mod push;
 
 #[cfg(feature = "web_socket")]
 mod exec;
-
-#[cfg(feature = "web_socket")]
-mod login;
 
 #[cfg(feature = "web_socket")]
 mod monit;
@@ -23,14 +21,12 @@ pub use common::*;
 pub use cron::*;
 pub use hist::*;
 pub use list::*;
+pub use login::*;
 pub use pull::*;
 pub use push::*;
 
 #[cfg(feature = "web_socket")]
 pub use exec::*;
-
-#[cfg(feature = "web_socket")]
-pub use login::*;
 
 #[cfg(feature = "web_socket")]
 pub use monit::*;

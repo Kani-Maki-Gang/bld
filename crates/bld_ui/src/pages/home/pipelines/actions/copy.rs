@@ -1,12 +1,14 @@
 use crate::{
-    api, components::{
+    api,
+    components::{
         button::{Button, IconButton},
         card::Card,
         colors::Colors,
         input::Input,
-    }, context::{AppDialog, AppDialogContent, RefreshPipelines}, error::SmallError
+    },
+    context::{AppDialog, AppDialogContent, RefreshPipelines},
+    error::SmallError,
 };
-use anyhow::{bail, Result};
 use bld_models::dtos::PipelinePathRequest;
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
@@ -19,20 +21,6 @@ type CopyActionArgs = (
     bool,
     NodeRef<Dialog>,
 );
-
-async fn copy(pipeline: String, target: String) -> Result<()> {
-    let params = PipelinePathRequest { pipeline, target };
-    let res = api::copy(params).await?;
-    let status = res.status();
-    if status.is_success() {
-        Ok(())
-    } else {
-        let body = res.text().await?;
-        let error = format!("Status {status} {body}");
-        logging::console_error(&error);
-        bail!(error)
-    }
-}
 
 #[component]
 fn PipelineCopyButtonDialog(
@@ -48,7 +36,8 @@ fn PipelineCopyButtonDialog(
     let copy_action = create_action(|args: &CopyActionArgs| {
         let (pipeline, target, error, refresh, redirect, dialog) = args.clone();
         async move {
-            match copy(pipeline, target).await {
+            let params = PipelinePathRequest { pipeline, target };
+            match api::copy(params).await {
                 Ok(_) if redirect => {
                     let nav = use_navigate();
                     nav("/pipelines", NavigateOptions::default());

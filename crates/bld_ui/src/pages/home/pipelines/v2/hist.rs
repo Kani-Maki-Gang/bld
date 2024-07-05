@@ -39,6 +39,7 @@ pub fn PipelineHistV2(#[prop(into)] name: Signal<Option<String>>) -> impl IntoVi
                             refresh.set()
                         }
                     />
+
                 </div>
                 <HistoryTable params=params/>
             </div>

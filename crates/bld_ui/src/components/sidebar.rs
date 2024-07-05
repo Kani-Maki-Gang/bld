@@ -1,4 +1,3 @@
-use crate::components::button::Button;
 use leptos::*;
 use leptos_router::A;
 
@@ -28,7 +27,7 @@ pub fn SidebarItem(
 }
 
 #[component]
-pub fn SidebarBottom() -> impl IntoView {
+pub fn SidebarBottom(children: Children) -> impl IntoView {
     view! {
         <div class="flex-none p-8 text-center">
             <div class="mb-4">
@@ -48,7 +47,7 @@ pub fn SidebarBottom() -> impl IntoView {
                     "book"
                 </a>
             </div>
-            <Button>"Logout"</Button>
+            {children()}
         </div>
     }
 }
@@ -57,9 +56,7 @@ pub fn SidebarBottom() -> impl IntoView {
 pub fn Sidebar(children: Children) -> impl IntoView {
     view! {
         <div class="bg-slate-700 w-64 shadow-md flex flex-col divide-y divide-slate-600">
-            <SidebarTop/>
-            <div class="grow flex flex-col divide-y divide-slate-600">{children()}</div>
-            <SidebarBottom/>
+            {children()}
         </div>
     }
 }

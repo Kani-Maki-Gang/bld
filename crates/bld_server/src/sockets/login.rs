@@ -9,18 +9,18 @@ use actix_web::{
     Error, HttpRequest, HttpResponse,
 };
 use actix_web_actors::ws::{start, Message, ProtocolError, WebsocketContext};
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use bld_config::{Auth, BldConfig};
-use bld_core::auth::Logins;
-use bld_models::dtos::{LoginClientMessage, LoginServerMessage};
-use bld_utils::fs::AuthTokens;
+use bld_models::{
+    dtos::{AuthTokens, LoginClientMessage, LoginServerMessage},
+    login_attempts::{self, InsertLoginAttempt, LoginAttemptStatus},
+};
+use chrono::Utc;
 use openidconnect::{
     core::{CoreAuthenticationFlow, CoreClient},
-    reqwest::async_http_client,
-    AccessTokenHash, AuthorizationCode, CsrfToken, Nonce, OAuth2TokenResponse, PkceCodeChallenge,
-    PkceCodeVerifier, TokenResponse,
+    CsrfToken, Nonce, PkceCodeChallenge,
 };
-use tokio::sync::oneshot;
+use sea_orm::DatabaseConnection;
 use tracing::error;
 
 pub struct LoginSocket {
@@ -28,7 +28,7 @@ pub struct LoginSocket {
     nonce: Nonce,
     config: Data<BldConfig>,
     client: Data<Option<CoreClient>>,
-    logins: Data<Logins>,
+    conn: Data<DatabaseConnection>,
 }
 
 impl LoginSocket {
@@ -37,14 +37,14 @@ impl LoginSocket {
         nonce: Nonce,
         config: Data<BldConfig>,
         client: Data<Option<CoreClient>>,
-        logins: Data<Logins>,
+        conn: Data<DatabaseConnection>,
     ) -> Self {
         Self {
             csrf_token,
             nonce,
             config,
             client,
-            logins,
+            conn,
         }
     }
 
@@ -79,30 +79,25 @@ impl LoginSocket {
 
         let (url, _, _) = auth_url.url();
 
-        let (code_tx, code_rx) = oneshot::channel();
-
         let csrf_token = self.csrf_token.clone();
-        let client = self.client.clone();
         let nonce = self.nonce.clone();
-        let logins = self.logins.clone();
+        let conn = self.conn.clone();
 
         let login_fut = async move {
-            logins.add(csrf_token.secret().to_owned(), code_tx).await?;
-            let code_res = openid_authorize_code(code_rx, client, verifier, nonce).await;
-            let message = match code_res {
-                Ok(tokens) => serde_json::to_string(&LoginServerMessage::Completed(tokens))?,
-                Err(e) => serde_json::to_string(&LoginServerMessage::Failed(e.to_string()))?,
+            let model = InsertLoginAttempt {
+                csrf_token: csrf_token.secret().to_owned(),
+                nonce: nonce.secret().to_owned(),
+                pkce_verifier: verifier.secret().to_owned(),
             };
-            Ok(message)
+            login_attempts::insert(&conn, model).await
         }
         .into_actor(self)
-        .then(|res: Result<String>, _, ctx| {
-            match res {
-                Ok(msg) => {
-                    ctx.text(msg);
-                }
-                Err(e) => {
-                    error!("{e}");
+        .then(|res: Result<()>, _, ctx| {
+            if let Err(e) = res {
+                let message = serde_json::to_string(&LoginServerMessage::Failed(e.to_string()));
+                if let Ok(message) = message {
+                    ctx.text(message);
+                } else {
                     ctx.stop();
                 }
             }
@@ -130,33 +125,95 @@ impl LoginSocket {
 
         Ok(())
     }
+
+    fn check_status(act: &Self, ctx: &mut <Self as Actor>::Context) {
+        let csrf_token = act.csrf_token.secret().to_owned();
+        let conn = act.conn.clone();
+        let status_fut =
+            async move { login_attempts::select_by_csrf_token(&conn, &csrf_token).await }
+                .into_actor(act)
+                .then(|res, _, ctx| {
+                    let Ok(login_attempt) = res else {
+                        let message =
+                            LoginServerMessage::Failed("Login operation failed".to_string());
+                        if let Ok(text) = serde_json::to_string(&message) {
+                            ctx.text(text);
+                        }
+                        return ready(());
+                    };
+
+                    let status: Result<LoginAttemptStatus> = login_attempt.status.try_into();
+
+                    if let Ok(LoginAttemptStatus::Completed) = status {
+                        let Some(access_token) = login_attempt.access_token else {
+                            let message =
+                                LoginServerMessage::Failed("Access token not found".to_string());
+                            if let Ok(text) = serde_json::to_string(&message) {
+                                ctx.text(text);
+                            }
+                            return ready(());
+                        };
+
+                        let auth_tokens =
+                            AuthTokens::new(access_token, login_attempt.refresh_token);
+                        let message = LoginServerMessage::Completed(auth_tokens);
+                        if let Ok(text) = serde_json::to_string(&message) {
+                            ctx.text(text);
+                        }
+
+                        return ready(());
+                    }
+
+                    if let Ok(LoginAttemptStatus::Failed) = status {
+                        let message =
+                            LoginServerMessage::Failed("Login operation failed".to_string());
+                        if let Ok(text) = serde_json::to_string(&message) {
+                            ctx.text(text);
+                        }
+                        return ready(());
+                    }
+
+                    if Utc::now().naive_utc() > login_attempt.date_expires {
+                        let message = LoginServerMessage::Failed("Operation timeout".to_string());
+                        if let Ok(text) = serde_json::to_string(&message) {
+                            ctx.text(text);
+                        }
+                        ctx.stop();
+                        return ready(());
+                    }
+
+                    return ready(());
+                });
+        ctx.spawn(status_fut);
+    }
+
+    fn cleanup(&mut self, ctx: &mut <LoginSocket as Actor>::Context) {
+        let token = self.csrf_token.secret().to_owned();
+        let conn = self.conn.clone();
+        let logins_remove_fut =
+            async move { login_attempts::delete_by_csrf_token(&conn, &token).await }
+                .into_actor(self)
+                .then(|res, _, _| {
+                    if let Err(e) = res {
+                        error!("{e}");
+                    }
+                    ready(())
+                });
+        ctx.wait(logins_remove_fut);
+    }
 }
 
 impl Actor for LoginSocket {
     type Context = WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_later(Duration::from_secs(600), |_, ctx| {
-            let message = LoginServerMessage::Failed("Operation timeout".to_string());
-            if let Ok(text) = serde_json::to_string(&message) {
-                ctx.text(text)
-            }
-            ctx.stop();
+        ctx.run_interval(Duration::from_secs(1), |act, ctx| {
+            LoginSocket::check_status(act, ctx);
         });
     }
 
     fn stopped(&mut self, ctx: &mut Self::Context) {
-        let token = self.csrf_token.secret().to_owned();
-        let logins = self.logins.clone();
-        let logins_remove_fut = async move { logins.remove(token).await }
-            .into_actor(self)
-            .then(|res, _, _| {
-                if let Err(e) = res {
-                    error!("{e}");
-                }
-                ready(())
-            });
-        ctx.wait(logins_remove_fut);
+        self.cleanup(ctx);
     }
 }
 
@@ -184,64 +241,15 @@ impl StreamHandler<Result<Message, ProtocolError>> for LoginSocket {
     }
 }
 
-async fn openid_authorize_code(
-    code_rx: oneshot::Receiver<String>,
-    client: Data<Option<CoreClient>>,
-    pkce_verifier: PkceCodeVerifier,
-    nonce: Nonce,
-) -> Result<AuthTokens> {
-    let Ok(code) = code_rx.await else {
-        bail!("unable to verify authentication code");
-    };
-
-    let Some(client) = client.get_ref() else {
-        bail!("openid core client hasn't been registered for the server");
-    };
-
-    let authorization_code = AuthorizationCode::new(code);
-
-    let token_response = client
-        .exchange_code(authorization_code)
-        .set_pkce_verifier(pkce_verifier)
-        .request_async(async_http_client)
-        .await;
-
-    let Ok(token_response) = token_response else {
-        bail!("unable to exhange authorization code");
-    };
-
-    let id_token = token_response
-        .id_token()
-        .ok_or_else(|| anyhow!("server didn't return an ID token"))?;
-
-    let claims = id_token.claims(&client.id_token_verifier(), &nonce)?;
-
-    if let Some(access_token_hash) = claims.access_token_hash() {
-        let actual_access_token_hash =
-            AccessTokenHash::from_token(token_response.access_token(), &id_token.signing_alg()?)?;
-        if actual_access_token_hash != *access_token_hash {
-            bail!("invalid access token");
-        }
-    }
-
-    let access_token = token_response.access_token().secret().to_owned();
-
-    let refresh_token = token_response
-        .refresh_token()
-        .map(|x| x.secret().to_owned());
-
-    Ok(AuthTokens::new(access_token, refresh_token))
-}
-
 pub async fn ws(
     req: HttpRequest,
     stream: Payload,
     config: Data<BldConfig>,
     client: Data<Option<CoreClient>>,
-    logins: Data<Logins>,
+    conn: Data<DatabaseConnection>,
 ) -> Result<HttpResponse, Error> {
     let csrf_token = CsrfToken::new_random();
     let nonce = Nonce::new_random();
-    let socket = LoginSocket::new(csrf_token, nonce, config, client, logins);
+    let socket = LoginSocket::new(csrf_token, nonce, config, client, conn);
     start(socket, &req, stream)
 }

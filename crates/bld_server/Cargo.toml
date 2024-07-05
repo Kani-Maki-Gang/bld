@@ -21,6 +21,7 @@ bld_runner = { path = "../bld_runner", features = ["all"] }
 bld_sock = { path = "../bld_sock" }
 bld_supervisor = { path = "../bld_supervisor" }
 bld_utils = { path = "../bld_utils" }
+chrono = "0.4.29"
 futures-util = "0.3.15"
 futures = "0.3.15"
 sea-orm = { version = "0.12.2", features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls"] }

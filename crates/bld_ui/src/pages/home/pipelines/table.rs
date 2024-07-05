@@ -3,24 +3,9 @@ use super::actions::{
     PipelineRunButton,
 };
 use crate::{api, components::list::List, context::RefreshPipelines, error::Error};
-use anyhow::{bail, Result};
 use bld_models::dtos::ListResponse;
-use leptos::{leptos_dom::logging, *};
+use leptos::*;
 use leptos_use::signal_debounced;
-
-async fn get_pipelines() -> Result<Vec<ListResponse>> {
-    let res = api::list().await?;
-    let status = res.status();
-    if status.is_success() {
-        let body = res.text().await?;
-        Ok(serde_json::from_str(&body)?)
-    } else {
-        let body = res.text().await?;
-        let error = format!("Status {} {body}", status);
-        logging::console_log(&error);
-        bail!(error)
-    }
-}
 
 #[component]
 pub fn PipelinesTable(#[prop(into)] filter: Signal<String>) -> impl IntoView {
@@ -30,7 +15,7 @@ pub fn PipelinesTable(#[prop(into)] filter: Signal<String>) -> impl IntoView {
     let data = create_resource(
         || (),
         |_| async move {
-            get_pipelines().await.map_err(|e| e.to_string()).map(|x| {
+            api::list().await.map_err(|e| e.to_string()).map(|x| {
                 x.into_iter()
                     .map(|x| create_rw_signal(x))
                     .collect::<Vec<RwSignal<ListResponse>>>()
@@ -39,7 +24,6 @@ pub fn PipelinesTable(#[prop(into)] filter: Signal<String>) -> impl IntoView {
     );
 
     let filtered_data = move || {
-        logging::console_log("filtering data...");
         let Some(Ok(data)) = data.get() else {
             return vec![];
         };

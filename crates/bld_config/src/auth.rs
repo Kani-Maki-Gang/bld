@@ -28,17 +28,42 @@ impl Display for UserInfoProperty {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenIdInfo {
     pub issuer_url: IssuerUrl,
-    pub redirect_url: RedirectUrl,
     pub client_id: ClientId,
     pub client_secret: ClientSecret,
     pub scopes: Vec<Scope>,
     pub user_property: UserInfoProperty,
 }
 
+impl OpenIdInfo {
+    async fn build_core_client(&self, redirect_url: RedirectUrl) -> Result<CoreClient> {
+        let provider_metadata =
+            CoreProviderMetadata::discover_async(self.issuer_url.clone(), async_http_client)
+                .await?;
+
+        let client = CoreClient::from_provider_metadata(
+            provider_metadata,
+            self.client_id.clone(),
+            Some(self.client_secret.clone()),
+        )
+        .set_redirect_uri(redirect_url);
+
+        Ok(client)
+    }
+
+    pub async fn core_client(&self, origin: &str) -> Result<CoreClient> {
+        let redirect_url = RedirectUrl::new(format!("{origin}/v1/auth/redirect"))?;
+        self.build_core_client(redirect_url).await
+    }
+
+    pub async fn web_core_client(&self, origin: &str) -> Result<CoreClient> {
+        let redirect_url = RedirectUrl::new(format!("{origin}/validate"))?;
+        self.build_core_client(redirect_url).await
+    }
+}
+
 pub struct OAuth2Info {
     pub auth_url: AuthUrl,
     pub token_url: TokenUrl,
-    pub redirect_url: RedirectUrl,
     pub client_id: ClientId,
     pub client_secret: ClientSecret,
     pub scopes: Vec<Scope>,
@@ -52,20 +77,13 @@ pub enum Auth {
 }
 
 impl Auth {
-    pub async fn core_client(&self) -> Result<CoreClient> {
-        let Self::OpenId(openid) = self;
+    pub async fn core_client(&self, origin: &str) -> Result<CoreClient> {
+        let Auth::OpenId(open_id) = self;
+        open_id.core_client(origin).await
+    }
 
-        let provider_metadata =
-            CoreProviderMetadata::discover_async(openid.issuer_url.clone(), async_http_client)
-                .await?;
-
-        let client = CoreClient::from_provider_metadata(
-            provider_metadata,
-            openid.client_id.clone(),
-            Some(openid.client_secret.clone()),
-        )
-        .set_redirect_uri(openid.redirect_url.clone());
-
-        Ok(client)
+    pub async fn web_core_client(&self, origin: &str) -> Result<CoreClient> {
+        let Auth::OpenId(open_id) = self;
+        open_id.web_core_client(origin).await
     }
 }

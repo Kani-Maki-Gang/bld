@@ -3,15 +3,18 @@ pub mod variables;
 use std::collections::HashMap;
 
 use crate::{
-    api::{self, RunParams}, components::{badge::Badge, button::Button, card::Card}, context::{AppDialog, AppDialogContent}, error::{ErrorCard, ErrorDialog}
+    api::{self, RunParams},
+    components::{badge::Badge, button::Button, card::Card},
+    context::{AppDialog, AppDialogContent},
+    error::{ErrorCard, ErrorDialog},
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 use bld_models::dtos::PipelineInfoQueryParams;
 use bld_runner::{
     pipeline::{v1, v2},
     VersionedPipeline,
 };
-use leptos::{html::Dialog, leptos_dom::logging, *};
+use leptos::{html::Dialog, *};
 use leptos_router::*;
 
 use self::variables::RunPipelineVariables;
@@ -27,17 +30,7 @@ type RequestInterRepr = (
 async fn get_pipeline(id: Option<String>) -> Result<VersionedPipeline> {
     let id = id.ok_or_else(|| anyhow!("Pipeline id not provided in query"))?;
     let params = PipelineInfoQueryParams::Id { id };
-    let res = api::print(params).await?;
-    let status = res.status();
-    if status.is_success() {
-        let body = res.text().await?;
-        Ok(serde_json::from_str(&body)?)
-    } else {
-        let body = res.text().await?;
-        let error = format!("Status {status} {body}");
-        logging::console_error(&error);
-        bail!(error)
-    }
+    api::print(params).await
 }
 
 async fn start_run(
@@ -50,16 +43,7 @@ async fn start_run(
         variables: Some(vars),
         environment: Some(env),
     };
-    let res = api::run(data).await?;
-    let status = res.status();
-    if status.is_success() {
-        Ok(res.json::<String>().await?)
-    } else {
-        let body = res.text().await?;
-        let error = format!("Status {status} {body}");
-        logging::console_error(&error);
-        bail!(error)
-    }
+    api::run(data).await
 }
 
 fn hash_map_rw_signals(items: HashMap<String, String>) -> HashMap<String, RwSignal<String>> {

@@ -27,6 +27,7 @@ pub fn PipelineArtifactsV2(#[prop(into)] artifacts: Signal<Vec<v2::Artifacts>>) 
                         }
                     }
                 >
+
                     <Table>
                         <Headers>
                             <Header>"Method"</Header>

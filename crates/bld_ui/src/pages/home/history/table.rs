@@ -1,27 +1,20 @@
 use crate::{
-    api, components::{
+    api,
+    components::{
         badge::Badge,
         link::Link,
         table::{Body, Cell, Header, Headers, Row, Table},
-    }, context::RefreshHistory, error::Error
+    },
+    context::RefreshHistory,
+    error::Error,
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 use bld_models::dtos::{HistQueryParams, HistoryEntry};
 use leptos::{leptos_dom::logging, *};
 
 async fn get_hist(params: Option<HistQueryParams>) -> Result<Vec<HistoryEntry>> {
     let params = params.ok_or_else(|| anyhow!("No query params provided for /v1/hist request"))?;
-    let res = api::hist(params).await?;
-    let status = res.status();
-    if status.is_success() {
-        let body = res.text().await?;
-        Ok(serde_json::from_str(&body)?)
-    } else {
-        let body = res.text().await?;
-        let error = format!("Status {status} {body}");
-        logging::console_error(&error);
-        bail!(error)
-    }
+    api::hist(params).await
 }
 
 #[component]

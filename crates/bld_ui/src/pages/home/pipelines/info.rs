@@ -1,8 +1,8 @@
 use crate::{api, error::ErrorCard};
-use anyhow::{bail, Result};
+use anyhow::Result;
 use bld_models::dtos::PipelineInfoQueryParams;
 use bld_runner::VersionedPipeline;
-use leptos::{leptos_dom::logging, *};
+use leptos::*;
 use leptos_router::*;
 
 use super::v2::PipelineV2;
@@ -10,17 +10,7 @@ use super::v2::PipelineV2;
 async fn get_pipeline(id: Option<String>) -> Result<VersionedPipeline> {
     let id = id.ok_or_else(|| anyhow::anyhow!("Id not provided as query parameter"))?;
     let params = PipelineInfoQueryParams::Id { id };
-    let res = api::print(params).await?;
-    let status = res.status();
-    if status.is_success() {
-        let body = res.text().await?;
-        Ok(serde_json::from_str(&body)?)
-    } else {
-        let body = res.text().await?;
-        let error = format!("Status {status} {body}");
-        logging::console_error(&error);
-        bail!(error)
-    }
+    api::print(params).await
 }
 
 #[component]

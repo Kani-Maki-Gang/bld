@@ -3,12 +3,13 @@ use super::{
     helpers::{get_cron, get_pipeline, hash_map_strings},
 };
 use crate::{
-    api, context::{AppDialog, AppDialogContent}, error::{ErrorCard, ErrorDialog}
+    api,
+    context::{AppDialog, AppDialogContent},
+    error::{ErrorCard, ErrorDialog},
 };
-use anyhow::{bail, Result};
 use bld_models::dtos::{CronJobResponse, UpdateJobRequest};
 use bld_runner::VersionedPipeline;
-use leptos::{html::Dialog, leptos_dom::logging, *};
+use leptos::{html::Dialog, *};
 use leptos_router::*;
 
 type UpdateActionArgs = (
@@ -19,36 +20,6 @@ type UpdateActionArgs = (
 );
 
 type DeleteActionArgs = (String, NodeRef<Dialog>, RwSignal<Option<View>>);
-
-async fn update(data: UpdateJobRequest) -> Result<()> {
-    let res = api::cron_update(data).await?;
-    let status = res.status();
-    if status.is_success() {
-        let nav = use_navigate();
-        nav("/cron?={}", NavigateOptions::default());
-        Ok(())
-    } else {
-        let body = res.text().await?;
-        let error = format!("Status {status} {body}");
-        logging::console_error(&error);
-        bail!(error)
-    }
-}
-
-async fn delete(id: String) -> Result<()> {
-    let res = api::cron_delete(id).await?;
-    let status = res.status();
-    if status.is_success() {
-        let nav = use_navigate();
-        nav("/cron?={}", NavigateOptions::default());
-        Ok(())
-    } else {
-        let body = res.text().await?;
-        let error = format!("Status {status} {body}");
-        logging::console_error(&error);
-        bail!(error)
-    }
-}
 
 #[component]
 pub fn CronJobUpdate() -> impl IntoView {
@@ -89,12 +60,17 @@ pub fn CronJobUpdate() -> impl IntoView {
                 return;
             };
             let data = UpdateJobRequest::new(id.to_string(), schedule, Some(vars), Some(env));
-            let res = update(data).await;
-            if let Err(e) = res {
-                content.set(Some(
-                    view! { <ErrorDialog dialog=dialog error=move || e.to_string()/> },
-                ));
-                let _ = dialog.get().map(|x| x.show_modal());
+            match api::cron_update(data).await {
+                Ok(_) => {
+                    let nav = use_navigate();
+                    nav("/cron?={}", NavigateOptions::default());
+                }
+                Err(e) => {
+                    content.set(Some(
+                        view! { <ErrorDialog dialog=dialog error=move || e.to_string()/> },
+                    ));
+                    let _ = dialog.get().map(|x| x.show_modal());
+                }
             }
         }
     });
@@ -102,12 +78,17 @@ pub fn CronJobUpdate() -> impl IntoView {
     let delete_action = create_action(|args: &DeleteActionArgs| {
         let (id, dialog, content) = args.clone();
         async move {
-            let res = delete(id).await;
-            if let Err(e) = res {
-                content.set(Some(
-                    view! { <ErrorDialog dialog=dialog error=move || e.to_string()/> },
-                ));
-                let _ = dialog.get().map(|x| x.show_modal());
+            match api::cron_delete(id).await {
+                Ok(_) => {
+                    let nav = use_navigate();
+                    nav("/cron?={}", NavigateOptions::default());
+                }
+                Err(e) => {
+                    content.set(Some(
+                        view! { <ErrorDialog dialog=dialog error=move || e.to_string()/> },
+                    ));
+                    let _ = dialog.get().map(|x| x.show_modal());
+                }
             }
         }
     });

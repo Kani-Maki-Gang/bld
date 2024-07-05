@@ -64,6 +64,7 @@ pub fn PipelineV2(
                             when=move || {
                                 matches!(selected_menu_item.get(), menu::MenuItem::External)
                             }
+
                             fallback=|| view! {}
                         >
                             <PipelineExternalV2 external=move || pipeline().unwrap().external/>
@@ -72,6 +73,7 @@ pub fn PipelineV2(
                             when=move || {
                                 matches!(selected_menu_item.get(), menu::MenuItem::Variables)
                             }
+
                             fallback=|| view! {}
                         >
                             <PipelineVariablesV2
@@ -85,6 +87,7 @@ pub fn PipelineV2(
                             when=move || {
                                 matches!(selected_menu_item.get(), menu::MenuItem::Environment)
                             }
+
                             fallback=|| view! {}
                         >
                             <PipelineVariablesV2
@@ -93,6 +96,7 @@ pub fn PipelineV2(
                                 no_data_text=move || {
                                     "No environment variables configured".to_string()
                                 }
+
                                 variables=move || pipeline().unwrap().environment
                             />
                         </Show>
@@ -100,6 +104,7 @@ pub fn PipelineV2(
                             when=move || {
                                 matches!(selected_menu_item.get(), menu::MenuItem::Artifacts)
                             }
+
                             fallback=|| view! {}
                         >
                             <PipelineArtifactsV2 artifacts=move || pipeline().unwrap().artifacts/>

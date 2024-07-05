@@ -1,4 +1,3 @@
-pub mod auth;
 pub mod context;
 pub mod fs;
 pub mod logger;

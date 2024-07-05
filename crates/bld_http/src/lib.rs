@@ -10,11 +10,11 @@ use awc::ws::WebsocketsRequest;
 use awc::{Client, ClientRequest, Connector, SendClientRequest};
 use bld_config::BldConfig;
 use bld_models::dtos::{
-    AddJobRequest, CronJobResponse, ExecClientMessage, HistQueryParams, HistoryEntry,
+    AddJobRequest, AuthTokens, CronJobResponse, ExecClientMessage, HistQueryParams, HistoryEntry,
     JobFiltersParams, PipelineInfoQueryParams, PipelinePathRequest, PipelineQueryParams,
-    PullResponse, PushInfo, UpdateJobRequest,
+    PullResponse, PushInfo, RefreshTokenParams, UpdateJobRequest,
 };
-use bld_utils::fs::{read_tokens, write_tokens, AuthTokens, RefreshTokenParams};
+use bld_utils::fs::{read_tokens, write_tokens};
 use bld_utils::sync::IntoArc;
 use bld_utils::tls::load_root_certificates;
 use rustls::ClientConfig;
@@ -89,7 +89,7 @@ impl Request {
     }
 
     pub async fn auth(mut self, path: &Path) -> Self {
-        if let Ok(tokens) = read_tokens(path).await {
+        if let Ok(tokens) = read_tokens::<AuthTokens>(path).await {
             self.request = self
                 .request
                 .insert_header(("Authorization", format!("Bearer {}", tokens.access_token)));
@@ -203,7 +203,7 @@ impl WebSocket {
     }
 
     pub async fn auth(mut self, path: &Path) -> Self {
-        if let Ok(tokens) = read_tokens(path).await {
+        if let Ok(tokens) = read_tokens::<AuthTokens>(path).await {
             self.request = self
                 .request
                 .header("Authorization", format!("Bearer {}", tokens.access_token));
@@ -234,7 +234,7 @@ impl HttpClient {
 
     async fn refresh(&self) -> Result<()> {
         let url = format!("{}/v1/refresh", self.base_url);
-        let tokens = read_tokens(&self.auth_path).await?;
+        let tokens: AuthTokens = read_tokens(&self.auth_path).await?;
         let Some(refresh_token) = tokens.refresh_token else {
             error!("no refresh token found");
             bail!("request failed with status code: 401 Unauthorized");
