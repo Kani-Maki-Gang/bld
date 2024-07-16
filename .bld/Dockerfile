@@ -45,6 +45,9 @@ RUN echo "Building OpenSSL" && \
 
 WORKDIR /usr/src
 
+RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+RUN cargo binstall trunk -y
+
 RUN rustup target add x86_64-unknown-linux-musl
 
 ENV X86_64_UNKNOWN_LINUX_MUSL_OPENSSL_DIR=/usr/local/musl/ \
