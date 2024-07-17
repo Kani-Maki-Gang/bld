@@ -15,6 +15,8 @@ Additionally the project requires some external dependencies:
 - libssl-dev
 - libsqlite3-dev
 - (optional) docker
+- (optional) trunk (for the server UI)
+- (optional) nodejs (for the server UI)
 
 > The package names are for Debian based distributions, install the appropriate packages on your distribution of choice.
 
@@ -26,6 +28,14 @@ $ cd bld
 $ cargo build --release
 $ ./target/release/bld --version
 ```
+
+Bld also has a UI for its server that you can build it by running the below command
+```bash
+$ cd crates/bld_ui
+$ trunk build
+```
+
+> Remember to have the trunk and nodejs installed in order to build the UI.
 
 ### Musl builds
 Since there are multiple dependencies deployment of bld can be difficult, so the project supports targeting musl for static linking. If you have an existing bld binary locally built/installed then follow the below instructions. This steps require a docker installation.
