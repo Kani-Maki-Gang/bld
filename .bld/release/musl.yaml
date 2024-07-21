@@ -1,0 +1,24 @@
+runs_on: machine
+version: 2
+
+variables:
+  branch: master
+
+external:
+  - pipeline: build/musl.yaml
+    variables:
+      branch: ${{ branch }}
+
+jobs:
+  musl:
+    - name: Initial dist cleanup
+      exec:
+        - rm -r ${{ bld_project_dir }}/dist || true
+
+    - ext: build/musl.yaml
+
+    - name: Create tarball
+      working_dir: ${{ bld_project_dir }}/dist
+      exec:
+        - tar -czvf bld-x86_64-unknown-linux-musl.tar.gz bld
+        - sha256sum bld-x86_64-unknown-linux-musl.tar.gz | awk '{{ print $1 }}' >> SHA256
