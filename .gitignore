@@ -11,12 +11,12 @@
 !/.bld/release.yaml
 !/.bld/build
 !/.bld/build/musl.yaml
-!/.bld/build/msvc.yaml
+!/.bld/build/mingw.yaml
 !/.bld/release
 !/.bld/release/musl.yaml
-!/.bld/release/msvc.yaml
+!/.bld/release/mingw.yaml
 !/.bld/dockerfiles/
 !/.bld/dockerfiles/musl
-!/.bld/dockerfiles/msvc
+!/.bld/dockerfiles/mingw
 !/.bld/dockerfiles/musl/Dockerfile
-!/.bld/dockerfiles/msvc/Dockerfile
+!/.bld/dockerfiles/mingw/Dockerfile
