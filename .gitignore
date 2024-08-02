@@ -7,6 +7,7 @@
 /crates/bld_ui/dist
 /.bld/**/*
 !/.bld/config.yaml
-!/.bld/build-musl.yaml
-!/.bld/release.yaml
-!/.bld/Dockerfile
+!/.bld/pipelines
+!/.bld/pipelines/**/*
+!/.bld/dockerfiles
+!/.bld/dockerfiles/**/*

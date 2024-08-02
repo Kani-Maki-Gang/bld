@@ -43,7 +43,7 @@ RUN echo "Building OpenSSL" && \
     rm /usr/local/musl/include/linux /usr/local/musl/include/asm /usr/local/musl/include/asm-generic && \
     rm -r /tmp/*
 
-WORKDIR /usr/src
+RUN echo "Installing Mingw" && apt-get update && apt-get install gcc-mingw-w64 -yq
 
 # Adding Trunk
 RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
@@ -54,8 +54,9 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x -o nodesource_setup.sh
 RUN bash nodesource_setup.sh
 RUN apt-get install -y nodejs
 
-# Adding musl target
+# Adding rust targets
 RUN rustup target add x86_64-unknown-linux-musl
+RUN rustup target add x86_64-pc-windows-gnu
 
 ENV X86_64_UNKNOWN_LINUX_MUSL_OPENSSL_DIR=/usr/local/musl/ \
     X86_64_UNKNOWN_LINUX_MUSL_OPENSSL_STATIC=1 \
