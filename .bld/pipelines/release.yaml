@@ -1,0 +1,31 @@
+name: Release pipeline for Bld
+runs_on: machine
+version: 2
+
+variables:
+  branch: master
+
+external:
+  - pipeline: pipelines/build.yaml
+    variables:
+      branch: ${{ branch }}
+
+jobs:
+  musl:
+    - name: Initial dist cleanup
+      exec:
+        - rm -r ${{ bld_project_dir }}/dist || true
+
+    - ext: pipelines/build.yaml
+
+    - name: Create tarball for linux
+      working_dir: ${{ bld_project_dir }}/dist
+      exec:
+        - tar -czvf bld-x86_64-unknown-linux-musl.tar.gz bld
+        - sha256sum bld-x86_64-unknown-linux-musl.tar.gz | awk '{{ print $1 }}' >> SHA256-x86_64-unknown-linux-musl
+
+    - name: Create zip archive for windows
+      working_dir: ${{ bld_project_dir }}/dist
+      exec:
+        - zip -r bld-x86_64-pc-windows-gnu.zip bld
+        - sha256sum bld-x86_64-pc-windows-gnu.zip | awk '{{ print $1 }}' >> SHA256-x86_64-pc-windows-gnu

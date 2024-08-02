@@ -1,8 +1,8 @@
-name: Build mingw target
+name: Build musl target
 version: 2
 runs_on:
-  name: bld-msvc-builder
-  dockerfile: ${{ bld_root_dir }}/dockerfiles/mingw/Dockerfile
+  name: bld-image
+  dockerfile: ${{ bld_root_dir }}/dockerfiles/Dockerfile
   tag: latest
 
 variables:
@@ -20,12 +20,22 @@ jobs:
       exec:
         - trunk build --release
 
-    - name: Cargo build
+    - name: Cargo build for musl target
+      working_dir: ./bld
+      exec:
+        - cargo build --release --target x86_64-unknown-linux-musl
+
+    - name: Cargo build for mingw target
       working_dir: ./bld
       exec:
         - cargo build --release --target x86_64-pc-windows-gnu
 
 artifacts:
+  - method: get
+    from: ./bld/target/x86_64-unknown-linux-musl/release/bld
+    to: dist/
+    after: main
+
   - method: get
     from: ./bld/target/x86_64-pc-windows-gnu/release/bld.exe
     to: dist
