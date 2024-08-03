@@ -1,7 +1,7 @@
 use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::{
     AddJobRequest, AuthTokens, CronJobResponse, HistQueryParams, HistoryEntry, JobFiltersParams,
-    ListResponse, PipelineInfoQueryParams, PipelinePathRequest, PipelineQueryParams,
+    KpiInfo, ListResponse, PipelineInfoQueryParams, PipelinePathRequest, PipelineQueryParams,
     UpdateJobRequest,
 };
 use bld_runner::VersionedPipeline;
@@ -179,6 +179,18 @@ pub async fn stop(id: String) -> Result<()> {
         handle_error(status, response.text().await?)
     } else {
         Ok(())
+    }
+}
+
+pub async fn queued_pipelines() -> Result<KpiInfo> {
+    let url = build_url("/v1/ui/kpis/queued-pipelines")?;
+    let request = add_authorization_header(Client::builder().build()?.get(&url))?;
+    let response = request.send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.json().await?)
+    } else {
+        Ok(response.json().await?)
     }
 }
 
