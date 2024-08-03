@@ -1,9 +1,10 @@
 use anyhow::{anyhow, Result};
 use bld_migrations::Expr;
-use chrono::Utc;
+use chrono::{NaiveDateTime, Utc};
 use sea_orm::{
     prelude::DateTime, ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait,
-    EntityTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
+    TransactionTrait,
 };
 use tracing::{debug, error};
 
@@ -117,6 +118,23 @@ pub async fn select_with_filters<C: ConnectionTrait + TransactionTrait>(
         })
         .map_err(|e| {
             error!("could not load pipeline runs due to: {e}");
+            anyhow!(e)
+        })
+}
+
+pub async fn count_pipelines_runs_on_date(
+    conn: &DatabaseConnection,
+    date: NaiveDateTime,
+) -> Result<u64> {
+    debug!("getting the count of running pipelines on date: {date}");
+    PipelineRunsEntity::find()
+        .filter(pipeline_runs::Column::State.ne(PR_STATE_INITIAL))
+        .filter(pipeline_runs::Column::DateCreated.lte(date))
+        .count(conn)
+        .await
+        .inspect(|_| debug!("got the count of running pipelines successfully"))
+        .map_err(|e| {
+            error!("could not get the count of running pipelines due to: {e}");
             anyhow!(e)
         })
 }
