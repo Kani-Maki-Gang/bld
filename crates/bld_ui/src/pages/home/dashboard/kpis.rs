@@ -12,13 +12,10 @@ pub fn DashboardKpis() -> impl IntoView {
         |_| async move { api::queued_pipelines().await.map_err(|e| e.to_string()) },
     );
 
-    let (running, _) = create_signal(Info {
-        icon: "iconoir-running".to_string(),
-        count: 30,
-        title: "Running pipelines".to_string(),
-        footnote: "Full worker capacity has been reached multiple times in the last 10 days"
-            .to_string(),
-    });
+    let running_resource = create_resource(
+        || (),
+        |_| async move { api::running_pipelines().await.map_err(|e| e.to_string()) },
+    );
 
     let (completed, _) = create_signal(Info {
         icon: "iconoir-check-circle".to_string(),
@@ -49,7 +46,26 @@ pub fn DashboardKpis() -> impl IntoView {
                 }
             }/>
         </Show>
-        <KpiInfo info=running/>
+
+        <Show when=move || matches!(running_resource.get(), Some(Err(_))) fallback=|| view! {}>
+            <ErrorCard error=move || running_resource.get().unwrap().unwrap_err()/>
+        </Show>
+        <Show when=move || matches!(running_resource.get(), Some(Ok(_))) fallback=|| view! {}>
+            <KpiInfo info=move || {
+                let data = running_resource.get().unwrap().unwrap();
+                Info {
+                    icon: "iconoir-running".to_string(),
+                    count: data.count,
+                    title: "Running pipelines".to_string(),
+                    footnote: if data.percentage == 0.0 {
+                        format!("Full worker capacity has been reached")
+                    } else {
+                        format!("{} worker available in the server", data.percentage)
+                    },
+                }
+            }/>
+        </Show>
+
         <KpiInfo info=completed/>
         <KpiInfo info=faulted/>
     }
