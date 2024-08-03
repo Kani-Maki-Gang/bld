@@ -29,7 +29,7 @@ $ cargo build --release
 $ ./target/release/bld --version
 ```
 
-> IMPORTANT! The bld_server crate requires for a `static_files` directory to exist in its project structure and if it doesn't build error will appear since it tries to embed all of its files to the resulting binary. There is a `build.rs` file for the project that creates the directory but if you encounter any issues, create the directory manually.
+> The bld_server crate requires for a `static_files` directory to exist in its project structure and if it doesn't build error will appear since it tries to embed all of its files to the resulting binary. There is a `build.rs` file for the project that creates the directory but if you encounter any issues, create the directory manually.
 
 Bld also has a UI for its server that you can build it by running the below command
 ```bash
