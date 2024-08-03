@@ -194,6 +194,18 @@ pub async fn queued_pipelines() -> Result<KpiInfo> {
     }
 }
 
+pub async fn running_pipelines() -> Result<KpiInfo> {
+    let url = build_url("/v1/ui/kpis/running-pipelines")?;
+    let request = add_authorization_header(Client::builder().build()?.get(&url))?;
+    let response = request.send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.json().await?)
+    } else {
+        Ok(response.json().await?)
+    }
+}
+
 pub async fn cron(params: JobFiltersParams) -> Result<Vec<CronJobResponse>> {
     let url = build_url("/v1/cron")?;
     let request = add_authorization_header(Client::builder().build()?.get(&url))?;
