@@ -1,8 +1,8 @@
 use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::{
-    AddJobRequest, AuthTokens, CronJobResponse, HistQueryParams, HistoryEntry, JobFiltersParams,
-    KpiInfo, ListResponse, PipelineInfoQueryParams, PipelinePathRequest, PipelineQueryParams,
-    UpdateJobRequest,
+    AddJobRequest, AuthTokens, CompletedPipelinesKpiInfo, CronJobResponse, HistQueryParams,
+    HistoryEntry, JobFiltersParams, KpiInfo, ListResponse, PipelineInfoQueryParams,
+    PipelinePathRequest, PipelineQueryParams, UpdateJobRequest,
 };
 use bld_runner::VersionedPipeline;
 use leptos::leptos_dom::logging;
@@ -196,6 +196,18 @@ pub async fn queued_pipelines() -> Result<KpiInfo> {
 
 pub async fn running_pipelines() -> Result<KpiInfo> {
     let url = build_url("/v1/ui/kpis/running-pipelines")?;
+    let request = add_authorization_header(Client::builder().build()?.get(&url))?;
+    let response = request.send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.json().await?)
+    } else {
+        Ok(response.json().await?)
+    }
+}
+
+pub async fn completed_pipelines() -> Result<CompletedPipelinesKpiInfo> {
+    let url = build_url("/v1/ui/kpis/completed-pipelines")?;
     let request = add_authorization_header(Client::builder().build()?.get(&url))?;
     let response = request.send().await?;
     let status = response.status();
