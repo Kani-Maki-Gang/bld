@@ -33,7 +33,7 @@ pub fn DashboardKpis() -> impl IntoView {
                     icon: "iconoir-timer".to_string(),
                     count: data.count,
                     title: "Queued pipelines".to_string(),
-                    footnote: format!("{}% queued pipelines in the last 10 days", data.percentage),
+                    footnote: String::new(),
                 }
             }/>
         </Show>
@@ -46,12 +46,12 @@ pub fn DashboardKpis() -> impl IntoView {
                 let data = running_resource.get().unwrap().unwrap();
                 Info {
                     icon: "iconoir-running".to_string(),
-                    count: data.count,
+                    count: data.count as u64,
                     title: "Running pipelines".to_string(),
-                    footnote: if data.percentage == 0.0 {
+                    footnote: if data.available_workers == 0 {
                         format!("Full worker capacity has been reached")
                     } else {
-                        format!("{} worker available in the server", data.percentage)
+                        format!("{} worker available in the server", data.available_workers)
                     },
                 }
             }/>
