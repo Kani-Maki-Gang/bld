@@ -34,3 +34,5 @@ uuid = { version = "1.3.4", features = ["v4"] }
 rustls = "0.20.7"
 openidconnect = "3.1.1"
 actix-cors = "0.7.0"
+rust-embed = { version = "8.5.0", features = ["actix-web"] }
+mime_guess = "=2.0.5"

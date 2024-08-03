@@ -1,36 +1,31 @@
-use actix_web::{get, HttpResponse, Responder};
+use actix_web::{get, web::Path, HttpResponse, Responder};
+use mime_guess::from_path;
+use rust_embed::Embed;
 use tracing::info;
 
-const HOME_HTML: &str = r"
-<!doctype html>
-<html lang='en'>
-    <head>
-        <style>
-            .bg-dark {
-                background-color: #272727;
-            }
-            .color-light {
-                color: #bfbfbf;
-            }
-            .text-center {
-                text-align: center;
-            }
-            .fs-24 {
-                font-size: 24px;
-            }
-            .pt-20 {
-                padding-top: 20px;
-            }
-        </style>
-    </head>
-    <body class='bg-dark color-light text-center fs-24 pt-20'>
-        Bld server is running!
-    </body>
-</html>
-";
+#[derive(Embed)]
+#[folder = "static_files/"]
+struct StaticFiles;
+
+fn get_static_file(path: &str) -> impl Responder {
+    match StaticFiles::get(path) {
+        Some(content) => HttpResponse::Ok()
+            .content_type(from_path(path).first_or_octet_stream().as_ref())
+            .body(content.data.into_owned()),
+
+        None if from_path(path).is_empty() => get_static_file("index.html"),
+
+        None => HttpResponse::NotFound().body("404 Not Found"),
+    }
+}
 
 #[get("/")]
-async fn get() -> impl Responder {
+async fn index() -> impl Responder {
+    get_static_file("index.html")
+}
+
+#[get("/{_:.*}")]
+async fn fallback(path: Path<String>) -> impl Responder {
     info!("Reached handler for / route");
-    HttpResponse::Ok().body(HOME_HTML)
+    get_static_file(&path)
 }
