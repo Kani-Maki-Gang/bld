@@ -1,8 +1,6 @@
 use anyhow::{anyhow, bail, Result};
 use bld_models::dtos::{
-    AddJobRequest, AuthTokens, CronJobResponse, HistQueryParams, HistoryEntry, JobFiltersParams,
-    ListResponse, PipelineInfoQueryParams, PipelinePathRequest, PipelineQueryParams,
-    UpdateJobRequest,
+    AddJobRequest, AuthTokens, CompletedPipelinesKpi, CronJobResponse, HistQueryParams, HistoryEntry, JobFiltersParams, ListResponse, PipelineInfoQueryParams, PipelinePathRequest, PipelineQueryParams, QueuedPipelinesKpi, RunningPipelinesKpi, UpdateJobRequest
 };
 use bld_runner::VersionedPipeline;
 use leptos::leptos_dom::logging;
@@ -179,6 +177,42 @@ pub async fn stop(id: String) -> Result<()> {
         handle_error(status, response.text().await?)
     } else {
         Ok(())
+    }
+}
+
+pub async fn queued_pipelines() -> Result<QueuedPipelinesKpi> {
+    let url = build_url("/v1/ui/kpis/queued-pipelines")?;
+    let request = add_authorization_header(Client::builder().build()?.get(&url))?;
+    let response = request.send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.json().await?)
+    } else {
+        Ok(response.json().await?)
+    }
+}
+
+pub async fn running_pipelines() -> Result<RunningPipelinesKpi> {
+    let url = build_url("/v1/ui/kpis/running-pipelines")?;
+    let request = add_authorization_header(Client::builder().build()?.get(&url))?;
+    let response = request.send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.json().await?)
+    } else {
+        Ok(response.json().await?)
+    }
+}
+
+pub async fn completed_pipelines() -> Result<CompletedPipelinesKpi> {
+    let url = build_url("/v1/ui/kpis/completed-pipelines")?;
+    let request = add_authorization_header(Client::builder().build()?.get(&url))?;
+    let response = request.send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.json().await?)
+    } else {
+        Ok(response.json().await?)
     }
 }
 

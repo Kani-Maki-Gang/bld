@@ -2,6 +2,7 @@ use crate::cron::CronScheduler;
 use crate::endpoints::auth::WebCoreClient;
 use crate::endpoints::{
     auth, check, copy, cron, deps, hist, home, list, print, pull, push, r#move, remove, run, stop,
+    ui,
 };
 use crate::sockets::{exec, login, monit};
 use crate::supervisor::channel::SupervisorMessageSender;
@@ -80,6 +81,9 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .service(cron::post)
             .service(cron::patch)
             .service(cron::delete)
+            .service(ui::queued_pipelines)
+            .service(ui::running_pipelines)
+            .service(ui::completed_pipelines)
             .service(resource("/v1/ws-exec/").route(get().to(exec::ws)))
             .service(resource("/v1/ws-monit/").route(get().to(monit::ws)))
             .service(resource("/v1/ws-login/").route(get().to(login::ws)))

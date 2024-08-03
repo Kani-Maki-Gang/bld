@@ -1,9 +1,10 @@
 use anyhow::{anyhow, Result};
 use bld_migrations::Expr;
-use chrono::Utc;
+use chrono::{Duration, NaiveDateTime, Utc};
 use sea_orm::{
     prelude::DateTime, ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait,
-    EntityTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    DatabaseBackend, DatabaseConnection, EntityTrait, FromQueryResult, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Statement, TransactionTrait,
 };
 use tracing::{debug, error};
 
@@ -20,6 +21,15 @@ pub struct InsertPipelineRun {
     pub id: String,
     pub name: String,
     pub app_user: String,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub struct PipelineCountPerState {
+    pub initial: i64,
+    pub queued: i64,
+    pub running: i64,
+    pub finished: i64,
+    pub faulted: i64,
 }
 
 pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
@@ -119,6 +129,100 @@ pub async fn select_with_filters<C: ConnectionTrait + TransactionTrait>(
             error!("could not load pipeline runs due to: {e}");
             anyhow!(e)
         })
+}
+
+pub async fn count_queued(conn: &DatabaseConnection) -> Result<u64> {
+    debug!("getting the count of pipelines that are queued");
+    PipelineRunsEntity::find()
+        .filter(pipeline_runs::Column::State.eq(PR_STATE_QUEUED))
+        .count(conn)
+        .await
+        .inspect(|_| debug!("got the count of pipelines that have been queued successfully"))
+        .map_err(|e| {
+            error!("could not get the count of running pipelines due to: {e}");
+            anyhow!(e)
+        })
+}
+
+pub async fn count_running(conn: &DatabaseConnection) -> Result<u64> {
+    debug!("getting the count of currently running pipelines");
+    PipelineRunsEntity::find()
+        .filter(pipeline_runs::Column::State.eq(PR_STATE_RUNNING))
+        .count(conn)
+        .await
+        .inspect(|_| debug!("got the count of running pipelines successfully"))
+        .map_err(|e| {
+            error!("could not get the count of running pipelines due to: {e}");
+            anyhow!(e)
+        })
+}
+
+pub async fn count_per_state_last_ten_days(
+    conn: &DatabaseConnection,
+) -> Result<PipelineCountPerState> {
+    debug!("getting the count of pipelines per state in the last ten days");
+    let previout_date = Utc::now().naive_utc() - Duration::days(10);
+    let current_date = Utc::now().naive_utc();
+    let query = match conn.get_database_backend() {
+        DatabaseBackend::Postgres => {
+            r#"
+            select
+                sum(case when "state" = 'initial' then 1 else 0 end) as "initial",
+                sum(case when "state" = 'queued' then 1 else 0 end) as "queued",
+                sum(case when "state" = 'running' then 1 else 0 end) as "running",
+                sum(case when "state" = 'finished' then 1 else 0 end) as "finished",
+                sum(case when "state" = 'faulted' then 1 else 0 end) as "faulted"
+            from
+                "pipeline_runs"
+            where
+                "date_created" between $1 and $2
+        "#
+        }
+
+        DatabaseBackend::MySql => {
+            r#"
+            select
+                cast(sum(case when state = 'initial' then 1 else 0 end) as signed integer) as initial,
+                cast(sum(case when state = 'queued' then 1 else 0 end) as signed integer) as queued,
+                cast(sum(case when state = 'running' then 1 else 0 end) as signed integer) as running,
+                cast(sum(case when state = 'finished' then 1 else 0 end) as signed integer) as finished,
+                cast(sum(case when state = 'faulted' then 1 else 0 end) as signed integer) as faulted
+            from
+                pipeline_runs
+            where
+                date_created >= ? and date_created <= ?
+        "#
+        }
+
+        DatabaseBackend::Sqlite => {
+            r#"
+            select
+                cast(sum(case when state = 'initial' then 1 else 0 end) as bigint) as initial,
+                cast(sum(case when state = 'queued' then 1 else 0 end) as bigint) as queued,
+                cast(sum(case when state = 'running' then 1 else 0 end) as bigint) as running,
+                cast(sum(case when state = 'finished' then 1 else 0 end) as bigint) as finished,
+                cast(sum(case when state = 'faulted' then 1 else 0 end) as bigint) as faulted
+            from
+                pipeline_runs
+            where
+                date_created >= ? and date_created <= ?
+        "#
+        }
+    };
+
+    PipelineCountPerState::find_by_statement(Statement::from_sql_and_values(
+        conn.get_database_backend(),
+        query,
+        [previout_date.into(), current_date.into()],
+    ))
+    .one(conn)
+    .await
+    .inspect(|_| debug!("got the count of pipelines per state in the last ten days successfully"))
+    .map_err(|e| {
+        error!("could not get the count of pipelines per state in the last ten days due to: {e}");
+        anyhow!(e)
+    })
+    .and_then(|v| v.ok_or_else(|| anyhow!("no row returned from query")))
 }
 
 pub async fn insert<C: ConnectionTrait + TransactionTrait>(

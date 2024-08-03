@@ -4,13 +4,13 @@ use leptos::*;
 #[derive(Debug, Clone, Default)]
 pub struct Info {
     pub icon: String,
-    pub count: i32,
+    pub count: u64,
     pub title: String,
     pub footnote: String,
 }
 
 #[component]
-pub fn KpiInfo(#[prop()] info: ReadSignal<Info>) -> impl IntoView {
+pub fn KpiInfo(#[prop(into)] info: Signal<Info>) -> impl IntoView {
     view! {
         <Card>
             <div class="px-8 py-12 flex flex-col">
