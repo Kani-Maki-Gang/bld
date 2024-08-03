@@ -1,14 +1,16 @@
-use crate::components::kpi::{Info, KpiInfo};
+use crate::{
+    api,
+    components::kpi::{Info, KpiInfo},
+    error::ErrorCard,
+};
 use leptos::*;
 
 #[component]
 pub fn DashboardKpis() -> impl IntoView {
-    let (queued, _) = create_signal(Info {
-        icon: "iconoir-timer".to_string(),
-        count: 10,
-        title: "Queued pipelines".to_string(),
-        footnote: "+ 10% more queued pipelines in the last 10 days".to_string(),
-    });
+    let queued_resource = create_resource(
+        || (),
+        |_| async move { api::queued_pipelines().await.map_err(|e| e.to_string()) },
+    );
 
     let (running, _) = create_signal(Info {
         icon: "iconoir-running".to_string(),
@@ -33,7 +35,20 @@ pub fn DashboardKpis() -> impl IntoView {
     });
 
     view! {
-        <KpiInfo info=queued/>
+        <Show when=move || matches!(queued_resource.get(), Some(Err(_))) fallback=|| view! {}>
+            <ErrorCard error=move || queued_resource.get().unwrap().unwrap_err()/>
+        </Show>
+        <Show when=move || matches!(queued_resource.get(), Some(Ok(_))) fallback=|| view! {}>
+            <KpiInfo info=move || {
+                let data = queued_resource.get().unwrap().unwrap();
+                Info {
+                    icon: "iconoir-timer".to_string(),
+                    count: data.count,
+                    title: "Queued pipelines".to_string(),
+                    footnote: format!("{}% queued pipelines in the last 10 days", data.percentage),
+                }
+            }/>
+        </Show>
         <KpiInfo info=running/>
         <KpiInfo info=completed/>
         <KpiInfo info=faulted/>
