@@ -5,6 +5,7 @@
 /.vimspector.json
 /dist
 /crates/bld_ui/dist
+/crates/bld_server/static_files
 /.bld/**/*
 !/.bld/config.yaml
 !/.bld/pipelines

@@ -20,6 +20,12 @@ jobs:
       exec:
         - trunk build --release
 
+    - name: Move ui dist to bld_server
+      working_dir: ./bld
+      exec:
+        - mkdir crates/bld_server/static_files
+        - cp -r crates/bld_ui/dist/* crates/bld_server/static_files/
+
     - name: Cargo build for musl target
       working_dir: ./bld
       exec:
