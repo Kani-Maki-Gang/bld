@@ -122,14 +122,24 @@ pub async fn select_with_filters<C: ConnectionTrait + TransactionTrait>(
         })
 }
 
-pub async fn count_pipelines_runs_on_date(
-    conn: &DatabaseConnection,
-    date: NaiveDateTime,
-) -> Result<u64> {
-    debug!("getting the count of running pipelines on date: {date}");
+pub async fn count_queued_on_date(conn: &DatabaseConnection, date: NaiveDateTime) -> Result<u64> {
+    debug!("getting the count of pipelines that have been queued on date: {date}");
     PipelineRunsEntity::find()
         .filter(pipeline_runs::Column::State.ne(PR_STATE_INITIAL))
         .filter(pipeline_runs::Column::DateCreated.lte(date))
+        .count(conn)
+        .await
+        .inspect(|_| debug!("got the count of pipelines that have been queued successfully"))
+        .map_err(|e| {
+            error!("could not get the count of running pipelines due to: {e}");
+            anyhow!(e)
+        })
+}
+
+pub async fn count_running(conn: &DatabaseConnection) -> Result<u64> {
+    debug!("getting the count of currently running pipelines");
+    PipelineRunsEntity::find()
+        .filter(pipeline_runs::Column::State.eq(PR_STATE_RUNNING))
         .count(conn)
         .await
         .inspect(|_| debug!("got the count of running pipelines successfully"))
