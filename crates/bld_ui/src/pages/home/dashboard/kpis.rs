@@ -17,19 +17,10 @@ pub fn DashboardKpis() -> impl IntoView {
         |_| async move { api::running_pipelines().await.map_err(|e| e.to_string()) },
     );
 
-    let (completed, _) = create_signal(Info {
-        icon: "iconoir-check-circle".to_string(),
-        count: 120,
-        title: "Completed pipelines".to_string(),
-        footnote: "~ 80% of pipelines complete successfully in the last 10 days".to_string(),
-    });
-
-    let (faulted, _) = create_signal(Info {
-        icon: "iconoir-ev-plug-xmark".to_string(),
-        count: 25,
-        title: "Faulted pipelines".to_string(),
-        footnote: "~ 20% of pipelines faulted in the last 10 days".to_string(),
-    });
+    let completed_resource = create_resource(
+        || (),
+        |_| async move { api::completed_pipelines().await.map_err(|e| e.to_string()) },
+    );
 
     view! {
         <Show when=move || matches!(queued_resource.get(), Some(Err(_))) fallback=|| view! {}>
@@ -66,7 +57,40 @@ pub fn DashboardKpis() -> impl IntoView {
             }/>
         </Show>
 
-        <KpiInfo info=completed/>
-        <KpiInfo info=faulted/>
+        <Show when=move || matches!(completed_resource.get(), Some(Err(_))) fallback=|| view! {}>
+            <ErrorCard error=move || completed_resource.get().unwrap().unwrap_err()/>
+        </Show>
+        <Show when=move || matches!(completed_resource.get(), Some(Ok(_))) fallback=|| view! {}>
+            <KpiInfo info=move || {
+                let data = completed_resource.get().unwrap().unwrap();
+                Info {
+                    icon: "iconoir-check-circle".to_string(),
+                    count: data.finished_count as u64,
+                    title: "Finished pipelines".to_string(),
+                    footnote: format!(
+                        "{}% of pipelines complete successfully in the last 10 days",
+                        data.finished_percentage,
+                    ),
+                }
+            }/>
+        </Show>
+
+        <Show when=move || matches!(completed_resource.get(), Some(Err(_))) fallback=|| view! {}>
+            <ErrorCard error=move || completed_resource.get().unwrap().unwrap_err()/>
+        </Show>
+        <Show when=move || matches!(completed_resource.get(), Some(Ok(_))) fallback=|| view! {}>
+            <KpiInfo info=move || {
+                let data = completed_resource.get().unwrap().unwrap();
+                Info {
+                    icon: "iconoir-ev-plug-xmark".to_string(),
+                    count: data.faulted_count as u64,
+                    title: "Faulted pipelines".to_string(),
+                    footnote: format!(
+                        "{}% of pipelines faulted in the last 10 days",
+                        data.faulted_percentage,
+                    ),
+                }
+            }/>
+        </Show>
     }
 }
