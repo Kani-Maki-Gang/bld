@@ -59,7 +59,6 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .app_data(cron.clone())
             .wrap(middleware::Logger::default())
             .wrap(cors)
-            .service(home::get)
             .service(auth::available)
             .service(auth::redirect)
             .service(auth::refresh)
@@ -84,6 +83,8 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .service(resource("/v1/ws-exec/").route(get().to(exec::ws)))
             .service(resource("/v1/ws-monit/").route(get().to(monit::ws)))
             .service(resource("/v1/ws-login/").route(get().to(login::ws)))
+            .service(home::index)
+            .service(home::fallback)
     });
 
     let address = format!("{host}:{port}");
