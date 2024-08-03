@@ -6,8 +6,10 @@ pub struct KpiInfo {
     pub percentage: f64,
 }
 
-impl KpiInfo {
-    pub fn new(count: u64, percentage: f64) -> Self {
-        Self { count, percentage }
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompletedPipelinesKpiInfo {
+    pub finished_count: i64,
+    pub faulted_count: i64,
+    pub finished_percentage: f64,
+    pub faulted_percentage: f64,
 }
