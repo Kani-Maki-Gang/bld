@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use bld_migrations::Expr;
-use chrono::{Duration, NaiveDateTime, Utc};
+use chrono::{Duration, Utc};
 use sea_orm::{
     prelude::DateTime, ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait,
     DatabaseBackend, DatabaseConnection, EntityTrait, FromQueryResult, PaginatorTrait, QueryFilter,
@@ -30,6 +30,12 @@ pub struct PipelineCountPerState {
     pub running: i64,
     pub finished: i64,
     pub faulted: i64,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub struct PipelineRunsPerUser {
+    pub count: i64,
+    pub app_user: String,
 }
 
 pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
@@ -161,7 +167,7 @@ pub async fn count_per_state_last_ten_days(
     conn: &DatabaseConnection,
 ) -> Result<PipelineCountPerState> {
     debug!("getting the count of pipelines per state in the last ten days");
-    let previout_date = Utc::now().naive_utc() - Duration::days(10);
+    let previous_date = Utc::now().naive_utc() - Duration::days(10);
     let current_date = Utc::now().naive_utc();
     let query = match conn.get_database_backend() {
         DatabaseBackend::Postgres => {
@@ -213,7 +219,7 @@ pub async fn count_per_state_last_ten_days(
     PipelineCountPerState::find_by_statement(Statement::from_sql_and_values(
         conn.get_database_backend(),
         query,
-        [previout_date.into(), current_date.into()],
+        [previous_date.into(), current_date.into()],
     ))
     .one(conn)
     .await
@@ -223,6 +229,30 @@ pub async fn count_per_state_last_ten_days(
         anyhow!(e)
     })
     .and_then(|v| v.ok_or_else(|| anyhow!("no row returned from query")))
+}
+
+pub async fn most_runs_per_user(conn: &DatabaseConnection) -> Result<Vec<PipelineRunsPerUser>> {
+    debug!("getting the most runs per user in the last 30 days");
+    let previous_date = (Utc::now() - Duration::days(30)).naive_utc();
+    let current_date = Utc::now().naive_utc();
+    let query = r#"
+        select count(id) as count, app_user
+        from pipeline_runs
+        group by app_user
+        order by count desc
+    "#;
+    PipelineRunsPerUser::find_by_statement(Statement::from_sql_and_values(
+        conn.get_database_backend(),
+        query,
+        [previous_date.into(), current_date.into()],
+    ))
+    .all(conn)
+    .await
+    .inspect(|_| debug!("got the most runs per user in the last 30 days successfully"))
+    .map_err(|e| {
+        error!("could not get the most runs per user in the last 30 days due to: {e}");
+        anyhow!(e)
+    })
 }
 
 pub async fn insert<C: ConnectionTrait + TransactionTrait>(

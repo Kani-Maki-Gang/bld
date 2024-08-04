@@ -18,3 +18,9 @@ pub struct CompletedPipelinesKpi {
     pub finished_percentage: f64,
     pub faulted_percentage: f64,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunsPerUserKpi {
+    pub count: i64,
+    pub user: String,
+}
