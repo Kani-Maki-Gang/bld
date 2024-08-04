@@ -2,7 +2,7 @@ use actix_web::{get, web::Data, HttpResponse, Responder};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_models::{
-    dtos::{CompletedPipelinesKpi, QueuedPipelinesKpi, RunningPipelinesKpi},
+    dtos::{CompletedPipelinesKpi, QueuedPipelinesKpi, RunningPipelinesKpi, RunsPerUserKpi},
     pipeline_runs,
 };
 use sea_orm::DatabaseConnection;
@@ -82,6 +82,29 @@ pub async fn completed_pipelines(conn: Data<DatabaseConnection>) -> impl Respond
         Ok(kpi) => HttpResponse::Ok().json(kpi),
         Err(e) => {
             info!("could not get the count of completed pipelines due to: {e}");
+            HttpResponse::BadRequest().body("")
+        }
+    }
+}
+
+async fn get_most_runs_per_user(conn: &DatabaseConnection) -> Result<Vec<RunsPerUserKpi>> {
+    pipeline_runs::most_runs_per_user(conn).await.map(|x| {
+        x.into_iter()
+            .map(|u| RunsPerUserKpi {
+                count: u.count,
+                user: u.app_user,
+            })
+            .collect()
+    })
+}
+
+#[get("/v1/ui/kpis/most-runs-per-user")]
+pub async fn most_runs_per_user(conn: Data<DatabaseConnection>) -> impl Responder {
+    info!("Reached handler for /v1/ui/kpis/most-runs-per-user route");
+    match get_most_runs_per_user(&conn).await {
+        Ok(kpi) => HttpResponse::Ok().json(kpi),
+        Err(e) => {
+            info!("could not get the count of most runs per user due to: {e}");
             HttpResponse::BadRequest().body("")
         }
     }
