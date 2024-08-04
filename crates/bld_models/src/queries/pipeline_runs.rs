@@ -233,7 +233,7 @@ pub async fn count_per_state_last_ten_days(
 
 pub async fn most_runs_per_user(conn: &DatabaseConnection) -> Result<Vec<PipelineRunsPerUser>> {
     debug!("getting the most runs per user in the last 30 days");
-    let previous_date = (Utc::now() - Duration::days(10)).naive_utc();
+    let previous_date = (Utc::now() - Duration::days(30)).naive_utc();
     let current_date = Utc::now().naive_utc();
     let query = r#"
         select count(id) as count, app_user
