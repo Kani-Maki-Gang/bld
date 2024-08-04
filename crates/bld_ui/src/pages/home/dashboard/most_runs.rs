@@ -1,65 +1,51 @@
-use crate::components::card::Card;
-use crate::components::list::{ComplexListItem, List};
+use crate::{
+    api,
+    components::{
+        card::Card,
+        list::{ComplexListItem, List},
+    },
+    error::Error,
+};
 use leptos::*;
 
 #[component]
 pub fn DashboardMostRunsPerUser() -> impl IntoView {
+    let data = create_resource(
+        || (),
+        |_| async move { api::most_runs_per_user().await.map_err(|e| e.to_string()) },
+    );
     view! {
         <Card>
             <div class="flex flex-col px-8 py-12">
                 <div class="text-2xl">"Most runs"</div>
                 <div class="text-gray-400 mb-8">"Users with most runs in the last month"</div>
                 <div class="h-96 overflow-y-auto">
-                    <List>
-                        <ComplexListItem
-                            icon=move || "iconoir-user-circle".to_string()
-                            title=move || "John Johnson".to_string()
-                            sub_title=move || "john@someemail.com".to_string()
-                            stat=move || "65 runs".to_string()
-                        />
-                        <ComplexListItem
-                            icon=move || "iconoir-user-circle".to_string()
-                            title=move || "Wade Willson".to_string()
-                            sub_title=move || "wade@someemail.com".to_string()
-                            stat=move || "60 runs".to_string()
-                        />
-                        <ComplexListItem
-                            icon=move || "iconoir-user-circle".to_string()
-                            title=move || "Peter Parker".to_string()
-                            sub_title=move || "peter@someemail.com".to_string()
-                            stat=move || "49 runs".to_string()
-                        />
-                        <ComplexListItem
-                            icon=move || "iconoir-user-circle".to_string()
-                            title=move || "Charles Xavier".to_string()
-                            sub_title=move || "charles@someemail.com".to_string()
-                            stat=move || "40 runs".to_string()
-                        />
-                        <ComplexListItem
-                            icon=move || "iconoir-user-circle".to_string()
-                            title=move || "Bruce Wayne".to_string()
-                            sub_title=move || "bruse@someemail.com".to_string()
-                            stat=move || "35 runs".to_string()
-                        />
-                        <ComplexListItem
-                            icon=move || "iconoir-user-circle".to_string()
-                            title=move || "Clark Kent".to_string()
-                            sub_title=move || "clark@someemail.com".to_string()
-                            stat=move || "28 runs".to_string()
-                        />
-                        <ComplexListItem
-                            icon=move || "iconoir-user-circle".to_string()
-                            title=move || "Lois Lane".to_string()
-                            sub_title=move || "lois@someemail.com".to_string()
-                            stat=move || "24 runs".to_string()
-                        />
-                        <ComplexListItem
-                            icon=move || "iconoir-user-circle".to_string()
-                            title=move || "Barbara Gordon".to_string()
-                            sub_title=move || "barbara@someemail.com".to_string()
-                            stat=move || "16 runs".to_string()
-                        />
-                    </List>
+                    <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
+                        <Error error=move || data.get().unwrap().unwrap_err()/>
+                    </Show>
+                    <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
+                        <List>
+                            <For
+                                each=move || data.get().unwrap().unwrap()
+                                key=move |i| i.user.clone()
+                                let:child
+                            >
+                                <ComplexListItem
+                                    icon=move || "iconoir-user-circle".to_string()
+                                    title=move || {
+                                        if child.user.is_empty() {
+                                            "No user".to_string()
+                                        } else {
+                                            child.user.clone()
+                                        }
+                                    }
+
+                                    sub_title=|| String::new()
+                                    stat=move || format!("{} runs", child.count)
+                                />
+                            </For>
+                        </List>
+                    </Show>
                 </div>
             </div>
         </Card>
