@@ -38,6 +38,13 @@ pub struct PipelineRunsPerUser {
     pub app_user: String,
 }
 
+#[derive(Debug, FromQueryResult)]
+pub struct PipelinePerCompletedState {
+    pub pipeline: String,
+    pub finished_count: i64,
+    pub faulted_count: i64,
+}
+
 pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
     conn: &C,
     pip_id: &str,
@@ -251,6 +258,70 @@ pub async fn most_runs_per_user(conn: &DatabaseConnection) -> Result<Vec<Pipelin
     .inspect(|_| debug!("got the most runs per user in the last 30 days successfully"))
     .map_err(|e| {
         error!("could not get the most runs per user in the last 30 days due to: {e}");
+        anyhow!(e)
+    })
+}
+
+pub async fn select_per_completed_state(
+    conn: &DatabaseConnection,
+) -> Result<Vec<PipelinePerCompletedState>> {
+    debug!("getting the success and failure rate of pipelines for the last 30 days");
+    let previous_date = (Utc::now() - Duration::days(30)).naive_utc();
+    let current_date = Utc::now().naive_utc();
+    let query = match conn.get_database_backend() {
+        DatabaseBackend::Postgres => {
+            r#"
+                select
+                    p.name as pipeline,
+                    sum(case when state = 'finished' then 1 else 0 end)  as finished_count,
+                    sum(case when state = 'faulted' then 1 else 0 end) as faulted_count
+                from
+                    pipeline_runs as p
+                where
+                    date_created between $1 and $2
+                group by
+                    p.name
+            "#
+        }
+        DatabaseBackend::MySql => {
+            r#"
+                select
+                    p.name as pipeline,
+                    cast(sum(case when state = 'finished' then 1 else 0 end) as signed integer) as finished_count,
+                    cast(sum(case when state = 'faulted' then 1 else 0 end) as signed integer) as faulted_count
+                from
+                    pipeline_runs as p
+                where
+                    date_created >= ? and date_created <= ?
+                group by
+                    p.name
+            "#
+        }
+        DatabaseBackend::Sqlite => {
+            r#"
+                select
+                    p.name as pipeline,
+                    cast(sum(case when state = 'finished' then 1 else 0 end) as bigint) as finished_count,
+                    cast(sum(case when state = 'faulted' then 1 else 0 end) as bigint) as faulted_count
+                from
+                    pipeline_runs as p
+                where
+                    date_created >= ? and date_created <= ?
+                group by
+                    p.name
+            "#
+        }
+    };
+    PipelinePerCompletedState::find_by_statement(Statement::from_sql_and_values(
+        conn.get_database_backend(),
+        query,
+        [previous_date.into(), current_date.into()],
+    ))
+    .all(conn)
+    .await
+    .inspect(|_| debug!("got the success and failure rate of pipelines for the last 30 days successfully"))
+    .map_err(|e| {
+        error!("could not get the success and failure rate of pipelines for the last 30 days due to: {e}");
         anyhow!(e)
     })
 }
