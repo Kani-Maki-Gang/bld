@@ -2,7 +2,10 @@ use actix_web::{get, web::Data, HttpResponse, Responder};
 use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_models::{
-    dtos::{CompletedPipelinesKpi, QueuedPipelinesKpi, RunningPipelinesKpi, RunsPerUserKpi},
+    dtos::{
+        CompletedPipelinesKpi, PipelinePerCompletedStateKpi, QueuedPipelinesKpi,
+        RunningPipelinesKpi, RunsPerUserKpi,
+    },
     pipeline_runs,
 };
 use sea_orm::DatabaseConnection;
@@ -105,6 +108,44 @@ pub async fn most_runs_per_user(conn: Data<DatabaseConnection>) -> impl Responde
         Ok(kpi) => HttpResponse::Ok().json(kpi),
         Err(e) => {
             info!("could not get the count of most runs per user due to: {e}");
+            HttpResponse::BadRequest().body("")
+        }
+    }
+}
+
+async fn get_pipelines_per_completed_state(
+    conn: &DatabaseConnection,
+) -> Result<Vec<PipelinePerCompletedStateKpi>> {
+    pipeline_runs::select_per_completed_state(conn)
+        .await
+        .map(|x| {
+            x.into_iter()
+                .map(|p| {
+                    let finished_percentage = p
+                        .finished_count
+                        .checked_div(p.finished_count + p.faulted_count)
+                        .map(|x| x as f64 * 100.0)
+                        .unwrap_or(0.0);
+
+                    let faulted_percentage = 100.0 - finished_percentage;
+
+                    PipelinePerCompletedStateKpi {
+                        pipeline: p.pipeline,
+                        finished_percentage,
+                        faulted_percentage,
+                    }
+                })
+                .collect()
+        })
+}
+
+#[get("/v1/ui/kpis/pipelines-per-completed-state")]
+pub async fn pipelines_per_completed_state(conn: Data<DatabaseConnection>) -> impl Responder {
+    info!("Reached handler for /v1/ui/kpis/pipelines-per-completed-state route");
+    match get_pipelines_per_completed_state(&conn).await {
+        Ok(kpi) => HttpResponse::Ok().json(kpi),
+        Err(e) => {
+            info!("could not get the count of pipelines per completed state due to: {e}");
             HttpResponse::BadRequest().body("")
         }
     }
