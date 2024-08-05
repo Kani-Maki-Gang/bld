@@ -24,3 +24,10 @@ pub struct RunsPerUserKpi {
     pub count: i64,
     pub user: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PipelinePerCompletedStateKpi {
+    pub pipeline: String,
+    pub finished_percentage: f64,
+    pub faulted_percentage: f64,
+}
