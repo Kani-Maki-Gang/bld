@@ -45,6 +45,12 @@ pub struct PipelinePerCompletedState {
     pub faulted_count: i64,
 }
 
+#[derive(Debug, FromQueryResult)]
+pub struct PipelineRunsPerMonth {
+    pub month: i64,
+    pub count: i64,
+}
+
 pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
     conn: &C,
     pip_id: &str,
@@ -322,6 +328,149 @@ pub async fn select_per_completed_state(
     .inspect(|_| debug!("got the success and failure rate of pipelines for the last 30 days successfully"))
     .map_err(|e| {
         error!("could not get the success and failure rate of pipelines for the last 30 days due to: {e}");
+        anyhow!(e)
+    })
+}
+
+pub async fn runs_per_month(conn: &DatabaseConnection) -> Result<Vec<PipelineRunsPerMonth>> {
+    debug!("getting the count of pipeline runs per month");
+    let query = match conn.get_database_backend() {
+        DatabaseBackend::Postgres => {
+            r#"
+            with Data as (
+                select
+                    extract(month from p.date_created) as month,
+                    count(p.id) as count
+                from
+                    pipeline_runs as p
+                where
+                    p.state in ('running', 'finished', 'faulted')
+                group by
+                    month
+                order by
+                    month
+            ),
+            Months as (
+                select extract(month from generate_series('2024-01-01'::Date, '2024-12-31'::Date, '1 month')) as month
+            )
+            select
+                cast(m.month as bigint) as month,
+                case when d.count is null then 0 else d.count end as count
+            from
+                Months as m
+                left join Data as d
+                    on m.month = d.month;
+            "#
+        }
+        DatabaseBackend::MySql => {
+            r#"
+            with Data as (
+                select
+                    extract(month from p.date_created) as month,
+                    count(p.id) as count
+                from
+                    pipeline_runs as p
+                where
+                    p.state in ('running', 'finished', 'faulted')
+                group by
+                    month
+                order by
+                    month
+            ),
+            Months as (
+                select 1 as month
+                union all
+                select 2 as month
+                union all
+                select 3 as month
+                union all
+                select 4 as month
+                union all
+                select 5 as month
+                union all
+                select 6 as month
+                union all
+                select 7 as month
+                union all
+                select 8 as month
+                union all
+                select 9 as month
+                union all
+                select 10 as month
+                union all
+                select 11 as month
+                union all
+                select 12 as month
+            )
+            select
+                m.month,
+                case when d.count is null then 0 else d.count end as count
+            from
+                Months as m
+                left join Data as d
+                    on m.month = d.month;
+            "#
+        }
+        DatabaseBackend::Sqlite => {
+            r#"
+            with Data as (
+                select
+                    strftime('%m', p.date_created) as month,
+                    count(p.id) as count
+                from
+                    pipeline_runs as p
+                where
+                    p.state in ('running', 'finished', 'faulted')
+                group by
+                    month
+                order by
+                    month
+            ),
+            Months as (
+                select '01' as month
+                union all
+                select '02' as month
+                union all
+                select '03' as month
+                union all
+                select '04' as month
+                union all
+                select '05' as month
+                union all
+                select '06' as month
+                union all
+                select '07' as month
+                union all
+                select '08' as month
+                union all
+                select '09' as month
+                union all
+                select '10' as month
+                union all
+                select '11' as month
+                union all
+                select '12' as month
+            )
+            select
+                cast(m.month as bigint) as month,
+                case when d.count is null then 0 else d.count end as count
+            from
+                Months as m
+                left join Data as d
+                    on m.month = d.month;
+            "#
+        }
+    };
+    PipelineRunsPerMonth::find_by_statement(Statement::from_sql_and_values(
+        conn.get_database_backend(),
+        query,
+        [],
+    ))
+    .all(conn)
+    .await
+    .inspect(|_| debug!("got the count of pipeline runs per month successfully"))
+    .map_err(|e| {
+        error!("could not get the count of pipeline runs per month due to: {e}");
         anyhow!(e)
     })
 }
