@@ -86,6 +86,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .service(ui::completed_pipelines)
             .service(ui::most_runs_per_user)
             .service(ui::pipelines_per_completed_state)
+            .service(ui::pipeline_runs_per_month)
             .service(resource("/v1/ws-exec/").route(get().to(exec::ws)))
             .service(resource("/v1/ws-monit/").route(get().to(monit::ws)))
             .service(resource("/v1/ws-login/").route(get().to(login::ws)))
