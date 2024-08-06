@@ -12,11 +12,11 @@ use runs_per_month::DashboardRunsPerMonth;
 #[component]
 pub fn dashboard() -> impl IntoView {
     view! {
-        <div class="flex flex-col gap-12">
-            <div class="grid grid-cols-4 justify-items-stretch gap-12">
+        <div class="flex flex-col gap-4">
+            <div class="grid grid-cols-4 justify-items-stretch gap-4">
                 <DashboardKpis/>
             </div>
-            <div class="grid grid-cols-5 justify-items-stretch gap-12">
+            <div class="grid grid-cols-5 justify-items-stretch gap-4">
                 <div class="col-span-3">
                     <DashboardRunsPerMonth/>
                 </div>
