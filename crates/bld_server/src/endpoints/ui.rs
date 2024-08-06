@@ -3,8 +3,8 @@ use anyhow::{anyhow, Result};
 use bld_config::BldConfig;
 use bld_models::{
     dtos::{
-        CompletedPipelinesKpi, PipelinePerCompletedStateKpi, QueuedPipelinesKpi,
-        RunningPipelinesKpi, RunsPerUserKpi,
+        CompletedPipelinesKpi, PipelinePerCompletedStateKpi, PipelineRunsPerMonthKpi,
+        QueuedPipelinesKpi, RunningPipelinesKpi, RunsPerUserKpi,
     },
     pipeline_runs,
 };
@@ -146,6 +146,31 @@ pub async fn pipelines_per_completed_state(conn: Data<DatabaseConnection>) -> im
         Ok(kpi) => HttpResponse::Ok().json(kpi),
         Err(e) => {
             info!("could not get the count of pipelines per completed state due to: {e}");
+            HttpResponse::BadRequest().body("")
+        }
+    }
+}
+
+async fn get_pipeline_runs_per_month(
+    conn: &DatabaseConnection,
+) -> Result<Vec<PipelineRunsPerMonthKpi>> {
+    pipeline_runs::runs_per_month(conn).await.map(|x| {
+        x.into_iter()
+            .map(|p| PipelineRunsPerMonthKpi {
+                month: p.month,
+                count: p.count as f64,
+            })
+            .collect()
+    })
+}
+
+#[get("/v1/ui/kpis/pipeline-runs-per-month")]
+pub async fn pipeline_runs_per_month(conn: Data<DatabaseConnection>) -> impl Responder {
+    info!("Reached handler for /v1/ui/kpis/pipeline-runs-per-month route");
+    match get_pipeline_runs_per_month(&conn).await {
+        Ok(kpi) => HttpResponse::Ok().json(kpi),
+        Err(e) => {
+            info!("could not get the count of pipeline runs per month due to: {e}");
             HttpResponse::BadRequest().body("")
         }
     }

@@ -31,3 +31,9 @@ pub struct PipelinePerCompletedStateKpi {
     pub finished_percentage: f64,
     pub faulted_percentage: f64,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PipelineRunsPerMonthKpi {
+    pub month: i64,
+    pub count: f64,
+}
