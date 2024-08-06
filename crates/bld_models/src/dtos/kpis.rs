@@ -34,6 +34,6 @@ pub struct PipelinePerCompletedStateKpi {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelineRunsPerMonthKpi {
-    pub month: f64,
+    pub month: i64,
     pub count: f64,
 }

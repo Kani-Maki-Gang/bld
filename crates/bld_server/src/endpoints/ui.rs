@@ -158,7 +158,7 @@ async fn get_pipeline_runs_per_month(
         x.into_iter()
             .map(|p| PipelineRunsPerMonthKpi {
                 month: p.month,
-                count: p.count,
+                count: p.count as f64,
             })
             .collect()
     })
