@@ -1,10 +1,14 @@
 use crate::{api, components::card::Card, error::SmallError};
 use bld_models::dtos::PipelineRunsPerMonthKpi;
+use html::Div;
 use leptos::*;
 use leptos_chartistry::*;
+use leptos_use::{use_element_size, UseElementSizeReturn};
 
 #[component]
 pub fn DashboardRunsPerMonth() -> impl IntoView {
+    let card = create_node_ref::<Div>();
+    let UseElementSizeReturn { width, .. } = use_element_size(card);
     let series = Series::new(|data: &PipelineRunsPerMonthKpi| data.month)
         .with_min_y(0.0)
         .with_max_y(150.0)
@@ -33,9 +37,13 @@ pub fn DashboardRunsPerMonth() -> impl IntoView {
         }
     };
 
+    let aspect_ratio = move || {
+        AspectRatio::from_inner_ratio(width.get() - 100.0, 500.0)
+    };
+
     view! {
         <Card>
-            <div class="flex flex-col px-8 py-12 gap-4">
+            <div node_ref=card class="flex flex-col px-8 py-12 gap-4">
                 <div class="flex flex-col">
                     <div class="text-2xl">"Total runs per month"</div>
                     <div class="text-gray-400 mb-8">
@@ -47,7 +55,7 @@ pub fn DashboardRunsPerMonth() -> impl IntoView {
                 </Show>
                 <div class="grow">
                     <Chart
-                        aspect_ratio=AspectRatio::from_inner_ratio(1150.0, 500.0)
+                        aspect_ratio=Signal::from(move || aspect_ratio())
                         series=series
                         data=move || chart_data()
                         left=TickLabels::aligned_floats()
