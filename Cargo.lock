@@ -1088,6 +1088,7 @@ dependencies = [
  "anyhow",
  "bld_models",
  "bld_runner",
+ "chrono",
  "leptos",
  "leptos-chartistry",
  "leptos-use",
