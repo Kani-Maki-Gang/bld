@@ -32,7 +32,7 @@ pub enum ServerContextMessage {
     SetContainerAsRemoved(String),
     SetContainerAsFaulted(String),
     KeepAliveContainer(String),
-    DoCleanup(oneshot::Sender<()>),
+    RunFaulted(oneshot::Sender<()>),
 }
 
 pub struct ServerContextBackend {
@@ -142,7 +142,7 @@ impl ServerContextBackend {
                     .await?;
                 }
 
-                ServerContextMessage::DoCleanup(resp_tx) => self.do_cleanup(resp_tx).await?,
+                ServerContextMessage::RunFaulted(resp_tx) => self.run_faulted(resp_tx).await?,
             }
         }
         Ok(())
@@ -173,7 +173,7 @@ impl ServerContextBackend {
         Ok(())
     }
 
-    async fn do_cleanup(&mut self, resp_tx: oneshot::Sender<()>) -> Result<()> {
+    async fn run_faulted(&mut self, resp_tx: oneshot::Sender<()>) -> Result<()> {
         self.update_pipeline_state(&self.run_id, PR_STATE_FAULTED)
             .await?;
 

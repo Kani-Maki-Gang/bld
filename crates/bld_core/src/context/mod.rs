@@ -181,16 +181,16 @@ impl Context {
             .map_err(|e| anyhow!("{e}"))
     }
 
-    pub async fn cleanup(&self) -> Result<()> {
+    pub async fn run_faulted(&self) -> Result<()> {
         let (resp_tx, resp_rx) = oneshot::channel();
 
         match self {
             Self::Server { tx, .. } => tx
-                .send(ServerContextMessage::DoCleanup(resp_tx))
+                .send(ServerContextMessage::RunFaulted(resp_tx))
                 .await
                 .map_err(|e| anyhow!(e))?,
             Self::Local(tx) => tx
-                .send(LocalContextMessage::DoCleanup(resp_tx))
+                .send(LocalContextMessage::RunFaulted(resp_tx))
                 .await
                 .map_err(|e| anyhow!(e))?,
         }
