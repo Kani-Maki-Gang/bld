@@ -299,7 +299,7 @@ async fn try_cleanup_process(conn: Data<DatabaseConnection>, worker: &mut Worker
     let run_id = worker.get_run_id();
     let run = pipeline_runs::select_by_id(conn, run_id).await?;
 
-    if run.state != PR_STATE_FINISHED || run.state != PR_STATE_FAULTED {
+    if run.state != PR_STATE_FINISHED && run.state != PR_STATE_FAULTED {
         let _ = pipeline_runs::update_state(conn, run_id, PR_STATE_FAULTED).await;
     }
 

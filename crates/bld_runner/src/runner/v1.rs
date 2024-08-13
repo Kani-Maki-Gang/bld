@@ -424,7 +424,7 @@ impl Runner {
                                 )
                                 .await?;
 
-                            context.cleanup().await?;
+                            context.run_faulted().await?;
 
                             break resp_tx
                                 .send(())

@@ -14,7 +14,7 @@ pub enum LocalContextMessage {
     RemoveRemoteRun(String),
     AddPlatform(Arc<Platform>),
     RemovePlatform(String),
-    DoCleanup(oneshot::Sender<()>),
+    RunFaulted(oneshot::Sender<()>),
 }
 
 pub struct LocalContextBackend {
@@ -62,13 +62,13 @@ impl LocalContextBackend {
                     self.platforms.retain(|p| !p.is(&platform_id));
                 }
 
-                LocalContextMessage::DoCleanup(resp_tx) => self.do_cleanup(resp_tx).await?,
+                LocalContextMessage::RunFaulted(resp_tx) => self.run_faulted(resp_tx).await?,
             }
         }
         Ok(())
     }
 
-    async fn do_cleanup(&mut self, resp_tx: oneshot::Sender<()>) -> Result<()> {
+    async fn run_faulted(&mut self, resp_tx: oneshot::Sender<()>) -> Result<()> {
         for run in self.remote_runs.iter() {
             let _ = self
                 .cleanup_remote_run(run)
