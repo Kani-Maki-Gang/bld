@@ -79,20 +79,20 @@ pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> im
                 </Headers>
                 <Body>
                     <For
-                        each=move || data.get().unwrap().unwrap().into_iter().enumerate()
-                        key=move |(i, _)| *i
+                        each=move || data.get().unwrap().unwrap().into_iter()
+                        key=move |e| e.id.clone()
                         let:child
                     >
                         <Row>
                             <Cell>
-                                <Link href=format!("/monit?id={}", child.1.id)>{child.1.id}</Link>
+                                <Link href=format!("/monit?id={}", child.id)>{child.id}</Link>
                             </Cell>
-                            <Cell>{child.1.name}</Cell>
-                            <Cell>{child.1.user}</Cell>
-                            <Cell>{child.1.start_date_time.unwrap_or_default()}</Cell>
-                            <Cell>{child.1.end_date_time.unwrap_or_default()}</Cell>
+                            <Cell>{child.name}</Cell>
+                            <Cell>{child.user}</Cell>
+                            <Cell>{child.start_date_time.unwrap_or_default()}</Cell>
+                            <Cell>{child.end_date_time.unwrap_or_default()}</Cell>
                             <Cell>
-                                <HistoryEntryState state=child.1.state/>
+                                <HistoryEntryState state=child.state/>
                             </Cell>
                         </Row>
                     </For>
