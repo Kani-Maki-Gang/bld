@@ -68,7 +68,7 @@ pub fn DashboardKpis() -> impl IntoView {
                     count: data.finished_count as u64,
                     title: "Finished pipelines".to_string(),
                     footnote: format!(
-                        "{}% of pipelines complete successfully in the last 10 days",
+                        "{:.2}% of pipelines complete successfully in the last 10 days",
                         data.finished_percentage,
                     ),
                 }
@@ -86,7 +86,7 @@ pub fn DashboardKpis() -> impl IntoView {
                     count: data.faulted_count as u64,
                     title: "Faulted pipelines".to_string(),
                     footnote: format!(
-                        "{}% of pipelines faulted in the last 10 days",
+                        "{:.2}% of pipelines faulted in the last 10 days",
                         data.faulted_percentage,
                     ),
                 }
