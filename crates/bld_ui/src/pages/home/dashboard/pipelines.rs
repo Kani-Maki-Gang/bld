@@ -41,7 +41,7 @@ pub fn DashboardPipelines() -> impl IntoView {
                                     title=move || child.pipeline.clone()
                                     stat=move || {
                                         format!(
-                                            "success {}% | failure {}%",
+                                            "success {:.2}% | failure {:.2}%",
                                             child.finished_percentage,
                                             child.faulted_percentage,
                                         )
