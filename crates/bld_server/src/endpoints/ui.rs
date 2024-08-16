@@ -62,13 +62,16 @@ pub async fn running_pipelines(
 
 async fn get_completed_pipelines(conn: &DatabaseConnection) -> Result<CompletedPipelinesKpi> {
     let count_per_state = pipeline_runs::count_per_state_last_ten_days(conn).await?;
+    let finished_count = count_per_state.finished as f64;
+    let faulted_count = count_per_state.faulted as f64;
+    let total_count = finished_count + faulted_count;
+    let mut finished_percentage = 0.0;
+    let mut faulted_percentage = 0.0;
 
-    let finished_percentage = (count_per_state.finished as i64)
-        .checked_div((count_per_state.finished + count_per_state.faulted) as i64)
-        .map(|x| x as f64 * 100.0)
-        .unwrap_or(0.0);
-
-    let faulted_percentage = 100.0 - finished_percentage;
+    if total_count > 0.0 {
+        finished_percentage = (finished_count / total_count) * 100.0;
+        faulted_percentage = (faulted_count / total_count) * 100.0;
+    }
 
     Ok(CompletedPipelinesKpi {
         finished_count: count_per_state.finished,
@@ -121,13 +124,16 @@ async fn get_pipelines_per_completed_state(
         .map(|x| {
             x.into_iter()
                 .map(|p| {
-                    let finished_percentage = p
-                        .finished_count
-                        .checked_div(p.finished_count + p.faulted_count)
-                        .map(|x| x as f64 * 100.0)
-                        .unwrap_or(0.0);
+                    let finished_count = p.finished_count as f64;
+                    let faulted_count = p.faulted_count as f64;
+                    let total_count = finished_count + faulted_count;
+                    let mut finished_percentage = 0.0;
+                    let mut faulted_percentage = 0.0;
 
-                    let faulted_percentage = 100.0 - finished_percentage;
+                    if (finished_count + faulted_count) > 0.0 {
+                        finished_percentage = (finished_count / total_count) * 100.0;
+                        faulted_percentage = (faulted_count / total_count) * 100.0;
+                    }
 
                     PipelinePerCompletedStateKpi {
                         pipeline: p.pipeline,
