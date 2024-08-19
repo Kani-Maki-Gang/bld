@@ -41,14 +41,16 @@ pub fn CronJobs() -> impl IntoView {
     view! {
         <Card>
             <div class="flex flex-col px-8 py-12">
-                <div class="flex justify-items-center gap-x-4 items-center">
+                <div class="grid grid-cols-4">
                     <div class="grow flex flex-col">
                         <div class="text-2xl">"Cron jobs"</div>
                         <div class="text-gray-400 mb-8">
                             "A list of cron jobs for the current pipelines on the server"
                         </div>
                     </div>
-                    <CronJobsFilters limit=limit pipeline=pipeline/>
+                    <div class="col-span-3">
+                        <CronJobsFilters limit=limit pipeline=pipeline/>
+                    </div>
                 </div>
                 <CronJobsTable params=params/>
             </div>
