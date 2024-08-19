@@ -35,15 +35,17 @@ pub fn HistoryFilters(
     ]);
 
     view! {
-        <div class="flex items-center gap-x-4">
-            <div class="min-w-[400px]">
-                <Input placeholder="Search".to_string() value=pipeline/>
+        <div class="grid grid-cols-3">
+            <div class="col-span-2">
+                <Input placeholder="Search..." value=pipeline/>
             </div>
-            <div class="min-w-[70px]">
-                <Input input_type="number".to_string() placeholder="Limit".to_string() value=limit/>
-            </div>
-            <div class="min-w-[100px]">
-                <Select items=states value=state/>
+            <div class="flex justify-end gap-4">
+                <div class="min-w-[100px]">
+                    <Input input_type="number" placeholder="Limit" value=limit/>
+                </div>
+                <div class="min-w-[100px]">
+                    <Select items=states value=state/>
+                </div>
             </div>
         </div>
     }
