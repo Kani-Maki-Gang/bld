@@ -11,6 +11,7 @@ use crate::{
 use anyhow::Result;
 use bld_models::dtos::{CronJobResponse, JobFiltersParams};
 use leptos::{leptos_dom::logging, *};
+use leptos_use::signal_debounced;
 
 async fn get_cron(params: Option<JobFiltersParams>) -> Result<Vec<CronJobResponse>> {
     let params =
@@ -21,9 +22,10 @@ async fn get_cron(params: Option<JobFiltersParams>) -> Result<Vec<CronJobRespons
 #[component]
 pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> impl IntoView {
     let refresh = use_context::<RefreshCronJobs>();
+    let params_debounced = signal_debounced(params, 500.0);
 
     let data = create_resource(
-        move || params.get(),
+        move || params_debounced.get(),
         |params| async move { get_cron(params).await.map_err(|e| e.to_string()) },
     );
 
