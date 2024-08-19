@@ -11,6 +11,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use bld_models::dtos::{HistQueryParams, HistoryEntry};
 use leptos::{leptos_dom::logging, *};
+use leptos_use::signal_debounced;
 
 async fn get_hist(params: Option<HistQueryParams>) -> Result<Vec<HistoryEntry>> {
     let params = params.ok_or_else(|| anyhow!("No query params provided for /v1/hist request"))?;
@@ -45,9 +46,10 @@ pub fn HistoryEntryState(#[prop(into)] state: String) -> impl IntoView {
 #[component]
 pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> impl IntoView {
     let refresh = use_context::<RefreshHistory>();
+    let params_debounced = signal_debounced(params, 500.0);
 
     let data = create_resource(
-        move || params.get(),
+        move || params_debounced.get(),
         |params| async move { get_hist(params).await.map_err(|e| e.to_string()) },
     );
 

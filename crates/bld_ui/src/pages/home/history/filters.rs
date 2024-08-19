@@ -1,10 +1,4 @@
-use crate::{
-    components::{
-        button::Button,
-        input::{Input, Select, SelectItem},
-    },
-    context::RefreshHistory,
-};
+use crate::components::input::{Input, Select, SelectItem};
 use leptos::*;
 
 #[component]
@@ -39,25 +33,19 @@ pub fn HistoryFilters(
             label: "Faulted".to_string(),
         },
     ]);
-    let refresh = use_context::<RefreshHistory>();
 
     view! {
-        <div class="flex items-center gap-x-4">
-            <div class="min-w-[400px]">
-                <Input placeholder="Search".to_string() value=pipeline/>
+        <div class="grid grid-cols-3">
+            <div class="col-span-2">
+                <Input placeholder="Search..." value=pipeline/>
             </div>
-            <div class="min-w-[70px]">
-                <Input input_type="number".to_string() placeholder="Limit".to_string() value=limit/>
-            </div>
-            <div class="min-w-[100px]">
-                <Select items=states value=state/>
-            </div>
-            <div class="w-32">
-                <Button on:click=move |_| {
-                    if let Some(RefreshHistory(refresh)) = refresh {
-                        refresh.set(());
-                    }
-                }>"Apply"</Button>
+            <div class="flex justify-end gap-4">
+                <div class="min-w-[100px]">
+                    <Input input_type="number" placeholder="Limit" value=limit/>
+                </div>
+                <div class="min-w-[100px]">
+                    <Select items=states value=state/>
+                </div>
             </div>
         </div>
     }
