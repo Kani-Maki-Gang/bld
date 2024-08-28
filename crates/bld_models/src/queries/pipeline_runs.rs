@@ -186,11 +186,11 @@ pub async fn count_per_state_last_ten_days(
         DatabaseBackend::Postgres => {
             r#"
             select
-                sum(case when "state" = 'initial' then 1 else 0 end) as "initial",
-                sum(case when "state" = 'queued' then 1 else 0 end) as "queued",
-                sum(case when "state" = 'running' then 1 else 0 end) as "running",
-                sum(case when "state" = 'finished' then 1 else 0 end) as "finished",
-                sum(case when "state" = 'faulted' then 1 else 0 end) as "faulted"
+                coalesce(sum(case when "state" = 'initial' then 1 else 0 end), 0) as "initial",
+                coalesce(sum(case when "state" = 'queued' then 1 else 0 end), 0) as "queued",
+                coalesce(sum(case when "state" = 'running' then 1 else 0 end), 0) as "running",
+                coalesce(sum(case when "state" = 'finished' then 1 else 0 end), 0) as "finished",
+                coalesce(sum(case when "state" = 'faulted' then 1 else 0 end), 0) as "faulted"
             from
                 "pipeline_runs"
             where
@@ -201,11 +201,11 @@ pub async fn count_per_state_last_ten_days(
         DatabaseBackend::MySql => {
             r#"
             select
-                cast(sum(case when state = 'initial' then 1 else 0 end) as signed integer) as initial,
-                cast(sum(case when state = 'queued' then 1 else 0 end) as signed integer) as queued,
-                cast(sum(case when state = 'running' then 1 else 0 end) as signed integer) as running,
-                cast(sum(case when state = 'finished' then 1 else 0 end) as signed integer) as finished,
-                cast(sum(case when state = 'faulted' then 1 else 0 end) as signed integer) as faulted
+                coalesce(cast(sum(case when state = 'initial' then 1 else 0 end) as signed integer), 0) as initial,
+                coalesce(cast(sum(case when state = 'queued' then 1 else 0 end) as signed integer), 0) as queued,
+                coalesce(cast(sum(case when state = 'running' then 1 else 0 end) as signed integer), 0) as running,
+                coalesce(cast(sum(case when state = 'finished' then 1 else 0 end) as signed integer), 0) as finished,
+                coalesce(cast(sum(case when state = 'faulted' then 1 else 0 end) as signed integer), 0) as faulted
             from
                 pipeline_runs
             where
@@ -216,11 +216,11 @@ pub async fn count_per_state_last_ten_days(
         DatabaseBackend::Sqlite => {
             r#"
             select
-                cast(sum(case when state = 'initial' then 1 else 0 end) as bigint) as initial,
-                cast(sum(case when state = 'queued' then 1 else 0 end) as bigint) as queued,
-                cast(sum(case when state = 'running' then 1 else 0 end) as bigint) as running,
-                cast(sum(case when state = 'finished' then 1 else 0 end) as bigint) as finished,
-                cast(sum(case when state = 'faulted' then 1 else 0 end) as bigint) as faulted
+                coalesce(cast(sum(case when state = 'initial' then 1 else 0 end) as bigint), 0) as initial,
+                coalesce(cast(sum(case when state = 'queued' then 1 else 0 end) as bigint), 0) as queued,
+                coalesce(cast(sum(case when state = 'running' then 1 else 0 end) as bigint), 0) as running,
+                coalesce(cast(sum(case when state = 'finished' then 1 else 0 end) as bigint), 0) as finished,
+                coalesce(cast(sum(case when state = 'faulted' then 1 else 0 end) as bigint), 0) as faulted
             from
                 pipeline_runs
             where
