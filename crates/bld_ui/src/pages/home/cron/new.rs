@@ -1,6 +1,6 @@
 use crate::{
     api,
-    components::{button::Button, card::Card, input::Input, list::List},
+    components::{button::{Button, IconButton}, card::Card, input::Input, list::List},
     context::{AppDialog, AppDialogContent},
     error::Error,
 };
@@ -88,7 +88,7 @@ pub fn CronJobsNewButton() -> impl IntoView {
     let app_dialog_content = use_context::<AppDialogContent>();
 
     view! {
-        <Button on:click=move |_| {
+        <IconButton icon="iconoir-plus" on:click=move |_| {
             let Some(AppDialogContent(content)) = app_dialog_content else {
                 logging::console_error("App dialog content is not set");
                 return;
@@ -99,6 +99,6 @@ pub fn CronJobsNewButton() -> impl IntoView {
             };
             let _ = dialog.get().map(|x| x.show_modal());
             content.set(Some(view! { <CronJobsNewDialog app_dialog=dialog/> }));
-        }>"Add new"</Button>
+        } />
     }
 }
