@@ -40,6 +40,30 @@ pub fn build_url<T: Into<String> + Display>(route: T) -> Result<String> {
     Ok(format!("{origin}{route}"))
 }
 
+#[cfg(debug_assertions)]
+pub fn build_ws_url<T: Into<String> + Display>(route: T) -> Result<String> {
+    Ok(format!("ws://localhost:6080{route}"))
+}
+
+#[cfg(not(debug_assertions))]
+pub fn build_ws_url<T: Into<String> + Display>(route: T) -> Result<String> {
+    let window = window().ok_or_else(|| anyhow!("window not found"))?;
+    let hostname = window
+        .location()
+        .hostname()
+        .map_err(|_| anyhow!("unable to find window origin"))?;
+    let protocol = window
+        .location()
+        .protocol()
+        .map_err(|_| anyhow!("unable to find window protocol"))?;
+    let origin = if protocol == "https:" {
+        format!("wss://{hostname}")
+    } else {
+        format!("ws://{hostname}")
+    };
+    Ok(format!("{origin}/{route}"))
+}
+
 fn get_local_storage() -> Result<Storage> {
     let window = window().ok_or_else(|| anyhow!("window not found"))?;
 
