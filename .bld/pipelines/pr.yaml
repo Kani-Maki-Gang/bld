@@ -1,0 +1,59 @@
+name: Build musl target
+version: 2
+runs_on:
+  name: bld-image
+  dockerfile: ${{ bld_root_dir }}/dockerfiles/Dockerfile
+  tag: latest
+
+variables:
+  branch: master
+
+jobs:
+  code_quality:
+    - name: Clone repository
+      exec:
+        - echo 'Cloning repository on branch ${{ branch }}'
+        - git clone -b ${{ branch }} https://github.com/Kani-Maki-Gang/bld.git code_quality
+
+    - name: Run formatting
+      working_dir: code_quality
+      exec:
+        - cargo fmt --all --check
+
+    - name: Run linting
+      working_dir: code_quality
+      exec:
+        - cargo clippy --all-targets --all-features -- -D warnings
+
+  build_frontend:
+    - name: Clone repository
+      exec:
+        - echo 'Cloning repository on branch ${{ branch }}'
+        - git clone -b ${{ branch }} https://github.com/Kani-Maki-Gang/bld.git build_frontend
+
+    - name: Trunk build
+      working_dir: build_frontend/crates/bld_ui
+      exec:
+        - trunk build --release
+
+  build_musl:
+    - name: Clone repository
+      exec:
+        - echo 'Cloning repository on branch ${{ branch }}'
+        - git clone -b ${{ branch }} https://github.com/Kani-Maki-Gang/bld.git build_musl
+
+    - name: Cargo build for musl target
+      working_dir: build_musl
+      exec:
+        - cargo build --release --target x86_64-unknown-linux-musl
+
+  build_mingw:
+    - name: Clone repository
+      exec:
+        - echo 'Cloning repository on branch ${{ branch }}'
+        - git clone -b ${{ branch }} https://github.com/Kani-Maki-Gang/bld.git build_mingw
+
+    - name: Cargo build for mingw target
+      working_dir: build_mingw
+      exec:
+        - cargo build --release --target x86_64-pc-windows-gnu
