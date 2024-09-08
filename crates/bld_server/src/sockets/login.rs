@@ -182,7 +182,7 @@ impl LoginSocket {
                         return ready(());
                     }
 
-                    return ready(());
+                    ready(())
                 });
         ctx.spawn(status_fut);
     }
