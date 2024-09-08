@@ -52,13 +52,16 @@ impl LoginClient {
         match message {
             LoginServerMessage::AuthorizationUrl(url) => {
                 debug!("received message to open url for the login process to begin");
+                debug!("Opening browser with url: {url}");
                 println!("Opening a new browser tab to start the login process.");
 
-                let mut command = match os_name() {
-                    OSname::Linux => Command::new("xdg-open"),
+                let (command, args) = match os_name() {
+                    OSname::Linux => ("xdg-open", vec![url.as_str()]),
+                    OSname::Windows => ("powershell", vec!["-c", "Start-Process", url.as_str()]),
                     _ => unimplemented!(),
                 };
-                command.arg(&url);
+                let mut command = Command::new(command);
+                command.args(args);
                 command.stdout(Stdio::null());
                 command.stderr(Stdio::null());
 

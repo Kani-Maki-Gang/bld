@@ -20,6 +20,7 @@ pub use tls::*;
 use crate::definitions::{
     LOCAL_DEFAULT_DB_DIR, LOCAL_DEFAULT_DB_NAME, LOCAL_MACHINE_TMP_DIR, LOCAL_SERVER_HOST,
     LOCAL_SERVER_PORT, REMOTE_SERVER_AUTH, TOOL_DEFAULT_CONFIG_FILE, TOOL_DIR,
+    WEB_CLIENT_DEBUG_ORIGIN,
 };
 use anyhow::{anyhow, Error, Result};
 use openidconnect::core::CoreClient;
@@ -165,12 +166,18 @@ impl BldConfig {
     }
 
     pub async fn openid_web_core_client(&self) -> Result<Option<CoreClient>> {
-        if let Some(auth) = &self.local.server.auth {
-            auth.web_core_client(&self.local.server.base_url_http())
+        let Some(auth) = &self.local.server.auth else {
+            return Ok(None);
+        };
+
+        if cfg!(debug_assertions) {
+            auth.web_core_client(WEB_CLIENT_DEBUG_ORIGIN)
                 .await
                 .map(Some)
         } else {
-            Ok(None)
+            auth.web_core_client(&self.local.server.base_url_http())
+                .await
+                .map(Some)
         }
     }
 

@@ -40,6 +40,32 @@ pub fn build_url<T: Into<String> + Display>(route: T) -> Result<String> {
     Ok(format!("{origin}{route}"))
 }
 
+#[cfg(debug_assertions)]
+pub fn build_ws_url<T: Into<String> + Display>(route: T) -> Result<String> {
+    Ok(format!("ws://localhost:6080{route}"))
+}
+
+#[cfg(not(debug_assertions))]
+pub fn build_ws_url<T: Into<String> + Display>(route: T) -> Result<String> {
+    let window = window().ok_or_else(|| anyhow!("window not found"))?;
+    let protocol = window
+        .location()
+        .protocol()
+        .map_err(|_| anyhow!("unable to find window protocol"))?;
+    let origin = window
+        .location()
+        .origin()
+        .map(|x| {
+            if protocol == "https:" {
+                x.replace("https://", "wss://")
+            } else {
+                x.replace("http://", "ws://")
+            }
+        })
+        .map_err(|_| anyhow!("unable to find window origin"))?;
+    Ok(format!("{origin}{route}"))
+}
+
 fn get_local_storage() -> Result<Storage> {
     let window = window().ok_or_else(|| anyhow!("window not found"))?;
 
@@ -83,7 +109,7 @@ fn set_auth_tokens(info: AuthTokens) -> Result<()> {
         .map_err(|_| anyhow!("unable to set auth tokens"))
 }
 
-fn get_access_token() -> Result<String> {
+fn get_access_token_inner() -> Result<String> {
     let local_storage = get_local_storage()?;
     let auth = local_storage
         .get(LOCAL_STORAGE_AUTH_TOKENS_KEY)
@@ -108,7 +134,7 @@ fn get_authorization_header() -> Result<Option<(String, String)>> {
         return Ok(None);
     }
 
-    let access_token = match get_access_token() {
+    let access_token = match get_access_token_inner() {
         Ok(token) => token,
         Err(e) => {
             navigate_to_login();
@@ -120,6 +146,21 @@ fn get_authorization_header() -> Result<Option<(String, String)>> {
         "Authorization".to_owned(),
         format!("Bearer {}", access_token),
     )))
+}
+
+pub fn get_access_token() -> Result<Option<String>> {
+    let auth_available = get_auth_available()?;
+    if !auth_available {
+        return Ok(None);
+    }
+
+    match get_access_token_inner() {
+        Ok(token) => Ok(Some(token)),
+        Err(e) => {
+            navigate_to_login();
+            bail!(e)
+        }
+    }
 }
 
 fn add_authorization_header(req_builder: RequestBuilder) -> Result<RequestBuilder> {

@@ -1,5 +1,5 @@
 use crate::{
-    api,
+    api::{self, build_ws_url, get_access_token},
     components::{badge::Badge, button::Button, card::Card, colors::Colors},
     context::{AppDialog, AppDialogContent},
     error::ErrorDialog,
@@ -31,12 +31,25 @@ pub fn Monit() -> impl IntoView {
     let app_dialog = use_context::<AppDialog>();
     let app_dialog_content = use_context::<AppDialogContent>();
 
+    let Ok(access_token) = get_access_token() else {
+        return view! {}.into_view();
+    };
+
+    let mut path = "/v1/ws-monit/".to_string();
+    if let Some(access_token) = access_token {
+        path.push_str(&format!("?access_token={}", access_token));
+    }
+
+    let Ok(url) = build_ws_url(&path) else {
+        return view! {}.into_view();
+    };
+
     let UseWebsocketReturn {
         message,
         send,
         ready_state,
         ..
-    } = use_websocket("ws://localhost:6080/v1/ws-monit/");
+    } = use_websocket(&url);
 
     let socket_state = move || match ready_state.get() {
         ConnectionReadyState::Connecting => "Connecting",
@@ -84,7 +97,7 @@ pub fn Monit() -> impl IntoView {
                         <div class="w-auto">
                             <Badge>
                                 <span class="fs-bold">"State: "</span>
-                                {move || socket_state}
+                                {move || socket_state()}
                             </Badge>
                         </div>
                         <div class="w-32">

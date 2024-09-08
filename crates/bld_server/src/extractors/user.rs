@@ -56,6 +56,21 @@ fn get_access_token(request: &HttpRequest) -> AccessToken {
         .to_str()
         .unwrap()
         .replace("Bearer ", "");
+
+    let ws_upgrade = request
+        .headers()
+        .get("Upgrade")
+        .and_then(|x| Some(x == "websocket"))
+        .unwrap_or(false);
+
+    let check_ws_sec_protocol = bearer.is_empty() && ws_upgrade;
+
+    let bearer = if check_ws_sec_protocol {
+        request.query_string().replace("access_token=", "")
+    } else {
+        bearer
+    };
+
     AccessToken::new(bearer)
 }
 
