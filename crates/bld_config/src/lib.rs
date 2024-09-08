@@ -170,13 +170,15 @@ impl BldConfig {
             return Ok(None);
         };
 
-        let base_url_http = if cfg!(debug_assertions) {
-            WEB_CLIENT_DEBUG_ORIGIN
+        if cfg!(debug_assertions) {
+            auth.web_core_client(WEB_CLIENT_DEBUG_ORIGIN)
+                .await
+                .map(Some)
         } else {
-            &self.local.server.base_url_http()
-        };
-
-        auth.web_core_client(base_url_http).await.map(Some)
+            auth.web_core_client(&self.local.server.base_url_http())
+                .await
+                .map(Some)
+        }
     }
 
     pub fn server_pipelines(&self) -> PathBuf {
