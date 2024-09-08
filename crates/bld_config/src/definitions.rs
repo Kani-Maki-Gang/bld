@@ -37,6 +37,8 @@ pub const REMOTE_SERVER_HOST: &str = "127.0.0.1";
 pub const REMOTE_SERVER_PORT: i64 = 6080;
 pub const REMOTE_SERVER_AUTH: &str = "auth";
 
+pub const WEB_CLIENT_DEBUG_ORIGIN: &str = "http://127.0.0.1:8080";
+
 pub const DEFAULT_EDITOR: &str = "vi";
 
 pub const DEFAULT_V1_PIPELINE_CONTENT: &str = r"runs_on: machine

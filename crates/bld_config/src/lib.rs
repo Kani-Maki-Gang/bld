@@ -20,6 +20,7 @@ pub use tls::*;
 use crate::definitions::{
     LOCAL_DEFAULT_DB_DIR, LOCAL_DEFAULT_DB_NAME, LOCAL_MACHINE_TMP_DIR, LOCAL_SERVER_HOST,
     LOCAL_SERVER_PORT, REMOTE_SERVER_AUTH, TOOL_DEFAULT_CONFIG_FILE, TOOL_DIR,
+    WEB_CLIENT_DEBUG_ORIGIN,
 };
 use anyhow::{anyhow, Error, Result};
 use openidconnect::core::CoreClient;
@@ -165,13 +166,18 @@ impl BldConfig {
     }
 
     pub async fn openid_web_core_client(&self) -> Result<Option<CoreClient>> {
-        if let Some(auth) = &self.local.server.auth {
-            auth.web_core_client(&self.local.server.base_url_http())
-                .await
-                .map(Some)
+        let Some(auth) = &self.local.server.auth else {
+            return Ok(None);
+        };
+
+        let base_url_http = if cfg!(debug_assertions) {
+            WEB_CLIENT_DEBUG_ORIGIN
         } else {
-            Ok(None)
-        }
+            &self.local.server.base_url_http()
+        };
+        debug!("web core client origin: {}", base_url_http);
+
+        auth.web_core_client(base_url_http).await.map(Some)
     }
 
     pub fn server_pipelines(&self) -> PathBuf {
