@@ -175,7 +175,6 @@ impl BldConfig {
         } else {
             &self.local.server.base_url_http()
         };
-        debug!("web core client origin: {}", base_url_http);
 
         auth.web_core_client(base_url_http).await.map(Some)
     }
