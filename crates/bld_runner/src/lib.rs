@@ -3,6 +3,7 @@ pub mod external;
 pub mod pipeline;
 pub mod runs_on;
 pub mod step;
+pub mod registry;
 
 #[cfg(feature = "all")]
 mod runner;
