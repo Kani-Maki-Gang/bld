@@ -321,6 +321,7 @@ impl Runner {
                 image,
                 pull,
                 docker_url,
+                ..
             } => {
                 let image = if pull.unwrap_or_default() {
                     Image::pull(image)
