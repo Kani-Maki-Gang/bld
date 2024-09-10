@@ -1,4 +1,4 @@
-name: Build musl target
+name: Build pipeline
 version: 2
 runs_on:
   name: bld-image
