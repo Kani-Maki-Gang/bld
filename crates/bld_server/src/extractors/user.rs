@@ -60,7 +60,7 @@ fn get_access_token(request: &HttpRequest) -> AccessToken {
     let ws_upgrade = request
         .headers()
         .get("Upgrade")
-        .and_then(|x| Some(x == "websocket"))
+        .map(|x| x == "websocket")
         .unwrap_or(false);
 
     let check_ws_sec_protocol = bearer.is_empty() && ws_upgrade;

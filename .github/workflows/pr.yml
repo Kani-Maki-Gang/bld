@@ -1,13 +1,13 @@
-name: bld main workflow
+name: bld pr workflow
 
 on:
-  push:
+  pull_request:
     branches: ["master"]
 
 jobs:
   main:
     runs-on: ubuntu-latest
-    name: Build pipeline
+    name: PR pipeline
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -20,6 +20,6 @@ jobs:
       - name: Run bld pipeline
         uses: Kani-Maki-Gang/bld-github-action@v0.3.1-alpha
         with:
-          pipeline: 'pipelines/build.yaml'
+          pipeline: 'pipelines/pr.yaml'
           variables: |-
             branch=${{ steps.get_branch_name.outputs.branch }}

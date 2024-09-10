@@ -1,4 +1,4 @@
-name: Release pipeline for Bld
+name: Release pipeline
 runs_on: machine
 version: 2
 

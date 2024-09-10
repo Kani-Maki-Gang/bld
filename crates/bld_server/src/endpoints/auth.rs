@@ -80,7 +80,7 @@ async fn openid_authorize_code(
         bail!("oidc response code hasn't not provided");
     };
 
-    let login_attempt = login_attempts::select_by_csrf_token(&conn, &params.state).await?;
+    let login_attempt = login_attempts::select_by_csrf_token(conn, &params.state).await?;
 
     if login_attempt.date_expires < Utc::now().naive_utc() {
         let _ = login_attempts::update_as_failed_by_csrf_token(conn, &params.state).await;
@@ -161,7 +161,7 @@ pub async fn web_client_start(
     let nonce = Nonce::new_random();
     let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
     let url_result =
-        openid_authorize_url(&web_core_client, &config, &csrf_token, &nonce, challenge).await;
+        openid_authorize_url(web_core_client, &config, &csrf_token, &nonce, challenge).await;
 
     if let Err(e) = url_result {
         error!("Error during creation of authorization url due to {e}");
@@ -175,13 +175,16 @@ pub async fn web_client_start(
         pkce_verifier: verifier.secret().to_owned(),
     };
 
-    if let Err(_) = login_attempts::insert(conn.get_ref(), login_attempt).await {
-        return HttpResponse::BadRequest().body("");
+    if login_attempts::insert(conn.get_ref(), login_attempt)
+        .await
+        .is_err()
+    {
+        return HttpResponse::Found()
+            .append_header(("Location", authorization_url.to_string()))
+            .finish();
     }
 
-    HttpResponse::Found()
-        .append_header(("Location", authorization_url.to_string()))
-        .finish()
+    HttpResponse::BadRequest().body("")
 }
 
 #[get("/v1/auth/web-client/validate")]

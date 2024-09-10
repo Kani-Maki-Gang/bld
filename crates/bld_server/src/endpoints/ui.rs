@@ -33,7 +33,7 @@ async fn get_count_of_running_pipelines(
     config: &BldConfig,
     conn: &DatabaseConnection,
 ) -> Result<RunningPipelinesKpi> {
-    pipeline_runs::count_running(&conn)
+    pipeline_runs::count_running(conn)
         .await
         .and_then(|count| TryInto::<i64>::try_into(count).map_err(|e| anyhow!(e)))
         .map(|count| {
