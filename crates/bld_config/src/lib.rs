@@ -155,6 +155,10 @@ impl BldConfig {
             .ok_or_else(|| anyhow!("ssh configuration with name '{name}' wasn't found"))
     }
 
+    pub fn registry(&self, _name: &str) -> Option<&str> {
+        None
+    }
+
     pub async fn openid_core_client(&self) -> Result<Option<CoreClient>> {
         if let Some(auth) = &self.local.server.auth {
             auth.core_client(&self.local.server.base_url_http())
