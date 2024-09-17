@@ -12,7 +12,7 @@ use bld_core::{
     logger::Logger,
     platform::{
         builder::{PlatformBuilder, PlatformOptions},
-        Image, Platform, SshAuthOptions, SshConnectOptions,
+        Image, ImageRegistry, Platform, SshAuthOptions, SshConnectOptions,
     },
     regex::RegexCache,
     signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend},
@@ -28,6 +28,7 @@ use tracing::debug;
 use crate::{
     external::v2::External,
     pipeline::v2::Pipeline,
+    registry::v2::Registry,
     runs_on::v2::RunsOn,
     step::v2::{BuildStep, BuildStepExec},
     RunnerBuilder,
@@ -321,10 +322,31 @@ impl Runner {
                 image,
                 pull,
                 docker_url,
-                ..
+                registry,
             } => {
+                let registry = match &registry {
+                    Some(Registry::UrlOrConfigKey(value)) => {
+                        let url = self.config.registry(&value).unwrap_or(&value);
+                        Some(ImageRegistry {
+                            url: &url,
+                            ..Default::default()
+                        })
+                    }
+
+                    Some(Registry::Full {
+                        url,
+                        username,
+                        password,
+                    }) => Some(ImageRegistry {
+                        url: &url,
+                        username: Some(&username),
+                        password: Some(&password),
+                    }),
+
+                    None => None,
+                };
                 let image = if pull.unwrap_or_default() {
-                    Image::pull(image)
+                    Image::pull(image, registry)
                 } else {
                     Image::Use(image)
                 };
