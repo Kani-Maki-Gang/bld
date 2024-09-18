@@ -12,6 +12,7 @@ pub enum Registry {
 }
 
 impl Registry {
+    #[cfg(feature = "all")]
     pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
         match self {
             Registry::FromConfig(url) => {
