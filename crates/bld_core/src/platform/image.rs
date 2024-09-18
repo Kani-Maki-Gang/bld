@@ -1,6 +1,7 @@
 use std::io::Write;
 
 use anyhow::{bail, Result};
+use bld_config::RegistryConfig;
 use bollard::{
     auth::DockerCredentials,
     image::{BuildImageOptions, CreateImageOptions},
@@ -14,16 +15,9 @@ use tokio::fs::read_to_string;
 
 use crate::logger::Logger;
 
-#[derive(Default)]
-pub struct ImageRegistry<'a> {
-    pub url: &'a str,
-    pub username: Option<&'a str>,
-    pub password: Option<&'a str>,
-}
-
 pub struct PullImage<'a> {
     image: &'a str,
-    registry: Option<ImageRegistry<'a>>,
+    registry: Option<&'a RegistryConfig>,
 }
 
 impl<'a> PullImage<'a> {
@@ -34,10 +28,10 @@ impl<'a> PullImage<'a> {
             ..Default::default()
         };
 
-        let credentials = if let Some(registry) = self.registry.as_ref() {
+        let credentials = if let Some(registry) = self.registry {
             Some(DockerCredentials {
-                username: registry.username.map(|x| x.to_owned()),
-                password: registry.password.map(|x| x.to_owned()),
+                username: registry.username.as_ref().map(|x| x.to_owned()),
+                password: registry.password.as_ref().map(|x| x.to_owned()),
                 serveraddress: Some(registry.url.to_owned()),
                 ..Default::default()
             })
@@ -158,7 +152,7 @@ pub enum Image<'a> {
 }
 
 impl<'a> Image<'a> {
-    pub fn pull(image: &'a str, registry: Option<ImageRegistry<'a>>) -> Self {
+    pub fn pull(image: &'a str, registry: Option<&'a RegistryConfig>) -> Self {
         Self::Pull(PullImage { image, registry })
     }
 
