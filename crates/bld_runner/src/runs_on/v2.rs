@@ -1,7 +1,7 @@
+use crate::registry::v2::Registry;
 use bld_config::SshConfig;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use crate::registry::v2::Registry;
 
 #[cfg(feature = "all")]
 use anyhow::Result;
@@ -52,7 +52,10 @@ impl RunsOn {
     pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
         match self {
             RunsOn::Pull {
-                image, registry, docker_url, ..
+                image,
+                registry,
+                docker_url,
+                ..
             } => {
                 *image = context.transform(image.to_owned()).await?;
                 if let Some(docker_url) = docker_url {

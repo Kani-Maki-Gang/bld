@@ -1,4 +1,5 @@
 use anyhow::Result;
+use bld_config::RegistryConfig;
 use serde::{Deserialize, Serialize};
 
 use crate::token_context::v2::PipelineContext;
@@ -6,28 +7,24 @@ use crate::token_context::v2::PipelineContext;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Registry {
-    UrlOrConfigKey(String),
-    Full {
-        url: String,
-        username: String,
-        password: String,
-    },
+    FromConfig(String),
+    Full(RegistryConfig),
 }
 
 impl Registry {
     pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
         match self {
-            Registry::UrlOrConfigKey(url) => {
+            Registry::FromConfig(url) => {
                 *url = context.transform(url.to_owned()).await?;
             }
-            Registry::Full {
-                url,
-                username,
-                password,
-            } => {
-                *url = context.transform(url.to_owned()).await?;
-                *username = context.transform(username.to_owned()).await?;
-                *password = context.transform(password.to_owned()).await?;
+            Registry::Full(ref mut config) => {
+                config.url = context.transform(config.url.to_owned()).await?;
+                if let Some(ref mut username) = config.username {
+                    config.username = Some(context.transform(username.to_owned()).await?);
+                }
+                if let Some(ref mut password) = config.password {
+                    config.password = Some(context.transform(password.to_owned()).await?);
+                }
             }
         }
         Ok(())

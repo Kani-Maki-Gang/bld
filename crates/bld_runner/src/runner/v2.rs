@@ -12,7 +12,7 @@ use bld_core::{
     logger::Logger,
     platform::{
         builder::{PlatformBuilder, PlatformOptions},
-        Image, ImageRegistry, Platform, SshAuthOptions, SshConnectOptions,
+        Image, Platform, SshAuthOptions, SshConnectOptions,
     },
     regex::RegexCache,
     signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend},
@@ -324,29 +324,14 @@ impl Runner {
                 docker_url,
                 registry,
             } => {
-                let registry = match &registry {
-                    Some(Registry::UrlOrConfigKey(value)) => {
-                        let url = self.config.registry(&value).unwrap_or(&value);
-                        Some(ImageRegistry {
-                            url: &url,
-                            ..Default::default()
-                        })
-                    }
-
-                    Some(Registry::Full {
-                        url,
-                        username,
-                        password,
-                    }) => Some(ImageRegistry {
-                        url: &url,
-                        username: Some(&username),
-                        password: Some(&password),
-                    }),
-
-                    None => None,
-                };
                 let image = if pull.unwrap_or_default() {
-                    Image::pull(image, registry)
+                    match registry.as_ref() {
+                        Some(Registry::FromConfig(value)) => {
+                            Image::pull(image, self.config.registry(&value))
+                        }
+                        Some(Registry::Full(config)) => Image::pull(image, Some(config)),
+                        None => Image::pull(image, None),
+                    }
                 } else {
                     Image::Use(image)
                 };
