@@ -68,3 +68,20 @@ impl Default for DockerUrl {
         Self::Single(definitions::LOCAL_DOCKER_URL.to_owned())
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegistryConfig {
+    pub url: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
+}
+
+impl RegistryConfig {
+    pub fn new(url: String) -> Self {
+        Self {
+            url,
+            username: None,
+            password: None,
+        }
+    }
+}

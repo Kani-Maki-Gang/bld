@@ -155,8 +155,8 @@ impl BldConfig {
             .ok_or_else(|| anyhow!("ssh configuration with name '{name}' wasn't found"))
     }
 
-    pub fn registry(&self, _name: &str) -> Option<&str> {
-        None
+    pub fn registry(&self, name: &str) -> Option<&RegistryConfig> {
+        self.local.registries.get(name)
     }
 
     pub async fn openid_core_client(&self) -> Result<Option<CoreClient>> {
