@@ -1,7 +1,10 @@
-use anyhow::Result;
 use bld_config::RegistryConfig;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "all")]
+use anyhow::Result;
+
+#[cfg(feature = "all")]
 use crate::token_context::v2::PipelineContext;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
