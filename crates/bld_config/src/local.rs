@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     definitions, ssh::SshConfig, BldLocalServerConfig, BldLocalSupervisorConfig, DockerUrl,
+    RegistryConfig,
 };
 use serde::{Deserialize, Serialize};
 
@@ -24,6 +25,9 @@ pub struct BldLocalConfig {
 
     #[serde(default)]
     pub ssh: HashMap<String, SshConfig>,
+
+    #[serde(default)]
+    pub registries: HashMap<String, RegistryConfig>,
 }
 
 impl BldLocalConfig {
@@ -113,6 +117,7 @@ impl Default for BldLocalConfig {
             docker_url: Default::default(),
             editor: Self::default_editor(),
             ssh: Default::default(),
+            registries: Default::default(),
         }
     }
 }
