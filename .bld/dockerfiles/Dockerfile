@@ -1,4 +1,4 @@
-FROM rust:1.78-bookworm
+FROM rust:1.81-bookworm
 
 ARG OPENSSL_VERSION=1.1.1m
 
