@@ -44,9 +44,8 @@ pub async fn select_last<C: ConnectionTrait + TransactionTrait>(
             error!("couldn't load high availability snapshot due to: not found");
             anyhow!("high availability snapshot not found")
         })
-        .map(|sn| {
+        .inspect(|_| {
             debug!("loaded high availability snapshot successfully");
-            sn
         })
 }
 

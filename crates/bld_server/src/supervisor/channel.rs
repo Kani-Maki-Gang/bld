@@ -79,9 +79,8 @@ impl SupervisorMessageReceiver {
                 EnqueueClient::new(SinkWrite::new(sink, ctx))
             });
 
-            address.send(ServerMessages::Ack).await.map_err(|e| {
+            address.send(ServerMessages::Ack).await.inspect_err(|e| {
                 error!("failed to send Ack to supervisor, {e}");
-                e
             })?;
 
             if let Some(msg) = self.last_message {

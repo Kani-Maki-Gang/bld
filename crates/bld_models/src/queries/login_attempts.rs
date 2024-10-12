@@ -66,9 +66,8 @@ pub async fn select_by_csrf_token(
             error!("couldn't load login attempt due to not found");
             anyhow!("login attempt not found")
         })
-        .map(|p| {
+        .inspect(|_| {
             debug!("loaded login attempt successfully");
-            p
         })
 }
 

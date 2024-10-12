@@ -53,9 +53,8 @@ pub async fn select_last<C: ConnectionTrait + TransactionTrait>(conn: &C) -> Res
             error!("couldn't load high availability log due to: not found");
             anyhow!("high availability log not found")
         })
-        .map(|l| {
+        .inspect(|_| {
             debug!("loaded high availability log successfully");
-            l
         })
 }
 
@@ -70,9 +69,8 @@ pub async fn select_last_rows<C: ConnectionTrait + TransactionTrait>(
         .limit(rows)
         .all(conn)
         .await
-        .map(|l| {
+        .inspect(|_| {
             debug!("loaded high availability logs successfully");
-            l
         })
         .map_err(|e| {
             error!("could not load high availability logs due to: {}", e);
@@ -99,9 +97,8 @@ pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
             error!("couldn't load high availability log due to: not found");
             anyhow!("high availability log not found")
         })
-        .map(|l| {
+        .inspect(|_| {
             debug!("loaded high availability log successfully");
-            l
         })
 }
 
@@ -119,9 +116,8 @@ pub async fn select_between_ids<C: ConnectionTrait + TransactionTrait>(
         .filter(high_availability_log::Column::Id.lte(lg_end_id))
         .all(conn)
         .await
-        .map(|l| {
+        .inspect(|_| {
             debug!("loaded high availability logs successfully");
-            l
         })
         .map_err(|e| {
             error!("could not load high availability logs due to: {}", e);
@@ -153,9 +149,8 @@ pub async fn select_by_payload_type<C: ConnectionTrait + TransactionTrait>(
             error!("couldn't load high availability log due to: not found");
             anyhow!("high availability log not found")
         })
-        .map(|l| {
+        .inspect(|_| {
             debug!("load high availability log model entries successfully");
-            l
         })
 }
 
@@ -178,9 +173,8 @@ pub async fn select_first_by_date_created_desc<C: ConnectionTrait + TransactionT
             error!("couldn't load high availability log due to: not found");
             anyhow!("high availability log not found")
         })
-        .map(|l| {
+        .inspect(|_| {
             debug!("loaded first high availability log successfully");
-            l
         })
 }
 
@@ -208,9 +202,8 @@ pub async fn select_config_greater_than_id<C: ConnectionTrait + TransactionTrait
             error!("couldn't load high availability log due to: not found");
             anyhow!("high availability log not found")
         })
-        .map(|l| {
+        .inspect(|_| {
             debug!("loaded high availability logs successfully");
-            l
         })
 }
 

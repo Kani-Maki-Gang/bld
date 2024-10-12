@@ -46,9 +46,8 @@ pub async fn select_first<C: ConnectionTrait + TransactionTrait>(
             error!("couldn't load the first high availability hard state due to: not found");
             anyhow!("high availability hard state not found")
         })
-        .map(|ha| {
+        .inspect(|_| {
             debug!("loaded the first high availability hard state successfully");
-            ha
         })
 }
 
@@ -70,9 +69,8 @@ pub async fn select_last<C: ConnectionTrait + TransactionTrait>(
             error!("couldn't load high availability hard state due to: not found");
             anyhow!("high availability hard state not found")
         })
-        .map(|hs| {
+        .inspect(|_| {
             debug!("loaded high availability hard state successfully");
-            hs
         })
 }
 
@@ -95,9 +93,8 @@ pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
             error!("couldn't load high availability hard state due to: not found");
             anyhow!("high availability hard state not found")
         })
-        .map(|hs| {
+        .inspect(|_| {
             debug!("loaded high availability hard state successfully");
-            hs
         })
 }
 

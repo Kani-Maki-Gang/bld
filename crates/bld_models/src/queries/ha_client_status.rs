@@ -49,9 +49,8 @@ pub async fn select_last<C: ConnectionTrait + TransactionTrait>(
             error!("couldn't load high availability client status due to: not found");
             anyhow!("high availability client status not found")
         })
-        .map(|cs| {
+        .inspect(|_| {
             debug!("loaded high availability client status successfully");
-            cs
         })
 }
 
@@ -80,9 +79,8 @@ pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
             error!("couldn't load high availability client status due to: not found");
             anyhow!("high availability client status not found")
         })
-        .map(|cs| {
+        .inspect(|_| {
             debug!("loaded high availability client status successfully");
-            cs
         })
 }
 

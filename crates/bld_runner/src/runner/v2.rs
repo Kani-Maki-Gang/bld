@@ -327,7 +327,7 @@ impl Runner {
                 let image = if pull.unwrap_or_default() {
                     match registry.as_ref() {
                         Some(Registry::FromConfig(value)) => {
-                            Image::pull(image, self.config.registry(&value))
+                            Image::pull(image, self.config.registry(value))
                         }
                         Some(Registry::Full(config)) => Image::pull(image, Some(config)),
                         None => Image::pull(image, None),

@@ -38,9 +38,8 @@ pub async fn select_by_cron_job_id<C: ConnectionTrait + TransactionTrait>(
         .filter(cron_job_variables::Column::CronJobId.eq(cv_cron_job_id))
         .all(conn)
         .await
-        .map(|cev| {
+        .inspect(|_| {
             debug!("loaded cron job variables successfully");
-            cev
         })
         .map_err(|e| {
             error!("couldn't load cron job variables due to {e}");

@@ -36,9 +36,8 @@ pub async fn select_all<C: ConnectionTrait + TransactionTrait>(conn: &C) -> Resu
     CronJobEntity::find()
         .all(conn)
         .await
-        .map(|c| {
+        .inspect(|_| {
             debug!("loaded all cron jobs successfully");
-            c
         })
         .map_err(|e| {
             error!("couln't load cron jobs due to {e}");
@@ -64,9 +63,8 @@ pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
             error!("couldn't load cron job due to not found");
             anyhow!("cron job not found")
         })
-        .map(|cj| {
+        .inspect(|_| {
             debug!("loaded cron job successfully");
-            cj
         })
 }
 
@@ -91,9 +89,8 @@ pub async fn select_default_by_pipeline<C: ConnectionTrait + TransactionTrait>(
             error!("couldn't load cron job due to not found");
             anyhow!("cron job not found")
         })
-        .map(|cj| {
+        .inspect(|_| {
             debug!("loading cron job successfully");
-            cj
         })
 }
 
@@ -106,9 +103,8 @@ pub async fn select_by_pipeline<C: ConnectionTrait + TransactionTrait>(
         .filter(cron_jobs::Column::PipelineId.eq(cj_pipeline_id))
         .all(conn)
         .await
-        .map(|cj| {
+        .inspect(|_| {
             debug!("loading cron job successfully");
-            cj
         })
         .map_err(|e| {
             error!("couldn't load cron job due to {e}");
@@ -145,9 +141,8 @@ pub async fn select_with_filters<C: ConnectionTrait + TransactionTrait>(
                 error!("couldn't load pipeline due to not found");
                 anyhow!("pipeline not found")
             })
-            .map(|model| {
+            .inspect(|_| {
                 debug!("loaded pipeline with name {flt_pipeline} successfully");
-                model
             })?;
         find = find.filter(cron_jobs::Column::PipelineId.eq(pipeline.id));
     }
@@ -164,9 +159,8 @@ pub async fn select_with_filters<C: ConnectionTrait + TransactionTrait>(
 
     find.all(conn)
         .await
-        .map(|jobs| {
+        .inspect(|_| {
             debug!("loaded cron jobs successfully!");
-            jobs
         })
         .map_err(|e| {
             error!("unable to load cron jobs due to {e}");

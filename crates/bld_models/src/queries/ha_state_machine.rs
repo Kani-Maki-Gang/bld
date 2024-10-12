@@ -33,9 +33,8 @@ pub async fn select_first<C: ConnectionTrait + TransactionTrait>(
             error!("couldn't load high availability state machine due to: not found");
             anyhow!("high availability state machine not found")
         })
-        .map(|sm| {
+        .inspect(|_| {
             debug!("loaded high availability state machine successfully");
-            sm
         })
 }
 
@@ -61,9 +60,8 @@ pub async fn select_last<C: ConnectionTrait + TransactionTrait>(
             error!("couldn't load high availability state machine due to: not found");
             anyhow!("high availability state machine not found")
         })
-        .map(|sm| {
+        .inspect(|_| {
             debug!("loaded high availability state machine successfully");
-            sm
         })
 }
 
@@ -89,9 +87,8 @@ pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
             error!("couldn't load high availability state machine due to: not found");
             anyhow!("high availability state machine not found")
         })
-        .map(|sm| {
+        .inspect(|_| {
             debug!("loaded high availability state machine successfully");
-            sm
         })
 }
 

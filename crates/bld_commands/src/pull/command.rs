@@ -55,9 +55,8 @@ impl PullCommand {
             let mut deps = client
                 .deps(&self.pipeline)
                 .await
-                .map(|deps| {
+                .inspect(|_| {
                     println!("Done.");
-                    deps
                 })
                 .map_err(|e| {
                     println!("Error. {e}");
@@ -73,9 +72,8 @@ impl PullCommand {
             let data = client
                 .pull(pipeline)
                 .await
-                .map(|data| {
+                .inspect(|_| {
                     println!("Done.");
-                    data
                 })
                 .map_err(|err| {
                     println!("Error. {err}");

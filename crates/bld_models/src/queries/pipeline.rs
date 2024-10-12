@@ -23,9 +23,8 @@ pub async fn select_all<C: ConnectionTrait + TransactionTrait>(conn: &C) -> Resu
         .order_by_asc(pipeline::Column::Name)
         .all(conn)
         .await
-        .map(|p| {
+        .inspect(|_| {
             debug!("loaded all pipelines successfully");
-            p
         })
         .map_err(|e| {
             error!("couldn't load pipelines due to {e}");
@@ -43,9 +42,8 @@ pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
     let model = PipelineEntity::find_by_id(pip_id)
         .one(conn)
         .await
-        .map(|p| {
+        .inspect(|_| {
             debug!("loaded pipeline successfully");
-            p
         })
         .map_err(|e| {
             error!("could not load pipeline due to {e}");
@@ -78,9 +76,8 @@ pub async fn select_by_name<C: ConnectionTrait + TransactionTrait>(
             error!("couldn't load pipeline due to not found");
             anyhow!("pipeline not found")
         })
-        .map(|p| {
+        .inspect(|_| {
             debug!("loaded pipeline successfully");
-            p
         })
 }
 

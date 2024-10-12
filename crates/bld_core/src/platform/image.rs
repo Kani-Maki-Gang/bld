@@ -28,16 +28,12 @@ impl<'a> PullImage<'a> {
             ..Default::default()
         };
 
-        let credentials = if let Some(registry) = self.registry {
-            Some(DockerCredentials {
-                username: registry.username.as_ref().map(|x| x.to_owned()),
-                password: registry.password.as_ref().map(|x| x.to_owned()),
-                serveraddress: Some(registry.url.to_owned()),
-                ..Default::default()
-            })
-        } else {
-            None
-        };
+        let credentials = self.registry.map(|registry| DockerCredentials {
+            username: registry.username.as_ref().map(|x| x.to_owned()),
+            password: registry.password.as_ref().map(|x| x.to_owned()),
+            serveraddress: Some(registry.url.to_owned()),
+            ..Default::default()
+        });
 
         let mut stream = client.create_image(Some(opts), None, credentials);
 

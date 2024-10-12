@@ -49,9 +49,8 @@ pub async fn select_last<C: ConnectionTrait + TransactionTrait>(
             error!("couldn'y load high availability client serial respone due to: not found");
             anyhow!("high availability client serial response not found")
         })
-        .map(|csr| {
+        .inspect(|_| {
             debug!("loaded high availability client serial response successfully");
-            csr
         })
 }
 
@@ -80,9 +79,8 @@ pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
             error!("couldn't load high availability client serial response due to: not found");
             anyhow!("high availability client serial response not found")
         })
-        .map(|csr| {
+        .inspect(|_| {
             debug!("loaded high availability client serial response successfully");
-            csr
         })
 }
 
