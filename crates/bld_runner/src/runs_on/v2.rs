@@ -47,8 +47,32 @@ impl Display for RunsOn {
     }
 }
 
-#[cfg(feature = "all")]
 impl RunsOn {
+    pub fn registry<'a>(&'a self) -> Option<&'a str> {
+        match self {
+            RunsOn::Pull {
+                registry: Some(Registry::FromConfig(config)),
+                ..
+            } => Some(config),
+            RunsOn::Pull {
+                registry: Some(Registry::Full(config)),
+                ..
+            } => Some(&config.url),
+            _ => None,
+        }
+    }
+
+    pub fn registry_username<'a>(&'a self) -> Option<&'a str> {
+        match self {
+            RunsOn::Pull {
+                registry: Some(Registry::Full(config)),
+                ..
+            } => config.username.as_deref(),
+            _ => None,
+        }
+    }
+
+    #[cfg(feature = "all")]
     pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
         match self {
             RunsOn::Pull {
