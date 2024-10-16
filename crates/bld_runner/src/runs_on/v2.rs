@@ -48,7 +48,7 @@ impl Display for RunsOn {
 }
 
 impl RunsOn {
-    pub fn registry<'a>(&'a self) -> Option<&'a str> {
+    pub fn registry(&self) -> Option<&str> {
         match self {
             RunsOn::Pull {
                 registry: Some(Registry::FromConfig(config)),
@@ -62,7 +62,7 @@ impl RunsOn {
         }
     }
 
-    pub fn registry_username<'a>(&'a self) -> Option<&'a str> {
+    pub fn registry_username(&self) -> Option<&str> {
         match self {
             RunsOn::Pull {
                 registry: Some(Registry::Full(config)),
