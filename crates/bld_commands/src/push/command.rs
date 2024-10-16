@@ -59,9 +59,8 @@ impl PushCommand {
                 self.pipeline.to_owned(),
             )
             .await
-            .map(|pips| {
+            .inspect(|_| {
                 println!("Done.");
-                pips
             })
             .map_err(|e| {
                 println!("Error. {e}");
@@ -79,7 +78,7 @@ impl PushCommand {
             client
                 .push(&name, &content)
                 .await
-                .map(|_| println!("Done."))
+                .inspect(|_| println!("Done."))
                 .map_err(|e| {
                     println!("Error. {e}");
                     anyhow!("")

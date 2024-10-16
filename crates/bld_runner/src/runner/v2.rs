@@ -28,6 +28,7 @@ use tracing::debug;
 use crate::{
     external::v2::External,
     pipeline::v2::Pipeline,
+    registry::v2::Registry,
     runs_on::v2::RunsOn,
     step::v2::{BuildStep, BuildStepExec},
     RunnerBuilder,
@@ -321,9 +322,16 @@ impl Runner {
                 image,
                 pull,
                 docker_url,
+                registry,
             } => {
                 let image = if pull.unwrap_or_default() {
-                    Image::pull(image)
+                    match registry.as_ref() {
+                        Some(Registry::FromConfig(value)) => {
+                            Image::pull(image, self.config.registry(value))
+                        }
+                        Some(Registry::Full(config)) => Image::pull(image, Some(config)),
+                        None => Image::pull(image, None),
+                    }
                 } else {
                     Image::Use(image)
                 };

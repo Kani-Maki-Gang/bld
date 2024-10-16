@@ -1,7 +1,9 @@
 use std::io::Write;
 
 use anyhow::{bail, Result};
+use bld_config::RegistryConfig;
 use bollard::{
+    auth::DockerCredentials,
     image::{BuildImageOptions, CreateImageOptions},
     service::{BuildInfo, CreateImageInfo},
     Docker,
@@ -13,17 +15,27 @@ use tokio::fs::read_to_string;
 
 use crate::logger::Logger;
 
-pub struct PullImage<'a>(&'a str);
+pub struct PullImage<'a> {
+    image: &'a str,
+    registry: Option<&'a RegistryConfig>,
+}
 
 impl<'a> PullImage<'a> {
     pub async fn pull(&self, client: &Docker, logger: &Logger) -> Result<()> {
-        let image = self.0;
+        let image = self.image;
         let opts = CreateImageOptions {
             from_image: image,
             ..Default::default()
         };
 
-        let mut stream = client.create_image(Some(opts), None, None);
+        let credentials = self.registry.map(|registry| DockerCredentials {
+            username: registry.username.as_ref().map(|x| x.to_owned()),
+            password: registry.password.as_ref().map(|x| x.to_owned()),
+            serveraddress: Some(registry.url.to_owned()),
+            ..Default::default()
+        });
+
+        let mut stream = client.create_image(Some(opts), None, credentials);
 
         loop {
             let item = stream.try_next().await?;
@@ -136,8 +148,8 @@ pub enum Image<'a> {
 }
 
 impl<'a> Image<'a> {
-    pub fn pull(image: &'a str) -> Self {
-        Self::Pull(PullImage(image))
+    pub fn pull(image: &'a str, registry: Option<&'a RegistryConfig>) -> Self {
+        Self::Pull(PullImage { image, registry })
     }
 
     pub fn build(name: &str, dockerfile: &'a str, tag: &str) -> Self {
@@ -146,7 +158,7 @@ impl<'a> Image<'a> {
 
     pub fn name(&self) -> &str {
         match self {
-            Self::Use(image) | Self::Pull(PullImage(image)) => image,
+            Self::Use(image) | Self::Pull(PullImage { image, .. }) => image,
             Self::Build(BuildImage { name, .. }) => name.as_str(),
         }
     }

@@ -41,9 +41,8 @@ pub async fn select_by_cron_job_id<C: ConnectionTrait + TransactionTrait>(
         .filter(cron_job_environment_variables::Column::CronJobId.eq(cev_cron_job_id))
         .all(conn)
         .await
-        .map(|cev| {
+        .inspect(|_| {
             debug!("loaded cron job environment variables successfully");
-            cev
         })
         .map_err(|e| {
             error!("couldn't load cron job environment variables due to {e}");

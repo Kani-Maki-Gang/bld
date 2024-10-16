@@ -46,9 +46,8 @@ pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
             error!("couldn't load pipeline run container. Not found");
             anyhow!("pipeline run container not found")
         })
-        .map(|prc| {
+        .inspect(|_| {
             debug!("loaded pipeline run container successfully");
-            prc
         })
 }
 
@@ -83,9 +82,8 @@ pub async fn select_in_invalid_state<C: ConnectionTrait + TransactionTrait>(
         .filter(pipeline_run_containers::Column::Id.eq(PRC_STATE_FAULTED))
         .all(conn)
         .await
-        .map(|prc| {
+        .inspect(|_| {
             debug!("loaded faulted pipeline run containers successfully");
-            prc
         })
         .map_err(|e| {
             error!("could not load pipeline run containers, {e}");

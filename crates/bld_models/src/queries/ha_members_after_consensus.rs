@@ -45,12 +45,11 @@ pub async fn select<C: ConnectionTrait + TransactionTrait>(
         .filter(high_availability_snapshot::Column::Id.eq(sn_id))
         .all(conn)
         .await
-        .map(|mc| {
+        .inspect(|_| {
             debug!(
                 "loaded high availability members after consensus of snapshot: {} successfully",
                 sn_id
             );
-            mc
         })
         .map_err(|e| {
             error!(
@@ -74,9 +73,8 @@ pub async fn select_last_rows<C: ConnectionTrait + TransactionTrait>(
         .limit(rows)
         .all(conn)
         .await
-        .map(|mc| {
+        .inspect(|_| {
             debug!("loaded high availability members after consensus successfully");
-            mc
         })
         .map_err(|e| {
             error!(

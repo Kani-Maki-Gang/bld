@@ -17,6 +17,15 @@ pub fn PipelineDetailsV2(
     let cron = move || pipeline.with(|p| p.cron.as_ref().map(|x| format!("Cron: {x}")));
     let runs_on = move || pipeline.with(|p| format!("Runs on: {}", p.runs_on));
     let dispose = move || pipeline.with(|p| format!("Dispose: {}", p.dispose));
+    let registry =
+        move || pipeline.with(|p| p.runs_on.registry().map(|x| format!("Registry: {x}")));
+    let username = move || {
+        pipeline.with(|p| {
+            p.runs_on
+                .registry_username()
+                .map(|x| format!("Username: {x}"))
+        })
+    };
 
     view! {
         <Card>
@@ -29,6 +38,12 @@ pub fn PipelineDetailsV2(
                     <div class="flex gap-x-2">
                         <Badge>"Version: 2"</Badge>
                         <Badge>{move || runs_on()}</Badge>
+                        <Show when=move || registry().is_some() fallback=|| view! {}>
+                            <Badge>{move || registry()}</Badge>
+                        </Show>
+                        <Show when=move || username().is_some() fallback=|| view! {}>
+                            <Badge>{move || username()}</Badge>
+                        </Show>
                         <Show when=move || cron().is_some() fallback=|| view! {}>
                             <Badge>{move || cron().unwrap()}</Badge>
                         </Show>

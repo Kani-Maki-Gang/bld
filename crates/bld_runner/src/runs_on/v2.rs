@@ -1,3 +1,4 @@
+use crate::registry::v2::Registry;
 use bld_config::SshConfig;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -17,6 +18,7 @@ pub enum RunsOn {
     ContainerOrMachine(String),
     Pull {
         image: String,
+        registry: Option<Registry>,
         pull: Option<bool>,
         docker_url: Option<String>,
     },
@@ -45,16 +47,46 @@ impl Display for RunsOn {
     }
 }
 
-#[cfg(feature = "all")]
 impl RunsOn {
+    pub fn registry(&self) -> Option<&str> {
+        match self {
+            RunsOn::Pull {
+                registry: Some(Registry::FromConfig(config)),
+                ..
+            } => Some(config),
+            RunsOn::Pull {
+                registry: Some(Registry::Full(config)),
+                ..
+            } => Some(&config.url),
+            _ => None,
+        }
+    }
+
+    pub fn registry_username(&self) -> Option<&str> {
+        match self {
+            RunsOn::Pull {
+                registry: Some(Registry::Full(config)),
+                ..
+            } => config.username.as_deref(),
+            _ => None,
+        }
+    }
+
+    #[cfg(feature = "all")]
     pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
         match self {
             RunsOn::Pull {
-                image, docker_url, ..
+                image,
+                registry,
+                docker_url,
+                ..
             } => {
                 *image = context.transform(image.to_owned()).await?;
                 if let Some(docker_url) = docker_url {
                     *docker_url = context.transform(docker_url.to_owned()).await?;
+                }
+                if let Some(registry) = registry.as_mut() {
+                    registry.apply_tokens(context).await?;
                 }
             }
 

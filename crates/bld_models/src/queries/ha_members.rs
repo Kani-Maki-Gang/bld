@@ -42,12 +42,11 @@ pub async fn select<C: ConnectionTrait + TransactionTrait>(
         .filter(high_availability_snapshot::Column::Id.eq(sn_id))
         .all(conn)
         .await
-        .map(|m| {
+        .inspect(|_| {
             debug!(
                 "loaded high availability members of snapshot with id: {} successfully",
                 sn_id
             );
-            m
         })
         .map_err(|e| {
             error!("could not load high availability members due to: {}", e);
@@ -65,9 +64,8 @@ pub async fn select_last_rows<C: ConnectionTrait + TransactionTrait>(
         .limit(rows)
         .all(conn)
         .await
-        .map(|m| {
+        .inspect(|_| {
             debug!("loaded high availability members successfully");
-            m
         })
         .map_err(|e| {
             error!("could not load high availability members due to: {}", e);
