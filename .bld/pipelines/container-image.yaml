@@ -10,19 +10,23 @@ variables:
   username: ''
   password: ''
 
+environment:
+  image_name: bld-dev-pipelines
+
 jobs:
   main:
     - name: Clone repository
       exec:
         - echo 'Cloning repository on branch ${{ branch }}'
-        - git clone -b ${{ branch }}
+        - git clone -b ${{ branch }} https://github.com/Kani-Maki-Gang/bld.git
 
     - name: Login to registry
       exec:
         - docker login -u ${{ username }} -p ${{ password }} ${{ registry }}
 
     - name: Build and push image
+      working_dir: bld
       exec:
-        - docker build -t ${{ registry }}/bld:${{ sha }} -t ${{ registry }}/bld:latest -f ${{ bld_root_dir }}dockerfiles/Dockerfile .
-        - docker push ${{ registry }}/bld:${{ sha }}
-        - docker push ${{ registry }}/bld:latest
+        - docker build -t ${{ registry }}/${{ image_name }}:${{ sha }} -t ${{ registry }}/${{ image_name }}:latest -f ${{ bld_root_dir }}/dockerfiles/Dockerfile .
+        - docker push ${{ registry }}/${{ image_name }}:${{ sha }}
+        - docker push ${{ registry }}/${{ image_name }}:latest
