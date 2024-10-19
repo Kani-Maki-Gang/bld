@@ -17,7 +17,7 @@ use leptos::*;
 use leptos_router::use_query_map;
 
 use {
-    cron::PipelineCronV2, details::PipelineDetailsV2, hist::PipelineHistV2, menu::PipelinesV2Menu,
+    cron::PipelineCronV2, details::PipelineDetailsV2, hist::PipelineHistV2,
     raw_file::PipelineRawFileV2,
 };
 
@@ -45,8 +45,7 @@ pub fn PipelineInfo() -> impl IntoView {
     view! {
         <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
             <Card class="h-full flex flex-col px-8 py-12">
-                <PipelineDetailsV2 id=id name=name />
-                <PipelinesV2Menu selected=selected_menu_item />
+                <PipelineDetailsV2 id=id name=name selected=selected_menu_item />
                 <div class="grow">
                     <Show
                         when=move || matches!(selected_menu_item.get(), menu::MenuItem::RawFile)
