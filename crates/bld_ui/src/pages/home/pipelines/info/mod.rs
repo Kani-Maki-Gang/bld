@@ -6,8 +6,8 @@ mod raw_file;
 
 use crate::{
     api,
-    context::{RefreshCronJobs, RefreshHistory},
     components::card::Card,
+    context::{RefreshCronJobs, RefreshHistory},
     error::ErrorCard,
 };
 use anyhow::Result;
@@ -15,10 +15,7 @@ use bld_models::dtos::PipelineInfoQueryParams;
 use leptos::*;
 use leptos_router::use_query_map;
 
-use {
-    cron::PipelineCron, details::PipelineDetails, hist::PipelineHist,
-    raw_file::PipelineRawFile,
-};
+use {cron::PipelineCron, details::PipelineDetails, hist::PipelineHist, raw_file::PipelineRawFile};
 
 async fn get_pipeline(id: Option<String>) -> Result<String> {
     let id = id.ok_or_else(|| anyhow::anyhow!("Id not provided as query parameter"))?;

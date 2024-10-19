@@ -370,10 +370,7 @@ pub async fn hist(params: HistQueryParams) -> Result<Vec<HistoryEntry>> {
 pub async fn print(params: PipelineInfoQueryParams) -> Result<String> {
     let url = build_url("/v1/print")?;
     let request = add_authorization_header(Client::builder().build()?.get(&url))?;
-    let response = request
-        .query(&params)
-        .send()
-        .await?;
+    let response = request.query(&params).send().await?;
     let status = response.status();
     if !status.is_success() {
         handle_error(status, response.text().await?)
