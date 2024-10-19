@@ -10,3 +10,4 @@ pub mod list;
 pub mod sidebar;
 pub mod table;
 pub mod tabs;
+pub mod user_pill;

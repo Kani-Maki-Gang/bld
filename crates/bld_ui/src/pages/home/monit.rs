@@ -1,6 +1,6 @@
 use crate::{
     api::{self, build_ws_url, get_access_token},
-    components::{badge::Badge, button::Button, card::Card, colors::Colors},
+    components::{button::Button, card::Card, colors::Colors},
     context::{AppDialog, AppDialogContent},
     error::ErrorDialog,
 };
@@ -76,7 +76,7 @@ pub fn Monit() -> impl IntoView {
         async move {
             if let Err(e) = api::stop(id).await {
                 content.set(Some(
-                    view! { <ErrorDialog dialog=dialog error=move || e.to_string()/> },
+                    view! { <ErrorDialog dialog=dialog error=move || e.to_string() /> },
                 ));
                 let _ = dialog.get().map(|x| x.show_modal());
             }
@@ -91,43 +91,34 @@ pub fn Monit() -> impl IntoView {
                         <div class="text-2xl">"Monitoring pipeline run"</div>
                         <div class="text-gray-400">
                             "Currently monitoring pipeline run with id: " {move || id()}
+                            ", socket: " {move || socket_state()}
                         </div>
                     </div>
-                    <div class="flex-shrink flex flex-row gap-2 items-center">
-                        <div class="w-auto">
-                            <Badge>
-                                <span class="fs-bold">"State: "</span>
-                                {move || socket_state()}
-                            </Badge>
-                        </div>
-                        <div class="w-32">
-                            <Button
-                                color=Colors::Red
-                                on:click=move |_| {
-                                    let Some(id) = id() else {
-                                        logging::console_error(
-                                            "Pipeline run id not provided in url",
-                                        );
-                                        return;
-                                    };
-                                    let Some(AppDialog(dialog)) = app_dialog else {
-                                        logging::console_error("App dialog context not found");
-                                        return;
-                                    };
-                                    let Some(AppDialogContent(content)) = app_dialog_content else {
-                                        logging::console_error("App dialog context not found");
-                                        return;
-                                    };
-                                    stop_action.dispatch((id, dialog, content));
-                                }
-                            >
+                    <div class="w-32">
+                        <Button
+                            color=Colors::Red
+                            on:click=move |_| {
+                                let Some(id) = id() else {
+                                    logging::console_error("Pipeline run id not provided in url");
+                                    return;
+                                };
+                                let Some(AppDialog(dialog)) = app_dialog else {
+                                    logging::console_error("App dialog context not found");
+                                    return;
+                                };
+                                let Some(AppDialogContent(content)) = app_dialog_content else {
+                                    logging::console_error("App dialog context not found");
+                                    return;
+                                };
+                                stop_action.dispatch((id, dialog, content));
+                            }
+                        >
 
-                                "Stop"
-                            </Button>
-                        </div>
+                            "Stop"
+                        </Button>
                     </div>
                 </div>
-                <div class="rounded-lg p-8 bg-gray-950 text-green-500 text-sm">
+                <div class="border border-slate-600 rounded-lg p-8 text-sm text-gray-200">
                     <For
                         each=move || history.get().into_iter().enumerate()
                         key=|(index, _)| *index

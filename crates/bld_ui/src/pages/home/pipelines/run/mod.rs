@@ -30,7 +30,9 @@ type RequestInterRepr = (
 async fn get_pipeline(id: Option<String>) -> Result<VersionedPipeline> {
     let id = id.ok_or_else(|| anyhow!("Pipeline id not provided in query"))?;
     let params = PipelineInfoQueryParams::Id { id };
-    api::print(params).await
+    let response = api::print(params).await?;
+    let pipeline = serde_yaml::from_str(&response)?;
+    Ok(pipeline)
 }
 
 async fn start_run(
@@ -129,17 +131,13 @@ pub fn RunPipeline() -> impl IntoView {
                                     when=move || variables.get().is_empty()
                                     fallback=move || view! {}
                                 >
-                                    <div class="flex-shrink">
-                                        <Badge>"Pipeline has no variables"</Badge>
-                                    </div>
+                                    <Badge>"Pipeline has no variables"</Badge>
                                 </Show>
                                 <Show
                                     when=move || environment.get().is_empty()
                                     fallback=move || view! {}
                                 >
-                                    <div class="flex-shrink">
-                                        <Badge>"Pipeline has no environment variables"</Badge>
-                                    </div>
+                                    <Badge>"Pipeline has no environment variables"</Badge>
                                 </Show>
                             </div>
                         </div>

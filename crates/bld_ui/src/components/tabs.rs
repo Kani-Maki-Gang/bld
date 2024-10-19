@@ -4,6 +4,7 @@ use leptos::*;
 pub enum TabsDirection {
     #[default]
     Horizontal,
+    #[allow(unused)]
     Vertical,
 }
 

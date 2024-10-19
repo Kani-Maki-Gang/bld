@@ -5,7 +5,6 @@ use bld_models::dtos::{
     PipelinePerCompletedStateKpi, PipelineQueryParams, PipelineRunsPerMonthKpi, QueuedPipelinesKpi,
     RunningPipelinesKpi, RunsPerUserKpi, UpdateJobRequest,
 };
-use bld_runner::VersionedPipeline;
 use leptos::leptos_dom::logging;
 use leptos_router::{use_navigate, NavigateOptions};
 use reqwest::{Client, RequestBuilder, StatusCode};
@@ -368,19 +367,15 @@ pub async fn hist(params: HistQueryParams) -> Result<Vec<HistoryEntry>> {
     }
 }
 
-pub async fn print(params: PipelineInfoQueryParams) -> Result<VersionedPipeline> {
+pub async fn print(params: PipelineInfoQueryParams) -> Result<String> {
     let url = build_url("/v1/print")?;
     let request = add_authorization_header(Client::builder().build()?.get(&url))?;
-    let response = request
-        .header("Accept", "application/json")
-        .query(&params)
-        .send()
-        .await?;
+    let response = request.query(&params).send().await?;
     let status = response.status();
     if !status.is_success() {
         handle_error(status, response.text().await?)
     } else {
-        Ok(response.json().await?)
+        Ok(response.text().await?)
     }
 }
 
