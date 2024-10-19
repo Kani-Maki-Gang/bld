@@ -1,0 +1,28 @@
+version: 2
+
+name: Build and push container image
+runs_on: machine
+
+variables:
+  branch: master
+  sha: ''
+  registry: ''
+  username: ''
+  password: ''
+
+jobs:
+  main:
+    - name: Clone repository
+      exec:
+        - echo 'Cloning repository on branch ${{ branch }}'
+        - git clone -b ${{ branch }}
+
+    - name: Login to registry
+      exec:
+        - docker login -u ${{ username }} -p ${{ password }} ${{ registry }}
+
+    - name: Build and push image
+      exec:
+        - docker build -t ${{ registry }}/bld:${{ sha }} -t ${{ registry }}/bld:latest -f ${{ bld_root_dir }}dockerfiles/Dockerfile .
+        - docker push ${{ registry }}/bld:${{ sha }}
+        - docker push ${{ registry }}/bld:latest
