@@ -18,7 +18,7 @@ fn get_menu_items() -> Vec<RwSignal<(MenuItem, String)>> {
 }
 
 #[component]
-pub fn PipelinesV2Menu(#[prop(into)] selected: RwSignal<MenuItem>) -> impl IntoView {
+pub fn PipelinesMenu(#[prop(into)] selected: RwSignal<MenuItem>) -> impl IntoView {
     let items = Signal::derive(get_menu_items);
     view! {
         <div class="flex flex-col">

@@ -1,6 +1,6 @@
 use crate::{
     api::{self, build_ws_url, get_access_token},
-    components::{badge::Badge, button::Button, card::Card, colors::Colors},
+    components::{button::Button, card::Card, colors::Colors},
     context::{AppDialog, AppDialogContent},
     error::ErrorDialog,
 };

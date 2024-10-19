@@ -6,7 +6,7 @@ use bld_models::dtos::HistQueryParams;
 use leptos::*;
 
 #[component]
-pub fn PipelineHistV2(#[prop(into)] name: Signal<Option<String>>) -> impl IntoView {
+pub fn PipelineHist(#[prop(into)] name: Signal<Option<String>>) -> impl IntoView {
     let params = move || {
         name.get().map(|n| HistQueryParams {
             name: Some(n),

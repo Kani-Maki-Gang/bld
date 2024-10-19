@@ -1,4 +1,3 @@
-mod artifacts;
 mod cron;
 mod details;
 mod hist;
@@ -17,8 +16,8 @@ use leptos::*;
 use leptos_router::use_query_map;
 
 use {
-    cron::PipelineCronV2, details::PipelineDetailsV2, hist::PipelineHistV2,
-    raw_file::PipelineRawFileV2,
+    cron::PipelineCron, details::PipelineDetails, hist::PipelineHist,
+    raw_file::PipelineRawFile,
 };
 
 async fn get_pipeline(id: Option<String>) -> Result<String> {
@@ -45,25 +44,25 @@ pub fn PipelineInfo() -> impl IntoView {
     view! {
         <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
             <Card class="h-full flex flex-col px-8 py-12">
-                <PipelineDetailsV2 id=id name=name selected=selected_menu_item />
+                <PipelineDetails id=id name=name selected=selected_menu_item />
                 <div class="grow">
                     <Show
                         when=move || matches!(selected_menu_item.get(), menu::MenuItem::RawFile)
                         fallback=|| view! {}
                     >
-                        <PipelineRawFileV2 raw_file=move || data.get().unwrap().unwrap() />
+                        <PipelineRawFile raw_file=move || data.get().unwrap().unwrap() />
                     </Show>
                     <Show
                         when=move || matches!(selected_menu_item.get(), menu::MenuItem::History)
                         fallback=|| view! {}
                     >
-                        <PipelineHistV2 name=move || name() />
+                        <PipelineHist name=move || name() />
                     </Show>
                     <Show
                         when=move || matches!(selected_menu_item.get(), menu::MenuItem::Cron)
                         fallback=|| view! {}
                     >
-                        <PipelineCronV2 name=move || name() />
+                        <PipelineCron name=move || name() />
                     </Show>
                 </div>
             </Card>

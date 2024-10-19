@@ -6,7 +6,7 @@ use leptos::*;
 use leptos_router::*;
 
 #[component]
-pub fn PipelineCronV2(#[prop(into)] name: Signal<Option<String>>) -> impl IntoView {
+pub fn PipelineCron(#[prop(into)] name: Signal<Option<String>>) -> impl IntoView {
     let params = move || {
         name.get().map(|n| JobFiltersParams {
             pipeline: Some(n),
