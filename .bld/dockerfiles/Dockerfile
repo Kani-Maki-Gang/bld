@@ -1,4 +1,4 @@
-FROM rust:1.81-bookworm
+FROM docker.io/library/rust:1.81-bookworm
 
 LABEL org.opencontainers.image.source=https://github.com/Kani-Maki-Gang/bld
 LABEL org.opencontainers.image.description="The container image for building and testing the Bld project."
