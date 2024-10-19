@@ -1,0 +1,29 @@
+name: Push container image workflow
+
+on:
+  workflow_dispatch:
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    name: PR pipeline
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Get branch name
+        id: get_branch_name
+        shell: bash
+        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+
+      - name: Run bld pipeline
+        uses: Kani-Maki-Gang/bld-github-action@v0.3.1-alpha
+        with:
+          pipeline: 'pipelines/container-image.yaml'
+          variables: |-
+            branch=${{ steps.get_branch_name.outputs.branch }}
+            sha=$GITHUB_SHA
+            registry=ghcr.io/Kani-Maki-Gang
+            username=${{ github.actor }}
+            password=${{ secrets.GITHUB_TOKEN }}
+
