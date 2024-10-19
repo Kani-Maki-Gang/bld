@@ -30,7 +30,9 @@ type RequestInterRepr = (
 async fn get_pipeline(id: Option<String>) -> Result<VersionedPipeline> {
     let id = id.ok_or_else(|| anyhow!("Pipeline id not provided in query"))?;
     let params = PipelineInfoQueryParams::Id { id };
-    api::print(params).await
+    let response = api::print(params).await?;
+    let pipeline = serde_yaml::from_str(&response)?;
+    Ok(pipeline)
 }
 
 async fn start_run(

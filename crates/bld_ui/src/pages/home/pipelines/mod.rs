@@ -2,7 +2,6 @@ mod actions;
 mod info;
 mod run;
 mod table;
-mod v2;
 
 use crate::{
     components::{button::IconButton, card::Card, input::Input},
@@ -22,31 +21,29 @@ pub fn Pipelines() -> impl IntoView {
     provide_context(refresh);
 
     view! {
-        <div class="h-full flex flex-col items-center gap-8">
-            <div class="container">
-                <Card>
-                    <div class="flex flex-col px-8 py-12">
-                        <div class="grid grid-cols-4 pr-2">
-                            <div class="grow flex flex-col">
-                                <div class="text-2xl">"Pipelines"</div>
-                                <div class="text-gray-400 mb-8">
-                                    "The list of all available pipelines"
-                                </div>
-                            </div>
-                            <div class="col-span-2">
-                                <Input placeholder="Search..." value=filter/>
-                            </div>
-                            <div class="flex justify-end">
-                                <IconButton
-                                    icon="iconoir-refresh-double"
-                                    on:click=move |_| refresh.set()
-                                />
+        <div class="flex flex-col gap-8 h-full">
+            <Card>
+                <div class="flex flex-col px-8 py-12">
+                    <div class="grid grid-cols-4 pr-2">
+                        <div class="grow flex flex-col">
+                            <div class="text-2xl">"Pipelines"</div>
+                            <div class="text-gray-400 mb-8">
+                                "The list of all available pipelines"
                             </div>
                         </div>
-                        <PipelinesTable filter=move || filter.get()/>
+                        <div class="col-span-2">
+                            <Input placeholder="Search..." value=filter />
+                        </div>
+                        <div class="flex justify-end">
+                            <IconButton
+                                icon="iconoir-refresh-double"
+                                on:click=move |_| refresh.set()
+                            />
+                        </div>
                     </div>
-                </Card>
-            </div>
+                    <PipelinesTable filter=move || filter.get() />
+                </div>
+            </Card>
         </div>
     }
 }

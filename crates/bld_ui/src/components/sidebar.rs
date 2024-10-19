@@ -4,7 +4,7 @@ use leptos_router::A;
 #[component]
 pub fn SidebarTop() -> impl IntoView {
     view! {
-        <div class="bg-slate-800 grid justify-items-center">
+        <div class="bg-slate-700 grid justify-items-center">
             <img class="p-4 size-48" src="logo.png"/>
         </div>
     }

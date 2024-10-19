@@ -43,5 +43,7 @@ pub async fn get_cron(id: Option<String>) -> Result<CronJobResponse> {
 pub async fn get_pipeline(name: Option<String>) -> Result<VersionedPipeline> {
     let name = name.ok_or_else(|| anyhow!("Name not provided as query parameter"))?;
     let params = PipelineInfoQueryParams::Name { name };
-    api::print(params).await
+    let response = api::print(params).await?;
+    let pipeline = serde_yaml::from_str(&response)?;
+    Ok(pipeline)
 }
