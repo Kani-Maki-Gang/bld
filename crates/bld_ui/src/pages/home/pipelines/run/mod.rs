@@ -131,17 +131,13 @@ pub fn RunPipeline() -> impl IntoView {
                                     when=move || variables.get().is_empty()
                                     fallback=move || view! {}
                                 >
-                                    <div class="flex-shrink">
-                                        <Badge>"Pipeline has no variables"</Badge>
-                                    </div>
+                                    <Badge>"Pipeline has no variables"</Badge>
                                 </Show>
                                 <Show
                                     when=move || environment.get().is_empty()
                                     fallback=move || view! {}
                                 >
-                                    <div class="flex-shrink">
-                                        <Badge>"Pipeline has no environment variables"</Badge>
-                                    </div>
+                                    <Badge>"Pipeline has no environment variables"</Badge>
                                 </Show>
                             </div>
                         </div>

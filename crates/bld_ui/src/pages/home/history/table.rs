@@ -4,6 +4,7 @@ use crate::{
         badge::Badge,
         link::Link,
         table::{Body, Cell, Header, Headers, Row, Table},
+        user_pill::UserPill,
     },
     context::RefreshHistory,
     error::Error,
@@ -32,14 +33,12 @@ pub fn HistoryEntryState(#[prop(into)] state: String) -> impl IntoView {
     let icon = format!("{icon} mr-2");
 
     view! {
-        <div class="w-28">
-            <Badge class=class>
-                <div class="flex items-center">
-                    <i class=icon></i>
-                    {label}
-                </div>
-            </Badge>
-        </div>
+        <Badge class=class>
+            <div class="flex items-center">
+                <i class=icon></i>
+                {label}
+            </div>
+        </Badge>
     }
 }
 
@@ -90,7 +89,7 @@ pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> im
                                 <Link href=format!("/monit?id={}", child.id)>{child.id}</Link>
                             </Cell>
                             <Cell>{child.name}</Cell>
-                            <Cell>{child.user}</Cell>
+                            <Cell><UserPill name=move || child.user.clone() /></Cell>
                             <Cell>{child.start_date_time.unwrap_or_default()}</Cell>
                             <Cell>{child.end_date_time.unwrap_or_default()}</Cell>
                             <Cell>

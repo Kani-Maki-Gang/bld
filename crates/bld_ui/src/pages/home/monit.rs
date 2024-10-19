@@ -94,12 +94,10 @@ pub fn Monit() -> impl IntoView {
                         </div>
                     </div>
                     <div class="flex-shrink flex flex-row gap-2 items-center">
-                        <div class="w-auto">
-                            <Badge>
-                                <span class="fs-bold">"State: "</span>
-                                {move || socket_state()}
-                            </Badge>
-                        </div>
+                        <Badge>
+                            <span class="fs-bold">"State: "</span>
+                            {move || socket_state()}
+                        </Badge>
                         <div class="w-32">
                             <Button
                                 color=Colors::Red
