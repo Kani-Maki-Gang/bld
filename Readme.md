@@ -39,25 +39,23 @@ $ trunk build
 
 > Remember to have the trunk and nodejs installed in order to build the UI.
 
-### Musl builds
-Since there are multiple dependencies deployment of bld can be difficult, so the project supports targeting musl for static linking. If you have an existing bld binary locally built/installed then follow the below instructions. This steps require a docker installation.
+### Musl and Mingw builds
+Since there are multiple dependencies deployment of bld can be difficult, so the project supports targeting musl for static linking in Unix like operating systems while supports mingw for Windows. If you have an existing bld binary locally built/installed then follow the below instructions. This steps require a docker, podman or other container engine installed.
 
 ```bash
-$ bld run -p build-musl.yaml
+$ bld run -p pipelines/build.yaml
 $ ls dist
 ```
 
 Or you can use cargo to built bld for your system and then run the pipelines for the musl build
 ```bash
-$ cargo run -- run -p build-musl.yaml
+$ cargo run -- run -p pipelines/build.yaml
 $ ls dist
 ```
 
-With the above a new container will be built with all the necessary dependencies for building the project and the bld pipeline will clone the repository, build the binary and the copy it in the musl/dist directory.
+With the above a new container will be built with all the necessary dependencies for building the project and the bld pipeline will clone the repository, build the binary and the copy it in the dist directory.
 
-If a bld binary is not available, you will have to start a container with the bld-musl-builder and do the steps manually.
-
-> The project currently targets only Linux. It has not been tested on Windows or Macos.
+If a bld binary is not available, you will have to start a container with the bld-image and do the steps manually.
 
 # Installation
 For a prebuilt version of bld go to the github [releases](https://github.com/Kani-Maki-Gang/bld/releases) page and download the latest version.
