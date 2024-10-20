@@ -217,16 +217,16 @@ impl<'a> PipelineValidator<'a> {
     fn validate_registry(&mut self, section: &str, registry: &'a Registry) {
         match registry {
             Registry::FromConfig(config) => {
-                self.validate_symbols(section, &config);
+                self.validate_symbols(section, config);
                 self.validate_global_registry_config(section, config);
             }
             Registry::Full(config) => {
                 self.validate_symbols(&format!("{section} > url"), &config.url);
                 if let Some(username) = &config.username {
-                    self.validate_symbols(&format!("{section} > username"), &username);
+                    self.validate_symbols(&format!("{section} > username"), username);
                 }
                 if let Some(password) = &config.password {
-                    self.validate_symbols(&format!("{section} > password"), &password);
+                    self.validate_symbols(&format!("{section} > password"), password);
                 }
             }
         }
