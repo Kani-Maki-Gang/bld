@@ -39,7 +39,7 @@ pub fn CronJobs() -> impl IntoView {
     provide_context(RefreshCronJobs(create_rw_signal(())));
 
     view! {
-        <Card>
+        <Card class="min-h-full">
             <div class="flex flex-col px-8 py-12">
                 <div class="grid grid-cols-4">
                     <div class="grow flex flex-col">
