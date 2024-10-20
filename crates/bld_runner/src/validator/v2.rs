@@ -1,7 +1,5 @@
 use crate::{
-    pipeline::v2::Pipeline,
-    runs_on::v2::RunsOn,
-    step::v2::{BuildStep, BuildStepExec},
+    pipeline::v2::Pipeline, registry::v2::Registry, runs_on::v2::RunsOn, step::v2::{BuildStep, BuildStepExec}
 };
 use anyhow::{bail, Result};
 use bld_config::{
@@ -142,12 +140,15 @@ impl<'a> PipelineValidator<'a> {
             }
 
             RunsOn::Pull {
-                image, docker_url, ..
+                image, docker_url, pull: _pull, registry
             } => {
                 self.validate_symbols("runs_on > image", image);
                 if let Some(docker_url) = docker_url {
                     self.validate_symbols("runs_on > docker_url", docker_url);
                     self.validate_docker_url(docker_url);
+                }
+                if let Some(registry) = registry {
+                    self.validate_registry("runs_on > registry", registry);
                 }
             }
 
@@ -210,6 +211,33 @@ impl<'a> PipelineValidator<'a> {
                     let _ = writeln!(self.errors, "[runs_on > docker_url] The defined docker url key wasn't found in the config file");
                 }
             }
+        }
+    }
+
+    fn validate_registry(&mut self, section: &str, registry: &'a Registry) {
+        match registry {
+            Registry::FromConfig(config) => {
+                self.validate_symbols(section, &config);
+                self.validate_global_registry_config(section, config);
+            }
+            Registry::Full(config) => {
+                self.validate_symbols(&format!("{section} > url"), &config.url);
+                if let Some(username) = &config.username {
+                    self.validate_symbols(&format!("{section} > username"), &username);
+                }
+                if let Some(password) = &config.password {
+                    self.validate_symbols(&format!("{section} > password"), &password);
+                }
+            }
+        }
+    }
+
+    fn validate_global_registry_config(&mut self, section: &str, value: &str) {
+        if self.contains_symbols(value) {
+            return;
+        }
+        if self.config.registry(value).is_none() {
+            let _ = writeln!(self.errors, "[{section}] The defined registry key wasn't found in the config file");
         }
     }
 
