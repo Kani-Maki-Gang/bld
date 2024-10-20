@@ -1,5 +1,8 @@
 use crate::{
-    pipeline::v2::Pipeline, registry::v2::Registry, runs_on::v2::RunsOn, step::v2::{BuildStep, BuildStepExec}
+    pipeline::v2::Pipeline,
+    registry::v2::Registry,
+    runs_on::v2::RunsOn,
+    step::v2::{BuildStep, BuildStepExec},
 };
 use anyhow::{bail, Result};
 use bld_config::{
@@ -140,7 +143,10 @@ impl<'a> PipelineValidator<'a> {
             }
 
             RunsOn::Pull {
-                image, docker_url, pull: _pull, registry
+                image,
+                docker_url,
+                pull: _pull,
+                registry,
             } => {
                 self.validate_symbols("runs_on > image", image);
                 if let Some(docker_url) = docker_url {
@@ -237,7 +243,10 @@ impl<'a> PipelineValidator<'a> {
             return;
         }
         if self.config.registry(value).is_none() {
-            let _ = writeln!(self.errors, "[{section}] The defined registry key wasn't found in the config file");
+            let _ = writeln!(
+                self.errors,
+                "[{section}] The defined registry key wasn't found in the config file"
+            );
         }
     }
 
