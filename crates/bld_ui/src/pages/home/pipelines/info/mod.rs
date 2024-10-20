@@ -40,7 +40,7 @@ pub fn PipelineInfo() -> impl IntoView {
 
     view! {
         <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
-            <Card class="h-full flex flex-col px-8 py-12">
+            <Card class="min-h-full flex flex-col px-8 py-12">
                 <PipelineDetails id=id name=name selected=selected_menu_item />
                 <div class="grow">
                     <Show

@@ -30,23 +30,21 @@ pub fn History() -> impl IntoView {
     provide_context(RefreshHistory(create_rw_signal(())));
 
     view! {
-        <div class="flex flex-col gap-8 h-full">
-            <Card>
-                <div class="flex flex-col px-8 py-12">
-                    <div class="grid grid-cols-4">
-                        <div class="grow flex flex-col">
-                            <div class="text-2xl">"History"</div>
-                            <div class="text-gray-400 mb-8">
-                                "A list of pipelines and their state order by their start date"
-                            </div>
-                        </div>
-                        <div class="col-span-3">
-                            <HistoryFilters state=state limit=limit pipeline=pipeline/>
+        <Card class="min-h-full">
+            <div class="flex flex-col px-8 py-12">
+                <div class="grid grid-cols-4">
+                    <div class="grow flex flex-col">
+                        <div class="text-2xl">"History"</div>
+                        <div class="text-gray-400 mb-8">
+                            "A list of pipelines and their state order by their start date"
                         </div>
                     </div>
-                    <HistoryTable params=params/>
+                    <div class="col-span-3">
+                        <HistoryFilters state=state limit=limit pipeline=pipeline />
+                    </div>
                 </div>
-            </Card>
-        </div>
+                <HistoryTable params=params />
+            </div>
+        </Card>
     }
 }
