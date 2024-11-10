@@ -14,6 +14,7 @@ use anyhow::Result;
 #[cfg(feature = "all")]
 use bld_config::BldConfig;
 
+#[cfg(feature = "all")]
 use super::traits::Dependencies;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

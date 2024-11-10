@@ -7,6 +7,7 @@ use std::collections::HashMap;
 #[cfg(feature = "all")]
 use bld_config::BldConfig;
 
+#[cfg(feature = "all")]
 use super::traits::Dependencies;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
