@@ -1,12 +1,12 @@
-use crate::artifacts::v2::Artifacts;
-use crate::external::v2::External;
-use crate::runs_on::v2::RunsOn;
-use crate::step::v2::BuildStep;
+use crate::artifacts::v3::Artifacts;
+use crate::external::v3::External;
+use crate::runs_on::v3::RunsOn;
+use crate::step::v3::BuildStep;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[cfg(feature = "all")]
-use crate::token_context::v2::PipelineContext;
+use crate::token_context::v3::PipelineContext;
 
 #[cfg(feature = "all")]
 use anyhow::Result;

@@ -1,5 +1,6 @@
 use super::v1;
 use super::v2;
+use super::v3;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -11,6 +12,9 @@ use crate::validator::v1 as validator_v1;
 
 #[cfg(feature = "all")]
 use crate::validator::v2 as validator_v2;
+
+#[cfg(feature = "all")]
+use crate::validator::v3 as validator_v3;
 
 #[cfg(feature = "all")]
 use anyhow::{anyhow, Result};
@@ -71,6 +75,8 @@ pub enum VersionedPipeline {
     Version1(v1::Pipeline),
     #[serde(rename(serialize = "2", deserialize = "2"))]
     Version2(v2::Pipeline),
+    #[serde(rename(serialize = "3", deserialize = "3"))]
+    Version3(v3::Pipeline),
 }
 
 impl VersionedPipeline {
@@ -93,6 +99,8 @@ impl VersionedPipeline {
         fs: Arc<FileSystem>,
         name: String,
     ) -> DependenciesRecursiveFuture {
+        use crate::pipeline::traits::Dependencies;
+
         Box::pin(async move {
             debug!("Parsing pipeline {name}");
 
@@ -106,8 +114,9 @@ impl VersionedPipeline {
             set.insert(name.to_string(), src);
 
             let local_pipelines = match pipeline {
-                Self::Version1(pip) => pip.local_dependencies(config.as_ref()),
-                Self::Version2(pip) => pip.local_dependencies(config.as_ref()),
+                Self::Version1(pip) => pip.local_deps(config.as_ref()),
+                Self::Version2(pip) => pip.local_deps(config.as_ref()),
+                Self::Version3(pip) => pip.local_deps(config.as_ref()),
             };
 
             for pipeline in local_pipelines.into_iter() {
@@ -135,6 +144,7 @@ impl VersionedPipeline {
         match self {
             Self::Version1(pip) => (pip.variables, pip.environment),
             Self::Version2(pip) => (pip.variables, pip.environment),
+            Self::Version3(pip) => (pip.variables, pip.environment),
         }
     }
 
@@ -150,8 +160,15 @@ impl VersionedPipeline {
                     .validate()
                     .await
             }
+
             Self::Version2(pip) => {
                 validator_v2::PipelineValidator::new(pip, config, fs)?
+                    .validate()
+                    .await
+            }
+
+            Self::Version3(pip) => {
+                validator_v3::PipelineValidator::new(pip, config, fs)?
                     .validate()
                     .await
             }

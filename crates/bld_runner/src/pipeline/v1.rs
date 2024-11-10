@@ -7,6 +7,9 @@ use std::collections::HashMap;
 #[cfg(feature = "all")]
 use bld_config::BldConfig;
 
+#[cfg(feature = "all")]
+use super::traits::Dependencies;
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Pipeline {
     pub name: Option<String>,
@@ -35,9 +38,11 @@ impl Pipeline {
     fn default_dispose() -> bool {
         true
     }
+}
 
-    #[cfg(feature = "all")]
-    pub fn local_dependencies(&self, config: &BldConfig) -> Vec<String> {
+#[cfg(feature = "all")]
+impl Dependencies for Pipeline {
+    fn local_deps(&self, config: &BldConfig) -> Vec<String> {
         let from_steps = self.steps.iter().flat_map(|s| s.local_dependencies(config));
 
         let from_external = self
