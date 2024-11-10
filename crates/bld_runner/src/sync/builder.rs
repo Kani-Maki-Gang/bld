@@ -24,9 +24,8 @@ use crate::{
         traits::Load,
         versioned::{VersionedPipeline, Yaml},
     },
-    runner::v1,
-    runner::v2,
-    token_context::v2::PipelineContextBuilder,
+    runner,
+    token_context,
 };
 
 use super::versioned::VersionedRunner;
@@ -181,7 +180,7 @@ impl RunnerBuilder {
 
                 context.add_platform(platform.clone()).await?;
 
-                VersionedRunner::V1(v1::Runner {
+                VersionedRunner::V1(runner::v1::Runner {
                     run_id: self.run_id,
                     run_start_time: self.run_start_time,
                     config,
@@ -200,7 +199,7 @@ impl RunnerBuilder {
             }
 
             VersionedPipeline::Version2(mut pipeline) => {
-                let pipeline_context = PipelineContextBuilder::default()
+                let pipeline_context = token_context::v2::PipelineContextBuilder::default()
                     .root_dir(&config.root_dir)
                     .project_dir(&config.project_dir)
                     .add_variables(&pipeline.variables)
@@ -214,7 +213,40 @@ impl RunnerBuilder {
 
                 pipeline.apply_tokens(&pipeline_context).await?;
 
-                VersionedRunner::V2(v2::Runner {
+                VersionedRunner::V2(runner::v2::Runner {
+                    run_id: self.run_id,
+                    run_start_time: self.run_start_time,
+                    config,
+                    signals: self.signals,
+                    logger: self.logger,
+                    regex_cache: self.regex_cache,
+                    fs: self.fs,
+                    pipeline: pipeline.into_arc(),
+                    ipc: self.ipc,
+                    env,
+                    context,
+                    platform: None,
+                    is_child: self.is_child,
+                    has_faulted: false,
+                })
+            }
+
+            VersionedPipeline::Version3(mut pipeline) => {
+                let pipeline_context = token_context::v3::PipelineContextBuilder::default()
+                    .root_dir(&config.root_dir)
+                    .project_dir(&config.project_dir)
+                    .add_variables(&pipeline.variables)
+                    .add_variables(&vars)
+                    .add_environment(&pipeline.environment)
+                    .add_environment(&env)
+                    .run_id(&self.run_id)
+                    .run_start_time(&self.run_start_time)
+                    .regex_cache(self.regex_cache.clone())
+                    .build()?;
+
+                pipeline.apply_tokens(&pipeline_context).await?;
+
+                VersionedRunner::V3(runner::v3::Runner {
                     run_id: self.run_id,
                     run_start_time: self.run_start_time,
                     config,
