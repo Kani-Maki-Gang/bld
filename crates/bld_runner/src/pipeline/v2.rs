@@ -47,7 +47,6 @@ impl Pipeline {
         true
     }
 
-
     #[cfg(feature = "all")]
     pub async fn apply_tokens<'a>(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
         self.runs_on.apply_tokens(context).await?;

@@ -24,8 +24,7 @@ use crate::{
         traits::Load,
         versioned::{VersionedPipeline, Yaml},
     },
-    runner,
-    token_context,
+    runner, token_context,
 };
 
 use super::versioned::VersionedRunner;
