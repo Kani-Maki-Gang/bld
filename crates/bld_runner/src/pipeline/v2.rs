@@ -14,6 +14,8 @@ use anyhow::Result;
 #[cfg(feature = "all")]
 use bld_config::BldConfig;
 
+use super::traits::Dependencies;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pipeline {
     pub name: Option<String>,
@@ -45,22 +47,6 @@ impl Pipeline {
         true
     }
 
-    #[cfg(feature = "all")]
-    pub fn local_dependencies(&self, config: &BldConfig) -> Vec<String> {
-        let from_steps = self
-            .jobs
-            .iter()
-            .flat_map(|(_, steps)| steps)
-            .flat_map(|s| s.local_dependencies(config));
-
-        let from_external = self
-            .external
-            .iter()
-            .filter(|e| e.server.is_none())
-            .map(|e| e.pipeline.to_owned());
-
-        from_steps.chain(from_external).collect()
-    }
 
     #[cfg(feature = "all")]
     pub async fn apply_tokens<'a>(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
@@ -87,5 +73,24 @@ impl Pipeline {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(feature = "all")]
+impl Dependencies for Pipeline {
+    fn local_deps(&self, config: &BldConfig) -> Vec<String> {
+        let from_steps = self
+            .jobs
+            .iter()
+            .flat_map(|(_, steps)| steps)
+            .flat_map(|s| s.local_dependencies(config));
+
+        let from_external = self
+            .external
+            .iter()
+            .filter(|e| e.server.is_none())
+            .map(|e| e.pipeline.to_owned());
+
+        from_steps.chain(from_external).collect()
     }
 }
