@@ -161,7 +161,7 @@ impl Job {
     async fn local_external(&self, details: &External) -> Result<()> {
         debug!("building runner for child pipeline");
 
-        let variables = details.variables.clone();
+        let inputs = details.inputs.clone();
         let environment = details.environment.clone();
 
         let runner = RunnerBuilder::default()
@@ -172,7 +172,7 @@ impl Job {
             .pipeline(&details.pipeline)
             .logger(self.logger.clone())
             .environment(environment.into_arc())
-            .variables(variables.into_arc())
+            .inputs(inputs.into_arc())
             .context(self.context.clone())
             .is_child(true)
             .build()

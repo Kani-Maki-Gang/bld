@@ -261,7 +261,7 @@ impl Runner {
             .pipeline(&details.pipeline)
             .logger(self.logger.clone())
             .environment(environment.into_arc())
-            .variables(variables.into_arc())
+            .inputs(variables.into_arc())
             .ipc(self.ipc.clone())
             .context(self.context.clone())
             .is_child(true)

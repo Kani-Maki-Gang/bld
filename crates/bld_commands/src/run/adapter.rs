@@ -203,7 +203,7 @@ impl RunAdapter {
             .context(Context::local(mode.config.clone()).into_arc())
             .signals(signals_rx)
             .environment(mode.environment.into_arc())
-            .variables(mode.variables.into_arc())
+            .inputs(mode.variables.into_arc())
             .build()
             .await?;
 
