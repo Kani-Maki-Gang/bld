@@ -40,7 +40,7 @@ impl<'a> Validate for PipelineValidator<'a> {
     async fn validate(mut self) -> Result<()> {
         self.validate_runs_on();
         self.validate_cron();
-        self.validate_variables(None, &self.pipeline.inputs);
+        self.validate_inputs(None, &self.pipeline.inputs);
         self.validate_environment(None, &self.pipeline.environment);
         self.validate_external().await;
         self.validate_artifacts();
@@ -271,14 +271,14 @@ impl<'a> PipelineValidator<'a> {
         }
     }
 
-    fn validate_variables(
+    fn validate_inputs(
         &mut self,
         section: Option<&str>,
-        variables: &'a HashMap<String, String>,
+        inputs: &'a HashMap<String, String>,
     ) {
-        for (k, v) in variables.iter() {
+        for (k, v) in inputs.iter() {
             let section = section.map(|x| format!("{x} > ")).unwrap_or_default();
-            let section = format!("{section}variables > {k}");
+            let section = format!("{section}inputs > {k}");
             self.validate_keywords(&section, k);
             self.validate_symbols(&section, v);
         }
@@ -302,7 +302,7 @@ impl<'a> PipelineValidator<'a> {
             self.validate_external_name(entry.name.as_deref());
             self.validate_external_pipeline(&entry.pipeline).await;
             self.validate_external_server(entry.server.as_deref());
-            self.validate_variables(Some("external"), &entry.variables);
+            self.validate_inputs(Some("external"), &entry.inputs);
             self.validate_environment(Some("external"), &entry.environment);
         }
     }
