@@ -1,10 +1,10 @@
 use crate::command::BldCommand;
 use actix_web::rt::System;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::fs::FileSystem;
 use bld_http::HttpClient;
-use bld_runner::VersionedPipeline;
+use bld_runner::VersionedFile;
 use bld_utils::sync::IntoArc;
 use clap::Args;
 use tracing::debug;
@@ -53,21 +53,17 @@ impl PushCommand {
         if !self.ignore_deps {
             print!("Resolving dependecies...");
 
-            let mut deps = VersionedPipeline::dependencies(
-                config.clone(),
-                fs.clone(),
-                self.pipeline.to_owned(),
-            )
-            .await
-            .inspect(|_| {
-                println!("Done.");
-            })
-            .map_err(|e| {
-                println!("Error. {e}");
-                anyhow!("")
-            })?
-            .into_iter()
-            .collect();
+            let mut deps =
+                VersionedFile::dependencies(config.clone(), fs.clone(), self.pipeline.to_owned())
+                    .await
+                    .inspect(|_| {
+                        println!("Done.");
+                    })
+                    .inspect_err(|e| {
+                        println!("Error. {e}");
+                    })?
+                    .into_iter()
+                    .collect();
 
             pipelines.append(&mut deps);
         }
@@ -79,9 +75,8 @@ impl PushCommand {
                 .push(&name, &content)
                 .await
                 .inspect(|_| println!("Done."))
-                .map_err(|e| {
+                .inspect_err(|e| {
                     println!("Error. {e}");
-                    anyhow!("")
                 })?;
         }
         Ok(())

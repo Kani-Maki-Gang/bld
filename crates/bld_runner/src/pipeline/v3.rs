@@ -11,17 +11,10 @@ use crate::token_context::v3::PipelineContext;
 #[cfg(feature = "all")]
 use anyhow::Result;
 
-#[cfg(feature = "all")]
-use bld_config::BldConfig;
-
-#[cfg(feature = "all")]
-use super::traits::Dependencies;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pipeline {
     pub name: Option<String>,
     pub runs_on: RunsOn,
-
     pub cron: Option<String>,
 
     #[serde(default = "Pipeline::default_dispose")]
@@ -73,24 +66,5 @@ impl Pipeline {
         }
 
         Ok(())
-    }
-}
-
-#[cfg(feature = "all")]
-impl Dependencies for Pipeline {
-    fn local_deps(&self, config: &BldConfig) -> Vec<String> {
-        let from_steps = self
-            .jobs
-            .iter()
-            .flat_map(|(_, steps)| steps)
-            .flat_map(|s| s.local_dependencies(config));
-
-        let from_external = self
-            .external
-            .iter()
-            .filter(|e| e.server.is_none())
-            .map(|e| e.pipeline.to_owned());
-
-        from_steps.chain(from_external).collect()
     }
 }

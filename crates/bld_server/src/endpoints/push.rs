@@ -5,7 +5,7 @@ use actix_web::{post, HttpResponse, Responder};
 use anyhow::Result;
 use bld_core::fs::FileSystem;
 use bld_models::dtos::PushInfo;
-use bld_runner::{Load, VersionedPipeline, Yaml};
+use bld_runner::{Load, VersionedFile, Yaml};
 use tracing::{error, info};
 
 #[post("/v1/push")]
@@ -24,7 +24,7 @@ pub async fn post(
 
 async fn do_push(fs: &FileSystem, cron: &CronScheduler, info: &PushInfo) -> Result<()> {
     fs.create(&info.name, &info.content, true).await?;
-    let pipeline: VersionedPipeline = Yaml::load(&info.content)?;
+    let pipeline: VersionedFile = Yaml::load(&info.content)?;
     let remove_res = match pipeline.cron() {
         Some(schedule) => cron.upsert_default(schedule, &info.name).await,
         None => cron.remove_by_pipeline(&info.name).await,

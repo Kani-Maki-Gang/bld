@@ -1,6 +1,7 @@
-use crate::artifacts::v1::Artifacts;
 use crate::external::v1::External;
 use crate::step::v1::BuildStep;
+use crate::traits::Variables;
+use crate::{artifacts::v1::Artifacts, traits::IntoVariables};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -8,7 +9,7 @@ use std::collections::HashMap;
 use bld_config::BldConfig;
 
 #[cfg(feature = "all")]
-use super::traits::Dependencies;
+use crate::traits::Dependencies;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Pipeline {
@@ -37,6 +38,12 @@ pub struct Pipeline {
 impl Pipeline {
     fn default_dispose() -> bool {
         true
+    }
+}
+
+impl IntoVariables for Pipeline {
+    fn into_variables(self) -> Variables {
+        (self.variables, self.environment)
     }
 }
 

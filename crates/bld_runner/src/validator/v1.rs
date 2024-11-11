@@ -1,5 +1,6 @@
 use crate::pipeline::v1::Pipeline;
 use crate::step::v1::BuildStepExec;
+use crate::traits::Validate;
 use anyhow::{bail, Result};
 use bld_config::BldConfig;
 use bld_core::fs::FileSystem;
@@ -13,16 +14,8 @@ pub struct PipelineValidator<'a> {
     fs: Arc<FileSystem>,
 }
 
-impl<'a> PipelineValidator<'a> {
-    pub fn new(pipeline: &'a Pipeline, config: Arc<BldConfig>, fs: Arc<FileSystem>) -> Self {
-        Self {
-            pipeline,
-            config,
-            fs,
-        }
-    }
-
-    pub async fn validate(&self) -> Result<()> {
+impl<'a> Validate for PipelineValidator<'a> {
+    async fn validate(self) -> Result<()> {
         let mut errors = String::new();
 
         if let Err(e) = self.validate_external().await {
@@ -41,6 +34,16 @@ impl<'a> PipelineValidator<'a> {
             Ok(())
         } else {
             bail!(errors)
+        }
+    }
+}
+
+impl<'a> PipelineValidator<'a> {
+    pub fn new(pipeline: &'a Pipeline, config: Arc<BldConfig>, fs: Arc<FileSystem>) -> Self {
+        Self {
+            pipeline,
+            config,
+            fs,
         }
     }
 

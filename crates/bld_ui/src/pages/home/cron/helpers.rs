@@ -1,7 +1,7 @@
 use crate::api;
 use anyhow::{anyhow, Result};
 use bld_models::dtos::{CronJobResponse, JobFiltersParams, PipelineInfoQueryParams};
-use bld_runner::VersionedPipeline;
+use bld_runner::VersionedFile;
 use leptos::*;
 use std::collections::HashMap;
 
@@ -40,7 +40,7 @@ pub async fn get_cron(id: Option<String>) -> Result<CronJobResponse> {
         .and_then(|x| x.into_iter().next().ok_or_else(|| anyhow!("No data found")))
 }
 
-pub async fn get_pipeline(name: Option<String>) -> Result<VersionedPipeline> {
+pub async fn get_pipeline(name: Option<String>) -> Result<VersionedFile> {
     let name = name.ok_or_else(|| anyhow!("Name not provided as query parameter"))?;
     let params = PipelineInfoQueryParams::Name { name };
     let response = api::print(params).await?;
