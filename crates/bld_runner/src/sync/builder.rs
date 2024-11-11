@@ -41,7 +41,7 @@ pub struct RunnerBuilder {
     pipeline: Option<String>,
     ipc: Arc<Option<Sender<WorkerMessages>>>,
     env: Option<Arc<HashMap<String, String>>>,
-    vars: Option<Arc<HashMap<String, String>>>,
+    inputs: Option<Arc<HashMap<String, String>>>,
     context: Option<Arc<Context>>,
     is_child: bool,
 }
@@ -59,7 +59,7 @@ impl Default for RunnerBuilder {
             pipeline: None,
             ipc: None.into_arc(),
             env: None,
-            vars: None,
+            inputs: None,
             context: None,
             is_child: false,
         }
@@ -117,8 +117,8 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn variables(mut self, vars: Arc<HashMap<String, String>>) -> Self {
-        self.vars = Some(vars);
+    pub fn inputs(mut self, inputs: Arc<HashMap<String, String>>) -> Self {
+        self.inputs = Some(inputs);
         self
     }
 
@@ -148,9 +148,9 @@ impl RunnerBuilder {
             .env
             .ok_or_else(|| anyhow!("no environment instance provided"))?;
 
-        let vars = self
-            .vars
-            .ok_or_else(|| anyhow!("no variables instance provided"))?;
+        let inputs = self
+            .inputs
+            .ok_or_else(|| anyhow!("no inputs instance provided"))?;
 
         let context = self
             .context
@@ -190,7 +190,7 @@ impl RunnerBuilder {
                     pipeline,
                     ipc: self.ipc,
                     env,
-                    vars,
+                    vars: inputs,
                     context,
                     platform,
                     is_child: self.is_child,
@@ -203,7 +203,7 @@ impl RunnerBuilder {
                     .root_dir(&config.root_dir)
                     .project_dir(&config.project_dir)
                     .add_variables(&pipeline.variables)
-                    .add_variables(&vars)
+                    .add_variables(&inputs)
                     .add_environment(&pipeline.environment)
                     .add_environment(&env)
                     .run_id(&self.run_id)
@@ -235,8 +235,8 @@ impl RunnerBuilder {
                 let pipeline_context = token_context::v3::PipelineContextBuilder::default()
                     .root_dir(&config.root_dir)
                     .project_dir(&config.project_dir)
-                    .add_variables(&pipeline.variables)
-                    .add_variables(&vars)
+                    .add_inputs(&pipeline.inputs)
+                    .add_inputs(&inputs)
                     .add_environment(&pipeline.environment)
                     .add_environment(&env)
                     .run_id(&self.run_id)

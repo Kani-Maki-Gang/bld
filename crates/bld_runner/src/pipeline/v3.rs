@@ -24,7 +24,7 @@ pub struct Pipeline {
     pub environment: HashMap<String, String>,
 
     #[serde(default)]
-    pub variables: HashMap<String, String>,
+    pub inputs: HashMap<String, String>,
 
     #[serde(default)]
     pub artifacts: Vec<Artifacts>,
@@ -49,7 +49,7 @@ impl Pipeline {
             *v = context.transform(v.to_owned()).await?;
         }
 
-        for (_, v) in self.variables.iter_mut() {
+        for (_, v) in self.inputs.iter_mut() {
             *v = context.transform(v.to_owned()).await?;
         }
 

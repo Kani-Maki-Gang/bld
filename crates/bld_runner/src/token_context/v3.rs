@@ -13,7 +13,7 @@ use regex::Regex;
 pub struct PipelineContextBuilder<'a> {
     root_dir: Option<&'a str>,
     project_dir: Option<&'a str>,
-    variables: HashMap<String, String>,
+    inputs: HashMap<String, String>,
     environment: HashMap<String, String>,
     run_id: Option<&'a str>,
     run_start_time: Option<&'a str>,
@@ -31,9 +31,9 @@ impl<'a> PipelineContextBuilder<'a> {
         self
     }
 
-    pub fn add_variables(mut self, variables: &HashMap<String, String>) -> Self {
-        for (k, v) in variables.iter() {
-            self.variables.insert(k.to_owned(), v.to_owned());
+    pub fn add_inputs(mut self, inputs: &HashMap<String, String>) -> Self {
+        for (k, v) in inputs.iter() {
+            self.inputs.insert(k.to_owned(), v.to_owned());
         }
         self
     }
@@ -84,7 +84,7 @@ impl<'a> PipelineContextBuilder<'a> {
         Ok(PipelineContext {
             root_dir,
             project_dir,
-            variables: self.variables,
+            inputs: self.inputs,
             environment: self.environment,
             run_id,
             run_start_time,
@@ -96,7 +96,7 @@ impl<'a> PipelineContextBuilder<'a> {
 pub struct PipelineContext<'a> {
     pub root_dir: &'a str,
     pub project_dir: &'a str,
-    pub variables: HashMap<String, String>,
+    pub inputs: HashMap<String, String>,
     pub environment: HashMap<String, String>,
     pub run_id: &'a str,
     pub run_start_time: &'a str,
@@ -140,8 +140,8 @@ impl<'a> PipelineContext<'a> {
         Ok(result)
     }
 
-    async fn variables_transform(&'a self, mut text: String) -> Result<String> {
-        for (k, v) in self.variables.iter() {
+    async fn inputs_transform(&'a self, mut text: String) -> Result<String> {
+        for (k, v) in self.inputs.iter() {
             let pattern = Self::get_regex_pattern(k);
             let re = match self.regex_cache.get(pattern.clone()).await? {
                 Some(v) => v,
@@ -187,7 +187,7 @@ impl<'a> PipelineContext<'a> {
         text = self.project_dir_transform(text).await?;
         text = self.run_id_transform(text).await?;
         text = self.run_start_time_transform(text).await?;
-        text = self.variables_transform(text).await?;
+        text = self.inputs_transform(text).await?;
         self.environment_transform(text).await
     }
 }

@@ -161,7 +161,7 @@ impl Job {
     async fn local_external(&self, details: &External) -> Result<()> {
         debug!("building runner for child pipeline");
 
-        let variables = details.variables.clone();
+        let inputs = details.inputs.clone();
         let environment = details.environment.clone();
 
         let runner = RunnerBuilder::default()
@@ -172,7 +172,7 @@ impl Job {
             .pipeline(&details.pipeline)
             .logger(self.logger.clone())
             .environment(environment.into_arc())
-            .variables(variables.into_arc())
+            .inputs(inputs.into_arc())
             .context(self.context.clone())
             .is_child(true)
             .build()
@@ -188,7 +188,7 @@ impl Job {
         let server_name = server.to_owned();
         let server = self.config.server(server)?;
         let auth_path = self.config.auth_full_path(&server.name);
-        let variables = details.variables.clone();
+        let inputs = details.inputs.clone();
         let environment = details.environment.clone();
 
         let url = format!("{}/v1/ws-exec/", server.base_url_ws());
@@ -222,7 +222,7 @@ impl Job {
         addr.send(ExecClientMessage::EnqueueRun {
             name: details.pipeline.to_owned(),
             environment: Some(environment),
-            variables: Some(variables),
+            variables: Some(inputs),
         })
         .await
         .map_err(|e| anyhow!(e))?;
