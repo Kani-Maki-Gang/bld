@@ -40,7 +40,7 @@ impl<'a> Validate for PipelineValidator<'a> {
     async fn validate(mut self) -> Result<()> {
         self.validate_runs_on();
         self.validate_cron();
-        self.validate_variables(None, &self.pipeline.variables);
+        self.validate_variables(None, &self.pipeline.inputs);
         self.validate_environment(None, &self.pipeline.environment);
         self.validate_external().await;
         self.validate_artifacts();
@@ -91,7 +91,7 @@ impl<'a> PipelineValidator<'a> {
         symbols.insert(KEYWORD_RUN_PROPS_ID_V3);
         symbols.insert(KEYWORD_RUN_PROPS_START_TIME_V3);
 
-        for (k, _) in pipeline.variables.iter() {
+        for (k, _) in pipeline.inputs.iter() {
             symbols.insert(k);
         }
 

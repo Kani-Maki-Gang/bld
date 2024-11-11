@@ -48,7 +48,7 @@ impl Dependencies for RunnerFile {
 impl IntoVariables for RunnerFile {
     fn into_variables(self) -> Variables {
         match self {
-            Self::PipelineFileType(p) => (p.variables, p.environment),
+            Self::PipelineFileType(p) => (p.inputs, p.environment),
             Self::ActionFileType => unimplemented!(),
         }
     }
