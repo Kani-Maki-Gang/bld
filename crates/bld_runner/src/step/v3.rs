@@ -12,6 +12,9 @@ use bld_utils::fs::IsYaml;
 #[cfg(feature = "all")]
 use crate::token_context::v3::PipelineContext;
 
+#[cfg(feature = "all")]
+use crate::traits::Dependencies;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BuildStep {
@@ -25,20 +28,6 @@ pub enum BuildStep {
 }
 
 impl BuildStep {
-    #[cfg(feature = "all")]
-    pub fn local_dependencies(&self, config: &BldConfig) -> Vec<String> {
-        match self {
-            Self::One(exec) => exec
-                .local_dependencies(config)
-                .map(|x| vec![x])
-                .unwrap_or_default(),
-            Self::Many { exec, .. } => exec
-                .iter()
-                .flat_map(|e| e.local_dependencies(config))
-                .collect(),
-        }
-    }
-
     #[cfg(feature = "all")]
     pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
         match self {
@@ -67,6 +56,16 @@ impl BuildStep {
     }
 }
 
+#[cfg(feature = "all")]
+impl Dependencies for BuildStep {
+    fn local_deps(&self, config: &BldConfig) -> Vec<String> {
+        match self {
+            Self::One(exec) => exec.local_deps(config),
+            Self::Many { exec, .. } => exec.iter().flat_map(|e| e.local_deps(config)).collect(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BuildStepExec {
@@ -80,16 +79,6 @@ pub enum BuildStepExec {
 
 impl BuildStepExec {
     #[cfg(feature = "all")]
-    pub fn local_dependencies(&self, config: &BldConfig) -> Option<String> {
-        match self {
-            BuildStepExec::External { value } if config.full_path(value).is_yaml() => {
-                Some(value.to_owned())
-            }
-            _ => None,
-        }
-    }
-
-    #[cfg(feature = "all")]
     pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
         match self {
             Self::Shell(cmd) => {
@@ -100,5 +89,17 @@ impl BuildStepExec {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(feature = "all")]
+impl Dependencies for BuildStepExec {
+    fn local_deps(&self, config: &BldConfig) -> Vec<String> {
+        match self {
+            BuildStepExec::External { value } if config.full_path(value).is_yaml() => {
+                vec![value.to_owned()]
+            }
+            _ => vec![],
+        }
     }
 }

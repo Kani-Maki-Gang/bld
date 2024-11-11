@@ -1,9 +1,11 @@
 pub mod artifacts;
 pub mod external;
+pub mod files;
 pub mod pipeline;
 pub mod registry;
 pub mod runs_on;
 pub mod step;
+pub mod traits;
 
 #[cfg(feature = "all")]
 mod runner;
@@ -17,11 +19,11 @@ mod token_context;
 #[cfg(feature = "all")]
 mod validator;
 
-pub use pipeline::traits::Load;
-pub use pipeline::versioned::VersionedPipeline;
+pub use files::versioned::VersionedFile;
+pub use traits::Load;
 
 #[cfg(feature = "all")]
-pub use pipeline::versioned::Yaml;
+pub use files::versioned::Yaml;
 
 #[cfg(feature = "all")]
 pub use sync::builder::RunnerBuilder;

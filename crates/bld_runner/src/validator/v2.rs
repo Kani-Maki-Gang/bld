@@ -3,6 +3,7 @@ use crate::{
     registry::v2::Registry,
     runs_on::v2::RunsOn,
     step::v2::{BuildStep, BuildStepExec},
+    traits::Validate,
 };
 use anyhow::{bail, Result};
 use bld_config::{
@@ -33,6 +34,24 @@ pub struct PipelineValidator<'a> {
     keywords: HashSet<&'a str>,
     symbols: HashSet<&'a str>,
     errors: String,
+}
+
+impl<'a> Validate for PipelineValidator<'a> {
+    async fn validate(mut self) -> Result<()> {
+        self.validate_runs_on();
+        self.validate_cron();
+        self.validate_variables(None, &self.pipeline.variables);
+        self.validate_environment(None, &self.pipeline.environment);
+        self.validate_external().await;
+        self.validate_artifacts();
+        self.validate_jobs().await;
+
+        if !self.errors.is_empty() {
+            bail!(self.errors)
+        }
+
+        Ok(())
+    }
 }
 
 impl<'a> PipelineValidator<'a> {
@@ -81,22 +100,6 @@ impl<'a> PipelineValidator<'a> {
         }
 
         symbols
-    }
-
-    pub async fn validate(mut self) -> Result<()> {
-        self.validate_runs_on();
-        self.validate_cron();
-        self.validate_variables(None, &self.pipeline.variables);
-        self.validate_environment(None, &self.pipeline.environment);
-        self.validate_external().await;
-        self.validate_artifacts();
-        self.validate_jobs().await;
-
-        if !self.errors.is_empty() {
-            bail!(self.errors)
-        }
-
-        Ok(())
     }
 
     fn sanitize_symbol(symbol: &'a str) -> &'a str {

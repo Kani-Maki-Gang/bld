@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use bld_config::BldConfig;
 use bld_core::{
     context::Context,
@@ -20,11 +20,12 @@ use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
 
 use crate::{
-    pipeline::{
-        traits::Load,
-        versioned::{VersionedPipeline, Yaml},
+    files::{
+        v3::RunnerFile,
+        versioned::{VersionedFile, Yaml},
     },
     runner, token_context,
+    traits::Load,
 };
 
 use super::versioned::VersionedRunner;
@@ -156,7 +157,7 @@ impl RunnerBuilder {
             .ok_or_else(|| anyhow!("no context instance provided"))?;
 
         let runner = match pipeline {
-            VersionedPipeline::Version1(pipeline) => {
+            VersionedFile::Version1(pipeline) => {
                 let options = match pipeline.runs_on.as_str() {
                     "machine" => PlatformOptions::Machine,
                     image => PlatformOptions::Container {
@@ -197,7 +198,7 @@ impl RunnerBuilder {
                 })
             }
 
-            VersionedPipeline::Version2(mut pipeline) => {
+            VersionedFile::Version2(mut pipeline) => {
                 let pipeline_context = token_context::v2::PipelineContextBuilder::default()
                     .root_dir(&config.root_dir)
                     .project_dir(&config.project_dir)
@@ -230,7 +231,7 @@ impl RunnerBuilder {
                 })
             }
 
-            VersionedPipeline::Version3(mut pipeline) => {
+            VersionedFile::Version3(RunnerFile::PipelineFileType(mut pipeline)) => {
                 let pipeline_context = token_context::v3::PipelineContextBuilder::default()
                     .root_dir(&config.root_dir)
                     .project_dir(&config.project_dir)
@@ -245,6 +246,7 @@ impl RunnerBuilder {
 
                 pipeline.apply_tokens(&pipeline_context).await?;
 
+                let pipeline = Arc::new(*pipeline);
                 VersionedRunner::V3(runner::v3::Runner {
                     run_id: self.run_id,
                     run_start_time: self.run_start_time,
@@ -253,7 +255,7 @@ impl RunnerBuilder {
                     logger: self.logger,
                     regex_cache: self.regex_cache,
                     fs: self.fs,
-                    pipeline: pipeline.into_arc(),
+                    pipeline,
                     ipc: self.ipc,
                     env,
                     context,
@@ -261,6 +263,10 @@ impl RunnerBuilder {
                     is_child: self.is_child,
                     has_faulted: false,
                 })
+            }
+
+            VersionedFile::Version3(RunnerFile::ActionFileType) => {
+                bail!("cannot run action files");
             }
         };
 

@@ -1,11 +1,14 @@
-use super::v1;
-use super::v2;
-use super::v3;
+use crate::pipeline::{v1, v2};
+use crate::traits::{IntoVariables, Variables};
 use serde::{Deserialize, Serialize};
+
+use super::v3 as files_v3;
+
+#[cfg(feature = "all")]
 use std::collections::HashMap;
 
 #[cfg(feature = "all")]
-use super::traits::Load;
+use crate::traits::{Dependencies, Load};
 
 #[cfg(feature = "all")]
 use crate::validator::v1 as validator_v1;
@@ -14,7 +17,7 @@ use crate::validator::v1 as validator_v1;
 use crate::validator::v2 as validator_v2;
 
 #[cfg(feature = "all")]
-use crate::validator::v3 as validator_v3;
+use crate::validator::file_v3 as validator_v3;
 
 #[cfg(feature = "all")]
 use anyhow::{anyhow, Result};
@@ -41,12 +44,12 @@ type DependenciesRecursiveFuture = Pin<Box<dyn Future<Output = Result<HashMap<St
 pub struct Yaml;
 
 #[cfg(feature = "all")]
-impl Load<VersionedPipeline> for Yaml {
-    fn load(input: &str) -> Result<VersionedPipeline> {
+impl Load<VersionedFile> for Yaml {
+    fn load(input: &str) -> Result<VersionedFile> {
         serde_yaml::from_str(input).map_err(|_| anyhow!("Pipeline file has syntax errors"))
     }
 
-    fn load_with_verbose_errors(input: &str) -> Result<VersionedPipeline> {
+    fn load_with_verbose_errors(input: &str) -> Result<VersionedFile> {
         serde_yaml::from_str(input).map_err(|e| {
             let mut message = "Syntax errors".to_string();
 
@@ -70,16 +73,16 @@ impl Load<VersionedPipeline> for Yaml {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "version")]
-pub enum VersionedPipeline {
+pub enum VersionedFile {
     #[serde(rename(serialize = "1", deserialize = "1"))]
     Version1(v1::Pipeline),
     #[serde(rename(serialize = "2", deserialize = "2"))]
     Version2(v2::Pipeline),
     #[serde(rename(serialize = "3", deserialize = "3"))]
-    Version3(v3::Pipeline),
+    Version3(files_v3::RunnerFile),
 }
 
-impl VersionedPipeline {
+impl VersionedFile {
     #[cfg(feature = "all")]
     pub async fn dependencies(
         config: Arc<BldConfig>,
@@ -99,7 +102,7 @@ impl VersionedPipeline {
         fs: Arc<FileSystem>,
         name: String,
     ) -> DependenciesRecursiveFuture {
-        use crate::pipeline::traits::Dependencies;
+        use crate::traits::Dependencies;
 
         Box::pin(async move {
             debug!("Parsing pipeline {name}");
@@ -109,17 +112,12 @@ impl VersionedPipeline {
                 .await
                 .map_err(|_| anyhow!("Pipeline {name} not found"))?;
 
-            let pipeline = Yaml::load(&src).map_err(|e| anyhow!("{e} ({name})"))?;
+            let file = Yaml::load(&src).map_err(|e| anyhow!("{e} ({name})"))?;
             let mut set = HashMap::new();
             set.insert(name.to_string(), src);
+            let local_deps = file.local_deps(&config);
 
-            let local_pipelines = match pipeline {
-                Self::Version1(pip) => pip.local_deps(config.as_ref()),
-                Self::Version2(pip) => pip.local_deps(config.as_ref()),
-                Self::Version3(pip) => pip.local_deps(config.as_ref()),
-            };
-
-            for pipeline in local_pipelines.into_iter() {
+            for pipeline in local_deps.into_iter() {
                 for (k, v) in Self::dependencies_recursive(config.clone(), fs.clone(), pipeline)
                     .await
                     .await?
@@ -140,20 +138,14 @@ impl VersionedPipeline {
         }
     }
 
-    pub fn variables_and_environment(self) -> (HashMap<String, String>, HashMap<String, String>) {
-        match self {
-            Self::Version1(pip) => (pip.variables, pip.environment),
-            Self::Version2(pip) => (pip.variables, pip.environment),
-            Self::Version3(pip) => (pip.variables, pip.environment),
-        }
-    }
-
     #[cfg(feature = "all")]
     pub async fn validate_with_verbose_errors(
         &self,
         config: Arc<BldConfig>,
         fs: Arc<FileSystem>,
     ) -> Result<()> {
+        use crate::traits::Validate;
+
         match self {
             Self::Version1(pip) => {
                 validator_v1::PipelineValidator::new(pip, config, fs)
@@ -167,8 +159,8 @@ impl VersionedPipeline {
                     .await
             }
 
-            Self::Version3(pip) => {
-                validator_v3::PipelineValidator::new(pip, config, fs)?
+            Self::Version3(file) => {
+                validator_v3::RunnerFileValidator::new(file, config, fs)?
                     .validate()
                     .await
             }
@@ -181,5 +173,26 @@ impl VersionedPipeline {
         self.validate_with_verbose_errors(config, fs)
             .await
             .map_err(|_| anyhow!("Pipeline has expression errors"))
+    }
+}
+
+#[cfg(feature = "all")]
+impl Dependencies for VersionedFile {
+    fn local_deps(&self, config: &BldConfig) -> Vec<String> {
+        match self {
+            Self::Version1(pip) => pip.local_deps(config),
+            Self::Version2(pip) => pip.local_deps(config),
+            Self::Version3(file) => file.local_deps(config),
+        }
+    }
+}
+
+impl IntoVariables for VersionedFile {
+    fn into_variables(self) -> Variables {
+        match self {
+            Self::Version1(pip) => pip.into_variables(),
+            Self::Version2(pip) => pip.into_variables(),
+            Self::Version3(file) => file.into_variables(),
+        }
     }
 }
