@@ -271,11 +271,7 @@ impl<'a> PipelineValidator<'a> {
         }
     }
 
-    fn validate_inputs(
-        &mut self,
-        section: Option<&str>,
-        inputs: &'a HashMap<String, String>,
-    ) {
+    fn validate_inputs(&mut self, section: Option<&str>, inputs: &'a HashMap<String, String>) {
         for (k, v) in inputs.iter() {
             let section = section.map(|x| format!("{x} > ")).unwrap_or_default();
             let section = format!("{section}inputs > {k}");
