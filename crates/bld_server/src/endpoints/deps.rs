@@ -10,7 +10,7 @@ use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::fs::FileSystem;
 use bld_models::dtos::PipelineQueryParams;
-use bld_runner::VersionedPipeline;
+use bld_runner::VersionedFile;
 use tracing::info;
 
 #[get("/v1/deps")]
@@ -34,6 +34,6 @@ async fn do_deps(
 ) -> Result<Vec<String>> {
     let config = Arc::clone(&config);
     let fs = Arc::clone(&fs);
-    let dependencies = VersionedPipeline::dependencies(config, fs, params.pipeline).await?;
+    let dependencies = VersionedFile::dependencies(config, fs, params.pipeline).await?;
     Ok(dependencies.into_keys().collect())
 }
