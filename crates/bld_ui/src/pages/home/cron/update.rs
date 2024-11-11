@@ -8,7 +8,7 @@ use crate::{
     error::{ErrorCard, ErrorDialog},
 };
 use bld_models::dtos::{CronJobResponse, UpdateJobRequest};
-use bld_runner::VersionedPipeline;
+use bld_runner::VersionedFile;
 use leptos::{html::Dialog, *};
 use leptos_router::*;
 
@@ -36,7 +36,7 @@ pub fn CronJobUpdate() -> impl IntoView {
             let cron = get_cron(id).await.map_err(|e| e.to_string())?;
             let name = cron.pipeline.clone();
             let pipeline = get_pipeline(Some(name)).await.map_err(|e| e.to_string())?;
-            Ok::<(CronJobResponse, VersionedPipeline), String>((cron, pipeline))
+            Ok::<(CronJobResponse, VersionedFile), String>((cron, pipeline))
         },
     );
 

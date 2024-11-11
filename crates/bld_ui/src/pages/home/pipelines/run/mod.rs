@@ -12,7 +12,8 @@ use anyhow::{anyhow, Result};
 use bld_models::dtos::PipelineInfoQueryParams;
 use bld_runner::{
     pipeline::{v1, v2},
-    VersionedPipeline,
+    traits::IntoVariables,
+    VersionedFile,
 };
 use leptos::{html::Dialog, *};
 use leptos_router::*;
@@ -27,7 +28,7 @@ type RequestInterRepr = (
     RwSignal<Option<View>>,
 );
 
-async fn get_pipeline(id: Option<String>) -> Result<VersionedPipeline> {
+async fn get_pipeline(id: Option<String>) -> Result<VersionedFile> {
     let id = id.ok_or_else(|| anyhow!("Pipeline id not provided in query"))?;
     let params = PipelineInfoQueryParams::Id { id };
     let response = api::print(params).await?;
@@ -99,12 +100,12 @@ pub fn RunPipeline() -> impl IntoView {
     });
 
     create_effect(move |_| match data.get() {
-        Some(Ok(VersionedPipeline::Version1(v1::Pipeline {
+        Some(Ok(VersionedFile::Version1(v1::Pipeline {
             variables: var,
             environment: env,
             ..
         })))
-        | Some(Ok(VersionedPipeline::Version2(v2::Pipeline {
+        | Some(Ok(VersionedFile::Version2(v2::Pipeline {
             variables: var,
             environment: env,
             ..
@@ -112,6 +113,13 @@ pub fn RunPipeline() -> impl IntoView {
             variables.set(hash_map_rw_signals(var));
             environment.set(hash_map_rw_signals(env));
         }
+
+        Some(Ok(VersionedFile::Version3(file))) => {
+            let (var, env) = file.into_variables();
+            variables.set(hash_map_rw_signals(var));
+            environment.set(hash_map_rw_signals(env));
+        }
+
         _ => {}
     });
 

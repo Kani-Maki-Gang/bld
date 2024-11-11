@@ -4,7 +4,7 @@ mod schedule;
 use super::helpers::hash_map_rw_signals;
 use crate::pages::home::RunPipelineVariables;
 use bld_models::dtos::CronJobResponse;
-use bld_runner::VersionedPipeline;
+use bld_runner::{traits::IntoVariables, VersionedFile};
 use details::CronJobsEditDetails;
 use leptos::*;
 use schedule::CronJobsEditSchedule;
@@ -19,7 +19,7 @@ pub type SaveCronJob = (
 #[component]
 pub fn CronJobsEdit(
     #[prop(into)] cron: Signal<Option<CronJobResponse>>,
-    #[prop(into)] pipeline: Signal<Option<VersionedPipeline>>,
+    #[prop(into)] pipeline: Signal<Option<VersionedFile>>,
     #[prop(into)] save: WriteSignal<Option<SaveCronJob>>,
     #[prop(into, optional)] delete: Option<WriteSignal<bool>>,
 ) -> impl IntoView {
@@ -33,7 +33,7 @@ pub fn CronJobsEdit(
             return;
         };
         schedule.set(cron.schedule);
-        let (vars, env) = pipeline.variables_and_environment();
+        let (vars, env) = pipeline.into_variables();
         variables.set(hash_map_rw_signals(vars, cron.variables));
         environment.set(hash_map_rw_signals(env, cron.environment));
     });
