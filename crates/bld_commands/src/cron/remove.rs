@@ -12,8 +12,8 @@ pub struct CronRemoveCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
-    #[arg(short = 'i', long = "id", help = "The id of the cron job to remove")]
-    cron_job_id: String,
+    #[arg(short = 'c', long = "cron-id", help = "The id of the cron job to remove")]
+    id: String,
 
     #[arg(
         short = 's',
@@ -32,7 +32,7 @@ impl BldCommand for CronRemoveCommand {
         System::new().block_on(async move {
             let config = BldConfig::load().await?.into_arc();
             let client = HttpClient::new(config, &self.server)?;
-            client.cron_remove(&self.cron_job_id).await
+            client.cron_remove(&self.id).await
         })
     }
 }

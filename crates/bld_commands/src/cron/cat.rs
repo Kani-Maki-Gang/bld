@@ -22,7 +22,7 @@ pub struct CronCatCommand {
     )]
     server: String,
 
-    #[arg(short = 'i', long = "id", help = "The id of the target cron job")]
+    #[arg(short = 'c', long = "cron-id", help = "The id of the target cron job")]
     id: String,
 }
 
@@ -51,13 +51,13 @@ impl BldCommand for CronCatCommand {
                 writeln!(message)?;
                 write!(
                     message,
-                    "bld cron update -s {} -i {} -S '{}'",
+                    "bld cron update -s {} -c {} -S '{}'",
                     self.server, entry.id, entry.schedule
                 )?;
 
                 if let Some(inputs) = &entry.inputs {
                     for (k, v) in inputs {
-                        write!(message, " -v {}='{}'", k, v)?;
+                        write!(message, " -i {}='{}'", k, v)?;
                     }
                 }
 
