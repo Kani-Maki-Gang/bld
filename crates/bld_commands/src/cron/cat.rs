@@ -46,7 +46,7 @@ impl BldCommand for CronCatCommand {
                 writeln!(message, "{:<13}: {}", "schedule", entry.schedule)?;
                 writeln!(message, "{:<13}: {}", "pipeline", entry.pipeline)?;
                 writeln!(message, "{:<13}: {}", "is_default", entry.is_default)?;
-                writeln!(message, "{:<13}: {:?}", "variables", entry.inputs)?;
+                writeln!(message, "{:<13}: {:?}", "inputs", entry.inputs)?;
                 writeln!(message, "{:<13}: {:?}", "environment", entry.env)?;
                 writeln!(message)?;
                 write!(
@@ -55,8 +55,8 @@ impl BldCommand for CronCatCommand {
                     self.server, entry.id, entry.schedule
                 )?;
 
-                if let Some(variables) = &entry.inputs {
-                    for (k, v) in variables {
+                if let Some(inputs) = &entry.inputs {
+                    for (k, v) in inputs {
                         write!(message, " -v {}='{}'", k, v)?;
                     }
                 }

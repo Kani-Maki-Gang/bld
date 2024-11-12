@@ -31,18 +31,18 @@ pub struct RunCommand {
     detach: bool,
 
     #[arg(
-        short = 'v',
-        long = "variable",
-        help = "Define value for a variable. Can be used multiple times"
+        short = 'i',
+        long = "input",
+        help = "Define value for an input variable. Can be used multiple times"
     )]
-    variables: Vec<String>,
+    inputs: Vec<String>,
 
     #[arg(
         short = 'e',
         long = "environment",
         help = "Define value for an environment variable. Can be used multiple times"
     )]
-    environment: Vec<String>,
+    env: Vec<String>,
 }
 
 impl BldCommand for RunCommand {
@@ -53,9 +53,9 @@ impl BldCommand for RunCommand {
     fn exec(self) -> Result<()> {
         System::new().block_on(async move {
             let config = BldConfig::load().await?.into_arc();
-            let variables = parse_variables(&self.variables);
-            let environment = parse_variables(&self.environment);
-            let adapter = RunBuilder::new(config, self.pipeline, variables, environment)
+            let inputs = parse_variables(&self.inputs);
+            let env = parse_variables(&self.env);
+            let adapter = RunBuilder::new(config, self.pipeline, inputs, env)
                 .server(self.server.as_ref())
                 .detach(self.detach)
                 .build();

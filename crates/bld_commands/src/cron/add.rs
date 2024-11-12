@@ -35,18 +35,18 @@ pub struct CronAddCommand {
     schedule: String,
 
     #[arg(
-        short = 'v',
-        long = "variable",
-        help = "Define value for a variable. Can be used multiple times"
+        short = 'i',
+        long = "input",
+        help = "Define value for an input variable. Can be used multiple times"
     )]
-    variables: Vec<String>,
+    inputs: Vec<String>,
 
     #[arg(
         short = 'e',
         long = "environment",
         help = "Define value for an environment variable. Can be used multiple times"
     )]
-    environment: Vec<String>,
+    env: Vec<String>,
 }
 
 impl BldCommand for CronAddCommand {
@@ -58,10 +58,10 @@ impl BldCommand for CronAddCommand {
         System::new().block_on(async move {
             let config = BldConfig::load().await?.into_arc();
             let client = HttpClient::new(config, &self.server)?;
-            let variables = Some(parse_variables(&self.variables));
-            let environment = Some(parse_variables(&self.environment));
+            let inputs = Some(parse_variables(&self.inputs));
+            let env = Some(parse_variables(&self.env));
             let request =
-                AddJobRequest::new(self.schedule, self.pipeline, variables, environment, false);
+                AddJobRequest::new(self.schedule, self.pipeline, inputs, env, false);
             client.cron_add(&request).await
         })
     }

@@ -20,7 +20,7 @@ pub struct CronUpdateCommand {
     )]
     server: String,
 
-    #[arg(short = 'i', long = "id", help = "The id of the target cron job")]
+    #[arg(short = 'c', long = "cron-id", help = "The id of the target cron job")]
     id: String,
 
     #[arg(
@@ -31,18 +31,18 @@ pub struct CronUpdateCommand {
     schedule: String,
 
     #[arg(
-        short = 'v',
-        long = "variable",
-        help = "Define value for a variable. Can be used multiple times"
+        short = 'i',
+        long = "input",
+        help = "Define value for an input variable. Can be used multiple times"
     )]
-    variables: Vec<String>,
+    inputs: Vec<String>,
 
     #[arg(
         short = 'e',
         long = "environment",
         help = "Define value for an environment variable. Can be used multiple times"
     )]
-    environment: Vec<String>,
+    env: Vec<String>,
 }
 
 impl BldCommand for CronUpdateCommand {
@@ -54,9 +54,9 @@ impl BldCommand for CronUpdateCommand {
         System::new().block_on(async move {
             let config = BldConfig::load().await?.into_arc();
             let client = HttpClient::new(config, &self.server)?;
-            let variables = Some(parse_variables(&self.variables));
-            let environment = Some(parse_variables(&self.environment));
-            let update_job = UpdateJobRequest::new(self.id, self.schedule, variables, environment);
+            let inputs = Some(parse_variables(&self.inputs));
+            let env = Some(parse_variables(&self.env));
+            let update_job = UpdateJobRequest::new(self.id, self.schedule, inputs, env);
             client.cron_update(&update_job).await
         })
     }
