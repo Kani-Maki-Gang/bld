@@ -260,7 +260,7 @@ impl Runner {
             .fs(self.fs.clone())
             .pipeline(&details.pipeline)
             .logger(self.logger.clone())
-            .environment(environment.into_arc())
+            .env(environment.into_arc())
             .inputs(variables.into_arc())
             .ipc(self.ipc.clone())
             .context(self.context.clone())

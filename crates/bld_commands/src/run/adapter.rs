@@ -18,14 +18,14 @@ pub struct LocalRun {
     config: Arc<BldConfig>,
     pipeline: String,
     variables: HashMap<String, String>,
-    environment: HashMap<String, String>,
+    env: HashMap<String, String>,
 }
 
 pub struct HttpRequest {
     config: Arc<BldConfig>,
     pipeline: String,
     variables: HashMap<String, String>,
-    environment: HashMap<String, String>,
+    env: HashMap<String, String>,
     server: String,
 }
 
@@ -33,7 +33,7 @@ pub struct WebSocketRequest {
     config: Arc<BldConfig>,
     pipeline: String,
     variables: HashMap<String, String>,
-    environment: HashMap<String, String>,
+    env: HashMap<String, String>,
     server: String,
 }
 
@@ -52,14 +52,14 @@ impl RunBuilder {
         config: Arc<BldConfig>,
         pipeline: String,
         variables: HashMap<String, String>,
-        environment: HashMap<String, String>,
+        env: HashMap<String, String>,
     ) -> Self {
         Self {
             config: RunConfiguration::Local(LocalRun {
                 config,
                 pipeline,
                 variables,
-                environment,
+                env,
             }),
         }
     }
@@ -71,7 +71,7 @@ impl RunBuilder {
                     config: local.config,
                     pipeline: local.pipeline,
                     variables: local.variables,
-                    environment: local.environment,
+                    env: local.env,
                 }),
             },
 
@@ -80,7 +80,7 @@ impl RunBuilder {
                     config: local.config,
                     pipeline: local.pipeline,
                     variables: local.variables,
-                    environment: local.environment,
+                    env: local.env,
                     server: server.to_string(),
                 }),
             },
@@ -90,7 +90,7 @@ impl RunBuilder {
                     config: socket.config,
                     pipeline: socket.pipeline,
                     variables: socket.variables,
-                    environment: socket.environment,
+                    env: socket.env,
                     server: socket.server,
                 }),
             },
@@ -100,7 +100,7 @@ impl RunBuilder {
                     config: socket.config,
                     pipeline: socket.pipeline,
                     variables: socket.variables,
-                    environment: socket.environment,
+                    env: socket.env,
                     server: server.to_string(),
                 }),
             },
@@ -110,7 +110,7 @@ impl RunBuilder {
                     config: http.config,
                     pipeline: http.pipeline,
                     variables: http.variables,
-                    environment: http.environment,
+                    env: http.env,
                     server: http.server,
                 }),
             },
@@ -120,7 +120,7 @@ impl RunBuilder {
                     config: http.config,
                     pipeline: http.pipeline,
                     variables: http.variables,
-                    environment: http.environment,
+                    env: http.env,
                     server: server.to_string(),
                 }),
             },
@@ -134,7 +134,7 @@ impl RunBuilder {
                     config: local.config,
                     pipeline: local.pipeline,
                     variables: local.variables,
-                    environment: local.environment,
+                    env: local.env,
                 }),
             },
 
@@ -143,7 +143,7 @@ impl RunBuilder {
                     config: socket.config,
                     pipeline: socket.pipeline,
                     variables: socket.variables,
-                    environment: socket.environment,
+                    env: socket.env,
                     server: socket.server,
                 }),
             },
@@ -153,7 +153,7 @@ impl RunBuilder {
                     config: socket.config,
                     pipeline: socket.pipeline,
                     variables: socket.variables,
-                    environment: socket.environment,
+                    env: socket.env,
                     server: socket.server,
                 }),
             },
@@ -163,7 +163,7 @@ impl RunBuilder {
                     config: http.config,
                     pipeline: http.pipeline,
                     variables: http.variables,
-                    environment: http.environment,
+                    env: http.env,
                     server: http.server,
                 }),
             },
@@ -173,7 +173,7 @@ impl RunBuilder {
                     config: http.config,
                     pipeline: http.pipeline,
                     variables: http.variables,
-                    environment: http.environment,
+                    env: http.env,
                     server: http.server,
                 }),
             },
@@ -202,7 +202,7 @@ impl RunAdapter {
             .logger(Logger::shell().into_arc())
             .context(Context::local(mode.config.clone()).into_arc())
             .signals(signals_rx)
-            .environment(mode.environment.into_arc())
+            .env(mode.env.into_arc())
             .inputs(mode.variables.into_arc())
             .build()
             .await?;
@@ -221,7 +221,7 @@ impl RunAdapter {
         let url = format!("{}/v1/ws-exec/", server.base_url_ws());
         let data = ExecClientMessage::EnqueueRun {
             name: mode.pipeline,
-            environment: Some(mode.environment),
+            environment: Some(mode.env),
             variables: Some(mode.variables),
         };
 
@@ -257,7 +257,7 @@ impl RunAdapter {
 
     async fn run_http(mode: HttpRequest) -> Result<()> {
         HttpClient::new(mode.config, &mode.server)?
-            .run(&mode.pipeline, Some(mode.environment), Some(mode.variables))
+            .run(&mode.pipeline, Some(mode.env), Some(mode.variables))
             .await
             .map(|_| println!("pipeline has been scheduled to run"))
     }

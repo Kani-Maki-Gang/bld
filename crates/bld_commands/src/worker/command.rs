@@ -100,7 +100,7 @@ impl BldCommand for WorkerCommand {
                     .fs(fs)
                     .pipeline(&pipeline)
                     .logger(logger)
-                    .environment(environment)
+                    .env(environment)
                     .inputs(variables)
                     .context(context)
                     .ipc(worker_tx)

@@ -32,8 +32,8 @@ pub struct PlatformBuilder<'a> {
     run_id: Option<&'a str>,
     options: PlatformOptions<'a>,
     config: Option<Arc<BldConfig>>,
-    pipeline_environment: Option<&'a HashMap<String, String>>,
-    environment: Option<Arc<HashMap<String, String>>>,
+    pipeline_env: Option<&'a HashMap<String, String>>,
+    env: Option<Arc<HashMap<String, String>>>,
     logger: Option<Arc<Logger>>,
     conn: Option<Arc<DatabaseConnection>>,
 }
@@ -54,13 +54,13 @@ impl<'a> PlatformBuilder<'a> {
         self
     }
 
-    pub fn pipeline_environment(mut self, environment: &'a HashMap<String, String>) -> Self {
-        self.pipeline_environment = Some(environment);
+    pub fn pipeline_env(mut self, env: &'a HashMap<String, String>) -> Self {
+        self.pipeline_env = Some(env);
         self
     }
 
-    pub fn environment(mut self, environment: Arc<HashMap<String, String>>) -> Self {
-        self.environment = Some(environment);
+    pub fn env(mut self, env: Arc<HashMap<String, String>>) -> Self {
+        self.env = Some(env);
         self
     }
 
@@ -83,13 +83,13 @@ impl<'a> PlatformBuilder<'a> {
             .config
             .ok_or_else(|| anyhow!("no config provided for target platform builder"))?;
 
-        let pipeline_env = self.pipeline_environment.ok_or_else(|| {
-            anyhow!("no pipeline environment provided for target platform builder")
+        let pipeline_env = self.pipeline_env.ok_or_else(|| {
+            anyhow!("no pipeline env provided for target platform builder")
         })?;
 
         let env = self
-            .environment
-            .ok_or_else(|| anyhow!("no environment provided for target platform builder"))?;
+            .env
+            .ok_or_else(|| anyhow!("no env provided for target platform builder"))?;
 
         let logger = self
             .logger
