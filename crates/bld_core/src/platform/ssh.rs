@@ -88,7 +88,7 @@ impl Ssh {
             env: HashMap::new(),
         };
         instance.set_auth(connect.user, &connect.auth).await?;
-        instance.set_environment(execution.pipeline_env, execution.env);
+        instance.set_env(execution.pipeline_env, execution.env);
 
         Ok(instance)
     }
@@ -115,7 +115,7 @@ impl Ssh {
         Ok(())
     }
 
-    fn set_environment(
+    fn set_env(
         &mut self,
         pipeline_env: &HashMap<String, String>,
         env: Arc<HashMap<String, String>>,

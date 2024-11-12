@@ -30,8 +30,8 @@ impl ServerSocket {
             ServerMessages::Enqueue {
                 pipeline,
                 run_id,
-                variables,
-                environment,
+                inputs: variables,
+                env: environment,
             } => {
                 info!("server sent an enqueue message for pipeline: {pipeline}");
                 let exe = current_exe().map_err(|e| {

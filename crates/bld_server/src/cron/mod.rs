@@ -43,12 +43,12 @@ impl CronScheduler {
         Ok(instance)
     }
 
-    fn variables_into_hash_map(variables: Vec<CronJobVariable>) -> Option<HashMap<String, String>> {
-        let variables: HashMap<String, String> =
-            variables.into_iter().map(|v| (v.name, v.value)).collect();
+    fn inputs_into_hash_map(inputs: Vec<CronJobVariable>) -> Option<HashMap<String, String>> {
+        let inputs: HashMap<String, String> =
+            inputs.into_iter().map(|v| (v.name, v.value)).collect();
 
-        if !variables.is_empty() {
-            Some(variables)
+        if !inputs.is_empty() {
+            Some(inputs)
         } else {
             None
         }
@@ -74,9 +74,9 @@ impl CronScheduler {
         for job in jobs {
             let pipeline = pipeline::select_by_id(conn, &job.pipeline_id).await?;
 
-            let variables = cron_job_variables::select_by_cron_job_id(conn, &job.id)
+            let inputs = cron_job_variables::select_by_cron_job_id(conn, &job.id)
                 .await
-                .map(Self::variables_into_hash_map)
+                .map(Self::inputs_into_hash_map)
                 .unwrap_or(None);
 
             let environment = cron_job_environment_variables::select_by_cron_job_id(conn, &job.id)
@@ -89,7 +89,7 @@ impl CronScheduler {
                 &job_id,
                 &job.schedule,
                 &pipeline.id,
-                variables,
+                inputs,
                 environment,
             )?;
 
@@ -162,8 +162,8 @@ impl CronScheduler {
         job_id: &Uuid,
         schedule: &str,
         pipeline_id: &str,
-        variables: Option<HashMap<String, String>>,
-        environment: Option<HashMap<String, String>>,
+        inputs: Option<HashMap<String, String>>,
+        env: Option<HashMap<String, String>>,
     ) -> Result<Job> {
         // Compiler complaints about FnMut if parameters are directly used inside the closure
         // so this is the only workaround that works atm.
@@ -171,16 +171,16 @@ impl CronScheduler {
         let conn = self.conn.clone();
         let supervisor = self.supervisor.clone();
         let pipeline_id = pipeline_id.to_owned();
-        let variables = variables.clone();
-        let environment = environment.clone();
+        let inputs = inputs.clone();
+        let env = env.clone();
 
         let mut job = Job::new_cron_job_async(schedule, move |_uuid, _l| {
             let fs = fs.clone();
             let conn = conn.clone();
             let supervisor = supervisor.clone();
             let pipeline_id = pipeline_id.to_owned();
-            let variables = variables.clone();
-            let environment = environment.clone();
+            let inputs = inputs.clone();
+            let env = env.clone();
             Box::pin(async move {
                 let Ok(pipeline) = pipeline::select_by_id(conn.as_ref(), &pipeline_id).await else {
                     error!("unable to find pipeline with id: {pipeline_id}");
@@ -188,8 +188,8 @@ impl CronScheduler {
                 };
                 let data = ExecClientMessage::EnqueueRun {
                     name: pipeline.name.to_owned(),
-                    env: environment,
-                    inputs: variables,
+                    env,
+                    inputs,
                 };
                 if let Err(e) = enqueue_worker("Cron", fs, conn, supervisor, data).await {
                     error!("unable to enqueue cron run due to: {e}");
@@ -212,15 +212,15 @@ impl CronScheduler {
     ) -> Result<()> {
         let job_id = Uuid::new_v4();
 
-        let variables = add_job.inputs.as_ref().cloned();
-        let environment = add_job.env.as_ref().cloned();
+        let inputs = add_job.inputs.as_ref().cloned();
+        let env = add_job.env.as_ref().cloned();
 
         let scheduled_job = self.create_scheduled_job(
             &job_id,
             &add_job.schedule,
             &pipeline.id,
-            variables,
-            environment,
+            inputs,
+            env,
         )?;
         let scheduled_job_id = scheduled_job.guid();
         self.scheduler.add(scheduled_job).await?;
@@ -246,14 +246,14 @@ impl CronScheduler {
         let job_id = Uuid::from_str(&job.id)?;
         self.scheduler.remove(&job_id).await?;
 
-        let variables = update_job.inputs.as_ref().cloned();
+        let inputs = update_job.inputs.as_ref().cloned();
         let environment = update_job.env.as_ref().cloned();
 
         let scheduled_job = self.create_scheduled_job(
             &job_id,
             &update_job.schedule,
             &pipeline.id,
-            variables,
+            inputs,
             environment,
         )?;
 
@@ -349,9 +349,9 @@ impl CronScheduler {
         for job in jobs {
             let pipeline = pipeline::select_by_id(conn, &job.pipeline_id).await?;
 
-            let variables = cron_job_variables::select_by_cron_job_id(conn, &job.id)
+            let inputs = cron_job_variables::select_by_cron_job_id(conn, &job.id)
                 .await
-                .map(Self::variables_into_hash_map)
+                .map(Self::inputs_into_hash_map)
                 .unwrap_or(None);
 
             let environment = cron_job_environment_variables::select_by_cron_job_id(conn, &job.id)
@@ -363,7 +363,7 @@ impl CronScheduler {
                 id: job.id,
                 schedule: job.schedule,
                 pipeline: pipeline.name.to_owned(),
-                inputs: variables,
+                inputs,
                 env: environment,
                 is_default: job.is_default,
                 date_created: job.date_created.to_string(),

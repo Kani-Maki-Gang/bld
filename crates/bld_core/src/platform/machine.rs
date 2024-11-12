@@ -29,11 +29,11 @@ impl Machine {
         }
         Ok(Self {
             tmp_dir: tmp_path.display().to_string(),
-            env: Self::create_environment(pipeline_env, env),
+            env: Self::create_env(pipeline_env, env),
         })
     }
 
-    fn create_environment(
+    fn create_env(
         pipeline_env: &HashMap<String, String>,
         env: Arc<HashMap<String, String>>,
     ) -> HashMap<String, String> {
