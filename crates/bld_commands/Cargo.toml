@@ -10,7 +10,7 @@ actix = "0.13.5"
 actix-codec = "0.5.2"
 actix-web = { version = "4.9.0", features = ["rustls"] }
 anyhow = "1.0.93"
-async-signal = "0.2.5"
+async-signal = "0.2.10"
 bld_config = { path = "../bld_config", features = ["tokio"] }
 bld_utils = { path = "../bld_utils" }
 bld_core = { path = "../bld_core" }
