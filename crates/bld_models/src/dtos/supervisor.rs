@@ -11,8 +11,8 @@ pub enum ServerMessages {
     Enqueue {
         pipeline: String,
         run_id: String,
-        variables: Option<Vec<String>>,
-        environment: Option<Vec<String>>,
+        inputs: Option<Vec<String>>,
+        env: Option<Vec<String>>,
     },
     Stop {
         run_id: String,

@@ -41,18 +41,18 @@ pub struct WorkerCommand {
     run_id: String,
 
     #[arg(
-        short = 'v',
-        long = "variable",
-        help = "Define value for a variable in the server pipeline"
+        short = 'i',
+        long = "input",
+        help = "Define value for an input variable. Can be used multiple times"
     )]
-    variables: Vec<String>,
+    inputs: Vec<String>,
 
     #[arg(
         short = 'e',
         long = "environment",
-        help = "Define values for environment variables in the server pipeline"
+        help = "Define value for an environment variable. Can be used multiple times"
     )]
-    environment: Vec<String>,
+    env: Vec<String>,
 }
 
 impl BldCommand for WorkerCommand {
@@ -67,8 +67,8 @@ impl BldCommand for WorkerCommand {
 
             let pipeline = self.pipeline.into_arc();
             let run_id = self.run_id.into_arc();
-            let variables = parse_variables(&self.variables).into_arc();
-            let environment = parse_variables(&self.environment).into_arc();
+            let inputs = parse_variables(&self.inputs).into_arc();
+            let env = parse_variables(&self.env).into_arc();
 
             let conn = new_connection_pool(config.clone()).await?.into_arc();
             let start_date = Utc::now().naive_utc();
@@ -100,8 +100,8 @@ impl BldCommand for WorkerCommand {
                     .fs(fs)
                     .pipeline(&pipeline)
                     .logger(logger)
-                    .environment(environment)
-                    .inputs(variables)
+                    .env(env)
+                    .inputs(inputs)
                     .context(context)
                     .ipc(worker_tx)
                     .signals(signals_rx)

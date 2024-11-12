@@ -35,7 +35,7 @@ pub struct Container {
     pub config: Option<Arc<BldConfig>>,
     pub client: Docker,
     pub context: PlatformContext,
-    pub environment: Vec<String>,
+    pub env: Vec<String>,
 }
 
 impl Container {
@@ -60,7 +60,7 @@ impl Container {
         Ok((create_resp.id, name))
     }
 
-    fn create_environment(
+    fn create_env(
         pipeline_env: &HashMap<String, String>,
         env: Arc<HashMap<String, String>>,
     ) -> Vec<String> {
@@ -80,7 +80,7 @@ impl Container {
     pub async fn new(mut options: ContainerOptions<'_>) -> Result<Self> {
         let client = docker(options.config.as_ref(), options.docker_url)?;
         debug!("creating container environement");
-        let env = Self::create_environment(options.pipeline_env, options.env);
+        let env = Self::create_env(options.pipeline_env, options.env);
         let container_env = env.iter().map(AsRef::as_ref).collect();
         options
             .image
@@ -96,7 +96,7 @@ impl Container {
             config: Some(options.config),
             client,
             context: options.context,
-            environment: env,
+            env,
         })
     }
 
@@ -155,7 +155,7 @@ impl Container {
             .or_else(|| Some(input.to_string()))
             .unwrap();
 
-        let env = self.environment.iter().map(String::as_str).collect();
+        let env = self.env.iter().map(String::as_str).collect();
         let options = CreateExecOptions {
             cmd: Some(vec!["bash", "-c", &input]),
             env: Some(env),

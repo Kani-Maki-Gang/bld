@@ -153,8 +153,8 @@ impl SupervisorMessageSender {
         let message = ServerMessages::Enqueue {
             pipeline,
             run_id,
-            variables,
-            environment,
+            inputs: variables,
+            env: environment,
         };
 
         self.tx.send(message).await.map_err(|e| anyhow!(e))

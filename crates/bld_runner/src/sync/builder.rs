@@ -112,7 +112,7 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn environment(mut self, env: Arc<HashMap<String, String>>) -> Self {
+    pub fn env(mut self, env: Arc<HashMap<String, String>>) -> Self {
         self.env = Some(env);
         self
     }
@@ -146,7 +146,7 @@ impl RunnerBuilder {
 
         let env = self
             .env
-            .ok_or_else(|| anyhow!("no environment instance provided"))?;
+            .ok_or_else(|| anyhow!("no env instance provided"))?;
 
         let inputs = self
             .inputs
@@ -171,8 +171,8 @@ impl RunnerBuilder {
                     .run_id(&self.run_id)
                     .options(options)
                     .config(config.clone())
-                    .pipeline_environment(&pipeline.environment)
-                    .environment(env.clone())
+                    .pipeline_env(&pipeline.environment)
+                    .env(env.clone())
                     .logger(self.logger.clone())
                     .conn(conn)
                     .build()
@@ -237,8 +237,8 @@ impl RunnerBuilder {
                     .project_dir(&config.project_dir)
                     .add_inputs(&pipeline.inputs)
                     .add_inputs(&inputs)
-                    .add_environment(&pipeline.environment)
-                    .add_environment(&env)
+                    .add_env(&pipeline.env)
+                    .add_env(&env)
                     .run_id(&self.run_id)
                     .run_start_time(&self.run_start_time)
                     .regex_cache(self.regex_cache.clone())

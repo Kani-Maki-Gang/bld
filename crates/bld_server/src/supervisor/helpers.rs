@@ -20,8 +20,8 @@ pub async fn enqueue_worker(
 ) -> Result<String> {
     let ExecClientMessage::EnqueueRun {
         name,
-        environment,
-        variables,
+        env: environment,
+        inputs: variables,
     } = data;
 
     let path = fs.path(&name).await?;

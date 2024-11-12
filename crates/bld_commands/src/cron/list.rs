@@ -31,9 +31,6 @@ pub struct CronListCommand {
     )]
     server: String,
 
-    #[arg(short = 'i', long = "id", help = "The id of the target cron job")]
-    id: Option<String>,
-
     #[arg(
         short = 'p',
         long = "pipeline",
@@ -69,7 +66,7 @@ impl BldCommand for CronListCommand {
             let config = BldConfig::load().await?.into_arc();
             let client = HttpClient::new(config, &self.server)?;
             let filters = JobFiltersParams::new(
-                self.id,
+                None,
                 self.pipeline,
                 self.schedule,
                 self.is_default,

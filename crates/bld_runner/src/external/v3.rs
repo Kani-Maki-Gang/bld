@@ -17,7 +17,7 @@ pub struct External {
     pub inputs: HashMap<String, String>,
 
     #[serde(default)]
-    pub environment: HashMap<String, String>,
+    pub env: HashMap<String, String>,
 }
 
 impl External {
@@ -48,7 +48,7 @@ impl External {
             *v = context.transform(v.to_owned()).await?;
         }
 
-        for (_, v) in self.environment.iter_mut() {
+        for (_, v) in self.env.iter_mut() {
             *v = context.transform(v.to_owned()).await?;
         }
 

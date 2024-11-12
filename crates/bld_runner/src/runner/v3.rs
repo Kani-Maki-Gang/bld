@@ -162,7 +162,7 @@ impl Job {
         debug!("building runner for child pipeline");
 
         let inputs = details.inputs.clone();
-        let environment = details.environment.clone();
+        let env = details.env.clone();
 
         let runner = RunnerBuilder::default()
             .run_id(&self.run_id)
@@ -171,7 +171,7 @@ impl Job {
             .fs(self.fs.clone())
             .pipeline(&details.pipeline)
             .logger(self.logger.clone())
-            .environment(environment.into_arc())
+            .env(env.into_arc())
             .inputs(inputs.into_arc())
             .context(self.context.clone())
             .is_child(true)
@@ -189,7 +189,7 @@ impl Job {
         let server = self.config.server(server)?;
         let auth_path = self.config.auth_full_path(&server.name);
         let inputs = details.inputs.clone();
-        let environment = details.environment.clone();
+        let env = details.env.clone();
 
         let url = format!("{}/v1/ws-exec/", server.base_url_ws());
 
@@ -221,8 +221,8 @@ impl Job {
 
         addr.send(ExecClientMessage::EnqueueRun {
             name: details.pipeline.to_owned(),
-            environment: Some(environment),
-            variables: Some(inputs),
+            env: Some(env),
+            inputs: Some(inputs),
         })
         .await
         .map_err(|e| anyhow!(e))?;
@@ -400,8 +400,8 @@ impl Runner {
             .run_id(&self.run_id)
             .config(self.config.clone())
             .options(options)
-            .pipeline_environment(&self.pipeline.environment)
-            .environment(self.env.clone())
+            .pipeline_env(&self.pipeline.env)
+            .env(self.env.clone())
             .logger(self.logger.clone())
             .conn(conn)
             .build()

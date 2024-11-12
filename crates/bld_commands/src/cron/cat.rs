@@ -22,7 +22,7 @@ pub struct CronCatCommand {
     )]
     server: String,
 
-    #[arg(short = 'i', long = "id", help = "The id of the target cron job")]
+    #[arg(short = 'c', long = "cron-id", help = "The id of the target cron job")]
     id: String,
 }
 
@@ -46,22 +46,22 @@ impl BldCommand for CronCatCommand {
                 writeln!(message, "{:<13}: {}", "schedule", entry.schedule)?;
                 writeln!(message, "{:<13}: {}", "pipeline", entry.pipeline)?;
                 writeln!(message, "{:<13}: {}", "is_default", entry.is_default)?;
-                writeln!(message, "{:<13}: {:?}", "variables", entry.variables)?;
-                writeln!(message, "{:<13}: {:?}", "environment", entry.environment)?;
+                writeln!(message, "{:<13}: {:?}", "inputs", entry.inputs)?;
+                writeln!(message, "{:<13}: {:?}", "environment", entry.env)?;
                 writeln!(message)?;
                 write!(
                     message,
-                    "bld cron update -s {} -i {} -S '{}'",
+                    "bld cron update -s {} -c {} -S '{}'",
                     self.server, entry.id, entry.schedule
                 )?;
 
-                if let Some(variables) = &entry.variables {
-                    for (k, v) in variables {
-                        write!(message, " -v {}='{}'", k, v)?;
+                if let Some(inputs) = &entry.inputs {
+                    for (k, v) in inputs {
+                        write!(message, " -i {}='{}'", k, v)?;
                     }
                 }
 
-                if let Some(environment) = &entry.environment {
+                if let Some(environment) = &entry.env {
                     for (k, v) in environment {
                         write!(message, " -e {}='{}'", k, v)?;
                     }
