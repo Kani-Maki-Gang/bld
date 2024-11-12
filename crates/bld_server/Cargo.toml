@@ -26,7 +26,7 @@ futures-util = "0.3.15"
 futures = "0.3.31"
 sea-orm = { version = "0.12.2", features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls"] }
 serde = { version = "1.0.215", features = ["derive"] }
-serde_json = "1.0.64"
+serde_json = "1.0.132"
 tokio = { version = "1.24.2", features = ["full"] }
 tokio-cron-scheduler = "0.9.4"
 tracing = "0.1.36"
