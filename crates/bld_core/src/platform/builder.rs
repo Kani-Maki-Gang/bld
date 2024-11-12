@@ -83,9 +83,9 @@ impl<'a> PlatformBuilder<'a> {
             .config
             .ok_or_else(|| anyhow!("no config provided for target platform builder"))?;
 
-        let pipeline_env = self.pipeline_env.ok_or_else(|| {
-            anyhow!("no pipeline env provided for target platform builder")
-        })?;
+        let pipeline_env = self
+            .pipeline_env
+            .ok_or_else(|| anyhow!("no pipeline env provided for target platform builder"))?;
 
         let env = self
             .env

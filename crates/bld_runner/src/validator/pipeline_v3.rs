@@ -280,11 +280,7 @@ impl<'a> PipelineValidator<'a> {
         }
     }
 
-    fn validate_env(
-        &mut self,
-        section: Option<&str>,
-        env: &'a HashMap<String, String>,
-    ) {
+    fn validate_env(&mut self, section: Option<&str>, env: &'a HashMap<String, String>) {
         for (k, v) in env.iter() {
             let section = section.map(|x| format!("{x} > ")).unwrap_or_default();
             let section = format!("{section}env > {k}");

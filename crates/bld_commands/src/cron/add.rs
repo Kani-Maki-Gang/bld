@@ -60,8 +60,7 @@ impl BldCommand for CronAddCommand {
             let client = HttpClient::new(config, &self.server)?;
             let inputs = Some(parse_variables(&self.inputs));
             let env = Some(parse_variables(&self.env));
-            let request =
-                AddJobRequest::new(self.schedule, self.pipeline, inputs, env, false);
+            let request = AddJobRequest::new(self.schedule, self.pipeline, inputs, env, false);
             client.cron_add(&request).await
         })
     }

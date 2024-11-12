@@ -215,13 +215,8 @@ impl CronScheduler {
         let inputs = add_job.inputs.as_ref().cloned();
         let env = add_job.env.as_ref().cloned();
 
-        let scheduled_job = self.create_scheduled_job(
-            &job_id,
-            &add_job.schedule,
-            &pipeline.id,
-            inputs,
-            env,
-        )?;
+        let scheduled_job =
+            self.create_scheduled_job(&job_id, &add_job.schedule, &pipeline.id, inputs, env)?;
         let scheduled_job_id = scheduled_job.guid();
         self.scheduler.add(scheduled_job).await?;
 
