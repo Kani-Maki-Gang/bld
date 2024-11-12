@@ -29,7 +29,7 @@ termcolor = "1.4.1"
 tokio = { version = "1.41.1", features = ["full"] }
 tracing = "0.1.40"
 uuid = { version = "1.11.0", features = ["v4"] }
-regex = "1.8.1"
+regex = "1.11.1"
 walkdir = "2.3.3"
 openidconnect = "3.5.0"
 rustls = "0.20.7"
