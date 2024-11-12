@@ -12,7 +12,6 @@ actix-http = "3.9.0"
 actix-web = { version = "4.9.0", features = ["rustls"] }
 actix-web-actors = "4.1.0"
 anyhow = "1.0.93"
-async-trait = "0.1.50"
 bollard = { version = "0.15.0", features = ["ssl"] }
 bld_config = { path = "../bld_config" }
 bld_core = { path = "../bld_core" }

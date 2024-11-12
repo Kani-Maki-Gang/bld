@@ -9,7 +9,6 @@ edition = "2021"
 actix = "0.13.5"
 actix-web = "4.9.0"
 anyhow = "1.0.93"
-async-trait = "0.1.50"
 awc = { version = "3.0.0", features = ["rustls"] }
 bollard = { version = "0.15.0", features = ["ssl"] }
 bld_config = { path = "../bld_config" }
