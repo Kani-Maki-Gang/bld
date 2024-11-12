@@ -36,4 +36,4 @@ anyhow = "1.0.93"
 bld_config = { path = "crates/bld_config" }
 bld_utils = { path = "crates/bld_utils" }
 bld_commands = { path = "crates/bld_commands" }
-clap = "4.0.18"
+clap = "4.5.20"
