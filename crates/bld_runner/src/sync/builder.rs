@@ -112,7 +112,7 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn environment(mut self, env: Arc<HashMap<String, String>>) -> Self {
+    pub fn env(mut self, env: Arc<HashMap<String, String>>) -> Self {
         self.env = Some(env);
         self
     }
@@ -146,7 +146,7 @@ impl RunnerBuilder {
 
         let env = self
             .env
-            .ok_or_else(|| anyhow!("no environment instance provided"))?;
+            .ok_or_else(|| anyhow!("no env instance provided"))?;
 
         let inputs = self
             .inputs
