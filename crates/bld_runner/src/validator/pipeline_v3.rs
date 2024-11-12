@@ -299,7 +299,7 @@ impl<'a> PipelineValidator<'a> {
             self.validate_external_pipeline(&entry.pipeline).await;
             self.validate_external_server(entry.server.as_deref());
             self.validate_inputs(Some("external"), &entry.inputs);
-            self.validate_env(Some("external"), &entry.environment);
+            self.validate_env(Some("external"), &entry.env);
         }
     }
 
