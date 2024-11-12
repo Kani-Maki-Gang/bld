@@ -320,8 +320,8 @@ impl Runner {
 
         addr.send(ExecClientMessage::EnqueueRun {
             name: details.pipeline.to_owned(),
-            environment: Some(environment),
-            variables: Some(variables),
+            env: Some(environment),
+            inputs: Some(variables),
         })
         .await
         .map_err(|e| anyhow!(e))?;

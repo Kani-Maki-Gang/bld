@@ -221,8 +221,8 @@ impl Job {
 
         addr.send(ExecClientMessage::EnqueueRun {
             name: details.pipeline.to_owned(),
-            environment: Some(env),
-            variables: Some(inputs),
+            env: Some(env),
+            inputs: Some(inputs),
         })
         .await
         .map_err(|e| anyhow!(e))?;

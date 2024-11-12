@@ -188,8 +188,8 @@ impl CronScheduler {
                 };
                 let data = ExecClientMessage::EnqueueRun {
                     name: pipeline.name.to_owned(),
-                    environment,
-                    variables,
+                    env: environment,
+                    inputs: variables,
                 };
                 if let Err(e) = enqueue_worker("Cron", fs, conn, supervisor, data).await {
                     error!("unable to enqueue cron run due to: {e}");

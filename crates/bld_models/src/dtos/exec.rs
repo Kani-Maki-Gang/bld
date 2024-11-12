@@ -10,8 +10,8 @@ use actix::Message;
 pub enum ExecClientMessage {
     EnqueueRun {
         name: String,
-        environment: Option<HashMap<String, String>>,
-        variables: Option<HashMap<String, String>>,
+        env: Option<HashMap<String, String>>,
+        inputs: Option<HashMap<String, String>>,
     },
 }
 

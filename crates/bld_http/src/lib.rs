@@ -455,8 +455,8 @@ impl HttpClient {
     ) -> Result<()> {
         let json = ExecClientMessage::EnqueueRun {
             name: pipeline.to_owned(),
-            environment: env,
-            variables: vars,
+            env,
+            inputs: vars,
         };
         let response = self.run_inner(&json).await;
 

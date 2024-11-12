@@ -221,8 +221,8 @@ impl RunAdapter {
         let url = format!("{}/v1/ws-exec/", server.base_url_ws());
         let data = ExecClientMessage::EnqueueRun {
             name: mode.pipeline,
-            environment: Some(mode.env),
-            variables: Some(mode.inputs),
+            env: Some(mode.env),
+            inputs: Some(mode.inputs),
         };
 
         let web_socket = WebSocket::new(&url)?.auth(&auth_path).await;
