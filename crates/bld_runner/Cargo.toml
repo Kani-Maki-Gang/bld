@@ -44,7 +44,7 @@ bld_http = { path = "../bld_http", optional = true }
 bld_models = { path = "../bld_models", features = ["all"], optional = true }
 bld_sock = { path = "../bld_sock", optional = true }
 bld_utils = { path = "../bld_utils", optional = true }
-chrono = { version = "0.4.23", default-features = false, features = ["std"], optional = true }
+chrono = { version = "0.4.38", default-features = false, features = ["std"], optional = true }
 futures =  { version = "0.3.15", optional = true }
 futures-util = { version = "0.3.15", optional = true }
 serde = { version = "1.0.126", features = ["derive"] }

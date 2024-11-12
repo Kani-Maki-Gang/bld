@@ -25,7 +25,7 @@ anyhow = { version = "1.0.93", optional = true }
 bld_config = { path = "../bld_config", optional = true }
 bld_migrations = { path = "../bld_migrations", optional = true }
 bld_utils = { path = "../bld_utils", optional = true }
-chrono = { version = "0.4.23", default-features = false, features = ["std"], optional = true }
+chrono = { version = "0.4.38", default-features = false, features = ["std"], optional = true }
 sea-orm = { version = "0.12.2", features = ["sqlx-postgres", "sqlx-mysql", "sqlx-sqlite", "runtime-tokio-rustls"], optional = true }
 serde = { version = "1.0.126", features = ["derive"] }
 tracing = { version = "0.1.36", optional = true }
