@@ -17,7 +17,7 @@ bld_config = { path = "../bld_config" }
 bld_core = { path = "../bld_core" }
 bld_models = { path = "../bld_models", features = ["all"] }
 bld_utils = { path = "../bld_utils" }
-futures = "0.3.15"
+futures = "0.3.31"
 futures-util = "0.3.15"
 serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1.0.64"
