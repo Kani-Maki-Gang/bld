@@ -41,7 +41,7 @@ impl<'a> Validate for PipelineValidator<'a> {
         self.validate_runs_on();
         self.validate_cron();
         self.validate_inputs(None, &self.pipeline.inputs);
-        self.validate_environment(None, &self.pipeline.env);
+        self.validate_env(None, &self.pipeline.env);
         self.validate_external().await;
         self.validate_artifacts();
         self.validate_jobs().await;
@@ -280,14 +280,14 @@ impl<'a> PipelineValidator<'a> {
         }
     }
 
-    fn validate_environment(
+    fn validate_env(
         &mut self,
         section: Option<&str>,
-        environment: &'a HashMap<String, String>,
+        env: &'a HashMap<String, String>,
     ) {
-        for (k, v) in environment.iter() {
+        for (k, v) in env.iter() {
             let section = section.map(|x| format!("{x} > ")).unwrap_or_default();
-            let section = format!("{section}environment > {k}");
+            let section = format!("{section}env > {k}");
             self.validate_keywords(&section, k);
             self.validate_symbols(&section, v);
         }
@@ -299,7 +299,7 @@ impl<'a> PipelineValidator<'a> {
             self.validate_external_pipeline(&entry.pipeline).await;
             self.validate_external_server(entry.server.as_deref());
             self.validate_inputs(Some("external"), &entry.inputs);
-            self.validate_environment(Some("external"), &entry.environment);
+            self.validate_env(Some("external"), &entry.environment);
         }
     }
 
