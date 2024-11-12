@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 actix = "0.13.5"
 actix-codec = "0.5.2"
-actix-http = "3.0.4"
+actix-http = "3.9.0"
 actix-web = { version = "4.0.1", features = ["rustls"] }
 actix-web-actors = "4.1.0"
 awc = { version = "3.0.0", features = ["rustls"] }
