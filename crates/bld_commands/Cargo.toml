@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 actix = "0.13.5"
 actix-codec = "0.5.2"
-actix-web = { version = "4.0.1", features = ["rustls"] }
+actix-web = { version = "4.9.0", features = ["rustls"] }
 anyhow = "1.0.93"
 async-signal = "0.2.5"
 bld_config = { path = "../bld_config", features = ["tokio"] }
