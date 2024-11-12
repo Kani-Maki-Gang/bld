@@ -9,7 +9,7 @@ edition = "2021"
 actix = "0.13.0"
 actix-codec = "0.5.0"
 actix-web = { version = "4.0.1", features = ["rustls"] }
-anyhow = "1.0.40"
+anyhow = "1.0.93"
 async-signal = "0.2.5"
 bld_config = { path = "../bld_config", features = ["tokio"] }
 bld_utils = { path = "../bld_utils" }

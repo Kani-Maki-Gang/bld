@@ -11,7 +11,7 @@ tokio = [
 ]
 
 [dependencies]
-anyhow = "1.0.40"
+anyhow = "1.0.93"
 tracing = { version = "0.1.36", optional = true }
 serde = { version = "1.0.126", features = ["derive"] }
 serde_yaml = "0.9.14"

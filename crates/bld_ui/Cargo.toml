@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.81"
+anyhow = "1.0.93"
 bld_models = { path = "../bld_models" }
 bld_runner = { path = "../bld_runner" }
 chrono = "0.4.38"

@@ -21,7 +21,7 @@ all = ["web_socket", "database"]
 
 [dependencies]
 actix =  { version = "0.13.0", optional = true }
-anyhow = { version = "1.0.40", optional = true }
+anyhow = { version = "1.0.93", optional = true }
 bld_config = { path = "../bld_config", optional = true }
 bld_migrations = { path = "../bld_migrations", optional = true }
 bld_utils = { path = "../bld_utils", optional = true }
