@@ -47,7 +47,7 @@ bld_utils = { path = "../bld_utils", optional = true }
 chrono = { version = "0.4.38", default-features = false, features = ["std"], optional = true }
 futures =  { version = "0.3.31", optional = true }
 futures-util = { version = "0.3.15", optional = true }
-serde = { version = "1.0.126", features = ["derive"] }
+serde = { version = "1.0.215", features = ["derive"] }
 serde_json = { version = "1.0.64", optional = true }
 serde_yaml = { version = "0.9.14", optional = true }
 tar = { version = "0.4.35", optional = true }
