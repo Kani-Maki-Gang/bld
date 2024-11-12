@@ -14,6 +14,6 @@ tokio = [
 anyhow = "1.0.93"
 tracing = { version = "0.1.36", optional = true }
 serde = { version = "1.0.215", features = ["derive"] }
-serde_yaml = "0.9.14"
+serde_yaml_ng = "0.10.0"
 tokio = { version = "1.24.2", features = ["full"], optional = true }
 openidconnect = "3.1.1"
