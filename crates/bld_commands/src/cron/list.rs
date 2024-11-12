@@ -6,7 +6,7 @@ use bld_http::HttpClient;
 use bld_models::dtos::JobFiltersParams;
 use bld_utils::sync::IntoArc;
 use clap::Args;
-use tabled::{Style, Table, Tabled};
+use tabled::{settings::Style, Table, Tabled};
 
 #[derive(Tabled)]
 struct JobInfoRow<'a> {
