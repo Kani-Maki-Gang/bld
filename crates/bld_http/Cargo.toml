@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-awc = { version = "3.0.0", features = ["rustls"] }
+awc = { version = "3.5.1", features = ["rustls"] }
 anyhow = "1.0.93"
 bld_config = { path = "../bld_config", features = ["tokio"] }
 bld_models = { path = "../bld_models", features = ["all"] }
