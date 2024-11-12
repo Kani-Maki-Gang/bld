@@ -24,7 +24,7 @@ bld_utils = { path = "../bld_utils" }
 chrono = "0.4.38"
 futures-util = "0.3.31"
 futures = "0.3.31"
-sea-orm = { version = "0.12.2", features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls"] }
+sea-orm = { version = "1.1.1", features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls"] }
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.132"
 tokio = { version = "1.41.1", features = ["full"] }
