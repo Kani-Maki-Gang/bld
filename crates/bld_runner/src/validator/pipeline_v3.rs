@@ -41,7 +41,7 @@ impl<'a> Validate for PipelineValidator<'a> {
         self.validate_runs_on();
         self.validate_cron();
         self.validate_inputs(None, &self.pipeline.inputs);
-        self.validate_environment(None, &self.pipeline.environment);
+        self.validate_environment(None, &self.pipeline.env);
         self.validate_external().await;
         self.validate_artifacts();
         self.validate_jobs().await;
@@ -95,7 +95,7 @@ impl<'a> PipelineValidator<'a> {
             symbols.insert(k);
         }
 
-        for (k, _) in pipeline.environment.iter() {
+        for (k, _) in pipeline.env.iter() {
             symbols.insert(k);
         }
 

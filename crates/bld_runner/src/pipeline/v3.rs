@@ -21,7 +21,7 @@ pub struct Pipeline {
     pub dispose: bool,
 
     #[serde(default)]
-    pub environment: HashMap<String, String>,
+    pub env: HashMap<String, String>,
 
     #[serde(default)]
     pub inputs: HashMap<String, String>,
@@ -45,7 +45,7 @@ impl Pipeline {
     pub async fn apply_tokens<'a>(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
         self.runs_on.apply_tokens(context).await?;
 
-        for (_, v) in self.environment.iter_mut() {
+        for (_, v) in self.env.iter_mut() {
             *v = context.transform(v.to_owned()).await?;
         }
 

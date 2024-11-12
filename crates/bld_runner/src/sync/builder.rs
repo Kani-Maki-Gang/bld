@@ -237,7 +237,7 @@ impl RunnerBuilder {
                     .project_dir(&config.project_dir)
                     .add_inputs(&pipeline.inputs)
                     .add_inputs(&inputs)
-                    .add_environment(&pipeline.environment)
+                    .add_environment(&pipeline.env)
                     .add_environment(&env)
                     .run_id(&self.run_id)
                     .run_start_time(&self.run_start_time)

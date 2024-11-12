@@ -400,7 +400,7 @@ impl Runner {
             .run_id(&self.run_id)
             .config(self.config.clone())
             .options(options)
-            .pipeline_environment(&self.pipeline.environment)
+            .pipeline_environment(&self.pipeline.env)
             .environment(self.env.clone())
             .logger(self.logger.clone())
             .conn(conn)
