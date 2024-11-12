@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-actix = "0.13.0"
+actix = "0.13.5"
 actix-web = "4.0.1"
 anyhow = "1.0.93"
 async-trait = "0.1.50"
