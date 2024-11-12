@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 pub struct AddJobRequest {
     pub schedule: String,
     pub pipeline: String,
-    pub variables: Option<HashMap<String, String>>,
-    pub environment: Option<HashMap<String, String>>,
+    pub inputs: Option<HashMap<String, String>>,
+    pub env: Option<HashMap<String, String>>,
     pub is_default: bool,
 }
 
@@ -15,15 +15,15 @@ impl AddJobRequest {
     pub fn new(
         schedule: String,
         pipeline: String,
-        variables: Option<HashMap<String, String>>,
-        environment: Option<HashMap<String, String>>,
+        inputs: Option<HashMap<String, String>>,
+        env: Option<HashMap<String, String>>,
         is_default: bool,
     ) -> Self {
         Self {
             schedule,
             pipeline,
-            variables,
-            environment,
+            inputs,
+            env,
             is_default,
         }
     }
@@ -33,22 +33,22 @@ impl AddJobRequest {
 pub struct UpdateJobRequest {
     pub id: String,
     pub schedule: String,
-    pub variables: Option<HashMap<String, String>>,
-    pub environment: Option<HashMap<String, String>>,
+    pub inputs: Option<HashMap<String, String>>,
+    pub env: Option<HashMap<String, String>>,
 }
 
 impl UpdateJobRequest {
     pub fn new(
         id: String,
         schedule: String,
-        variables: Option<HashMap<String, String>>,
-        environment: Option<HashMap<String, String>>,
+        inputs: Option<HashMap<String, String>>,
+        env: Option<HashMap<String, String>>,
     ) -> Self {
         Self {
             id,
             schedule,
-            variables,
-            environment,
+            inputs,
+            env,
         }
     }
 }
@@ -85,8 +85,8 @@ pub struct CronJobResponse {
     pub id: String,
     pub schedule: String,
     pub pipeline: String,
-    pub variables: Option<HashMap<String, String>>,
-    pub environment: Option<HashMap<String, String>>,
+    pub inputs: Option<HashMap<String, String>>,
+    pub env: Option<HashMap<String, String>>,
     pub is_default: bool,
     pub date_created: String,
     pub date_updated: Option<String>,

@@ -114,13 +114,13 @@ impl CronScheduler {
             is_default: add_job.is_default,
         };
 
-        let vars: Option<Vec<_>> = add_job.variables.as_ref().map(|vars| {
+        let vars: Option<Vec<_>> = add_job.inputs.as_ref().map(|vars| {
             vars.iter()
                 .map(|kv| InsertCronJobVariable::new(kv, &job_id_str))
                 .collect()
         });
 
-        let env: Option<Vec<_>> = add_job.environment.as_ref().map(|envs| {
+        let env: Option<Vec<_>> = add_job.env.as_ref().map(|envs| {
             envs.iter()
                 .map(|kv| InsertCronJobEnvironmentVariable::new(kv, &job_id_str))
                 .collect()
@@ -141,13 +141,13 @@ impl CronScheduler {
             schedule: update_job.schedule.to_owned(),
         };
 
-        let vars: Option<Vec<_>> = update_job.variables.as_ref().map(|vars| {
+        let vars: Option<Vec<_>> = update_job.inputs.as_ref().map(|vars| {
             vars.iter()
                 .map(|kv| InsertCronJobVariable::new(kv, &job_id_str))
                 .collect()
         });
 
-        let env: Option<Vec<_>> = update_job.environment.as_ref().map(|envs| {
+        let env: Option<Vec<_>> = update_job.env.as_ref().map(|envs| {
             envs.iter()
                 .map(|kv| InsertCronJobEnvironmentVariable::new(kv, &job_id_str))
                 .collect()
@@ -212,8 +212,8 @@ impl CronScheduler {
     ) -> Result<()> {
         let job_id = Uuid::new_v4();
 
-        let variables = add_job.variables.as_ref().cloned();
-        let environment = add_job.environment.as_ref().cloned();
+        let variables = add_job.inputs.as_ref().cloned();
+        let environment = add_job.env.as_ref().cloned();
 
         let scheduled_job = self.create_scheduled_job(
             &job_id,
@@ -246,8 +246,8 @@ impl CronScheduler {
         let job_id = Uuid::from_str(&job.id)?;
         self.scheduler.remove(&job_id).await?;
 
-        let variables = update_job.variables.as_ref().cloned();
-        let environment = update_job.environment.as_ref().cloned();
+        let variables = update_job.inputs.as_ref().cloned();
+        let environment = update_job.env.as_ref().cloned();
 
         let scheduled_job = self.create_scheduled_job(
             &job_id,
@@ -363,8 +363,8 @@ impl CronScheduler {
                 id: job.id,
                 schedule: job.schedule,
                 pipeline: pipeline.name.to_owned(),
-                variables,
-                environment,
+                inputs: variables,
+                env: environment,
                 is_default: job.is_default,
                 date_created: job.date_created.to_string(),
                 date_updated: job.date_updated.map(|x| x.to_string()),

@@ -34,8 +34,8 @@ pub fn CronJobsEdit(
         };
         schedule.set(cron.schedule);
         let (vars, env) = pipeline.into_variables();
-        variables.set(hash_map_rw_signals(vars, cron.variables));
-        environment.set(hash_map_rw_signals(env, cron.environment));
+        variables.set(hash_map_rw_signals(vars, cron.inputs));
+        environment.set(hash_map_rw_signals(env, cron.env));
     });
 
     view! {
