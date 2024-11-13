@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 actix = "0.13.5"
 actix-codec = "0.5.2"
+actix-cors = "0.7.0"
 actix-http = "3.9.0"
 actix-web = { version = "4.9.0", features = ["rustls"] }
 actix-web-actors = "4.3.0"
@@ -33,6 +34,5 @@ tracing = "0.1.40"
 uuid = { version = "1.11.0", features = ["v4"] }
 rustls = "0.20.7"
 openidconnect = "3.5.0"
-actix-cors = "0.7.0"
 rust-embed = { version = "8.5.0", features = ["actix-web"] }
 mime_guess = "=2.0.5"
