@@ -961,7 +961,7 @@ dependencies = [
  "chrono",
  "leptos",
  "leptos-chartistry",
- "leptos-use 0.10.10",
+ "leptos-use",
  "leptos_router",
  "reqwest 0.12.9",
  "serde",
@@ -2757,31 +2757,8 @@ checksum = "8ede17b10c1c637841760f3737c3bc7299db48298b6195cfabcf02280e076f7e"
 dependencies = [
  "chrono",
  "leptos",
- "leptos-use 0.12.0",
+ "leptos-use",
  "log",
- "web-sys",
-]
-
-[[package]]
-name = "leptos-use"
-version = "0.10.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3272d90b77cdbb99e9060f90eb6f5738e56128b2f912db57a50efb006a26e262"
-dependencies = [
- "async-trait",
- "cfg-if",
- "cookie 0.18.1",
- "default-struct-builder",
- "futures-util",
- "gloo-timers",
- "gloo-utils",
- "js-sys",
- "lazy_static",
- "leptos",
- "paste",
- "thiserror",
- "wasm-bindgen",
- "wasm-bindgen-futures",
  "web-sys",
 ]
 
