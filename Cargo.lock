@@ -851,7 +851,7 @@ dependencies = [
  "bld_utils",
  "bollard",
  "chrono",
- "cron",
+ "cron 0.13.0",
  "futures",
  "futures-util",
  "regex",
@@ -1416,6 +1416,17 @@ name = "cron"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f8c3e73077b4b4a6ab1ea5047c37c57aee77657bc8ecd6f29b0af082d0b0c07"
+dependencies = [
+ "chrono",
+ "nom",
+ "once_cell",
+]
+
+[[package]]
+name = "cron"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eee8b2b4516038bc0f1d3c9934bcb4a13dd316e04abbc63c96757a6d75978532"
 dependencies = [
  "chrono",
  "nom",
@@ -5520,7 +5531,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de2c1fd54a857b29c6cd1846f31903d0ae8e28175615c14a277aed45c58d8e27"
 dependencies = [
  "chrono",
- "cron",
+ "cron 0.12.1",
  "num-derive",
  "num-traits",
  "tokio",
