@@ -18,4 +18,4 @@ reqwest = { version = "0.12.9", features = ["json"] }
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.132"
 serde_yaml_ng = "0.10.0"
-web-sys = { version = "0.3.69", features = ["Location"] }
+web-sys = { version = "0.3.72", features = ["Location"] }
