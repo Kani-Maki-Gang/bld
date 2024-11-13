@@ -17,6 +17,7 @@ use bld_runner::{
 };
 use leptos::{html::Dialog, *};
 use leptos_router::*;
+use serde_yaml_ng::from_str;
 
 use self::variables::RunPipelineVariables;
 
@@ -32,7 +33,7 @@ async fn get_pipeline(id: Option<String>) -> Result<VersionedFile> {
     let id = id.ok_or_else(|| anyhow!("Pipeline id not provided in query"))?;
     let params = PipelineInfoQueryParams::Id { id };
     let response = api::print(params).await?;
-    let pipeline = serde_yaml::from_str(&response)?;
+    let pipeline = from_str(&response)?;
     Ok(pipeline)
 }
 

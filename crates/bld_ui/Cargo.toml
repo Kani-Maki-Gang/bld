@@ -10,6 +10,7 @@ anyhow = "1.0.93"
 bld_models = { path = "../bld_models" }
 bld_runner = { path = "../bld_runner" }
 chrono = "0.4.38"
+codee = "^0.1"
 leptos = { version = "0.6.15", features = ["csr"] }
 leptos-chartistry = "0.1.7"
 leptos-use = "^0.12"

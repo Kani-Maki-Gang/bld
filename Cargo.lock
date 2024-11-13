@@ -959,6 +959,7 @@ dependencies = [
  "bld_models",
  "bld_runner",
  "chrono",
+ "codee",
  "leptos",
  "leptos-chartistry",
  "leptos-use",

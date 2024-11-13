@@ -3,6 +3,7 @@ use anyhow::{anyhow, Result};
 use bld_models::dtos::{CronJobResponse, JobFiltersParams, PipelineInfoQueryParams};
 use bld_runner::VersionedFile;
 use leptos::*;
+use serde_yaml_ng::from_str;
 use std::collections::HashMap;
 
 pub fn hash_map_rw_signals(
@@ -44,6 +45,6 @@ pub async fn get_pipeline(name: Option<String>) -> Result<VersionedFile> {
     let name = name.ok_or_else(|| anyhow!("Name not provided as query parameter"))?;
     let params = PipelineInfoQueryParams::Name { name };
     let response = api::print(params).await?;
-    let pipeline = serde_yaml::from_str(&response)?;
+    let pipeline = from_str(&response)?;
     Ok(pipeline)
 }
