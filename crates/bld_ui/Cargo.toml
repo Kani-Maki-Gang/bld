@@ -6,16 +6,17 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.81"
+anyhow = "1.0.93"
 bld_models = { path = "../bld_models" }
 bld_runner = { path = "../bld_runner" }
 chrono = "0.4.38"
-leptos = { version = "0.6.11", features = ["csr"] }
-leptos-chartistry = "0.1.5"
-leptos-use = "0.10.8"
-leptos_router = { version = "0.6.11", features = ["csr"] }
-reqwest = { version = "0.12.2", features = ["json"] }
-serde = { version = "1.0.197", features = ["derive"] }
-serde_json = "1.0.115"
-serde_yaml = "0.9.34"
-web-sys = { version = "0.3.69", features = ["Location"] }
+codee = "^0.1"
+leptos = { version = "0.6.15", features = ["csr"] }
+leptos-chartistry = "0.1.7"
+leptos-use = "^0.12"
+leptos_router = { version = "0.6.15", features = ["csr"] }
+reqwest = { version = "0.12.9", features = ["json"] }
+serde = { version = "1.0.215", features = ["derive"] }
+serde_json = "1.0.132"
+serde_yaml_ng = "0.10.0"
+web-sys = { version = "^0.3", features = ["Location"] }

@@ -4,9 +4,10 @@ use crate::{
     context::{AppDialog, AppDialogContent},
     error::ErrorDialog,
 };
+use codee::string::FromToStringCodec;
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
-use leptos_use::{core::ConnectionReadyState, use_websocket, UseWebsocketReturn};
+use leptos_use::{core::ConnectionReadyState, use_websocket, UseWebSocketReturn};
 use serde::{Deserialize, Serialize};
 
 type StopActionArgs = (String, NodeRef<Dialog>, RwSignal<Option<View>>);
@@ -44,12 +45,12 @@ pub fn Monit() -> impl IntoView {
         return view! {}.into_view();
     };
 
-    let UseWebsocketReturn {
+    let UseWebSocketReturn {
         message,
         send,
         ready_state,
         ..
-    } = use_websocket(&url);
+    } = use_websocket::<String, FromToStringCodec>(&url);
 
     let socket_state = move || match ready_state.get() {
         ConnectionReadyState::Connecting => "Connecting",
@@ -61,7 +62,8 @@ pub fn Monit() -> impl IntoView {
     create_effect(move |_| {
         if ready_state.get() == ConnectionReadyState::Open {
             let info = info();
-            send(serde_json::to_string(&info).unwrap_or_default().as_str());
+            let body: String = serde_json::to_string(&info).unwrap_or_default();
+            send(&body);
         }
     });
 

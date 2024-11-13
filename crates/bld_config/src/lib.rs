@@ -12,6 +12,7 @@ pub use auth::*;
 pub use docker::*;
 pub use local::*;
 pub use path::*;
+use serde_yaml_ng::to_string;
 pub use server::*;
 pub use ssh::*;
 pub use supervisor::*;
@@ -81,6 +82,8 @@ impl BldConfig {
 
     #[cfg(feature = "tokio")]
     pub async fn load() -> Result<Self> {
+        use serde_yaml_ng::from_str;
+
         let path = Self::path()?;
 
         let root_dir = path
@@ -94,7 +97,7 @@ impl BldConfig {
         debug!("loading config file from: {}", &path.display());
 
         let content = read_to_string(&path).await?;
-        let mut instance: Self = serde_yaml::from_str(&content).map_err(|e| anyhow!(e))?;
+        let mut instance: Self = from_str(&content).map_err(|e| anyhow!(e))?;
 
         instance.root_dir = root_dir
             .to_str()
@@ -121,7 +124,7 @@ impl BldConfig {
         .display()
         .to_string();
         instance.local.server.db = Some(format!("sqlite://{default_db}"));
-        let yaml = serde_yaml::to_string(&instance)?;
+        let yaml = to_string(&instance)?;
         Ok(yaml)
     }
 
@@ -133,7 +136,7 @@ impl BldConfig {
             port: LOCAL_SERVER_PORT,
             tls: false,
         });
-        let yaml = serde_yaml::to_string(&instance)?;
+        let yaml = to_string(&instance)?;
         Ok(yaml)
     }
 

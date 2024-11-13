@@ -21,39 +21,37 @@ all = [
     "dep:futures",
     "dep:futures-util",
     "dep:serde_json",
-    "dep:serde_yaml",
+    "dep:serde_yaml_ng",
     "dep:tar",
     "dep:tokio",
     "dep:tracing",
-    "dep:yaml-rust",
     "dep:uuid",
     "dep:regex",
     "dep:cron",
 ]
 
 [dependencies]
-actix = { version = "0.13.0", optional = true }
-actix-codec = { version = "0.5.0", optional = true }
-actix-web = { version = "4.0.1", features = ["rustls"], optional = true }
-actix-web-actors = { version = "4.1.0", optional = true }
-anyhow = "1.0.40"
-bollard = { version = "0.15.0", features = ["ssl"], optional = true }
+actix = { version = "0.13.5", optional = true }
+actix-codec = { version = "0.5.2", optional = true }
+actix-web = { version = "4.9.0", features = ["rustls"], optional = true }
+actix-web-actors = { version = "4.3.0", optional = true }
+anyhow = "1.0.93"
+bollard = { version = "0.17.1", features = ["ssl"], optional = true }
 bld_config = { path = "../bld_config" }
 bld_core = { path = "../bld_core", optional = true }
 bld_http = { path = "../bld_http", optional = true }
 bld_models = { path = "../bld_models", features = ["all"], optional = true }
 bld_sock = { path = "../bld_sock", optional = true }
 bld_utils = { path = "../bld_utils", optional = true }
-chrono = { version = "0.4.23", default-features = false, features = ["std"], optional = true }
-futures =  { version = "0.3.15", optional = true }
-futures-util = { version = "0.3.15", optional = true }
-serde = { version = "1.0.126", features = ["derive"] }
-serde_json = { version = "1.0.64", optional = true }
-serde_yaml = { version = "0.9.14", optional = true }
-tar = { version = "0.4.35", optional = true }
-tokio = { version = "1.24.2", features = ["full"], optional = true }
-tracing = { version = "0.1.36", optional = true }
-yaml-rust = { version = "0.4.5", optional = true }
-uuid = { version = "1.3.4", features = ["v4"], optional = true }
-regex = { version = "1.8.1", optional = true }
-cron = { version = "0.12.0", optional = true }
+chrono = { version = "0.4.38", default-features = false, features = ["std"], optional = true }
+futures =  { version = "0.3.31", optional = true }
+futures-util = { version = "0.3.31", optional = true }
+serde = { version = "1.0.215", features = ["derive"] }
+serde_json = { version = "1.0.132", optional = true }
+serde_yaml_ng = { version = "0.10.0", optional = true }
+tar = { version = "0.4.43", optional = true }
+tokio = { version = "1.41.1", features = ["full"], optional = true }
+tracing = { version = "0.1.40", optional = true }
+uuid = { version = "1.11.0", features = ["v4"], optional = true }
+regex = { version = "1.11.1", optional = true }
+cron = { version = "0.13.0", optional = true }

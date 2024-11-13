@@ -6,13 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-actix = "0.13.0"
-actix-codec = "0.5.0"
-actix-http = "3.0.4"
-actix-web = { version = "4.0.1", features = ["rustls"] }
-actix-web-actors = "4.1.0"
-awc = { version = "3.0.0", features = ["rustls"] }
-anyhow = "1.0.40"
+actix = "0.13.5"
+actix-codec = "0.5.2"
+actix-cors = "0.7.0"
+actix-http = "3.9.0"
+actix-web = { version = "4.9.0", features = ["rustls"] }
+actix-web-actors = "4.3.0"
+awc = { version = "3.5.1", features = ["rustls"] }
+anyhow = "1.0.93"
 bld_config = { path = "../bld_config", features = ["tokio"] }
 bld_core = { path = "../bld_core" }
 bld_models = { path = "../bld_models", features = ["all"] }
@@ -21,18 +22,17 @@ bld_runner = { path = "../bld_runner", features = ["all"] }
 bld_sock = { path = "../bld_sock" }
 bld_supervisor = { path = "../bld_supervisor" }
 bld_utils = { path = "../bld_utils" }
-chrono = "0.4.29"
-futures-util = "0.3.15"
-futures = "0.3.15"
-sea-orm = { version = "0.12.2", features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls"] }
-serde = { version = "1.0.126", features = ["derive"] }
-serde_json = "1.0.64"
-tokio = { version = "1.24.2", features = ["full"] }
-tokio-cron-scheduler = "0.9.4"
-tracing = "0.1.36"
-uuid = { version = "1.3.4", features = ["v4"] }
+chrono = "0.4.38"
+futures-util = "0.3.31"
+futures = "0.3.31"
+sea-orm = { version = "1.1.1", features = ["sqlx-sqlite", "sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls"] }
+serde = { version = "1.0.215", features = ["derive"] }
+serde_json = "1.0.132"
+tokio = { version = "1.41.1", features = ["full"] }
+tokio-cron-scheduler = "0.13.0"
+tracing = "0.1.40"
+uuid = { version = "1.11.0", features = ["v4"] }
 rustls = "0.20.7"
-openidconnect = "3.1.1"
-actix-cors = "0.7.0"
+openidconnect = "3.5.0"
 rust-embed = { version = "8.5.0", features = ["actix-web"] }
 mime_guess = "=2.0.5"

@@ -5,6 +5,7 @@ use bld_config::{BldConfig, BldLocalConfig, BldRemoteServerConfig};
 use bld_core::fs::FileSystem;
 use bld_utils::{sync::IntoArc, term};
 use clap::Args;
+use serde_yaml_ng::to_string;
 use tracing::metadata::LevelFilter;
 
 #[derive(Args)]
@@ -17,13 +18,13 @@ pub struct ConfigCommand {
 impl ConfigCommand {
     fn list_locals(local: &BldLocalConfig) -> Result<()> {
         term::print_info("Local configuration:")?;
-        println!("{}", serde_yaml::to_string(local)?);
+        println!("{}", to_string(local)?);
         Ok(())
     }
 
     fn list_remote(remote: &[BldRemoteServerConfig]) -> Result<()> {
         term::print_info("Remote configuration:")?;
-        println!("{}", serde_yaml::to_string(remote)?);
+        println!("{}", to_string(remote)?);
         Ok(())
     }
 
