@@ -12,7 +12,7 @@ bld_runner = { path = "../bld_runner" }
 chrono = "0.4.38"
 leptos = { version = "0.6.15", features = ["csr"] }
 leptos-chartistry = "0.1.7"
-leptos-use = "0.10.8"
+leptos-use = "0.13.9"
 leptos_router = { version = "0.6.11", features = ["csr"] }
 reqwest = { version = "0.12.9", features = ["json"] }
 serde = { version = "1.0.215", features = ["derive"] }
