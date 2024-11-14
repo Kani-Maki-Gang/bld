@@ -30,6 +30,7 @@ debug = true
 lto = true
 opt-level = 3
 debug = false
+codegen-units = 1
 
 [dependencies]
 anyhow = "1.0.93"
