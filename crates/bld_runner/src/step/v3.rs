@@ -10,7 +10,7 @@ use bld_config::BldConfig;
 use bld_utils::fs::IsYaml;
 
 #[cfg(feature = "all")]
-use crate::token_context::v3::PipelineContext;
+use crate::token_context::v3::ExecutionContext;
 
 #[cfg(feature = "all")]
 use crate::traits::Dependencies;
@@ -29,7 +29,7 @@ pub enum BuildStep {
 
 impl BuildStep {
     #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
+    pub async fn apply_tokens<'a>(&mut self, context: &ExecutionContext<'a>) -> Result<()> {
         match self {
             Self::One(exec) => {
                 exec.apply_tokens(context).await?;
@@ -79,7 +79,7 @@ pub enum BuildStepExec {
 
 impl BuildStepExec {
     #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
+    pub async fn apply_tokens<'a>(&mut self, context: &ExecutionContext<'a>) -> Result<()> {
         match self {
             Self::Shell(cmd) => {
                 *cmd = context.transform(cmd.to_owned()).await?;

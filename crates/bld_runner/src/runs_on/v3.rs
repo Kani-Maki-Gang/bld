@@ -10,7 +10,7 @@ use anyhow::Result;
 use bld_config::SshUserAuth;
 
 #[cfg(feature = "all")]
-use crate::token_context::v3::PipelineContext;
+use crate::token_context::v3::ExecutionContext;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -73,7 +73,7 @@ impl RunsOn {
     }
 
     #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
+    pub async fn apply_tokens<'a>(&mut self, context: &ExecutionContext<'a>) -> Result<()> {
         match self {
             RunsOn::Pull {
                 image,

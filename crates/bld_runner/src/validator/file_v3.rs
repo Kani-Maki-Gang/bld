@@ -21,7 +21,7 @@ impl<'a> RunnerFileValidator<'a> {
                 Ok(Self::Pipeline(validator))
             }
 
-            RunnerFile::ActionFileType => Ok(Self::Action),
+            RunnerFile::ActionFileType(_) => unimplemented!(),
         }
     }
 }

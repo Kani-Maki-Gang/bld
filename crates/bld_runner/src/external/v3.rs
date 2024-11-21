@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 
 #[cfg(feature = "all")]
-use crate::token_context::v3::PipelineContext;
+use crate::token_context::v3::ExecutionContext;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct External {
@@ -33,7 +33,7 @@ impl External {
     }
 
     #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
+    pub async fn apply_tokens<'a>(&mut self, context: &'a ExecutionContext<'a>) -> Result<()> {
         if let Some(name) = self.name.as_mut() {
             *name = context.transform(name.to_owned()).await?;
         }

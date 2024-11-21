@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use anyhow::Result;
 
 #[cfg(feature = "all")]
-use crate::token_context::v3::PipelineContext;
+use crate::token_context::v3::ExecutionContext;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Artifacts {
@@ -17,7 +17,7 @@ pub struct Artifacts {
 
 impl Artifacts {
     #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
+    pub async fn apply_tokens<'a>(&mut self, context: &'a ExecutionContext<'a>) -> Result<()> {
         self.from = context.transform(self.from.to_owned()).await?;
         self.to = context.transform(self.to.to_owned()).await?;
 

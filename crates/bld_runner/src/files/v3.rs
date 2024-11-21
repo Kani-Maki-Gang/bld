@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    pipeline::v3::Pipeline,
-    traits::{IntoVariables, Variables},
+    action::v3::Action, pipeline::v3::Pipeline, traits::{IntoVariables, Variables}
 };
 
 #[cfg(feature = "all")]
@@ -17,7 +16,7 @@ pub enum RunnerFile {
     #[serde(rename(serialize = "pipeline", deserialize = "pipeline"))]
     PipelineFileType(Box<Pipeline>),
     #[serde(rename(serialize = "action", deserialize = "action"))]
-    ActionFileType,
+    ActionFileType(Box<Action>),
 }
 
 #[cfg(feature = "all")]
@@ -40,7 +39,7 @@ impl Dependencies for RunnerFile {
                 from_steps.chain(from_external).collect()
             }
 
-            Self::ActionFileType => vec![],
+            Self::ActionFileType(action) => action.local_deps(config),
         }
     }
 }
@@ -48,8 +47,8 @@ impl Dependencies for RunnerFile {
 impl IntoVariables for RunnerFile {
     fn into_variables(self) -> Variables {
         match self {
-            Self::PipelineFileType(p) => (p.inputs, p.env),
-            Self::ActionFileType => unimplemented!(),
+            Self::PipelineFileType(p) => p.into_variables(),
+            Self::ActionFileType(a) => a.into_variables(),
         }
     }
 }

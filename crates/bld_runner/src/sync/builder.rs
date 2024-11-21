@@ -265,7 +265,7 @@ impl RunnerBuilder {
                 })
             }
 
-            VersionedFile::Version3(RunnerFile::ActionFileType) => {
+            VersionedFile::Version3(RunnerFile::ActionFileType(_)) => {
                 bail!("cannot run action files");
             }
         };

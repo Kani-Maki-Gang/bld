@@ -60,7 +60,7 @@ impl<'a> PipelineContextBuilder<'a> {
         self
     }
 
-    pub fn build(self) -> Result<PipelineContext<'a>> {
+    pub fn build(self) -> Result<ExecutionContext<'a>> {
         let root_dir = self
             .root_dir
             .ok_or_else(|| anyhow!("bld root directory not provided in pipeline context"))?;
@@ -81,7 +81,7 @@ impl<'a> PipelineContextBuilder<'a> {
             .regex_cache
             .ok_or_else(|| anyhow!("regex cache not provided in pipeline context"))?;
 
-        Ok(PipelineContext {
+        Ok(ExecutionContext {
             root_dir,
             project_dir,
             inputs: self.inputs,
@@ -93,7 +93,7 @@ impl<'a> PipelineContextBuilder<'a> {
     }
 }
 
-pub struct PipelineContext<'a> {
+pub struct ExecutionContext<'a> {
     pub root_dir: &'a str,
     pub project_dir: &'a str,
     pub inputs: HashMap<String, String>,
@@ -103,7 +103,7 @@ pub struct PipelineContext<'a> {
     regex_cache: Arc<RegexCache>,
 }
 
-impl<'a> PipelineContext<'a> {
+impl<'a> ExecutionContext<'a> {
     fn get_regex_pattern(keyword: &'a str) -> String {
         format!("{}{}{}", r"\$\{\{\s*", keyword, r"\s*\}\}")
     }

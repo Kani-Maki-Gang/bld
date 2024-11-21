@@ -1,4 +1,5 @@
-use crate::artifacts::v3::Artifacts;
+use crate::traits::Variables;
+use crate::{artifacts::v3::Artifacts, traits::IntoVariables};
 use crate::external::v3::External;
 use crate::runs_on::v3::RunsOn;
 use crate::step::v3::BuildStep;
@@ -6,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[cfg(feature = "all")]
-use crate::token_context::v3::PipelineContext;
+use crate::token_context::v3::ExecutionContext;
 
 #[cfg(feature = "all")]
 use anyhow::Result;
@@ -42,7 +43,7 @@ impl Pipeline {
     }
 
     #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &'a PipelineContext<'a>) -> Result<()> {
+    pub async fn apply_tokens<'a>(&mut self, context: &'a ExecutionContext<'a>) -> Result<()> {
         self.runs_on.apply_tokens(context).await?;
 
         for (_, v) in self.env.iter_mut() {
@@ -66,5 +67,11 @@ impl Pipeline {
         }
 
         Ok(())
+    }
+}
+
+impl IntoVariables for Pipeline {
+    fn into_variables(self) -> Variables {
+        (self.inputs, self.env)
     }
 }
