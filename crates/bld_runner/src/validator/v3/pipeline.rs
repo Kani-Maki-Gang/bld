@@ -6,14 +6,7 @@ use crate::{
     traits::Validate,
 };
 use anyhow::{bail, Result};
-use bld_config::{
-    definitions::{
-        KEYWORD_BLD_DIR_V3, KEYWORD_PROJECT_DIR_V3, KEYWORD_RUN_PROPS_ID_V3,
-        KEYWORD_RUN_PROPS_START_TIME_V3,
-    },
-    DockerUrl,
-};
-use bld_config::{path, BldConfig, SshUserAuth};
+use bld_config::{path, BldConfig, DockerUrl, SshUserAuth};
 use bld_core::fs::FileSystem;
 use bld_utils::fs::IsYaml;
 use cron::Schedule;
@@ -25,6 +18,8 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
+
+use super::{create_expression_regex, create_keywords, create_symbols, sanitize_symbol};
 
 pub struct PipelineValidator<'a> {
     pipeline: &'a Pipeline,
@@ -60,9 +55,9 @@ impl<'a> PipelineValidator<'a> {
         config: Arc<BldConfig>,
         fs: Arc<FileSystem>,
     ) -> Result<Self> {
-        let regex = Regex::new(r"\$\{\{\s*(\b\w+\b)\s*\}\}")?;
-        let keywords = Self::prepare_keywords();
-        let symbols = Self::prepare_symbols(pipeline);
+        let regex = create_expression_regex()?;
+        let keywords = create_keywords();
+        let symbols = create_symbols(&pipeline.inputs, &pipeline.env);
         let errors = String::new();
         Ok(Self {
             pipeline,
@@ -75,37 +70,6 @@ impl<'a> PipelineValidator<'a> {
         })
     }
 
-    fn prepare_keywords() -> HashSet<&'a str> {
-        let mut keywords = HashSet::new();
-        keywords.insert(KEYWORD_BLD_DIR_V3);
-        keywords.insert(KEYWORD_PROJECT_DIR_V3);
-        keywords.insert(KEYWORD_RUN_PROPS_ID_V3);
-        keywords.insert(KEYWORD_RUN_PROPS_START_TIME_V3);
-        keywords
-    }
-
-    fn prepare_symbols(pipeline: &'a Pipeline) -> HashSet<&'a str> {
-        let mut symbols = HashSet::new();
-        symbols.insert(KEYWORD_BLD_DIR_V3);
-        symbols.insert(KEYWORD_PROJECT_DIR_V3);
-        symbols.insert(KEYWORD_RUN_PROPS_ID_V3);
-        symbols.insert(KEYWORD_RUN_PROPS_START_TIME_V3);
-
-        for (k, _) in pipeline.inputs.iter() {
-            symbols.insert(k);
-        }
-
-        for (k, _) in pipeline.env.iter() {
-            symbols.insert(k);
-        }
-
-        symbols
-    }
-
-    fn sanitize_symbol(symbol: &'a str) -> &'a str {
-        symbol[3..symbol.len() - 2].trim()
-    }
-
     fn validate_keywords(&mut self, section: &str, name: &'a str) {
         if self.keywords.contains(name) {
             let _ = writeln!(self.errors, "[{section}] Invalid name, reserved as keyword",);
@@ -114,7 +78,7 @@ impl<'a> PipelineValidator<'a> {
 
     fn validate_symbols(&mut self, section: &str, value: &'a str) {
         for symbol in self.regex.find_iter(value).map(|x| x.as_str()) {
-            if !self.symbols.contains(Self::sanitize_symbol(symbol)) {
+            if !self.symbols.contains(sanitize_symbol(symbol)) {
                 let _ = writeln!(
                     self.errors,
                     "[{section} > {symbol}] Expression isn't a keyword or variable",

@@ -1,4 +1,4 @@
-use crate::registry::v3::Registry;
+use crate::{registry::v3::Registry, traits::{Validate, Validator}, validator::v3::{ErrorBuilder, KeywordValidator, SymbolValidator, Validatable}};
 use bld_config::SshConfig;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -145,5 +145,76 @@ impl RunsOn {
             }
         }
         Ok(())
+    }
+}
+
+impl<'a> Validatable<'a> for RunsOn {
+    fn validate<C>(&'a self, ctx: &mut C)
+    where
+        C: ErrorBuilder + SymbolValidator<'a> + KeywordValidator<'a>,
+    {
+        match &self {
+            RunsOn::Build {
+                name,
+                tag,
+                dockerfile,
+                docker_url,
+            } => {
+                ctx.validate_symbols("runs_on > name", name);
+                ctx.validate_symbols("runs_on > tag", tag);
+                ctx.validate_symbols("runs_on > dockerfile", dockerfile);
+                ctx.validate_file_path("runs_on > dockerfile", dockerfile);
+                if let Some(docker_url) = docker_url {
+                    ctx.validate_symbols("runs_on > docker_url", docker_url);
+                    self.validate_docker_url(docker_url);
+                }
+            }
+
+            RunsOn::Pull {
+                image,
+                docker_url,
+                pull: _pull,
+                registry,
+            } => {
+                self.validate_symbols("runs_on > image", image);
+                if let Some(docker_url) = docker_url {
+                    self.validate_symbols("runs_on > docker_url", docker_url);
+                    self.validate_docker_url(docker_url);
+                }
+                if let Some(registry) = registry {
+                    self.validate_registry("runs_on > registry", registry);
+                }
+            }
+
+            RunsOn::ContainerOrMachine(value) => self.validate_symbols("runs_on", value),
+
+            RunsOn::SshFromGlobalConfig { ssh_config } => {
+                self.validate_symbols("runs_on > ssh_config", ssh_config);
+                self.validate_global_ssh_config("runs_on > ssh_config", ssh_config);
+            }
+
+            RunsOn::Ssh(config) => {
+                self.validate_symbols("runs_on > host", &config.host);
+                self.validate_symbols("runs_on > port", &config.port);
+                self.validate_symbols("runs_on > user", &config.user);
+                match &config.userauth {
+                    SshUserAuth::Agent => {}
+                    SshUserAuth::Keys {
+                        public_key,
+                        private_key,
+                    } => {
+                        if let Some(pubkey) = public_key {
+                            self.validate_symbols("runs_on > auth > public_key", pubkey);
+                            self.validate_file_path("runs_on > auth > public_key", pubkey);
+                        }
+                        self.validate_symbols("runs_on > auth > private_key", private_key);
+                        self.validate_file_path("runs_on > auth > private_key", private_key);
+                    }
+                    SshUserAuth::Password { password } => {
+                        self.validate_symbols("runs_on > auth > password", password);
+                    }
+                }
+            }
+        }
     }
 }

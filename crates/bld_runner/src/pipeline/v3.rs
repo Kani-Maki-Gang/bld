@@ -1,4 +1,5 @@
 use crate::traits::Variables;
+use crate::validator::v3::{ErrorBuilder, Validatable};
 use crate::{artifacts::v3::Artifacts, traits::IntoVariables};
 use crate::external::v3::External;
 use crate::runs_on::v3::RunsOn;
@@ -73,5 +74,11 @@ impl Pipeline {
 impl IntoVariables for Pipeline {
     fn into_variables(self) -> Variables {
         (self.inputs, self.env)
+    }
+}
+
+impl Validatable for Pipeline {
+    async fn validate(&self, error_builder: &mut impl ErrorBuilder) {
+        unimplemented!()
     }
 }
