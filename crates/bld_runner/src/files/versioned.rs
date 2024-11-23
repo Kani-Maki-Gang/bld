@@ -17,7 +17,7 @@ use crate::validator::v1 as validator_v1;
 use crate::validator::v2 as validator_v2;
 
 #[cfg(feature = "all")]
-use crate::validator::file_v3 as validator_v3;
+use crate::validator::v3::{self as validator_v3, ConsumeValidator};
 
 #[cfg(feature = "all")]
 use anyhow::{anyhow, Result};

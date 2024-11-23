@@ -1,11 +1,13 @@
-use crate::traits::Variables;
-use crate::validator::v3::{ErrorBuilder, Validatable};
-use crate::{artifacts::v3::Artifacts, traits::IntoVariables};
 use crate::external::v3::External;
 use crate::runs_on::v3::RunsOn;
 use crate::step::v3::BuildStep;
+use crate::traits::Variables;
+use crate::validator::v3::{Validatable, ValidatorContext};
+use crate::{artifacts::v3::Artifacts, traits::IntoVariables};
+use cron::Schedule;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::str::FromStr;
 
 #[cfg(feature = "all")]
 use crate::token_context::v3::ExecutionContext;
@@ -69,6 +71,18 @@ impl Pipeline {
 
         Ok(())
     }
+
+    fn validate_cron<'a, C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
+        let Some(cron) = self.cron.as_ref() else {
+            return;
+        };
+        if let Err(e) = Schedule::from_str(cron) {
+            let error = format!("{cron} {e}");
+            ctx.push_section("cron");
+            ctx.append_error(&error);
+            ctx.pop_section();
+        }
+    }
 }
 
 impl IntoVariables for Pipeline {
@@ -77,8 +91,42 @@ impl IntoVariables for Pipeline {
     }
 }
 
-impl Validatable for Pipeline {
-    async fn validate(&self, error_builder: &mut impl ErrorBuilder) {
-        unimplemented!()
+impl<'a> Validatable<'a> for Pipeline {
+    async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
+        ctx.push_section("runs_on");
+        self.runs_on.validate(ctx).await;
+        ctx.pop_section();
+
+        self.validate_cron(ctx);
+
+        ctx.push_section("inputs");
+        ctx.validate_inputs(&self.inputs);
+        ctx.pop_section();
+
+        ctx.push_section("env");
+        ctx.validate_env(&self.env);
+        ctx.pop_section();
+
+        ctx.push_section("external");
+        for external in &self.external {
+            external.validate(ctx).await;
+        }
+        ctx.pop_section();
+
+        ctx.push_section("external");
+        for artifact in &self.artifacts {
+            artifact.validate(ctx).await;
+        }
+        ctx.pop_section();
+
+        ctx.push_section("jobs");
+        for (job, steps) in &self.jobs {
+            ctx.push_section(job);
+            for step in steps {
+                step.validate(ctx).await;
+            }
+            ctx.pop_section();
+        }
+        ctx.pop_section();
     }
 }

@@ -1,5 +1,8 @@
-use crate::{registry::v3::Registry, traits::{Validate, Validator}, validator::v3::{ErrorBuilder, KeywordValidator, SymbolValidator, Validatable}};
-use bld_config::SshConfig;
+use crate::{
+    registry::v3::Registry,
+    validator::v3::{Validatable, ValidatorContext},
+};
+use bld_config::{DockerUrl, SshConfig};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
@@ -149,10 +152,7 @@ impl RunsOn {
 }
 
 impl<'a> Validatable<'a> for RunsOn {
-    fn validate<C>(&'a self, ctx: &mut C)
-    where
-        C: ErrorBuilder + SymbolValidator<'a> + KeywordValidator<'a>,
-    {
+    async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         match &self {
             RunsOn::Build {
                 name,
@@ -160,13 +160,21 @@ impl<'a> Validatable<'a> for RunsOn {
                 dockerfile,
                 docker_url,
             } => {
-                ctx.validate_symbols("runs_on > name", name);
-                ctx.validate_symbols("runs_on > tag", tag);
-                ctx.validate_symbols("runs_on > dockerfile", dockerfile);
-                ctx.validate_file_path("runs_on > dockerfile", dockerfile);
+                ctx.push_section("name");
+                ctx.validate_symbols(name);
+                ctx.pop_section();
+
+                ctx.push_section("tag");
+                ctx.validate_symbols(tag);
+                ctx.pop_section();
+
+                ctx.push_section("dockerfile");
+                ctx.validate_symbols(dockerfile);
+                ctx.validate_file_path(dockerfile);
+                ctx.pop_section();
+
                 if let Some(docker_url) = docker_url {
-                    ctx.validate_symbols("runs_on > docker_url", docker_url);
-                    self.validate_docker_url(docker_url);
+                    validate_docker_url(ctx, docker_url);
                 }
             }
 
@@ -176,45 +184,144 @@ impl<'a> Validatable<'a> for RunsOn {
                 pull: _pull,
                 registry,
             } => {
-                self.validate_symbols("runs_on > image", image);
+                ctx.push_section("image");
+                ctx.validate_symbols(image);
+                ctx.pop_section();
+
                 if let Some(docker_url) = docker_url {
-                    self.validate_symbols("runs_on > docker_url", docker_url);
-                    self.validate_docker_url(docker_url);
+                    validate_docker_url(ctx, docker_url);
                 }
-                if let Some(registry) = registry {
-                    self.validate_registry("runs_on > registry", registry);
+                if let Some(registry) = registry.as_ref() {
+                    validate_registry(ctx, registry);
                 }
             }
 
-            RunsOn::ContainerOrMachine(value) => self.validate_symbols("runs_on", value),
+            RunsOn::ContainerOrMachine(value) => ctx.validate_symbols(value),
 
             RunsOn::SshFromGlobalConfig { ssh_config } => {
-                self.validate_symbols("runs_on > ssh_config", ssh_config);
-                self.validate_global_ssh_config("runs_on > ssh_config", ssh_config);
+                validate_global_ssh_config(ctx, ssh_config);
             }
 
             RunsOn::Ssh(config) => {
-                self.validate_symbols("runs_on > host", &config.host);
-                self.validate_symbols("runs_on > port", &config.port);
-                self.validate_symbols("runs_on > user", &config.user);
+                ctx.push_section("host");
+                ctx.validate_symbols(&config.host);
+                ctx.pop_section();
+
+                ctx.push_section("port");
+                ctx.validate_symbols(&config.port);
+                ctx.pop_section();
+
+                ctx.push_section("user");
+                ctx.validate_symbols(&config.user);
+                ctx.pop_section();
+
+                ctx.push_section("auth");
                 match &config.userauth {
                     SshUserAuth::Agent => {}
+
                     SshUserAuth::Keys {
                         public_key,
                         private_key,
                     } => {
                         if let Some(pubkey) = public_key {
-                            self.validate_symbols("runs_on > auth > public_key", pubkey);
-                            self.validate_file_path("runs_on > auth > public_key", pubkey);
+                            ctx.push_section("public_key");
+                            ctx.validate_symbols(pubkey);
+                            ctx.validate_file_path(pubkey);
+                            ctx.pop_section();
                         }
-                        self.validate_symbols("runs_on > auth > private_key", private_key);
-                        self.validate_file_path("runs_on > auth > private_key", private_key);
+
+                        ctx.push_section("private_key");
+                        ctx.validate_symbols(private_key);
+                        ctx.validate_file_path(private_key);
+                        ctx.pop_section();
                     }
+
                     SshUserAuth::Password { password } => {
-                        self.validate_symbols("runs_on > auth > password", password);
+                        ctx.push_section("password");
+                        ctx.validate_symbols(password);
+                        ctx.pop_section();
                     }
+                }
+                ctx.pop_section();
+            }
+        }
+    }
+}
+
+fn validate_docker_url<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &'a str) {
+    ctx.push_section("docker_url");
+
+    if ctx.contains_symbols(value) {
+        ctx.validate_symbols(value);
+    } else {
+        let config = ctx.get_config();
+        match &config.local.docker_url {
+            DockerUrl::Single(_) => {
+                ctx.append_error("Only a single docker url is defined in the config file");
+            }
+            DockerUrl::Multiple(urls) => {
+                let url = urls.keys().find(|x| x.as_str() == value);
+                if url.is_none() {
+                    ctx.append_error("The defined docker url key wasn't found in the config file");
                 }
             }
         }
     }
+
+    ctx.pop_section();
+}
+
+fn validate_registry<'a, C: ValidatorContext<'a>>(ctx: &mut C, registry: &'a Registry) {
+    ctx.push_section("registry");
+
+    match registry {
+        Registry::FromConfig(config) => {
+            validate_global_registry_config(ctx, config);
+        }
+        Registry::Full(config) => {
+            ctx.push_section("url");
+            ctx.validate_symbols(&config.url);
+            ctx.pop_section();
+
+            if let Some(username) = &config.username {
+                ctx.push_section("username");
+                ctx.validate_symbols(username);
+                ctx.pop_section();
+            }
+
+            if let Some(password) = &config.password {
+                ctx.push_section("password");
+                ctx.validate_symbols(password);
+                ctx.pop_section();
+            }
+        }
+    }
+
+    ctx.pop_section();
+}
+
+fn validate_global_registry_config<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &'a str) {
+    if ctx.contains_symbols(value) {
+        ctx.validate_symbols(value);
+    } else {
+        let config = ctx.get_config();
+        if config.registry(value).is_none() {
+            ctx.append_error("The defined registry key wasn't found in the config file");
+        }
+    }
+}
+
+fn validate_global_ssh_config<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &'a str) {
+    ctx.push_section("ssh_config");
+
+    if ctx.contains_symbols(value) {
+        ctx.validate_symbols(value);
+    } else {
+        let config = ctx.get_config();
+        if let Err(e) = config.ssh(value) {
+            ctx.append_error(&e.to_string());
+        }
+    }
+
+    ctx.pop_section();
 }

@@ -1,15 +1,23 @@
+use std::{collections::HashMap, sync::Arc};
+
 use anyhow::Result;
+use bld_config::BldConfig;
+use bld_core::fs::FileSystem;
 
-pub trait ErrorBuilder {
+pub trait ValidatorContext<'a> {
+    fn get_config(&self) -> Arc<BldConfig>;
+    fn get_fs(&self) -> Arc<FileSystem>;
+    fn push_section(&mut self, section: &'a str);
+    fn pop_section(&mut self);
+    #[allow(dead_code)]
+    fn clear_section(&mut self);
     fn append_error(&mut self, error: &str);
-}
-
-pub trait SymbolValidator<'a> {
-    fn validate_symbols(&mut self, section: &str, symbol: &'a str);
-}
-
-pub trait KeywordValidator<'a> {
-    fn validate_keywords(&mut self, section: &str, name: &'a str);
+    fn contains_symbols(&mut self, value: &str) -> bool;
+    fn validate_symbols(&mut self, symbol: &'a str);
+    fn validate_keywords(&mut self, name: &'a str);
+    fn validate_file_path(&mut self, value: &'a str);
+    fn validate_inputs(&mut self, inputs: &'a HashMap<String, String>);
+    fn validate_env(&mut self, env: &'a HashMap<String, String>);
 }
 
 #[allow(async_fn_in_trait)]
@@ -18,7 +26,5 @@ pub trait ConsumeValidator {
 }
 
 pub trait Validatable<'a> {
-    fn validate<C>(&self, ctx: &mut C)
-    where
-        C: ErrorBuilder + SymbolValidator<'a> + KeywordValidator<'a>;
+    async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C);
 }

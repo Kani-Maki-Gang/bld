@@ -1,3 +1,4 @@
+use crate::validator::v3::{Validatable, ValidatorContext};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "all")]
@@ -66,6 +67,39 @@ impl Dependencies for BuildStep {
     }
 }
 
+impl<'a> Validatable<'a> for BuildStep {
+    async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
+        match self {
+            BuildStep::One(exec) => {
+                exec.validate(ctx).await;
+            }
+            BuildStep::Many {
+                exec,
+                working_dir,
+                name,
+            } => {
+                if let Some(name) = name {
+                    ctx.push_section(name);
+                }
+
+                if let Some(wd) = working_dir.as_ref() {
+                    ctx.push_section("working_dir");
+                    ctx.validate_symbols(wd);
+                    ctx.pop_section();
+                }
+
+                for exec in exec.iter() {
+                    exec.validate(ctx).await;
+                }
+
+                if name.is_some() {
+                    ctx.pop_section();
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BuildStepExec {
@@ -100,6 +134,38 @@ impl Dependencies for BuildStepExec {
                 vec![value.to_owned()]
             }
             _ => vec![],
+        }
+    }
+}
+
+impl<'a> Validatable<'a> for BuildStepExec {
+    async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
+        match self {
+            BuildStepExec::Shell(value) => {
+                ctx.validate_symbols(value);
+            }
+            BuildStepExec::External { value } => {
+                if ctx.contains_symbols(value) {
+                    ctx.validate_symbols(value);
+                } else {
+                    unimplemented!()
+                    // TODO: Implement this
+                    // if self.pipeline.external.iter().any(|e| e.is(value)) {
+                    //     return;
+                    // }
+
+                    // let fs = ctx.get_fs();
+                    // let found_path = fs
+                    //     .path(value)
+                    //     .await
+                    //     .map(|x| x.is_yaml())
+                    //     .unwrap_or_default();
+
+                    // if !found_path {
+                    //     let _ = writeln!(self.errors, "[{section} > ext > {value}] Not found in either the external section or as a local pipeline");
+                    // }
+                }
+            }
         }
     }
 }

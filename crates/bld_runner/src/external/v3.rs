@@ -1,3 +1,4 @@
+use bld_utils::fs::IsYaml;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -6,6 +7,7 @@ use anyhow::Result;
 
 #[cfg(feature = "all")]
 use crate::token_context::v3::ExecutionContext;
+use crate::validator::v3::{Validatable, ValidatorContext};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct External {
@@ -53,5 +55,67 @@ impl External {
         }
 
         Ok(())
+    }
+}
+
+impl<'a> Validatable<'a> for External {
+    async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
+        if let Some(name) = self.name.as_deref() {
+            ctx.push_section("name");
+            ctx.validate_symbols(name);
+            ctx.pop_section();
+        };
+        ctx.push_section("pipeline");
+        validate_external_pipeline(ctx, &self.pipeline).await;
+        ctx.pop_section();
+
+        ctx.push_section("server");
+        validate_external_server(ctx, self.server.as_deref());
+        ctx.pop_section();
+
+        ctx.validate_inputs(&self.inputs);
+        ctx.validate_env(&self.env);
+    }
+}
+
+async fn validate_external_pipeline<'a, C: ValidatorContext<'a>>(ctx: &mut C, pipeline: &'a str) {
+    ctx.validate_symbols(pipeline);
+
+    if ctx.contains_symbols(pipeline) {
+        return;
+    }
+
+    let fs = ctx.get_fs();
+    match fs.path(pipeline).await {
+        Ok(path) if !path.is_yaml() => {
+            ctx.push_section(pipeline);
+            ctx.append_error("Pipeline not found");
+            ctx.pop_section();
+        }
+        Err(e) => {
+            ctx.push_section(pipeline);
+            ctx.append_error(&e.to_string());
+            ctx.pop_section();
+        }
+        _ => {}
+    }
+}
+
+fn validate_external_server<'a, C: ValidatorContext<'a>>(ctx: &mut C, server: Option<&'a str>) {
+    let Some(server) = server else {
+        return;
+    };
+
+    ctx.validate_symbols(server);
+
+    if ctx.contains_symbols(server) {
+        return;
+    }
+
+    let config = ctx.get_config();
+    if config.server(server).is_err() {
+        ctx.push_section(server);
+        ctx.append_error("Doesn't exist in current config");
+        ctx.pop_section();
     }
 }
