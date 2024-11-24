@@ -235,7 +235,7 @@ impl RunnerBuilder {
                 let pipeline_context = token_context::v3::PipelineContextBuilder::default()
                     .root_dir(&config.root_dir)
                     .project_dir(&config.project_dir)
-                    .add_inputs(&pipeline.inputs)
+                    .add_inputs(&pipeline.inputs_map())
                     .add_inputs(&inputs)
                     .add_env(&pipeline.env)
                     .add_env(&env)

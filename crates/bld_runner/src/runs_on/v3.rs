@@ -1,6 +1,6 @@
 use crate::{
     registry::v3::Registry,
-    validator::v3::{Validatable, ValidatorContext},
+    validator::v3::{Validate, ValidatorContext},
 };
 use bld_config::{DockerUrl, SshConfig};
 use serde::{Deserialize, Serialize};
@@ -151,7 +151,7 @@ impl RunsOn {
     }
 }
 
-impl<'a> Validatable<'a> for RunsOn {
+impl<'a> Validate<'a> for RunsOn {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         match &self {
             RunsOn::Build {

@@ -4,9 +4,10 @@ use bld_config::BldConfig;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    inputs::v3::Input,
     step::v3::BuildStep,
     traits::{Dependencies, IntoVariables, Variables},
-    validator::v3::{Validatable, ValidatorContext},
+    validator::v3::{Validate, ValidatorContext},
 };
 
 #[cfg(feature = "all")]
@@ -20,7 +21,7 @@ pub struct Action {
     pub name: String,
 
     #[serde(default)]
-    pub inputs: HashMap<String, String>,
+    pub inputs: HashMap<String, Input>,
 
     #[serde(default)]
     pub env: HashMap<String, String>,
@@ -36,8 +37,8 @@ impl Action {
             *v = context.transform(v.to_owned()).await?;
         }
 
-        for (_, v) in self.inputs.iter_mut() {
-            *v = context.transform(v.to_owned()).await?;
+        for (_name, input) in self.inputs.iter_mut() {
+            input.apply_tokens(context).await?;
         }
 
         for step in self.steps.iter_mut() {
@@ -59,14 +60,29 @@ impl Dependencies for Action {
 
 impl IntoVariables for Action {
     fn into_variables(self) -> Variables {
-        (self.inputs, self.env)
+        let mut inputs = HashMap::new();
+        for (name, input) in self.inputs {
+            match input {
+                Input::Simple(v) => {
+                    inputs.insert(name, v);
+                }
+                Input::Complex { default, .. } => {
+                    inputs.insert(name, default.unwrap_or_default());
+                }
+            }
+        }
+        (inputs, self.env)
     }
 }
 
-impl<'a> Validatable<'a> for Action {
+impl<'a> Validate<'a> for Action {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         ctx.push_section("inputs");
-        ctx.validate_inputs(&self.inputs);
+        for (name, input) in &self.inputs {
+            ctx.push_section(name);
+            input.validate(ctx).await;
+            ctx.pop_section();
+        }
         ctx.pop_section();
 
         ctx.push_section("env");

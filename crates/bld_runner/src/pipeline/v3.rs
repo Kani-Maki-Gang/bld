@@ -1,8 +1,9 @@
 use crate::external::v3::External;
+use crate::inputs::v3::Input;
 use crate::runs_on::v3::RunsOn;
 use crate::step::v3::BuildStep;
 use crate::traits::Variables;
-use crate::validator::v3::{Validatable, ValidatorContext};
+use crate::validator::v3::{Validate, ValidatorContext};
 use crate::{artifacts::v3::Artifacts, traits::IntoVariables};
 use cron::Schedule;
 use serde::{Deserialize, Serialize};
@@ -28,7 +29,7 @@ pub struct Pipeline {
     pub env: HashMap<String, String>,
 
     #[serde(default)]
-    pub inputs: HashMap<String, String>,
+    pub inputs: HashMap<String, Input>,
 
     #[serde(default)]
     pub artifacts: Vec<Artifacts>,
@@ -45,6 +46,21 @@ impl Pipeline {
         true
     }
 
+    pub fn inputs_map(&self) -> HashMap<String, String> {
+        let mut inputs = HashMap::new();
+        for (name, input) in &self.inputs {
+            match input {
+                Input::Simple(v) => {
+                    inputs.insert(name.to_owned(), v.to_owned());
+                }
+                Input::Complex { default, .. } => {
+                    inputs.insert(name.to_owned(), default.to_owned().unwrap_or_default());
+                }
+            }
+        }
+        inputs
+    }
+
     #[cfg(feature = "all")]
     pub async fn apply_tokens<'a>(&mut self, context: &'a ExecutionContext<'a>) -> Result<()> {
         self.runs_on.apply_tokens(context).await?;
@@ -53,8 +69,8 @@ impl Pipeline {
             *v = context.transform(v.to_owned()).await?;
         }
 
-        for (_, v) in self.inputs.iter_mut() {
-            *v = context.transform(v.to_owned()).await?;
+        for (_name, input) in self.inputs.iter_mut() {
+            input.apply_tokens(context).await?;
         }
 
         for entry in self.external.iter_mut() {
@@ -87,11 +103,22 @@ impl Pipeline {
 
 impl IntoVariables for Pipeline {
     fn into_variables(self) -> Variables {
-        (self.inputs, self.env)
+        let mut inputs = HashMap::new();
+        for (name, input) in self.inputs {
+            match input {
+                Input::Simple(v) => {
+                    inputs.insert(name, v);
+                }
+                Input::Complex { default, .. } => {
+                    inputs.insert(name, default.unwrap_or_default());
+                }
+            }
+        }
+        (inputs, self.env)
     }
 }
 
-impl<'a> Validatable<'a> for Pipeline {
+impl<'a> Validate<'a> for Pipeline {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         ctx.push_section("runs_on");
         self.runs_on.validate(ctx).await;
@@ -100,7 +127,11 @@ impl<'a> Validatable<'a> for Pipeline {
         self.validate_cron(ctx);
 
         ctx.push_section("inputs");
-        ctx.validate_inputs(&self.inputs);
+        for (name, input) in &self.inputs {
+            ctx.push_section(name);
+            input.validate(ctx).await;
+            ctx.pop_section();
+        }
         ctx.pop_section();
 
         ctx.push_section("env");

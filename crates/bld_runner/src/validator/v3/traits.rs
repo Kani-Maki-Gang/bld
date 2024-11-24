@@ -25,6 +25,6 @@ pub trait ConsumeValidator {
     async fn validate(self) -> Result<()>;
 }
 
-pub trait Validatable<'a> {
+pub trait Validate<'a> {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C);
 }

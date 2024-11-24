@@ -1,4 +1,4 @@
-use crate::validator::v3::{Validatable, ValidatorContext};
+use crate::validator::v3::{Validate, ValidatorContext};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "all")]
@@ -67,7 +67,7 @@ impl Dependencies for BuildStep {
     }
 }
 
-impl<'a> Validatable<'a> for BuildStep {
+impl<'a> Validate<'a> for BuildStep {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         match self {
             BuildStep::One(exec) => {
@@ -138,7 +138,7 @@ impl Dependencies for BuildStepExec {
     }
 }
 
-impl<'a> Validatable<'a> for BuildStepExec {
+impl<'a> Validate<'a> for BuildStepExec {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         match self {
             BuildStepExec::Shell(value) => {

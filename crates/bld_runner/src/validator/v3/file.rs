@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use anyhow::Result;
 use bld_config::BldConfig;
@@ -17,13 +17,16 @@ impl<'a> RunnerFileValidator<'a> {
     pub fn new(file: &'a RunnerFile, config: Arc<BldConfig>, fs: Arc<FileSystem>) -> Result<Self> {
         match file {
             RunnerFile::PipelineFileType(pip) => {
-                let validator = CommonValidator::new(pip, config, fs, &pip.inputs, &pip.env)?;
+                let inputs: HashSet<&'a str> = pip.inputs.keys().map(|x| x.as_str()).collect();
+                let env: HashSet<&'a str> = pip.env.keys().map(|x| x.as_str()).collect();
+                let validator = CommonValidator::new(pip, config, fs, inputs, env)?;
                 Ok(Self::Pipeline(validator))
             }
 
             RunnerFile::ActionFileType(action) => {
-                let validator =
-                    CommonValidator::new(action, config, fs, &action.inputs, &action.env)?;
+                let inputs: HashSet<&'a str> = action.inputs.keys().map(|x| x.as_str()).collect();
+                let env: HashSet<&'a str> = action.env.keys().map(|x| x.as_str()).collect();
+                let validator = CommonValidator::new(action, config, fs, inputs, env)?;
                 Ok(Self::Action(validator))
             }
         }

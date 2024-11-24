@@ -7,7 +7,7 @@ use anyhow::Result;
 
 #[cfg(feature = "all")]
 use crate::token_context::v3::ExecutionContext;
-use crate::validator::v3::{Validatable, ValidatorContext};
+use crate::validator::v3::{Validate, ValidatorContext};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct External {
@@ -58,7 +58,7 @@ impl External {
     }
 }
 
-impl<'a> Validatable<'a> for External {
+impl<'a> Validate<'a> for External {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         if let Some(name) = self.name.as_deref() {
             ctx.push_section("name");

@@ -16,7 +16,7 @@ use bld_config::{
 use bld_core::fs::FileSystem;
 use regex::Regex;
 
-use super::{ConsumeValidator, Validatable, ValidatorContext};
+use super::{ConsumeValidator, Validate, ValidatorContext};
 
 pub fn create_expression_regex() -> Result<Regex> {
     Ok(Regex::new(r"\$\{\{\s*(\b\w+\b)\s*\}\}")?)
@@ -31,24 +31,14 @@ pub fn create_keywords() -> HashSet<&'static str> {
     keywords
 }
 
-pub fn create_symbols<'a>(
-    inputs: &'a HashMap<String, String>,
-    env: &'a HashMap<String, String>,
-) -> HashSet<&'a str> {
+pub fn create_symbols<'a>(inputs: HashSet<&'a str>, env: HashSet<&'a str>) -> HashSet<&'a str> {
     let mut symbols = HashSet::new();
     symbols.insert(KEYWORD_BLD_DIR_V3);
     symbols.insert(KEYWORD_PROJECT_DIR_V3);
     symbols.insert(KEYWORD_RUN_PROPS_ID_V3);
     symbols.insert(KEYWORD_RUN_PROPS_START_TIME_V3);
-
-    for (k, _) in inputs {
-        symbols.insert(k);
-    }
-
-    for (k, _) in env {
-        symbols.insert(k);
-    }
-
+    symbols.extend(&inputs);
+    symbols.extend(&env);
     symbols
 }
 
@@ -56,7 +46,7 @@ pub fn sanitize_symbol<'a>(symbol: &'a str) -> &'a str {
     symbol[3..symbol.len() - 2].trim()
 }
 
-pub struct CommonValidator<'a, V: Validatable<'a>> {
+pub struct CommonValidator<'a, V: Validate<'a>> {
     validatable: &'a Box<V>,
     config: Arc<BldConfig>,
     fs: Arc<FileSystem>,
@@ -67,13 +57,13 @@ pub struct CommonValidator<'a, V: Validatable<'a>> {
     errors: String,
 }
 
-impl<'a, V: Validatable<'a>> CommonValidator<'a, V> {
+impl<'a, V: Validate<'a>> CommonValidator<'a, V> {
     pub fn new(
         validatable: &'a Box<V>,
         config: Arc<BldConfig>,
         fs: Arc<FileSystem>,
-        inputs: &'a HashMap<String, String>,
-        env: &'a HashMap<String, String>,
+        inputs: HashSet<&'a str>,
+        env: HashSet<&'a str>,
     ) -> Result<Self> {
         Ok(Self {
             validatable,
@@ -88,7 +78,7 @@ impl<'a, V: Validatable<'a>> CommonValidator<'a, V> {
     }
 }
 
-impl<'a, V: Validatable<'a>> ValidatorContext<'a> for CommonValidator<'a, V> {
+impl<'a, V: Validate<'a>> ValidatorContext<'a> for CommonValidator<'a, V> {
     fn get_config(&self) -> Arc<BldConfig> {
         self.config.clone()
     }
@@ -167,7 +157,7 @@ impl<'a, V: Validatable<'a>> ValidatorContext<'a> for CommonValidator<'a, V> {
     }
 }
 
-impl<'a, V: Validatable<'a>> ConsumeValidator for CommonValidator<'a, V> {
+impl<'a, V: Validate<'a>> ConsumeValidator for CommonValidator<'a, V> {
     async fn validate(mut self) -> Result<()> {
         self.validatable.validate(&mut self).await;
 

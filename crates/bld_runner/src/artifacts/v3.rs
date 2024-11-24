@@ -5,7 +5,7 @@ use anyhow::Result;
 
 #[cfg(feature = "all")]
 use crate::token_context::v3::ExecutionContext;
-use crate::validator::v3::{Validatable, ValidatorContext};
+use crate::validator::v3::{Validate, ValidatorContext};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Artifacts {
@@ -30,7 +30,7 @@ impl Artifacts {
     }
 }
 
-impl<'a> Validatable<'a> for Artifacts {
+impl<'a> Validate<'a> for Artifacts {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         ctx.push_section("from");
         ctx.validate_symbols(&self.from);
