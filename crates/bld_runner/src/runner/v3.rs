@@ -79,13 +79,13 @@ impl Job {
                 self.artifacts(complex.name.as_deref()).await?;
             }
 
-            Step::External(external) => {
+            Step::ExternalFile(external) => {
                 if let Some(name) = external.name.as_ref() {
                     let mut message = String::new();
                     writeln!(message, "{:<15}: {name}", "Step")?;
                     self.logger.write_line(message).await?;
                 }
-                self.external(&external.ext).await?;
+                self.external(&external).await?;
             }
         }
         Ok(())
@@ -135,13 +135,8 @@ impl Job {
         Ok(())
     }
 
-    async fn external(&self, value: &str) -> Result<()> {
-        debug!("starting execution of external section {value}");
-
-        let Some(external) = self.pipeline.external.iter().find(|i| i.is(value)) else {
-            self.local_external(&External::local(value)).await?;
-            return Ok(());
-        };
+    async fn external(&self, external: &External) -> Result<()> {
+        debug!("calling external pipeline or action {}", external.uses);
 
         match external.server.as_ref() {
             Some(server) => self.server_external(server, external).await?,
@@ -439,7 +434,7 @@ impl Runner {
             writeln!(message, "{:<15}: {name}", "Name")?;
         }
         writeln!(message, "{:<15}: {}", "Runs on", &self.pipeline.runs_on)?;
-        writeln!(message, "{:<15}: 2", "Version")?;
+        writeln!(message, "{:<15}: 3", "Version")?;
 
         self.logger.write_line(message).await
     }

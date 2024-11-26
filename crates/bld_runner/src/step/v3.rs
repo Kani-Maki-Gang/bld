@@ -1,3 +1,4 @@
+use crate::external::v3::External;
 use crate::validator::v3::{Validate, ValidatorContext};
 use serde::{Deserialize, Serialize};
 
@@ -20,16 +21,7 @@ use crate::traits::Dependencies;
 pub struct ShellCommand {
     pub name: Option<String>,
     pub working_dir: Option<String>,
-    #[serde(default)]
     pub run: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExternalCall {
-    pub name: Option<String>,
-    pub working_dir: Option<String>,
-    #[serde(default)]
-    pub ext: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,7 +29,7 @@ pub struct ExternalCall {
 pub enum Step {
     SingleSh(String),
     ComplexSh(Box<ShellCommand>),
-    External(Box<ExternalCall>),
+    ExternalFile(Box<External>),
 }
 
 impl Step {
@@ -55,11 +47,8 @@ impl Step {
                 complex.run = context.transform(complex.run.to_owned()).await?;
             }
 
-            Self::External(external) => {
-                if let Some(wd) = external.working_dir.as_mut() {
-                    *wd = context.transform(wd.to_owned()).await?;
-                }
-                external.ext = context.transform(external.ext.to_owned()).await?;
+            Self::ExternalFile(external) => {
+                external.apply_tokens(context).await?;
             }
         }
         Ok(())
@@ -70,7 +59,7 @@ impl Step {
             return complex.name.as_ref().map(|x| x == name).unwrap_or_default();
         }
 
-        if let Self::External(external) = self {
+        if let Self::ExternalFile(external) = self {
             return external
                 .name
                 .as_ref()
@@ -86,10 +75,10 @@ impl Step {
 impl Dependencies for Step {
     fn local_deps(&self, config: &BldConfig) -> Vec<String> {
         match self {
-            Self::External(external) if config.full_path(&external.ext).is_yaml() => {
-                vec![external.ext.to_owned()]
+            Self::ExternalFile(external) if config.full_path(&external.uses).is_yaml() => {
+                vec![external.uses.to_owned()]
             }
-            Self::SingleSh(_) | Self::ComplexSh { .. } | Self::External { .. } => vec![],
+            Self::SingleSh(_) | Self::ComplexSh { .. } | Self::ExternalFile { .. } => vec![],
         }
     }
 }
@@ -119,41 +108,8 @@ impl<'a> Validate<'a> for Step {
                 }
             }
 
-            Step::External(external) => {
-                if let Some(name) = external.name.as_ref() {
-                    ctx.push_section(name);
-                }
-
-                if let Some(wd) = external.working_dir.as_ref() {
-                    ctx.push_section("working_dir");
-                    ctx.validate_symbols(wd);
-                    ctx.pop_section();
-                }
-
-                if ctx.contains_symbols(&external.ext) {
-                    ctx.validate_symbols(&external.ext);
-                } else {
-                    unimplemented!()
-                    // TODO: Implement this
-                    // if self.pipeline.external.iter().any(|e| e.is(value)) {
-                    //     return;
-                    // }
-
-                    // let fs = ctx.get_fs();
-                    // let found_path = fs
-                    //     .path(value)
-                    //     .await
-                    //     .map(|x| x.is_yaml())
-                    //     .unwrap_or_default();
-
-                    // if !found_path {
-                    //     let _ = writeln!(self.errors, "[{section} > ext > {value}] Not found in either the external section or as a local pipeline");
-                    // }
-                }
-
-                if external.name.is_some() {
-                    ctx.pop_section();
-                }
+            Step::ExternalFile(external) => {
+                external.validate(ctx).await;
             }
         }
     }
