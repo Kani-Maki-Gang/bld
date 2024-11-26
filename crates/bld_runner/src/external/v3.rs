@@ -13,10 +13,10 @@ use crate::validator::v3::{Validate, ValidatorContext};
 pub struct External {
     pub name: Option<String>,
     pub server: Option<String>,
-    pub pipeline: String,
+    pub uses: String,
 
     #[serde(default)]
-    pub inputs: HashMap<String, String>,
+    pub with: HashMap<String, String>,
 
     #[serde(default)]
     pub env: HashMap<String, String>,
@@ -24,12 +24,12 @@ pub struct External {
 
 impl External {
     pub fn is(&self, value: &str) -> bool {
-        self.name.as_ref().map(|n| n == value).unwrap_or_default() || self.pipeline == value
+        self.name.as_ref().map(|n| n == value).unwrap_or_default() || self.uses == value
     }
 
-    pub fn local(pipeline: &str) -> Self {
+    pub fn local(uses: &str) -> Self {
         Self {
-            pipeline: pipeline.to_owned(),
+            uses: uses.to_owned(),
             ..Default::default()
         }
     }
@@ -44,9 +44,9 @@ impl External {
             *server = context.transform(server.to_owned()).await?;
         }
 
-        self.pipeline = context.transform(self.pipeline.to_owned()).await?;
+        self.uses = context.transform(self.uses.to_owned()).await?;
 
-        for (_, v) in self.inputs.iter_mut() {
+        for (_, v) in self.with.iter_mut() {
             *v = context.transform(v.to_owned()).await?;
         }
 
@@ -65,35 +65,40 @@ impl<'a> Validate<'a> for External {
             ctx.validate_symbols(name);
             ctx.pop_section();
         };
-        ctx.push_section("pipeline");
-        validate_external_pipeline(ctx, &self.pipeline).await;
+        ctx.push_section("uses");
+        validate_external_file(ctx, &self.uses).await;
         ctx.pop_section();
 
         ctx.push_section("server");
         validate_external_server(ctx, self.server.as_deref());
         ctx.pop_section();
 
-        ctx.validate_inputs(&self.inputs);
+        ctx.push_section("with");
+        ctx.validate_inputs(&self.with);
+        ctx.pop_section();
+
+        ctx.push_section("with");
         ctx.validate_env(&self.env);
+        ctx.pop_section();
     }
 }
 
-async fn validate_external_pipeline<'a, C: ValidatorContext<'a>>(ctx: &mut C, pipeline: &'a str) {
-    ctx.validate_symbols(pipeline);
+async fn validate_external_file<'a, C: ValidatorContext<'a>>(ctx: &mut C, uses: &'a str) {
+    ctx.validate_symbols(uses);
 
-    if ctx.contains_symbols(pipeline) {
+    if ctx.contains_symbols(uses) {
         return;
     }
 
     let fs = ctx.get_fs();
-    match fs.path(pipeline).await {
+    match fs.path(uses).await {
         Ok(path) if !path.is_yaml() => {
-            ctx.push_section(pipeline);
-            ctx.append_error("Pipeline not found");
+            ctx.push_section(uses);
+            ctx.append_error("Pipeline or action not found");
             ctx.pop_section();
         }
         Err(e) => {
-            ctx.push_section(pipeline);
+            ctx.push_section(uses);
             ctx.append_error(&e.to_string());
             ctx.pop_section();
         }

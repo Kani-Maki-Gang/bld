@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    action::v3::Action, pipeline::v3::Pipeline, traits::{IntoVariables, Variables}
+    action::v3::Action,
+    pipeline::v3::Pipeline,
+    traits::{IntoVariables, Variables},
 };
 
 #[cfg(feature = "all")]
@@ -34,7 +36,7 @@ impl Dependencies for RunnerFile {
                     .external
                     .iter()
                     .filter(|e| e.server.is_none())
-                    .map(|e| e.pipeline.to_owned());
+                    .map(|e| e.uses.to_owned());
 
                 from_steps.chain(from_external).collect()
             }
