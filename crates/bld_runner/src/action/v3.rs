@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     inputs::v3::Input,
-    step::v3::BuildStep,
+    step::v3::Step,
     traits::{Dependencies, IntoVariables, Variables},
     validator::v3::{Validate, ValidatorContext},
 };
@@ -27,7 +27,7 @@ pub struct Action {
     pub env: HashMap<String, String>,
 
     #[serde(default)]
-    pub steps: Vec<BuildStep>,
+    pub steps: Vec<Step>,
 }
 
 impl Action {

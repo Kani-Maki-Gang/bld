@@ -17,136 +17,121 @@ use crate::token_context::v3::ExecutionContext;
 use crate::traits::Dependencies;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum BuildStep {
-    One(BuildStepExec),
-    Many {
-        name: Option<String>,
-        working_dir: Option<String>,
-        #[serde(default)]
-        exec: Vec<BuildStepExec>,
-    },
+pub struct ShellCommand {
+    pub name: Option<String>,
+    pub working_dir: Option<String>,
+    #[serde(default)]
+    pub run: String,
 }
 
-impl BuildStep {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExternalCall {
+    pub name: Option<String>,
+    pub working_dir: Option<String>,
+    #[serde(default)]
+    pub ext: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Step {
+    SingleSh(String),
+    ComplexSh(Box<ShellCommand>),
+    External(Box<ExternalCall>),
+}
+
+impl Step {
     #[cfg(feature = "all")]
     pub async fn apply_tokens<'a>(&mut self, context: &ExecutionContext<'a>) -> Result<()> {
         match self {
-            Self::One(exec) => {
-                exec.apply_tokens(context).await?;
+            Self::SingleSh(run) => {
+                *run = context.transform(run.to_owned()).await?;
             }
-            Self::Many {
-                working_dir, exec, ..
-            } => {
-                if let Some(wd) = working_dir.as_mut() {
-                    *working_dir = Some(context.transform(wd.to_owned()).await?);
+
+            Self::ComplexSh(complex) => {
+                if let Some(wd) = complex.working_dir.as_mut() {
+                    *wd = context.transform(wd.to_owned()).await?;
                 }
-                for exec in exec.iter_mut() {
-                    exec.apply_tokens(context).await?;
+                complex.run = context.transform(complex.run.to_owned()).await?;
+            }
+
+            Self::External(external) => {
+                if let Some(wd) = external.working_dir.as_mut() {
+                    *wd = context.transform(wd.to_owned()).await?;
                 }
+                external.ext = context.transform(external.ext.to_owned()).await?;
             }
         }
         Ok(())
     }
 
     pub fn is(&self, name: &str) -> bool {
-        let Self::Many { name: n, .. } = self else {
-            return false;
-        };
-        n.as_ref().map(|x| x == name).unwrap_or_default()
+        if let Self::ComplexSh(complex) = self {
+            return complex.name.as_ref().map(|x| x == name).unwrap_or_default();
+        }
+
+        if let Self::External(external) = self {
+            return external
+                .name
+                .as_ref()
+                .map(|x| x == name)
+                .unwrap_or_default();
+        }
+
+        return false;
     }
 }
 
 #[cfg(feature = "all")]
-impl Dependencies for BuildStep {
+impl Dependencies for Step {
     fn local_deps(&self, config: &BldConfig) -> Vec<String> {
         match self {
-            Self::One(exec) => exec.local_deps(config),
-            Self::Many { exec, .. } => exec.iter().flat_map(|e| e.local_deps(config)).collect(),
+            Self::External(external) if config.full_path(&external.ext).is_yaml() => {
+                vec![external.ext.to_owned()]
+            }
+            Self::SingleSh(_) | Self::ComplexSh { .. } | Self::External { .. } => vec![],
         }
     }
 }
 
-impl<'a> Validate<'a> for BuildStep {
+impl<'a> Validate<'a> for Step {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         match self {
-            BuildStep::One(exec) => {
-                exec.validate(ctx).await;
+            Step::SingleSh(sh) => {
+                ctx.validate_symbols(sh);
             }
-            BuildStep::Many {
-                exec,
-                working_dir,
-                name,
-            } => {
-                if let Some(name) = name {
+
+            Step::ComplexSh(complex) => {
+                if let Some(name) = complex.name.as_ref() {
                     ctx.push_section(name);
                 }
 
-                if let Some(wd) = working_dir.as_ref() {
+                if let Some(wd) = complex.working_dir.as_ref() {
                     ctx.push_section("working_dir");
                     ctx.validate_symbols(wd);
                     ctx.pop_section();
                 }
 
-                for exec in exec.iter() {
-                    exec.validate(ctx).await;
-                }
+                ctx.validate_symbols(&complex.run);
 
-                if name.is_some() {
+                if complex.name.is_some() {
                     ctx.pop_section();
                 }
             }
-        }
-    }
-}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum BuildStepExec {
-    Shell(String),
+            Step::External(external) => {
+                if let Some(name) = external.name.as_ref() {
+                    ctx.push_section(name);
+                }
 
-    External {
-        #[serde(rename(serialize = "ext", deserialize = "ext"))]
-        value: String,
-    },
-}
+                if let Some(wd) = external.working_dir.as_ref() {
+                    ctx.push_section("working_dir");
+                    ctx.validate_symbols(wd);
+                    ctx.pop_section();
+                }
 
-impl BuildStepExec {
-    #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &ExecutionContext<'a>) -> Result<()> {
-        match self {
-            Self::Shell(cmd) => {
-                *cmd = context.transform(cmd.to_owned()).await?;
-            }
-            Self::External { value } => {
-                *value = context.transform(value.to_owned()).await?;
-            }
-        }
-        Ok(())
-    }
-}
-
-#[cfg(feature = "all")]
-impl Dependencies for BuildStepExec {
-    fn local_deps(&self, config: &BldConfig) -> Vec<String> {
-        match self {
-            BuildStepExec::External { value } if config.full_path(value).is_yaml() => {
-                vec![value.to_owned()]
-            }
-            _ => vec![],
-        }
-    }
-}
-
-impl<'a> Validate<'a> for BuildStepExec {
-    async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
-        match self {
-            BuildStepExec::Shell(value) => {
-                ctx.validate_symbols(value);
-            }
-            BuildStepExec::External { value } => {
-                if ctx.contains_symbols(value) {
-                    ctx.validate_symbols(value);
+                if ctx.contains_symbols(&external.ext) {
+                    ctx.validate_symbols(&external.ext);
                 } else {
                     unimplemented!()
                     // TODO: Implement this
@@ -164,6 +149,10 @@ impl<'a> Validate<'a> for BuildStepExec {
                     // if !found_path {
                     //     let _ = writeln!(self.errors, "[{section} > ext > {value}] Not found in either the external section or as a local pipeline");
                     // }
+                }
+
+                if external.name.is_some() {
+                    ctx.pop_section();
                 }
             }
         }

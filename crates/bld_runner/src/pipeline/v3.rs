@@ -1,7 +1,7 @@
 use crate::external::v3::External;
 use crate::inputs::v3::Input;
 use crate::runs_on::v3::RunsOn;
-use crate::step::v3::BuildStep;
+use crate::step::v3::Step;
 use crate::traits::Variables;
 use crate::validator::v3::{Validate, ValidatorContext};
 use crate::{artifacts::v3::Artifacts, traits::IntoVariables};
@@ -38,7 +38,7 @@ pub struct Pipeline {
     pub external: Vec<External>,
 
     #[serde(default)]
-    pub jobs: HashMap<String, Vec<BuildStep>>,
+    pub jobs: HashMap<String, Vec<Step>>,
 }
 
 impl Pipeline {

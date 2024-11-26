@@ -26,12 +26,8 @@ use tokio::{sync::mpsc::Sender, task::JoinHandle};
 use tracing::debug;
 
 use crate::{
-    external::v3::External,
-    pipeline::v3::Pipeline,
-    registry::v3::Registry,
-    runs_on::v3::RunsOn,
-    step::v3::{BuildStep, BuildStepExec},
-    RunnerBuilder,
+    external::v3::External, pipeline::v3::Pipeline, registry::v3::Registry, runs_on::v3::RunsOn,
+    step::v3::Step, RunnerBuilder,
 };
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
@@ -69,30 +65,27 @@ impl Job {
         Ok(self)
     }
 
-    async fn exec(&self, exec: &BuildStepExec, working_dir: &Option<String>) -> Result<()> {
-        match exec {
-            BuildStepExec::Shell(cmd) => self.shell(working_dir, cmd).await,
-            BuildStepExec::External { value } => self.external(value).await,
-        }
-    }
-
-    async fn step(&self, step: &BuildStep) -> Result<()> {
+    async fn step(&self, step: &Step) -> Result<()> {
         match step {
-            BuildStep::One(exec) => self.exec(exec, &None).await?,
-            BuildStep::Many {
-                name,
-                working_dir,
-                exec,
-            } => {
-                if let Some(name) = name {
+            Step::SingleSh(sh) => self.shell(&None, sh).await?,
+
+            Step::ComplexSh(complex) => {
+                if let Some(name) = complex.name.as_ref() {
                     let mut message = String::new();
                     writeln!(message, "{:<15}: {name}", "Step")?;
                     self.logger.write_line(message).await?;
                 }
-                for exec in exec.iter() {
-                    self.exec(exec, working_dir).await?
+                self.shell(&complex.working_dir, &complex.run).await?;
+                self.artifacts(complex.name.as_deref()).await?;
+            }
+
+            Step::External(external) => {
+                if let Some(name) = external.name.as_ref() {
+                    let mut message = String::new();
+                    writeln!(message, "{:<15}: {name}", "Step")?;
+                    self.logger.write_line(message).await?;
                 }
-                self.artifacts(name.as_ref().map(|x| x.as_str())).await?;
+                self.external(&external.ext).await?;
             }
         }
         Ok(())
