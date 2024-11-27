@@ -15,6 +15,9 @@ use bld_config::{
 };
 use bld_core::fs::FileSystem;
 use regex::Regex;
+use tracing::debug;
+
+use crate::inputs::v3::Input;
 
 use super::{ConsumeValidator, Validate, ValidatorContext};
 
@@ -138,17 +141,9 @@ impl<'a, V: Validate<'a>> ValidatorContext<'a> for CommonValidator<'a, V> {
         }
     }
 
-    fn validate_inputs(&mut self, inputs: &'a HashMap<String, String>) {
-        for (k, v) in inputs.iter() {
-            self.section.push(k);
-            self.validate_keywords(k);
-            self.validate_symbols(v);
-            self.section.pop();
-        }
-    }
-
     fn validate_env(&mut self, env: &'a HashMap<String, String>) {
         for (k, v) in env.iter() {
+            debug!("Validating env: {}", k);
             self.section.push(k);
             self.validate_keywords(k);
             self.validate_symbols(v);

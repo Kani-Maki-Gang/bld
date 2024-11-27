@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "all")]
 use anyhow::Result;
+use tracing::debug;
 
 #[cfg(feature = "all")]
 use crate::token_context::v3::ExecutionContext;
@@ -32,10 +33,12 @@ impl Artifacts {
 
 impl<'a> Validate<'a> for Artifacts {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
+        debug!("Validating artifact's from section");
         ctx.push_section("from");
         ctx.validate_symbols(&self.from);
         ctx.pop_section();
 
+        debug!("Validating artifact's to section");
         ctx.push_section("to");
         ctx.validate_symbols(&self.to);
         ctx.pop_section();

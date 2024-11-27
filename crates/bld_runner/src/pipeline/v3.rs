@@ -7,6 +7,7 @@ use crate::validator::v3::{Validate, ValidatorContext};
 use crate::{artifacts::v3::Artifacts, traits::IntoVariables};
 use cron::Schedule;
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -120,39 +121,52 @@ impl IntoVariables for Pipeline {
 
 impl<'a> Validate<'a> for Pipeline {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
+        debug!("Validating pipeline");
+
+        debug!("Validating pipeline's runs_on section");
         ctx.push_section("runs_on");
         self.runs_on.validate(ctx).await;
         ctx.pop_section();
 
+        debug!("Validating pipeline's cron value");
         self.validate_cron(ctx);
 
+        debug!("Validating pipeline's inputs section");
         ctx.push_section("inputs");
-        for (name, input) in &self.inputs {
+        for (name, input) in self.inputs.iter() {
+            debug!("Validating input: {}", name);
             ctx.push_section(name);
+            ctx.validate_keywords(name);
             input.validate(ctx).await;
             ctx.pop_section();
         }
         ctx.pop_section();
 
+        debug!("Validating pipeline's env section");
         ctx.push_section("env");
         ctx.validate_env(&self.env);
         ctx.pop_section();
 
+        debug!("Validating pipeline external section");
         ctx.push_section("external");
         for external in &self.external {
             external.validate(ctx).await;
         }
         ctx.pop_section();
 
-        ctx.push_section("external");
-        for artifact in &self.artifacts {
+        debug!("Validating pipeline's artifacts section");
+        ctx.push_section("artifacts");
+        for (i, artifact) in self.artifacts.iter().enumerate() {
+            debug!("Validating artifact at index {i}");
             artifact.validate(ctx).await;
         }
         ctx.pop_section();
 
+        debug!("Validating pipeline's jobs section");
         ctx.push_section("jobs");
         for (job, steps) in &self.jobs {
             ctx.push_section(job);
+            debug!("Validating {job} job's steps");
             for step in steps {
                 step.validate(ctx).await;
             }

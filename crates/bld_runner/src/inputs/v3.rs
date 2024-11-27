@@ -1,5 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 #[cfg(feature = "all")]
 use crate::token_context::v3::ExecutionContext;
@@ -37,6 +38,7 @@ impl<'a> Validate<'a> for Input {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         match self {
             Input::Simple(v) => {
+                debug!("Validating input: {}", v);
                 ctx.validate_symbols(v);
             }
             Input::Complex { default, .. } => {

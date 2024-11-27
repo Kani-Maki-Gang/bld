@@ -1,6 +1,7 @@
 use bld_utils::fs::IsYaml;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tracing::debug;
 
 #[cfg(feature = "all")]
 use anyhow::Result;
@@ -61,48 +62,59 @@ impl External {
 impl<'a> Validate<'a> for External {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         if let Some(name) = self.name.as_deref() {
+            debug!("Validating external's name value");
             ctx.push_section("name");
             ctx.validate_symbols(name);
             ctx.pop_section();
         };
+
+        debug!("Validating external's uses value");
         ctx.push_section("uses");
         validate_external_file(ctx, &self.uses).await;
         ctx.pop_section();
 
+        debug!("Validating external's server value");
         ctx.push_section("server");
         validate_external_server(ctx, self.server.as_deref());
         ctx.pop_section();
 
+        debug!("Validating external's with section");
         ctx.push_section("with");
-        ctx.validate_inputs(&self.with);
+        ctx.push_section("inputs");
+        for (name, input) in self.with.iter() {
+            debug!("Validating input: {}", name);
+            ctx.push_section(name);
+            ctx.validate_keywords(name);
+            ctx.validate_symbols(input);
+            ctx.pop_section();
+        }
         ctx.pop_section();
 
-        ctx.push_section("with");
+        debug!("Validating external's env section");
+        ctx.push_section("env");
         ctx.validate_env(&self.env);
         ctx.pop_section();
     }
 }
 
 async fn validate_external_file<'a, C: ValidatorContext<'a>>(ctx: &mut C, uses: &'a str) {
-    ctx.validate_symbols(uses);
-
     if ctx.contains_symbols(uses) {
-        return;
-    }
-
-    let fs = ctx.get_fs();
-    match fs.path(uses).await {
-        Ok(path) if !path.is_yaml() => {
-            ctx.push_section(uses);
-            ctx.append_error("Pipeline or action not found");
-            ctx.pop_section();
+        ctx.validate_symbols(uses);
+    } else {
+        let fs = ctx.get_fs();
+        match fs.path(uses).await {
+            Ok(path) if !path.is_yaml() => {
+                ctx.push_section(uses);
+                ctx.append_error("Pipeline or action not found");
+                ctx.pop_section();
+            }
+            Err(e) => {
+                ctx.push_section(uses);
+                ctx.append_error(&e.to_string());
+                ctx.pop_section();
+            }
+            _ => {}
         }
-        Err(e) => {
-            ctx.push_section(uses);
-            ctx.append_error(&e.to_string());
-            ctx.pop_section();
-        }
-        _ => {}
     }
 }
 
@@ -111,16 +123,14 @@ fn validate_external_server<'a, C: ValidatorContext<'a>>(ctx: &mut C, server: Op
         return;
     };
 
-    ctx.validate_symbols(server);
-
     if ctx.contains_symbols(server) {
-        return;
-    }
-
-    let config = ctx.get_config();
-    if config.server(server).is_err() {
-        ctx.push_section(server);
-        ctx.append_error("Doesn't exist in current config");
-        ctx.pop_section();
+        ctx.validate_symbols(server);
+    } else {
+        let config = ctx.get_config();
+        if config.server(server).is_err() {
+            ctx.push_section(server);
+            ctx.append_error("Doesn't exist in current config");
+            ctx.pop_section();
+        }
     }
 }

@@ -10,6 +10,7 @@ use bld_config::BldConfig;
 
 #[cfg(feature = "all")]
 use bld_utils::fs::IsYaml;
+use tracing::debug;
 
 #[cfg(feature = "all")]
 use crate::token_context::v3::ExecutionContext;
@@ -87,20 +88,24 @@ impl<'a> Validate<'a> for Step {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         match self {
             Step::SingleSh(sh) => {
+                debug!("Step is a single shell command");
                 ctx.validate_symbols(sh);
             }
 
             Step::ComplexSh(complex) => {
+                debug!("Step is a complex shell command");
                 if let Some(name) = complex.name.as_ref() {
                     ctx.push_section(name);
                 }
 
                 if let Some(wd) = complex.working_dir.as_ref() {
+                    debug!("Validating step's working directory");
                     ctx.push_section("working_dir");
                     ctx.validate_symbols(wd);
                     ctx.pop_section();
                 }
 
+                debug!("Validating step's run command");
                 ctx.validate_symbols(&complex.run);
 
                 if complex.name.is_some() {
@@ -109,6 +114,7 @@ impl<'a> Validate<'a> for Step {
             }
 
             Step::ExternalFile(external) => {
+                debug!("Step is an external file");
                 external.validate(ctx).await;
             }
         }

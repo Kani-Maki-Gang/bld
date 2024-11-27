@@ -16,7 +16,6 @@ pub trait ValidatorContext<'a> {
     fn validate_symbols(&mut self, symbol: &'a str);
     fn validate_keywords(&mut self, name: &'a str);
     fn validate_file_path(&mut self, value: &'a str);
-    fn validate_inputs(&mut self, inputs: &'a HashMap<String, String>);
     fn validate_env(&mut self, env: &'a HashMap<String, String>);
 }
 

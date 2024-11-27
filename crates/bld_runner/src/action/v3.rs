@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use bld_config::BldConfig;
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 use crate::{
     inputs::v3::Input,
@@ -77,20 +78,28 @@ impl IntoVariables for Action {
 
 impl<'a> Validate<'a> for Action {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
+        debug!("Validating action: {}", self.name);
+
+        debug!("Validating action's inputs section");
         ctx.push_section("inputs");
-        for (name, input) in &self.inputs {
+        for (name, input) in self.inputs.iter() {
+            debug!("Validating input: {}", name);
             ctx.push_section(name);
+            ctx.validate_keywords(name);
             input.validate(ctx).await;
             ctx.pop_section();
         }
         ctx.pop_section();
 
+        debug!("Validating action's env section");
         ctx.push_section("env");
         ctx.validate_env(&self.env);
         ctx.pop_section();
 
+        debug!("Validating action's steps");
         ctx.push_section("steps");
-        for step in &self.steps {
+        for (i, step) in self.steps.iter().enumerate() {
+            debug!("Validating step at index {i}");
             step.validate(ctx).await;
         }
         ctx.pop_section();
