@@ -25,19 +25,12 @@ pub struct Action {
     pub inputs: HashMap<String, Input>,
 
     #[serde(default)]
-    pub env: HashMap<String, String>,
-
-    #[serde(default)]
     pub steps: Vec<Step>,
 }
 
 impl Action {
     #[cfg(feature = "all")]
     pub async fn apply_tokens<'a>(&mut self, context: &'a ExecutionContext<'a>) -> Result<()> {
-        for (_, v) in self.env.iter_mut() {
-            *v = context.transform(v.to_owned()).await?;
-        }
-
         for (_name, input) in self.inputs.iter_mut() {
             input.apply_tokens(context).await?;
         }
@@ -72,7 +65,7 @@ impl IntoVariables for Action {
                 }
             }
         }
-        (inputs, self.env)
+        (inputs, HashMap::new())
     }
 }
 
@@ -89,11 +82,6 @@ impl<'a> Validate<'a> for Action {
             input.validate(ctx).await;
             ctx.pop_section();
         }
-        ctx.pop_section();
-
-        debug!("Validating action's env section");
-        ctx.push_section("env");
-        ctx.validate_env(&self.env);
         ctx.pop_section();
 
         debug!("Validating action's steps");

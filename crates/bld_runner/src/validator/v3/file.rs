@@ -25,7 +25,7 @@ impl<'a> RunnerFileValidator<'a> {
 
             RunnerFile::ActionFileType(action) => {
                 let inputs: HashSet<&'a str> = action.inputs.keys().map(|x| x.as_str()).collect();
-                let env: HashSet<&'a str> = action.env.keys().map(|x| x.as_str()).collect();
+                let env = HashSet::<&'a str>::new();
                 let validator = CommonValidator::new(action, config, fs, inputs, env)?;
                 Ok(Self::Action(validator))
             }

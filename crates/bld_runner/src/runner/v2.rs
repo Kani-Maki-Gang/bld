@@ -26,12 +26,7 @@ use tokio::{sync::mpsc::Sender, task::JoinHandle};
 use tracing::debug;
 
 use crate::{
-    external::v2::External,
-    pipeline::v2::Pipeline,
-    registry::v2::Registry,
-    runs_on::v2::RunsOn,
-    step::v2::{BuildStep, BuildStepExec},
-    RunnerBuilder,
+    external::v2::External, files::versioned::FileOrPath, pipeline::v2::Pipeline, registry::v2::Registry, runs_on::v2::RunsOn, step::v2::{BuildStep, BuildStepExec}, RunnerBuilder
 };
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
@@ -163,13 +158,14 @@ impl Job {
 
         let variables = details.variables.clone();
         let environment = details.environment.clone();
+        let pipeline = FileOrPath::Path(&details.pipeline);
 
         let runner = RunnerBuilder::default()
             .run_id(&self.run_id)
             .run_start_time(&self.run_start_time)
             .config(self.config.clone())
             .fs(self.fs.clone())
-            .pipeline(&details.pipeline)
+            .pipeline(pipeline)
             .logger(self.logger.clone())
             .env(environment.into_arc())
             .inputs(variables.into_arc())

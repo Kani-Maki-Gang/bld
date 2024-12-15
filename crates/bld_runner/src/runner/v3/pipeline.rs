@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Write, pin::Pin, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt::Write, sync::Arc, time::Duration};
 
 use actix::{clock::sleep, io::SinkWrite, spawn, Actor, StreamHandler};
 use anyhow::{anyhow, bail, Result};
@@ -21,16 +21,23 @@ use bld_http::WebSocket;
 use bld_models::dtos::{ExecClientMessage, WorkerMessages};
 use bld_sock::ExecClient;
 use bld_utils::sync::IntoArc;
-use futures::{Future, StreamExt};
+use futures::StreamExt;
 use tokio::{sync::mpsc::Sender, task::JoinHandle};
 use tracing::debug;
 
 use crate::{
-    external::v3::External, pipeline::v3::Pipeline, registry::v3::Registry, runs_on::v3::RunsOn,
-    step::v3::Step, RunnerBuilder,
+    action::v3::Action,
+    external::v3::External,
+    files::{v3::RunnerFile, versioned::FileOrPath},
+    pipeline::v3::Pipeline,
+    registry::v3::Registry,
+    runner::v3::action::ActionRunner,
+    runs_on::v3::RunsOn,
+    step::v3::Step,
+    Load, RunnerBuilder, VersionedFile, Yaml,
 };
 
-type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
+use super::common::RecursiveFuture;
 
 struct Job {
     pub job_name: String,
@@ -147,17 +154,28 @@ impl Job {
     }
 
     async fn local_external(&self, details: &External) -> Result<()> {
+        let file = Yaml::load(&self.fs.read(&details.uses).await?)?;
+        match file {
+            VersionedFile::Version3(RunnerFile::ActionFileType(action)) => {
+                self.run_local_action(*action, details).await
+            }
+            file => self.run_local_pipeline(file, details).await,
+        }
+    }
+
+    async fn run_local_pipeline(&self, file: VersionedFile, details: &External) -> Result<()> {
         debug!("building runner for child pipeline");
 
         let inputs = details.with.clone();
         let env = details.env.clone();
+        let pipeline = FileOrPath::File(file);
 
         let runner = RunnerBuilder::default()
             .run_id(&self.run_id)
             .run_start_time(&self.run_start_time)
             .config(self.config.clone())
             .fs(self.fs.clone())
-            .pipeline(&details.uses)
+            .pipeline(pipeline)
             .logger(self.logger.clone())
             .env(env.into_arc())
             .inputs(inputs.into_arc())
@@ -167,6 +185,28 @@ impl Job {
             .await?;
 
         debug!("starting child pipeline runner");
+        runner.run().await?;
+
+        Ok(())
+    }
+
+    async fn run_local_action(&self, action: Action, details: &External) -> Result<()> {
+        debug!("running local action {}", details.uses);
+
+        let Some(platform) = self.platform.as_ref() else {
+            bail!("no platform instance to execute action");
+        };
+
+        let _inputs = details.with.clone();
+        // TODO: Add action context in order to apply it.
+
+        let runner = ActionRunner {
+            logger: self.logger.clone(),
+            platform: platform.clone(),
+            action,
+        };
+
+        debug!("starting local action");
         runner.run().await?;
 
         Ok(())
@@ -253,7 +293,7 @@ impl RunningJob {
     }
 }
 
-pub struct Runner {
+pub struct PipelineRunner {
     pub run_id: String,
     pub run_start_time: String,
     pub config: Arc<BldConfig>,
@@ -270,7 +310,7 @@ pub struct Runner {
     pub has_faulted: bool,
 }
 
-impl Runner {
+impl PipelineRunner {
     async fn register_start(&self) -> Result<()> {
         if !self.is_child {
             debug!("setting the pipeline as running in the execution context");

@@ -17,8 +17,6 @@ use bld_core::fs::FileSystem;
 use regex::Regex;
 use tracing::debug;
 
-use crate::inputs::v3::Input;
-
 use super::{ConsumeValidator, Validate, ValidatorContext};
 
 pub fn create_expression_regex() -> Result<Regex> {

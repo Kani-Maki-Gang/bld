@@ -21,6 +21,7 @@ use std::{collections::HashMap, fmt::Write, future::Future, pin::Pin, sync::Arc,
 use tokio::{sync::mpsc::Sender, time::sleep};
 use tracing::debug;
 
+use crate::files::versioned::FileOrPath;
 use crate::{
     external::v1::External,
     pipeline::v1::Pipeline,
@@ -253,12 +254,14 @@ impl Runner {
             .map(|(key, value)| (key.to_owned(), self.apply_context(value)))
             .collect();
 
+        let pipeline = FileOrPath::Path(&details.pipeline);
+
         let runner = RunnerBuilder::default()
             .run_id(&self.run_id)
             .run_start_time(&self.run_start_time)
             .config(self.config.clone())
             .fs(self.fs.clone())
-            .pipeline(&details.pipeline)
+            .pipeline(pipeline)
             .logger(self.logger.clone())
             .env(environment.into_arc())
             .inputs(variables.into_arc())

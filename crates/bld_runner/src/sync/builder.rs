@@ -22,7 +22,7 @@ use uuid::Uuid;
 use crate::{
     files::{
         v3::RunnerFile,
-        versioned::{VersionedFile, Yaml},
+        versioned::{FileOrPath, VersionedFile, Yaml},
     },
     runner, token_context,
     traits::Load,
@@ -30,7 +30,7 @@ use crate::{
 
 use super::versioned::VersionedRunner;
 
-pub struct RunnerBuilder {
+pub struct RunnerBuilder<'a> {
     run_id: String,
     run_start_time: String,
     config: Option<Arc<BldConfig>>,
@@ -38,7 +38,7 @@ pub struct RunnerBuilder {
     logger: Arc<Logger>,
     regex_cache: Arc<RegexCache>,
     fs: Arc<FileSystem>,
-    pipeline: Option<String>,
+    pipeline: Option<FileOrPath<'a>>,
     ipc: Arc<Option<Sender<WorkerMessages>>>,
     env: Option<Arc<HashMap<String, String>>>,
     inputs: Option<Arc<HashMap<String, String>>>,
@@ -46,7 +46,7 @@ pub struct RunnerBuilder {
     is_child: bool,
 }
 
-impl Default for RunnerBuilder {
+impl Default for RunnerBuilder<'_> {
     fn default() -> Self {
         Self {
             run_id: Uuid::new_v4().to_string(),
@@ -66,7 +66,7 @@ impl Default for RunnerBuilder {
     }
 }
 
-impl RunnerBuilder {
+impl<'a> RunnerBuilder<'a> {
     pub fn run_id(mut self, id: &str) -> Self {
         self.run_id = String::from(id);
         self
@@ -97,8 +97,8 @@ impl RunnerBuilder {
         self
     }
 
-    pub fn pipeline(mut self, name: &str) -> Self {
-        self.pipeline = Some(name.to_string());
+    pub fn pipeline(mut self, instance: FileOrPath<'a>) -> Self {
+        self.pipeline = Some(instance);
         self
     }
 
@@ -137,11 +137,15 @@ impl RunnerBuilder {
             .config
             .ok_or_else(|| anyhow!("no bld config instance provided"))?;
 
-        let pipeline_name = self
+        let pipeline = self
             .pipeline
             .ok_or_else(|| anyhow!("no pipeline provided"))?;
 
-        let pipeline = Yaml::load(&self.fs.read(&pipeline_name).await?)?;
+        let pipeline = match pipeline {
+            FileOrPath::Path(path) => Yaml::load(&self.fs.read(&path).await?)?,
+            FileOrPath::File(file) => file,
+        };
+
         pipeline.validate(config.clone(), self.fs.clone()).await?;
 
         let env = self
@@ -247,7 +251,7 @@ impl RunnerBuilder {
                 pipeline.apply_tokens(&pipeline_context).await?;
 
                 let pipeline = Arc::new(*pipeline);
-                VersionedRunner::V3(runner::v3::Runner {
+                VersionedRunner::V3(runner::v3::PipelineRunner {
                     run_id: self.run_id,
                     run_start_time: self.run_start_time,
                     config,
