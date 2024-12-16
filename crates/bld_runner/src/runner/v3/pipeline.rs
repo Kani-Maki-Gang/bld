@@ -94,7 +94,7 @@ impl Job {
                     writeln!(message, "{:<15}: {name}", "Step")?;
                     self.logger.write_line(message).await?;
                 }
-                self.external(&external).await?;
+                self.external(external).await?;
             }
         }
         Ok(())
@@ -170,7 +170,7 @@ impl Job {
 
         let inputs = details.with.clone();
         let env = details.env.clone();
-        let pipeline = FileOrPath::File(file);
+        let pipeline = FileOrPath::File(Box::new(file));
 
         let runner = RunnerBuilder::default()
             .run_id(&self.run_id)

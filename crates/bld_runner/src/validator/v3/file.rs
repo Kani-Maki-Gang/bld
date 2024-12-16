@@ -19,14 +19,14 @@ impl<'a> RunnerFileValidator<'a> {
             RunnerFile::PipelineFileType(pip) => {
                 let inputs: HashSet<&'a str> = pip.inputs.keys().map(|x| x.as_str()).collect();
                 let env: HashSet<&'a str> = pip.env.keys().map(|x| x.as_str()).collect();
-                let validator = CommonValidator::new(pip, config, fs, inputs, env)?;
+                let validator = CommonValidator::new(pip.as_ref(), config, fs, inputs, env)?;
                 Ok(Self::Pipeline(validator))
             }
 
             RunnerFile::ActionFileType(action) => {
                 let inputs: HashSet<&'a str> = action.inputs.keys().map(|x| x.as_str()).collect();
                 let env = HashSet::<&'a str>::new();
-                let validator = CommonValidator::new(action, config, fs, inputs, env)?;
+                let validator = CommonValidator::new(action.as_ref(), config, fs, inputs, env)?;
                 Ok(Self::Action(validator))
             }
         }

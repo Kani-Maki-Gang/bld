@@ -68,7 +68,7 @@ impl Step {
                 .unwrap_or_default();
         }
 
-        return false;
+        false
     }
 }
 

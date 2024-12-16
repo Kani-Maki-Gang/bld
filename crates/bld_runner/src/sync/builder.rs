@@ -142,8 +142,8 @@ impl<'a> RunnerBuilder<'a> {
             .ok_or_else(|| anyhow!("no pipeline provided"))?;
 
         let pipeline = match pipeline {
-            FileOrPath::Path(path) => Yaml::load(&self.fs.read(&path).await?)?,
-            FileOrPath::File(file) => file,
+            FileOrPath::Path(path) => Yaml::load(&self.fs.read(path).await?)?,
+            FileOrPath::File(file) => *file,
         };
 
         pipeline.validate(config.clone(), self.fs.clone()).await?;

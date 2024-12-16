@@ -199,5 +199,5 @@ impl IntoVariables for VersionedFile {
 
 pub enum FileOrPath<'a> {
     Path(&'a str),
-    File(VersionedFile),
+    File(Box<VersionedFile>),
 }

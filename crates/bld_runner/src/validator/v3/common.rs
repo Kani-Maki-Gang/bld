@@ -43,12 +43,12 @@ pub fn create_symbols<'a>(inputs: HashSet<&'a str>, env: HashSet<&'a str>) -> Ha
     symbols
 }
 
-pub fn sanitize_symbol<'a>(symbol: &'a str) -> &'a str {
+pub fn sanitize_symbol(symbol: &str) -> &str {
     symbol[3..symbol.len() - 2].trim()
 }
 
 pub struct CommonValidator<'a, V: Validate<'a>> {
-    validatable: &'a Box<V>,
+    validatable: &'a V,
     config: Arc<BldConfig>,
     fs: Arc<FileSystem>,
     regex: Regex,
@@ -60,7 +60,7 @@ pub struct CommonValidator<'a, V: Validate<'a>> {
 
 impl<'a, V: Validate<'a>> CommonValidator<'a, V> {
     pub fn new(
-        validatable: &'a Box<V>,
+        validatable: &'a V,
         config: Arc<BldConfig>,
         fs: Arc<FileSystem>,
         inputs: HashSet<&'a str>,
