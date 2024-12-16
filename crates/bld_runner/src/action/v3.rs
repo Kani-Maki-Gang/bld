@@ -41,6 +41,21 @@ impl Action {
 
         Ok(())
     }
+
+    pub fn inputs_map(&self) -> HashMap<String, String> {
+        let mut inputs = HashMap::new();
+        for (name, input) in &self.inputs {
+            match input {
+                Input::Simple(v) => {
+                    inputs.insert(name.to_owned(), v.to_owned());
+                }
+                Input::Complex { default, .. } => {
+                    inputs.insert(name.to_owned(), default.to_owned().unwrap_or_default());
+                }
+            }
+        }
+        inputs
+    }
 }
 
 impl Dependencies for Action {

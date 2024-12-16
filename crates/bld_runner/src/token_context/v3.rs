@@ -10,7 +10,7 @@ use bld_utils::sync::IntoArc;
 use regex::Regex;
 
 #[derive(Default)]
-pub struct PipelineContextBuilder<'a> {
+pub struct ExecutionContextBuilder<'a> {
     root_dir: Option<&'a str>,
     project_dir: Option<&'a str>,
     inputs: HashMap<String, String>,
@@ -20,7 +20,7 @@ pub struct PipelineContextBuilder<'a> {
     regex_cache: Option<Arc<RegexCache>>,
 }
 
-impl<'a> PipelineContextBuilder<'a> {
+impl<'a> ExecutionContextBuilder<'a> {
     pub fn root_dir(mut self, directory: &'a str) -> Self {
         self.root_dir = Some(directory);
         self

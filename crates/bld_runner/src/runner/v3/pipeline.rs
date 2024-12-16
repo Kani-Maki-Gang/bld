@@ -26,15 +26,7 @@ use tokio::{sync::mpsc::Sender, task::JoinHandle};
 use tracing::debug;
 
 use crate::{
-    action::v3::Action,
-    external::v3::External,
-    files::{v3::RunnerFile, versioned::FileOrPath},
-    pipeline::v3::Pipeline,
-    registry::v3::Registry,
-    runner::v3::action::ActionRunner,
-    runs_on::v3::RunsOn,
-    step::v3::Step,
-    Load, RunnerBuilder, VersionedFile, Yaml,
+    action::v3::Action, external::v3::External, files::{v3::RunnerFile, versioned::FileOrPath}, pipeline::v3::Pipeline, registry::v3::Registry, runner::v3::action::ActionRunner, runs_on::v3::RunsOn, step::v3::Step, token_context::v3::ExecutionContextBuilder, Load, RunnerBuilder, VersionedFile, Yaml
 };
 
 use super::common::RecursiveFuture;
@@ -49,6 +41,7 @@ struct Job {
     pub pipeline: Arc<Pipeline>,
     pub context: Arc<Context>,
     pub platform: Option<Arc<Platform>>,
+    pub regex_cache: Arc<RegexCache>,
 }
 
 impl Job {
@@ -180,6 +173,7 @@ impl Job {
             .env(env.into_arc())
             .inputs(inputs.into_arc())
             .context(self.context.clone())
+            .regex_cache(self.regex_cache.clone())
             .is_child(true)
             .build()
             .await?;
@@ -190,15 +184,27 @@ impl Job {
         Ok(())
     }
 
-    async fn run_local_action(&self, action: Action, details: &External) -> Result<()> {
+    async fn run_local_action(&self, mut action: Action, details: &External) -> Result<()> {
         debug!("running local action {}", details.uses);
 
         let Some(platform) = self.platform.as_ref() else {
             bail!("no platform instance to execute action");
         };
 
-        let _inputs = details.with.clone();
-        // TODO: Add action context in order to apply it.
+        let inputs = details.with.clone();
+
+        let execution_context = ExecutionContextBuilder::default()
+            .root_dir(&self.config.root_dir)
+            .project_dir(&self.config.project_dir)
+            .add_inputs(&action.inputs_map())
+            .add_inputs(&inputs)
+            .add_env(&self.pipeline.env)
+            .run_id(&self.run_id)
+            .run_start_time(&self.run_start_time)
+            .regex_cache(self.regex_cache.clone())
+            .build()?;
+
+        action.apply_tokens(&execution_context).await?;
 
         let runner = ActionRunner {
             logger: self.logger.clone(),
@@ -505,6 +511,7 @@ impl PipelineRunner {
             logger,
             context: self.context.clone(),
             platform: self.platform.clone(),
+            regex_cache: self.regex_cache.clone(),
         }
     }
 

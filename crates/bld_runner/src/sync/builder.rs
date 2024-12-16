@@ -236,7 +236,7 @@ impl<'a> RunnerBuilder<'a> {
             }
 
             VersionedFile::Version3(RunnerFile::PipelineFileType(mut pipeline)) => {
-                let pipeline_context = token_context::v3::PipelineContextBuilder::default()
+                let pipeline_context = token_context::v3::ExecutionContextBuilder::default()
                     .root_dir(&config.root_dir)
                     .project_dir(&config.project_dir)
                     .add_inputs(&pipeline.inputs_map())
