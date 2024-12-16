@@ -26,7 +26,13 @@ use tokio::{sync::mpsc::Sender, task::JoinHandle};
 use tracing::debug;
 
 use crate::{
-    external::v2::External, files::versioned::FileOrPath, pipeline::v2::Pipeline, registry::v2::Registry, runs_on::v2::RunsOn, step::v2::{BuildStep, BuildStepExec}, RunnerBuilder
+    external::v2::External,
+    files::versioned::FileOrPath,
+    pipeline::v2::Pipeline,
+    registry::v2::Registry,
+    runs_on::v2::RunsOn,
+    step::v2::{BuildStep, BuildStepExec},
+    RunnerBuilder,
 };
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
