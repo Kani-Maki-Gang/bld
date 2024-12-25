@@ -24,13 +24,12 @@ use crate::{
         v3::RunnerFile,
         versioned::{FileOrPath, VersionedFile, Yaml},
     },
-    runner, token_context,
+    runner::{self, versioned::VersionedPipelineRunner},
+    token_context,
     traits::Load,
 };
 
-use super::versioned::VersionedRunner;
-
-pub struct RunnerBuilder<'a> {
+pub struct PipelineRunnerBuilder<'a> {
     run_id: String,
     run_start_time: String,
     config: Option<Arc<BldConfig>>,
@@ -46,7 +45,7 @@ pub struct RunnerBuilder<'a> {
     is_child: bool,
 }
 
-impl Default for RunnerBuilder<'_> {
+impl Default for PipelineRunnerBuilder<'_> {
     fn default() -> Self {
         Self {
             run_id: Uuid::new_v4().to_string(),
@@ -66,7 +65,7 @@ impl Default for RunnerBuilder<'_> {
     }
 }
 
-impl<'a> RunnerBuilder<'a> {
+impl<'a> PipelineRunnerBuilder<'a> {
     pub fn run_id(mut self, id: &str) -> Self {
         self.run_id = String::from(id);
         self
@@ -132,7 +131,7 @@ impl<'a> RunnerBuilder<'a> {
         self
     }
 
-    pub async fn build(self) -> Result<VersionedRunner> {
+    pub async fn build(self) -> Result<VersionedPipelineRunner> {
         let config = self
             .config
             .ok_or_else(|| anyhow!("no bld config instance provided"))?;
@@ -184,7 +183,7 @@ impl<'a> RunnerBuilder<'a> {
 
                 context.add_platform(platform.clone()).await?;
 
-                VersionedRunner::V1(runner::v1::Runner {
+                VersionedPipelineRunner::V1(runner::v1::Runner {
                     run_id: self.run_id,
                     run_start_time: self.run_start_time,
                     config,
@@ -217,7 +216,7 @@ impl<'a> RunnerBuilder<'a> {
 
                 pipeline.apply_tokens(&pipeline_context).await?;
 
-                VersionedRunner::V2(runner::v2::Runner {
+                VersionedPipelineRunner::V2(runner::v2::Runner {
                     run_id: self.run_id,
                     run_start_time: self.run_start_time,
                     config,
@@ -251,7 +250,7 @@ impl<'a> RunnerBuilder<'a> {
                 pipeline.apply_tokens(&pipeline_context).await?;
 
                 let pipeline = Arc::new(*pipeline);
-                VersionedRunner::V3(runner::v3::PipelineRunner {
+                VersionedPipelineRunner::V3(runner::v3::PipelineRunner {
                     run_id: self.run_id,
                     run_start_time: self.run_start_time,
                     config,

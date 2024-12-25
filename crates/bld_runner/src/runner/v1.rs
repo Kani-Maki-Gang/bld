@@ -25,8 +25,8 @@ use crate::files::versioned::FileOrPath;
 use crate::{
     external::v1::External,
     pipeline::v1::Pipeline,
+    runner::builder::PipelineRunnerBuilder,
     step::v1::{BuildStep, BuildStepExec},
-    sync::builder::RunnerBuilder,
 };
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
@@ -256,7 +256,7 @@ impl Runner {
 
         let pipeline = FileOrPath::Path(&details.pipeline);
 
-        let runner = RunnerBuilder::default()
+        let runner = PipelineRunnerBuilder::default()
             .run_id(&self.run_id)
             .run_start_time(&self.run_start_time)
             .config(self.config.clone())

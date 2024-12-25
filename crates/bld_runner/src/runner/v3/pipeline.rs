@@ -26,16 +26,14 @@ use tokio::{sync::mpsc::Sender, task::JoinHandle};
 use tracing::debug;
 
 use crate::{
-    action::v3::Action,
     external::v3::External,
     files::{v3::RunnerFile, versioned::FileOrPath},
     pipeline::v3::Pipeline,
     registry::v3::Registry,
-    runner::v3::action::ActionRunner,
+    runner::builder::{ActionInstance, ActionRunnerBuilder},
     runs_on::v3::RunsOn,
     step::v3::Step,
-    token_context::v3::ExecutionContextBuilder,
-    Load, RunnerBuilder, VersionedFile, Yaml,
+    Load, PipelineRunnerBuilder, VersionedFile, Yaml,
 };
 
 use super::common::RecursiveFuture;
@@ -159,7 +157,8 @@ impl Job {
         let file = Yaml::load(&self.fs.read(&details.uses).await?)?;
         match file {
             VersionedFile::Version3(RunnerFile::ActionFileType(action)) => {
-                self.run_local_action(*action, details).await
+                let action = ActionInstance::V3(*action);
+                self.run_local_action(action, details).await
             }
             file => self.run_local_pipeline(file, details).await,
         }
@@ -172,7 +171,7 @@ impl Job {
         let env = details.env.clone();
         let pipeline = FileOrPath::File(Box::new(file));
 
-        let runner = RunnerBuilder::default()
+        let runner = PipelineRunnerBuilder::default()
             .run_id(&self.run_id)
             .run_start_time(&self.run_start_time)
             .config(self.config.clone())
@@ -193,7 +192,7 @@ impl Job {
         Ok(())
     }
 
-    async fn run_local_action(&self, mut action: Action, details: &External) -> Result<()> {
+    async fn run_local_action(&self, action: ActionInstance, details: &External) -> Result<()> {
         debug!("running local action {}", details.uses);
 
         let Some(platform) = self.platform.as_ref() else {
@@ -202,24 +201,18 @@ impl Job {
 
         let inputs = details.with.clone();
 
-        let execution_context = ExecutionContextBuilder::default()
-            .root_dir(&self.config.root_dir)
-            .project_dir(&self.config.project_dir)
-            .add_inputs(&action.inputs_map())
-            .add_inputs(&inputs)
-            .add_env(&self.pipeline.env)
+        let runner = ActionRunnerBuilder::default()
             .run_id(&self.run_id)
             .run_start_time(&self.run_start_time)
+            .config(self.config.clone())
+            .logger(self.logger.clone())
+            .action(action)
+            .inputs(&inputs)
+            .env(&self.pipeline.env)
+            .platform(platform.clone())
             .regex_cache(self.regex_cache.clone())
-            .build()?;
-
-        action.apply_tokens(&execution_context).await?;
-
-        let runner = ActionRunner {
-            logger: self.logger.clone(),
-            platform: platform.clone(),
-            action,
-        };
+            .build()
+            .await?;
 
         debug!("starting local action");
         runner.run().await?;

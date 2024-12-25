@@ -32,7 +32,7 @@ use crate::{
     registry::v2::Registry,
     runs_on::v2::RunsOn,
     step::v2::{BuildStep, BuildStepExec},
-    RunnerBuilder,
+    PipelineRunnerBuilder,
 };
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
@@ -166,7 +166,7 @@ impl Job {
         let environment = details.environment.clone();
         let pipeline = FileOrPath::Path(&details.pipeline);
 
-        let runner = RunnerBuilder::default()
+        let runner = PipelineRunnerBuilder::default()
             .run_id(&self.run_id)
             .run_start_time(&self.run_start_time)
             .config(self.config.clone())

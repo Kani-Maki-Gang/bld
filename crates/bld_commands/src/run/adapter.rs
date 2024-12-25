@@ -4,7 +4,7 @@ use bld_config::BldConfig;
 use bld_core::{context::Context, fs::FileSystem, logger::Logger};
 use bld_http::{HttpClient, WebSocket};
 use bld_models::dtos::ExecClientMessage;
-use bld_runner::{files::versioned::FileOrPath, RunnerBuilder};
+use bld_runner::{files::versioned::FileOrPath, PipelineRunnerBuilder};
 use bld_sock::ExecClient;
 use bld_utils::sync::IntoArc;
 use futures::stream::StreamExt;
@@ -196,7 +196,7 @@ impl RunAdapter {
         let (cmd_signals, signals_rx) = CommandSignals::new()?;
         let pipeline = FileOrPath::Path(&mode.pipeline);
 
-        let runner = RunnerBuilder::default()
+        let runner = PipelineRunnerBuilder::default()
             .config(mode.config.clone())
             .fs(FileSystem::local(mode.config.clone()).into_arc())
             .pipeline(pipeline)

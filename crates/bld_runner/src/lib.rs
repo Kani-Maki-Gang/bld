@@ -13,9 +13,6 @@ pub mod traits;
 mod runner;
 
 #[cfg(feature = "all")]
-mod sync;
-
-#[cfg(feature = "all")]
 mod token_context;
 
 #[cfg(feature = "all")]
@@ -28,7 +25,7 @@ pub use traits::Load;
 pub use files::versioned::Yaml;
 
 #[cfg(feature = "all")]
-pub use sync::builder::RunnerBuilder;
+pub use runner::builder::PipelineRunnerBuilder;
 
 #[cfg(feature = "all")]
-pub use sync::versioned::VersionedRunner;
+pub use runner::versioned::VersionedPipelineRunner;

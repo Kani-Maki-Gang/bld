@@ -6,7 +6,7 @@ use bld_config::BldConfig;
 use bld_core::{context::Context, fs::FileSystem, logger::Logger};
 use bld_http::WebSocket;
 use bld_models::{dtos::WorkerMessages, new_connection_pool, pipeline_runs};
-use bld_runner::{files::versioned::FileOrPath, RunnerBuilder};
+use bld_runner::{files::versioned::FileOrPath, PipelineRunnerBuilder};
 use bld_sock::WorkerClient;
 use bld_utils::{sync::IntoArc, variables::parse_variables};
 use chrono::Utc;
@@ -95,7 +95,7 @@ impl BldCommand for WorkerCommand {
             let runner_handle = spawn(async move {
                 let pipeline = FileOrPath::Path(&pipeline);
 
-                match RunnerBuilder::default()
+                match PipelineRunnerBuilder::default()
                     .run_id(&run_id)
                     .run_start_time(&start_date)
                     .config(config)
