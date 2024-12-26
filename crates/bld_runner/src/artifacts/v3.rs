@@ -2,10 +2,14 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "all")]
 use anyhow::Result;
+
+#[cfg(feature = "all")]
 use tracing::debug;
 
 #[cfg(feature = "all")]
 use crate::token_context::v3::ExecutionContext;
+
+#[cfg(feature = "all")]
 use crate::validator::v3::{Validate, ValidatorContext};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -31,6 +35,7 @@ impl Artifacts {
     }
 }
 
+#[cfg(feature = "all")]
 impl<'a> Validate<'a> for Artifacts {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         debug!("Validating artifact's from section");

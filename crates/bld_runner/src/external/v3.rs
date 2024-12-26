@@ -1,17 +1,23 @@
-use bld_utils::fs::IsYaml;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::debug;
 
 #[cfg(feature = "all")]
 use anyhow::Result;
 
 #[cfg(feature = "all")]
 use crate::token_context::v3::ExecutionContext;
+
+#[cfg(feature = "all")]
 use crate::{
     validator::v3::{Validate, ValidatorContext},
     Load, Yaml,
 };
+
+#[cfg(feature = "all")]
+use bld_utils::fs::IsYaml;
+
+#[cfg(feature = "all")]
+use tracing::debug;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct External {
@@ -62,6 +68,7 @@ impl External {
     }
 }
 
+#[cfg(feature = "all")]
 impl<'a> Validate<'a> for External {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         if let Some(name) = self.name.as_deref() {
@@ -94,6 +101,7 @@ impl<'a> Validate<'a> for External {
     }
 }
 
+#[cfg(feature = "all")]
 async fn validate_external_file<'a, C: ValidatorContext<'a>>(ctx: &mut C, uses: &'a str) {
     if ctx.contains_symbols(uses) {
         ctx.validate_symbols(uses);
@@ -115,6 +123,7 @@ async fn validate_external_file<'a, C: ValidatorContext<'a>>(ctx: &mut C, uses: 
     }
 }
 
+#[cfg(feature = "all")]
 fn validate_external_server<'a, C: ValidatorContext<'a>>(ctx: &mut C, server: Option<&'a str>) {
     let Some(server) = server else {
         return;
@@ -132,6 +141,7 @@ fn validate_external_server<'a, C: ValidatorContext<'a>>(ctx: &mut C, server: Op
     }
 }
 
+#[cfg(feature = "all")]
 async fn validate_external_with<'a, C: ValidatorContext<'a>>(
     ctx: &mut C,
     uses: &'a str,

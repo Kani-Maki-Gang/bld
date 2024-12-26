@@ -1,21 +1,28 @@
 use std::collections::{HashMap, HashSet};
 
-use bld_config::BldConfig;
 use serde::{Deserialize, Serialize};
-use tracing::debug;
 
 use crate::{
     inputs::v3::Input,
     step::v3::Step,
-    traits::{Dependencies, IntoVariables, Variables},
+    traits::{IntoVariables, Variables},
+};
+
+#[cfg(feature = "all")]
+use bld_config::BldConfig;
+
+#[cfg(feature = "all")]
+use crate::{
+    token_context::v3::ExecutionContext,
+    traits::Dependencies,
     validator::v3::{Validate, ValidatorContext},
 };
 
 #[cfg(feature = "all")]
-use crate::token_context::v3::ExecutionContext;
+use anyhow::Result;
 
 #[cfg(feature = "all")]
-use anyhow::Result;
+use tracing::debug;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Action {
@@ -66,6 +73,7 @@ impl Action {
     }
 }
 
+#[cfg(feature = "all")]
 impl Dependencies for Action {
     fn local_deps(&self, config: &BldConfig) -> Vec<String> {
         self.steps
@@ -92,6 +100,7 @@ impl IntoVariables for Action {
     }
 }
 
+#[cfg(feature = "all")]
 impl<'a> Validate<'a> for Action {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         debug!("Validating action: {}", self.name);

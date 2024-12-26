@@ -1,5 +1,4 @@
 use crate::external::v3::External;
-use crate::validator::v3::{Validate, ValidatorContext};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "all")]
@@ -10,10 +9,15 @@ use bld_config::BldConfig;
 
 #[cfg(feature = "all")]
 use bld_utils::fs::IsYaml;
+
+#[cfg(feature = "all")]
 use tracing::debug;
 
 #[cfg(feature = "all")]
 use crate::token_context::v3::ExecutionContext;
+
+#[cfg(feature = "all")]
+use crate::validator::v3::{Validate, ValidatorContext};
 
 #[cfg(feature = "all")]
 use crate::traits::Dependencies;
@@ -84,6 +88,7 @@ impl Dependencies for Step {
     }
 }
 
+#[cfg(feature = "all")]
 impl<'a> Validate<'a> for Step {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         match self {

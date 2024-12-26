@@ -3,19 +3,27 @@ use crate::inputs::v3::Input;
 use crate::runs_on::v3::RunsOn;
 use crate::step::v3::Step;
 use crate::traits::Variables;
-use crate::validator::v3::{Validate, ValidatorContext};
 use crate::{artifacts::v3::Artifacts, traits::IntoVariables};
-use cron::Schedule;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::str::FromStr;
-use tracing::debug;
 
 #[cfg(feature = "all")]
 use crate::token_context::v3::ExecutionContext;
 
 #[cfg(feature = "all")]
+use crate::validator::v3::{Validate, ValidatorContext};
+
+#[cfg(feature = "all")]
 use anyhow::Result;
+
+#[cfg(feature = "all")]
+use std::str::FromStr;
+
+#[cfg(feature = "all")]
+use tracing::debug;
+
+#[cfg(feature = "all")]
+use cron::Schedule;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pipeline {
@@ -97,6 +105,7 @@ impl Pipeline {
             .collect()
     }
 
+    #[cfg(feature = "all")]
     fn validate_cron<'a, C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         let Some(cron) = self.cron.as_ref() else {
             return;
@@ -127,6 +136,7 @@ impl IntoVariables for Pipeline {
     }
 }
 
+#[cfg(feature = "all")]
 impl<'a> Validate<'a> for Pipeline {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         debug!("Validating pipeline");

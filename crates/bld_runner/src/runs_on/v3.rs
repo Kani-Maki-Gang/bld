@@ -1,8 +1,5 @@
-use crate::{
-    registry::v3::Registry,
-    validator::v3::{Validate, ValidatorContext},
-};
-use bld_config::{DockerUrl, SshConfig};
+use crate::registry::v3::Registry;
+use bld_config::SshConfig;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
@@ -10,10 +7,13 @@ use std::fmt::Display;
 use anyhow::Result;
 
 #[cfg(feature = "all")]
-use bld_config::SshUserAuth;
+use bld_config::{DockerUrl, SshUserAuth};
 
 #[cfg(feature = "all")]
 use crate::token_context::v3::ExecutionContext;
+
+#[cfg(feature = "all")]
+use crate::validator::v3::{Validate, ValidatorContext};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -151,6 +151,7 @@ impl RunsOn {
     }
 }
 
+#[cfg(feature = "all")]
 impl<'a> Validate<'a> for RunsOn {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         match &self {
@@ -248,6 +249,7 @@ impl<'a> Validate<'a> for RunsOn {
     }
 }
 
+#[cfg(feature = "all")]
 fn validate_docker_url<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &'a str) {
     ctx.push_section("docker_url");
 
@@ -271,6 +273,7 @@ fn validate_docker_url<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &'a str)
     ctx.pop_section();
 }
 
+#[cfg(feature = "all")]
 fn validate_registry<'a, C: ValidatorContext<'a>>(ctx: &mut C, registry: &'a Registry) {
     ctx.push_section("registry");
 
@@ -300,6 +303,7 @@ fn validate_registry<'a, C: ValidatorContext<'a>>(ctx: &mut C, registry: &'a Reg
     ctx.pop_section();
 }
 
+#[cfg(feature = "all")]
 fn validate_global_registry_config<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &'a str) {
     if ctx.contains_symbols(value) {
         ctx.validate_symbols(value);
@@ -311,6 +315,7 @@ fn validate_global_registry_config<'a, C: ValidatorContext<'a>>(ctx: &mut C, val
     }
 }
 
+#[cfg(feature = "all")]
 fn validate_global_ssh_config<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &'a str) {
     ctx.push_section("ssh_config");
 
