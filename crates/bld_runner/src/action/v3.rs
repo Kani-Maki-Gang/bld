@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use bld_config::BldConfig;
 use serde::{Deserialize, Serialize};
@@ -55,6 +55,14 @@ impl Action {
             }
         }
         inputs
+    }
+
+    pub fn required_inputs(&self) -> HashSet<&str> {
+        self.inputs
+            .iter()
+            .filter(|(_, v)| v.is_required())
+            .map(|(k, _)| k.as_str())
+            .collect()
     }
 }
 

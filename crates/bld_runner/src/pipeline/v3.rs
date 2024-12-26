@@ -7,7 +7,7 @@ use crate::validator::v3::{Validate, ValidatorContext};
 use crate::{artifacts::v3::Artifacts, traits::IntoVariables};
 use cron::Schedule;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use tracing::debug;
 
@@ -87,6 +87,14 @@ impl Pipeline {
         }
 
         Ok(())
+    }
+
+    pub fn required_inputs<'a>(&'a self) -> HashSet<&'a str> {
+        self.inputs
+            .iter()
+            .filter(|(_, v)| v.is_required())
+            .map(|(k, _)| k.as_str())
+            .collect()
     }
 
     fn validate_cron<'a, C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {

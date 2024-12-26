@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -19,6 +21,15 @@ pub enum RunnerFile {
     PipelineFileType(Box<Pipeline>),
     #[serde(rename(serialize = "action", deserialize = "action"))]
     ActionFileType(Box<Action>),
+}
+
+impl RunnerFile {
+    pub fn required_inputs(&self) -> HashSet<&str> {
+        match self {
+            Self::PipelineFileType(pipeline) => pipeline.required_inputs(),
+            Self::ActionFileType(action) => action.required_inputs(),
+        }
+    }
 }
 
 #[cfg(feature = "all")]

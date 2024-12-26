@@ -32,6 +32,13 @@ impl Input {
         }
         Ok(())
     }
+
+    pub fn is_required(&self) -> bool {
+        match self {
+            Input::Simple(_) => false,
+            Input::Complex { required, .. } => *required,
+        }
+    }
 }
 
 impl<'a> Validate<'a> for Input {

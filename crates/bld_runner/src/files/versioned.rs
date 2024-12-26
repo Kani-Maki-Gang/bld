@@ -6,6 +6,7 @@ use super::v3 as files_v3;
 
 #[cfg(feature = "all")]
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 #[cfg(feature = "all")]
 use crate::traits::{Dependencies, Load};
@@ -135,6 +136,14 @@ impl VersionedFile {
             pip.cron.as_deref()
         } else {
             None
+        }
+    }
+
+    pub fn required_inputs<'a>(&'a self) -> HashSet<&'a str> {
+        match self {
+            Self::Version1(pip) => pip.required_inputs(),
+            Self::Version2(pip) => pip.required_inputs(),
+            Self::Version3(file) => file.required_inputs(),
         }
     }
 

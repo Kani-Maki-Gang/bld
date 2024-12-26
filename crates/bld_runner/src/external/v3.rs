@@ -8,7 +8,10 @@ use anyhow::Result;
 
 #[cfg(feature = "all")]
 use crate::token_context::v3::ExecutionContext;
-use crate::validator::v3::{Validate, ValidatorContext};
+use crate::{
+    validator::v3::{Validate, ValidatorContext},
+    Load, Yaml,
+};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct External {
@@ -81,13 +84,7 @@ impl<'a> Validate<'a> for External {
         debug!("Validating external's with section");
         ctx.push_section("with");
         ctx.push_section("inputs");
-        for (name, input) in self.with.iter() {
-            debug!("Validating input: {}", name);
-            ctx.push_section(name);
-            ctx.validate_keywords(name);
-            ctx.validate_symbols(input);
-            ctx.pop_section();
-        }
+        validate_external_with(ctx, &self.uses, self.server.as_deref(), &self.with).await;
         ctx.pop_section();
 
         debug!("Validating external's env section");
@@ -132,5 +129,44 @@ fn validate_external_server<'a, C: ValidatorContext<'a>>(ctx: &mut C, server: Op
             ctx.append_error("Doesn't exist in current config");
             ctx.pop_section();
         }
+    }
+}
+
+async fn validate_external_with<'a, C: ValidatorContext<'a>>(
+    ctx: &mut C,
+    uses: &'a str,
+    server: Option<&'a str>,
+    with: &'a HashMap<String, String>,
+) {
+    if server.is_none() {
+        let fs = ctx.get_fs();
+        let file = fs
+            .read(uses)
+            .await
+            .and_then(|c| Yaml::load_with_verbose_errors(&c));
+
+        match file {
+            Ok(file) => {
+                let required = file.required_inputs();
+                for name in required {
+                    if !with.contains_key(name) {
+                        let message = format!("Missing required input: {}", name);
+                        ctx.append_error(&message);
+                    }
+                }
+            }
+            Err(e) => {
+                let message = format!("Unable to check required inputs due to {e}");
+                ctx.append_error(&message);
+            }
+        }
+    }
+
+    for (name, input) in with.iter() {
+        debug!("Validating input: {}", name);
+        ctx.push_section(name);
+        ctx.validate_keywords(name);
+        ctx.validate_symbols(input);
+        ctx.pop_section();
     }
 }
