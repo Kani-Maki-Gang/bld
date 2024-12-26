@@ -196,8 +196,3 @@ impl IntoVariables for VersionedFile {
         }
     }
 }
-
-pub enum FileOrPath<'a> {
-    Path(&'a str),
-    File(Box<VersionedFile>),
-}

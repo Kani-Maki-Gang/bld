@@ -27,13 +27,11 @@ use tracing::debug;
 
 use crate::{
     external::v3::External,
-    files::{v3::RunnerFile, versioned::FileOrPath},
     pipeline::v3::Pipeline,
     registry::v3::Registry,
-    runner::builder::{ActionInstance, ActionRunnerBuilder},
     runs_on::v3::RunsOn,
     step::v3::Step,
-    Load, PipelineRunnerBuilder, VersionedFile, Yaml,
+    RunnerBuilder,
 };
 
 use super::common::RecursiveFuture;
@@ -154,67 +152,32 @@ impl Job {
     }
 
     async fn local_external(&self, details: &External) -> Result<()> {
-        let file = Yaml::load(&self.fs.read(&details.uses).await?)?;
-        match file {
-            VersionedFile::Version3(RunnerFile::ActionFileType(action)) => {
-                let action = ActionInstance::V3(*action);
-                self.run_local_action(action, details).await
-            }
-            file => self.run_local_pipeline(file, details).await,
-        }
-    }
+        debug!("building runner for child file");
 
-    async fn run_local_pipeline(&self, file: VersionedFile, details: &External) -> Result<()> {
-        debug!("building runner for child pipeline");
+        let Some(platform) = self.platform.as_ref() else {
+            bail!("no platform instance for runner");
+        };
 
         let inputs = details.with.clone();
         let env = details.env.clone();
-        let pipeline = FileOrPath::File(Box::new(file));
 
-        let runner = PipelineRunnerBuilder::default()
+        let runner = RunnerBuilder::default()
             .run_id(&self.run_id)
             .run_start_time(&self.run_start_time)
             .config(self.config.clone())
             .fs(self.fs.clone())
-            .pipeline(pipeline)
+            .file(&details.uses)
             .logger(self.logger.clone())
             .env(env.into_arc())
             .inputs(inputs.into_arc())
             .context(self.context.clone())
+            .platform(platform.clone())
             .regex_cache(self.regex_cache.clone())
             .is_child(true)
             .build()
             .await?;
 
-        debug!("starting child pipeline runner");
-        runner.run().await?;
-
-        Ok(())
-    }
-
-    async fn run_local_action(&self, action: ActionInstance, details: &External) -> Result<()> {
-        debug!("running local action {}", details.uses);
-
-        let Some(platform) = self.platform.as_ref() else {
-            bail!("no platform instance to execute action");
-        };
-
-        let inputs = details.with.clone();
-
-        let runner = ActionRunnerBuilder::default()
-            .run_id(&self.run_id)
-            .run_start_time(&self.run_start_time)
-            .config(self.config.clone())
-            .logger(self.logger.clone())
-            .action(action)
-            .inputs(&inputs)
-            .env(&self.pipeline.env)
-            .platform(platform.clone())
-            .regex_cache(self.regex_cache.clone())
-            .build()
-            .await?;
-
-        debug!("starting local action");
+        debug!("starting child file runner");
         runner.run().await?;
 
         Ok(())

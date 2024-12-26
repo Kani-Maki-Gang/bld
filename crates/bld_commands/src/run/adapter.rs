@@ -4,7 +4,7 @@ use bld_config::BldConfig;
 use bld_core::{context::Context, fs::FileSystem, logger::Logger};
 use bld_http::{HttpClient, WebSocket};
 use bld_models::dtos::ExecClientMessage;
-use bld_runner::{files::versioned::FileOrPath, PipelineRunnerBuilder};
+use bld_runner::RunnerBuilder;
 use bld_sock::ExecClient;
 use bld_utils::sync::IntoArc;
 use futures::stream::StreamExt;
@@ -194,12 +194,11 @@ pub struct RunAdapter {
 impl RunAdapter {
     async fn run_local(mode: LocalRun) -> Result<()> {
         let (cmd_signals, signals_rx) = CommandSignals::new()?;
-        let pipeline = FileOrPath::Path(&mode.pipeline);
 
-        let runner = PipelineRunnerBuilder::default()
+        let runner = RunnerBuilder::default()
             .config(mode.config.clone())
             .fs(FileSystem::local(mode.config.clone()).into_arc())
-            .pipeline(pipeline)
+            .file(&mode.pipeline)
             .logger(Logger::shell().into_arc())
             .context(Context::local(mode.config.clone()).into_arc())
             .signals(signals_rx)

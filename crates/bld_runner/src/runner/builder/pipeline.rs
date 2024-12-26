@@ -6,7 +6,7 @@ use bld_core::{
     logger::Logger,
     platform::{
         builder::{PlatformBuilder, PlatformOptions},
-        Image,
+        Image, Platform,
     },
     regex::RegexCache,
     signals::UnixSignalsBackend,
@@ -22,14 +22,14 @@ use uuid::Uuid;
 use crate::{
     files::{
         v3::RunnerFile,
-        versioned::{FileOrPath, VersionedFile, Yaml},
+        versioned::{VersionedFile, Yaml},
     },
-    runner::{self, versioned::VersionedPipelineRunner},
+    runner::{self, v3::FileRunner, versioned::VersionedRunner},
     token_context,
     traits::Load,
 };
 
-pub struct PipelineRunnerBuilder<'a> {
+pub struct RunnerBuilder<'a> {
     run_id: String,
     run_start_time: String,
     config: Option<Arc<BldConfig>>,
@@ -37,15 +37,16 @@ pub struct PipelineRunnerBuilder<'a> {
     logger: Arc<Logger>,
     regex_cache: Arc<RegexCache>,
     fs: Arc<FileSystem>,
-    pipeline: Option<FileOrPath<'a>>,
+    file: Option<&'a str>,
     ipc: Arc<Option<Sender<WorkerMessages>>>,
     env: Option<Arc<HashMap<String, String>>>,
     inputs: Option<Arc<HashMap<String, String>>>,
     context: Option<Arc<Context>>,
+    platform: Option<Arc<Platform>>,
     is_child: bool,
 }
 
-impl Default for PipelineRunnerBuilder<'_> {
+impl Default for RunnerBuilder<'_> {
     fn default() -> Self {
         Self {
             run_id: Uuid::new_v4().to_string(),
@@ -55,17 +56,18 @@ impl Default for PipelineRunnerBuilder<'_> {
             logger: Logger::default().into_arc(),
             regex_cache: RegexCache::default().into_arc(),
             fs: FileSystem::default().into_arc(),
-            pipeline: None,
+            file: None,
             ipc: None.into_arc(),
             env: None,
             inputs: None,
             context: None,
+            platform: None,
             is_child: false,
         }
     }
 }
 
-impl<'a> PipelineRunnerBuilder<'a> {
+impl<'a> RunnerBuilder<'a> {
     pub fn run_id(mut self, id: &str) -> Self {
         self.run_id = String::from(id);
         self
@@ -96,8 +98,8 @@ impl<'a> PipelineRunnerBuilder<'a> {
         self
     }
 
-    pub fn pipeline(mut self, instance: FileOrPath<'a>) -> Self {
-        self.pipeline = Some(instance);
+    pub fn file(mut self, instance: &'a str) -> Self {
+        self.file = Some(instance);
         self
     }
 
@@ -126,25 +128,26 @@ impl<'a> PipelineRunnerBuilder<'a> {
         self
     }
 
+    pub fn platform(mut self, platform: Arc<Platform>) -> Self {
+        self.platform = Some(platform);
+        self
+    }
+
     pub fn is_child(mut self, is_child: bool) -> Self {
         self.is_child = is_child;
         self
     }
 
-    pub async fn build(self) -> Result<VersionedPipelineRunner> {
+    pub async fn build(self) -> Result<VersionedRunner> {
         let config = self
             .config
             .ok_or_else(|| anyhow!("no bld config instance provided"))?;
 
         let pipeline = self
-            .pipeline
+            .file
             .ok_or_else(|| anyhow!("no pipeline provided"))?;
 
-        let pipeline = match pipeline {
-            FileOrPath::Path(path) => Yaml::load(&self.fs.read(path).await?)?,
-            FileOrPath::File(file) => *file,
-        };
-
+        let pipeline = Yaml::load(&self.fs.read(pipeline).await?)?;
         pipeline.validate(config.clone(), self.fs.clone()).await?;
 
         let env = self
@@ -183,7 +186,7 @@ impl<'a> PipelineRunnerBuilder<'a> {
 
                 context.add_platform(platform.clone()).await?;
 
-                VersionedPipelineRunner::V1(runner::v1::Runner {
+                VersionedRunner::V1(runner::v1::Runner {
                     run_id: self.run_id,
                     run_start_time: self.run_start_time,
                     config,
@@ -216,7 +219,7 @@ impl<'a> PipelineRunnerBuilder<'a> {
 
                 pipeline.apply_tokens(&pipeline_context).await?;
 
-                VersionedPipelineRunner::V2(runner::v2::Runner {
+                VersionedRunner::V2(runner::v2::Runner {
                     run_id: self.run_id,
                     run_start_time: self.run_start_time,
                     config,
@@ -250,7 +253,7 @@ impl<'a> PipelineRunnerBuilder<'a> {
                 pipeline.apply_tokens(&pipeline_context).await?;
 
                 let pipeline = Arc::new(*pipeline);
-                VersionedPipelineRunner::V3(runner::v3::PipelineRunner {
+                VersionedRunner::V3(FileRunner::Pipeline(runner::v3::PipelineRunner {
                     run_id: self.run_id,
                     run_start_time: self.run_start_time,
                     config,
@@ -265,11 +268,36 @@ impl<'a> PipelineRunnerBuilder<'a> {
                     platform: None,
                     is_child: self.is_child,
                     has_faulted: false,
-                })
+                }))
             }
 
-            VersionedFile::Version3(RunnerFile::ActionFileType(_)) => {
-                bail!("cannot run action files");
+            VersionedFile::Version3(RunnerFile::ActionFileType(mut action)) => {
+                if !self.is_child {
+                    bail!("cannot run action files");
+                }
+
+                let platform = self
+                    .platform
+                    .ok_or_else(|| anyhow!("no platform provided"))?;
+
+                let execution_context = token_context::v3::ExecutionContextBuilder::default()
+                    .root_dir(&config.root_dir)
+                    .project_dir(&config.project_dir)
+                    .add_inputs(&action.inputs_map())
+                    .add_inputs(&inputs)
+                    .add_env(&env)
+                    .run_id(&self.run_id)
+                    .run_start_time(&self.run_start_time)
+                    .regex_cache(self.regex_cache.clone())
+                    .build()?;
+
+                action.apply_tokens(&execution_context).await?;
+
+                VersionedRunner::V3(FileRunner::Action(runner::v3::ActionRunner {
+                    logger: self.logger,
+                    action: *action,
+                    platform: platform.clone(),
+                }))
             }
         };
 

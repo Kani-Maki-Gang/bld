@@ -27,12 +27,11 @@ use tracing::debug;
 
 use crate::{
     external::v2::External,
-    files::versioned::FileOrPath,
     pipeline::v2::Pipeline,
     registry::v2::Registry,
     runs_on::v2::RunsOn,
     step::v2::{BuildStep, BuildStepExec},
-    PipelineRunnerBuilder,
+    RunnerBuilder,
 };
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
@@ -162,20 +161,24 @@ impl Job {
     async fn local_external(&self, details: &External) -> Result<()> {
         debug!("building runner for child pipeline");
 
+        let Some(platform) = self.platform.as_ref() else {
+            bail!("no platform instance for runner");
+        };
+
         let variables = details.variables.clone();
         let environment = details.environment.clone();
-        let pipeline = FileOrPath::Path(&details.pipeline);
 
-        let runner = PipelineRunnerBuilder::default()
+        let runner = RunnerBuilder::default()
             .run_id(&self.run_id)
             .run_start_time(&self.run_start_time)
             .config(self.config.clone())
             .fs(self.fs.clone())
-            .pipeline(pipeline)
+            .file(&details.pipeline)
             .logger(self.logger.clone())
             .env(environment.into_arc())
             .inputs(variables.into_arc())
             .context(self.context.clone())
+            .platform(platform.clone())
             .is_child(true)
             .build()
             .await?;

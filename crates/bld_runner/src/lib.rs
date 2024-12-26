@@ -25,7 +25,7 @@ pub use traits::Load;
 pub use files::versioned::Yaml;
 
 #[cfg(feature = "all")]
-pub use runner::builder::PipelineRunnerBuilder;
+pub use runner::builder::RunnerBuilder;
 
 #[cfg(feature = "all")]
-pub use runner::versioned::VersionedPipelineRunner;
+pub use runner::versioned::VersionedRunner;
