@@ -26,12 +26,8 @@ use tokio::{sync::mpsc::Sender, task::JoinHandle};
 use tracing::debug;
 
 use crate::{
-    external::v3::External,
-    pipeline::v3::Pipeline,
-    registry::v3::Registry,
-    runs_on::v3::RunsOn,
-    step::v3::Step,
-    RunnerBuilder,
+    external::v3::External, pipeline::v3::Pipeline, registry::v3::Registry, runs_on::v3::RunsOn,
+    step::v3::Step, RunnerBuilder,
 };
 
 use super::common::RecursiveFuture;

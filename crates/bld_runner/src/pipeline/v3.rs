@@ -89,7 +89,7 @@ impl Pipeline {
         Ok(())
     }
 
-    pub fn required_inputs<'a>(&'a self) -> HashSet<&'a str> {
+    pub fn required_inputs(&self) -> HashSet<&str> {
         self.inputs
             .iter()
             .filter(|(_, v)| v.is_required())
