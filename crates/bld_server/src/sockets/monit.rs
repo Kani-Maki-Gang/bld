@@ -85,9 +85,9 @@ impl MonitorPipelineSocket {
             } else if let Some(name) = data.name {
                 pipeline_runs::select_by_name(conn.as_ref(), &name).await
             } else {
-                bail!("pipeline not found");
+                bail!("file not found");
             };
-            run.map_err(|_| anyhow!("pipeline not found"))
+            run.map_err(|_| anyhow!("file not found"))
         }
         .into_actor(self)
         .then(|res, act, ctx| match res {

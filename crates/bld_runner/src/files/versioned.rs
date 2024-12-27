@@ -47,7 +47,7 @@ pub struct Yaml;
 #[cfg(feature = "all")]
 impl Load<VersionedFile> for Yaml {
     fn load(input: &str) -> Result<VersionedFile> {
-        serde_yaml_ng::from_str(input).map_err(|_| anyhow!("Pipeline file has syntax errors"))
+        serde_yaml_ng::from_str(input).map_err(|_| anyhow!("File has syntax errors"))
     }
 
     fn load_with_verbose_errors(input: &str) -> Result<VersionedFile> {

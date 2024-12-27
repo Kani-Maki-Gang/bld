@@ -14,6 +14,6 @@ pub async fn get(
     info!("Reached handler for /pull route");
     match fs.read(&params.pipeline).await {
         Ok(r) => HttpResponse::Ok().json(PullResponse::new(&params.pipeline, &r)),
-        Err(_) => HttpResponse::BadRequest().body("Pipeline not found"),
+        Err(_) => HttpResponse::BadRequest().body("File not found"),
     }
 }
