@@ -1,12 +1,14 @@
 use crate::command::BldCommand;
 use actix::System;
 use anyhow::{bail, Result};
-use bld_config::definitions::{LOCAL_DEFAULT_DB_DIR, LOCAL_DEFAULT_DB_NAME};
+use bld_config::definitions::{
+    DEFAULT_V3_PIPELINE_CONTENT, LOCAL_DEFAULT_DB_DIR, LOCAL_DEFAULT_DB_NAME,
+};
 use bld_config::path;
 use bld_config::{
     definitions::{
-        DEFAULT_V2_PIPELINE_CONTENT, LOCAL_LOGS, LOCAL_SERVER_PIPELINES, TOOL_DEFAULT_CONFIG_FILE,
-        TOOL_DEFAULT_PIPELINE, TOOL_DEFAULT_PIPELINE_FILE, TOOL_DIR,
+        LOCAL_LOGS, LOCAL_SERVER_PIPELINES, TOOL_DEFAULT_CONFIG_FILE, TOOL_DEFAULT_PIPELINE,
+        TOOL_DEFAULT_PIPELINE_FILE, TOOL_DIR,
     },
     BldConfig,
 };
@@ -116,7 +118,7 @@ async fn create_server_pipelines_dir(is_server: bool) -> Result<()> {
 
 async fn create_default_yaml() -> Result<()> {
     let path = path![TOOL_DIR, TOOL_DEFAULT_PIPELINE_FILE];
-    write(path, DEFAULT_V2_PIPELINE_CONTENT).await?;
+    write(path, DEFAULT_V3_PIPELINE_CONTENT).await?;
     print_info(&format!("{} yaml file created", TOOL_DEFAULT_PIPELINE))?;
     Ok(())
 }
