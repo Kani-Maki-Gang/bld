@@ -43,7 +43,7 @@ impl Pipeline {
 
 impl IntoVariables for Pipeline {
     fn into_variables(self) -> Variables {
-        (self.variables, self.environment)
+        (Some(self.variables), Some(self.environment))
     }
 }
 

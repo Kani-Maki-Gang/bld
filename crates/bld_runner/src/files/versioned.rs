@@ -6,6 +6,7 @@ use super::v3 as files_v3;
 
 #[cfg(feature = "all")]
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 #[cfg(feature = "all")]
 use crate::traits::{Dependencies, Load};
@@ -17,7 +18,7 @@ use crate::validator::v1 as validator_v1;
 use crate::validator::v2 as validator_v2;
 
 #[cfg(feature = "all")]
-use crate::validator::file_v3 as validator_v3;
+use crate::validator::v3::{self as validator_v3, ConsumeValidator};
 
 #[cfg(feature = "all")]
 use anyhow::{anyhow, Result};
@@ -46,7 +47,7 @@ pub struct Yaml;
 #[cfg(feature = "all")]
 impl Load<VersionedFile> for Yaml {
     fn load(input: &str) -> Result<VersionedFile> {
-        serde_yaml_ng::from_str(input).map_err(|_| anyhow!("Pipeline file has syntax errors"))
+        serde_yaml_ng::from_str(input).map_err(|_| anyhow!("File has syntax errors"))
     }
 
     fn load_with_verbose_errors(input: &str) -> Result<VersionedFile> {
@@ -135,6 +136,13 @@ impl VersionedFile {
             pip.cron.as_deref()
         } else {
             None
+        }
+    }
+
+    pub fn required_inputs(&self) -> Option<HashSet<&str>> {
+        match self {
+            Self::Version1(_) | Self::Version2(_) => None,
+            Self::Version3(file) => file.required_inputs(),
         }
     }
 

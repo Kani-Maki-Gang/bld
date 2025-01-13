@@ -116,9 +116,14 @@ pub fn RunPipeline() -> impl IntoView {
         }
 
         Some(Ok(VersionedFile::Version3(file))) => {
-            let (var, env) = file.into_variables();
-            variables.set(hash_map_rw_signals(var));
-            environment.set(hash_map_rw_signals(env));
+            let (vars, env) = file.into_variables();
+            if let Some(vars) = vars {
+                variables.set(hash_map_rw_signals(vars));
+            }
+
+            if let Some(env) = env {
+                environment.set(hash_map_rw_signals(env));
+            }
         }
 
         _ => {}

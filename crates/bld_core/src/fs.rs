@@ -71,7 +71,7 @@ impl FileSystem {
         if path.is_yaml() {
             read_to_string(path).await.map_err(|e| anyhow!(e))
         } else {
-            bail!("pipeline not found")
+            bail!("file not found")
         }
     }
 
@@ -150,11 +150,11 @@ impl FileSystem {
                     remove_file(&path).await?;
                     Ok(())
                 } else {
-                    bail!("pipeline not found")
+                    bail!("file not found")
                 }
             }
             Self::Server { .. } if !path.is_yaml() => {
-                bail!("pipeline not found")
+                bail!("file not found")
             }
             Self::Server { conn, .. } => {
                 pipeline::delete_by_name(conn.as_ref(), name)
@@ -171,7 +171,7 @@ impl FileSystem {
         let path = self.config().tmp_full_path(name);
 
         if !path.is_yaml() {
-            bail!("pipeline not found");
+            bail!("file not found");
         }
 
         remove_file(path).await?;
@@ -278,7 +278,7 @@ impl FileSystem {
         };
 
         if check_path && !path.is_yaml() {
-            bail!("pipeline not found");
+            bail!("file not found");
         }
 
         let args = format!("{} {}", config.local.editor, path.display());

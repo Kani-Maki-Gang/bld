@@ -13,6 +13,6 @@ pub async fn post(
     info!("Reached handler for /stop route");
     match supervisor_sender.stop(&req).await {
         Ok(_) => HttpResponse::Ok().json(""),
-        Err(_) => HttpResponse::BadRequest().body("pipeline not found"),
+        Err(_) => HttpResponse::BadRequest().body("File not found"),
     }
 }

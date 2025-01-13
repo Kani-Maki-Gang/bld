@@ -24,8 +24,8 @@ use tracing::debug;
 use crate::{
     external::v1::External,
     pipeline::v1::Pipeline,
+    runner::builder::RunnerBuilder,
     step::v1::{BuildStep, BuildStepExec},
-    sync::builder::RunnerBuilder,
 };
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
@@ -258,12 +258,13 @@ impl Runner {
             .run_start_time(&self.run_start_time)
             .config(self.config.clone())
             .fs(self.fs.clone())
-            .pipeline(&details.pipeline)
+            .file(&details.pipeline)
             .logger(self.logger.clone())
             .env(environment.into_arc())
             .inputs(variables.into_arc())
             .ipc(self.ipc.clone())
             .context(self.context.clone())
+            .platform(self.platform.clone())
             .is_child(true)
             .build()
             .await?;

@@ -134,15 +134,15 @@ pub async fn select_with_filters<C: ConnectionTrait + TransactionTrait>(
             .one(conn)
             .await
             .map_err(|e| {
-                error!("couldn't load pipeline with name {flt_pipeline} due to {e}");
+                error!("couldn't load file with name {flt_pipeline} due to {e}");
                 anyhow!(e)
             })?
             .ok_or_else(|| {
                 error!("couldn't load pipeline due to not found");
-                anyhow!("pipeline not found")
+                anyhow!("file not found")
             })
             .inspect(|_| {
-                debug!("loaded pipeline with name {flt_pipeline} successfully");
+                debug!("loaded file with name {flt_pipeline} successfully");
             })?;
         find = find.filter(cron_jobs::Column::PipelineId.eq(pipeline.id));
     }

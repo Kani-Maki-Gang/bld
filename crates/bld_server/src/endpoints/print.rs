@@ -22,7 +22,7 @@ pub async fn get(
     };
 
     let Ok(content) = content else {
-        return HttpResponse::BadRequest().body("pipeline not found");
+        return HttpResponse::BadRequest().body("File not found");
     };
 
     let accept = accept.to_string();

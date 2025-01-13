@@ -161,6 +161,10 @@ impl Job {
     async fn local_external(&self, details: &External) -> Result<()> {
         debug!("building runner for child pipeline");
 
+        let Some(platform) = self.platform.as_ref() else {
+            bail!("no platform instance for runner");
+        };
+
         let variables = details.variables.clone();
         let environment = details.environment.clone();
 
@@ -169,11 +173,12 @@ impl Job {
             .run_start_time(&self.run_start_time)
             .config(self.config.clone())
             .fs(self.fs.clone())
-            .pipeline(&details.pipeline)
+            .file(&details.pipeline)
             .logger(self.logger.clone())
             .env(environment.into_arc())
             .inputs(variables.into_arc())
             .context(self.context.clone())
+            .platform(platform.clone())
             .is_child(true)
             .build()
             .await?;

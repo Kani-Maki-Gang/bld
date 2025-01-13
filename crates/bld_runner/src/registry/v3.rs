@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use anyhow::Result;
 
 #[cfg(feature = "all")]
-use crate::token_context::v3::PipelineContext;
+use crate::token_context::v3::{ApplyContext, ExecutionContext};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -14,20 +14,20 @@ pub enum Registry {
     Full(RegistryConfig),
 }
 
-impl Registry {
-    #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
+#[cfg(feature = "all")]
+impl ApplyContext for Registry {
+    async fn apply_context<C: ExecutionContext>(&mut self, ctx: &C) -> Result<()> {
         match self {
             Registry::FromConfig(url) => {
-                *url = context.transform(url.to_owned()).await?;
+                *url = ctx.transform(url.to_owned()).await?;
             }
             Registry::Full(ref mut config) => {
-                config.url = context.transform(config.url.to_owned()).await?;
+                config.url = ctx.transform(config.url.to_owned()).await?;
                 if let Some(ref mut username) = config.username {
-                    config.username = Some(context.transform(username.to_owned()).await?);
+                    config.username = Some(ctx.transform(username.to_owned()).await?);
                 }
                 if let Some(ref mut password) = config.password {
-                    config.password = Some(context.transform(password.to_owned()).await?);
+                    config.password = Some(ctx.transform(password.to_owned()).await?);
                 }
             }
         }

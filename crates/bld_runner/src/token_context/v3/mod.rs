@@ -1,3 +1,4 @@
+mod traits;
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{anyhow, Result};
@@ -9,8 +10,10 @@ use bld_core::regex::RegexCache;
 use bld_utils::sync::IntoArc;
 use regex::Regex;
 
+pub use traits::*;
+
 #[derive(Default)]
-pub struct PipelineContextBuilder<'a> {
+pub struct ExecutionContextBuilder<'a> {
     root_dir: Option<&'a str>,
     project_dir: Option<&'a str>,
     inputs: HashMap<String, String>,
@@ -20,7 +23,7 @@ pub struct PipelineContextBuilder<'a> {
     regex_cache: Option<Arc<RegexCache>>,
 }
 
-impl<'a> PipelineContextBuilder<'a> {
+impl<'a> ExecutionContextBuilder<'a> {
     pub fn root_dir(mut self, directory: &'a str) -> Self {
         self.root_dir = Some(directory);
         self
@@ -60,7 +63,7 @@ impl<'a> PipelineContextBuilder<'a> {
         self
     }
 
-    pub fn build(self) -> Result<PipelineContext<'a>> {
+    pub fn build(self) -> Result<CommonExecutionContext<'a>> {
         let root_dir = self
             .root_dir
             .ok_or_else(|| anyhow!("bld root directory not provided in pipeline context"))?;
@@ -81,7 +84,7 @@ impl<'a> PipelineContextBuilder<'a> {
             .regex_cache
             .ok_or_else(|| anyhow!("regex cache not provided in pipeline context"))?;
 
-        Ok(PipelineContext {
+        Ok(CommonExecutionContext {
             root_dir,
             project_dir,
             inputs: self.inputs,
@@ -93,7 +96,7 @@ impl<'a> PipelineContextBuilder<'a> {
     }
 }
 
-pub struct PipelineContext<'a> {
+pub struct CommonExecutionContext<'a> {
     pub root_dir: &'a str,
     pub project_dir: &'a str,
     pub inputs: HashMap<String, String>,
@@ -103,7 +106,7 @@ pub struct PipelineContext<'a> {
     regex_cache: Arc<RegexCache>,
 }
 
-impl<'a> PipelineContext<'a> {
+impl<'a> CommonExecutionContext<'a> {
     fn get_regex_pattern(keyword: &'a str) -> String {
         format!("{}{}{}", r"\$\{\{\s*", keyword, r"\s*\}\}")
     }
@@ -181,8 +184,10 @@ impl<'a> PipelineContext<'a> {
         };
         Ok(re.replace_all(&text, self.run_start_time).to_string())
     }
+}
 
-    pub async fn transform(&self, mut text: String) -> Result<String> {
+impl ExecutionContext for CommonExecutionContext<'_> {
+    async fn transform(&self, mut text: String) -> Result<String> {
         text = self.root_dir_transform(text).await?;
         text = self.project_dir_transform(text).await?;
         text = self.run_id_transform(text).await?;

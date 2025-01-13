@@ -46,16 +46,12 @@ pub const WEB_CLIENT_DEBUG_ORIGIN: &str = "http://127.0.0.1:8080";
 
 pub const DEFAULT_EDITOR: &str = "vi";
 
-pub const DEFAULT_V1_PIPELINE_CONTENT: &str = r"runs_on: machine
-version: 1
-steps:
-- exec:
-  - echo 'hello world'
-";
+pub const DEFAULT_V3_PIPELINE_CONTENT: &str = r"version: 3
+type: pipeline
+runs_on: machine
 
-pub const DEFAULT_V2_PIPELINE_CONTENT: &str = r"runs_on: machine
-version: 2
 jobs:
   main:
-  - echo 'hello world'
+    - name: Say hello
+      run: echo 'hello world'
 ";

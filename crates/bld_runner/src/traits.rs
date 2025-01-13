@@ -17,7 +17,10 @@ pub trait Validate {
     async fn validate(self) -> Result<()>;
 }
 
-pub type Variables = (HashMap<String, String>, HashMap<String, String>);
+pub type Variables = (
+    Option<HashMap<String, String>>,
+    Option<HashMap<String, String>>,
+);
 
 pub trait IntoVariables {
     fn into_variables(self) -> Variables;

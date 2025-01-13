@@ -52,7 +52,7 @@ pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
 
     model.ok_or_else(|| {
         error!("couldn't load pipeline due to not found");
-        anyhow!("pipeline not found")
+        anyhow!("file not found")
     })
 }
 
@@ -74,7 +74,7 @@ pub async fn select_by_name<C: ConnectionTrait + TransactionTrait>(
     model
         .ok_or_else(|| {
             error!("couldn't load pipeline due to not found");
-            anyhow!("pipeline not found")
+            anyhow!("file not found")
         })
         .inspect(|_| {
             debug!("loaded pipeline successfully");

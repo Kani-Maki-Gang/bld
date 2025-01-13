@@ -1,6 +1,9 @@
+use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    action::v3::Action,
     pipeline::v3::Pipeline,
     traits::{IntoVariables, Variables},
 };
@@ -17,7 +20,25 @@ pub enum RunnerFile {
     #[serde(rename(serialize = "pipeline", deserialize = "pipeline"))]
     PipelineFileType(Box<Pipeline>),
     #[serde(rename(serialize = "action", deserialize = "action"))]
-    ActionFileType,
+    ActionFileType(Box<Action>),
+}
+
+impl RunnerFile {
+    pub fn required_inputs(&self) -> Option<HashSet<&str>> {
+        match self {
+            Self::PipelineFileType(pipeline) => pipeline.required_inputs(),
+            Self::ActionFileType(action) => action.required_inputs(),
+        }
+    }
+}
+
+impl IntoVariables for RunnerFile {
+    fn into_variables(self) -> Variables {
+        match self {
+            Self::PipelineFileType(p) => p.into_variables(),
+            Self::ActionFileType(a) => a.into_variables(),
+        }
+    }
 }
 
 #[cfg(feature = "all")]
@@ -35,21 +56,12 @@ impl Dependencies for RunnerFile {
                     .external
                     .iter()
                     .filter(|e| e.server.is_none())
-                    .map(|e| e.pipeline.to_owned());
+                    .map(|e| e.uses.to_owned());
 
                 from_steps.chain(from_external).collect()
             }
 
-            Self::ActionFileType => vec![],
-        }
-    }
-}
-
-impl IntoVariables for RunnerFile {
-    fn into_variables(self) -> Variables {
-        match self {
-            Self::PipelineFileType(p) => (p.inputs, p.env),
-            Self::ActionFileType => unimplemented!(),
+            Self::ActionFileType(action) => action.local_deps(config),
         }
     }
 }

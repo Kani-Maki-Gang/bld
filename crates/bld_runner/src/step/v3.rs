@@ -1,3 +1,4 @@
+use crate::external::v3::External;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "all")]
@@ -10,82 +11,77 @@ use bld_config::BldConfig;
 use bld_utils::fs::IsYaml;
 
 #[cfg(feature = "all")]
-use crate::token_context::v3::PipelineContext;
+use tracing::debug;
 
 #[cfg(feature = "all")]
-use crate::traits::Dependencies;
+use crate::{
+    token_context::v3::{ApplyContext, ExecutionContext},
+    traits::Dependencies,
+    validator::v3::{Validate, ValidatorContext},
+};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShellCommand {
+    pub name: Option<String>,
+    pub working_dir: Option<String>,
+    pub run: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum BuildStep {
-    One(BuildStepExec),
-    Many {
-        name: Option<String>,
-        working_dir: Option<String>,
-        #[serde(default)]
-        exec: Vec<BuildStepExec>,
-    },
+pub enum Step {
+    SingleSh(String),
+    ComplexSh(Box<ShellCommand>),
+    ExternalFile(Box<External>),
 }
 
-impl BuildStep {
-    #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
-        match self {
-            Self::One(exec) => {
-                exec.apply_tokens(context).await?;
-            }
-            Self::Many {
-                working_dir, exec, ..
-            } => {
-                if let Some(wd) = working_dir.as_mut() {
-                    *working_dir = Some(context.transform(wd.to_owned()).await?);
-                }
-                for exec in exec.iter_mut() {
-                    exec.apply_tokens(context).await?;
-                }
-            }
-        }
-        Ok(())
-    }
-
+impl Step {
     pub fn is(&self, name: &str) -> bool {
-        let Self::Many { name: n, .. } = self else {
-            return false;
-        };
-        n.as_ref().map(|x| x == name).unwrap_or_default()
+        if let Self::ComplexSh(complex) = self {
+            return complex.name.as_ref().map(|x| x == name).unwrap_or_default();
+        }
+
+        if let Self::ExternalFile(external) = self {
+            return external
+                .name
+                .as_ref()
+                .map(|x| x == name)
+                .unwrap_or_default();
+        }
+
+        false
     }
 }
 
 #[cfg(feature = "all")]
-impl Dependencies for BuildStep {
+impl Dependencies for Step {
     fn local_deps(&self, config: &BldConfig) -> Vec<String> {
         match self {
-            Self::One(exec) => exec.local_deps(config),
-            Self::Many { exec, .. } => exec.iter().flat_map(|e| e.local_deps(config)).collect(),
+            Self::ExternalFile(external) if config.full_path(&external.uses).is_yaml() => {
+                vec![external.uses.to_owned()]
+            }
+            Self::SingleSh(_) | Self::ComplexSh { .. } | Self::ExternalFile { .. } => vec![],
         }
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum BuildStepExec {
-    Shell(String),
-
-    External {
-        #[serde(rename(serialize = "ext", deserialize = "ext"))]
-        value: String,
-    },
-}
-
-impl BuildStepExec {
-    #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
+#[cfg(feature = "all")]
+impl ApplyContext for Step {
+    async fn apply_context<C: ExecutionContext>(&mut self, ctx: &C) -> Result<()> {
         match self {
-            Self::Shell(cmd) => {
-                *cmd = context.transform(cmd.to_owned()).await?;
+            Self::SingleSh(run) => {
+                *run = ctx.transform(run.to_owned()).await?;
             }
-            Self::External { value } => {
-                *value = context.transform(value.to_owned()).await?;
+
+            Self::ComplexSh(complex) => {
+                if let Some(wd) = complex.working_dir.as_mut() {
+                    *wd = ctx.transform(wd.to_owned()).await?;
+                }
+                complex.run = ctx.transform(complex.run.to_owned()).await?;
+            }
+
+            Self::ExternalFile(external) => {
+                external.apply_context(ctx).await?;
             }
         }
         Ok(())
@@ -93,13 +89,39 @@ impl BuildStepExec {
 }
 
 #[cfg(feature = "all")]
-impl Dependencies for BuildStepExec {
-    fn local_deps(&self, config: &BldConfig) -> Vec<String> {
+impl<'a> Validate<'a> for Step {
+    async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         match self {
-            BuildStepExec::External { value } if config.full_path(value).is_yaml() => {
-                vec![value.to_owned()]
+            Step::SingleSh(sh) => {
+                debug!("Step is a single shell command");
+                ctx.validate_symbols(sh);
             }
-            _ => vec![],
+
+            Step::ComplexSh(complex) => {
+                debug!("Step is a complex shell command");
+                if let Some(name) = complex.name.as_ref() {
+                    ctx.push_section(name);
+                }
+
+                if let Some(wd) = complex.working_dir.as_ref() {
+                    debug!("Validating step's working directory");
+                    ctx.push_section("working_dir");
+                    ctx.validate_symbols(wd);
+                    ctx.pop_section();
+                }
+
+                debug!("Validating step's run command");
+                ctx.validate_symbols(&complex.run);
+
+                if complex.name.is_some() {
+                    ctx.pop_section();
+                }
+            }
+
+            Step::ExternalFile(external) => {
+                debug!("Step is an external file");
+                external.validate(ctx).await;
+            }
         }
     }
 }

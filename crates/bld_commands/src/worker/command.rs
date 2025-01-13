@@ -98,7 +98,7 @@ impl BldCommand for WorkerCommand {
                     .run_start_time(&start_date)
                     .config(config)
                     .fs(fs)
-                    .pipeline(&pipeline)
+                    .file(&pipeline)
                     .logger(logger)
                     .env(env)
                     .inputs(inputs)

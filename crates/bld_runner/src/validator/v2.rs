@@ -325,7 +325,7 @@ impl<'a> PipelineValidator<'a> {
             Ok(path) if !path.is_yaml() => {
                 let _ = writeln!(
                     self.errors,
-                    "[external > pipeline > {}] Pipeline not found",
+                    "[external > pipeline > {}] File not found",
                     pipeline
                 );
             }

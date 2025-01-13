@@ -198,7 +198,7 @@ impl RunAdapter {
         let runner = RunnerBuilder::default()
             .config(mode.config.clone())
             .fs(FileSystem::local(mode.config.clone()).into_arc())
-            .pipeline(&mode.pipeline)
+            .file(&mode.pipeline)
             .logger(Logger::shell().into_arc())
             .context(Context::local(mode.config.clone()).into_arc())
             .signals(signals_rx)

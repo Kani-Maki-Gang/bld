@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Write, pin::Pin, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt::Write, sync::Arc, time::Duration};
 
 use actix::{clock::sleep, io::SinkWrite, spawn, Actor, StreamHandler};
 use anyhow::{anyhow, bail, Result};
@@ -21,20 +21,16 @@ use bld_http::WebSocket;
 use bld_models::dtos::{ExecClientMessage, WorkerMessages};
 use bld_sock::ExecClient;
 use bld_utils::sync::IntoArc;
-use futures::{Future, StreamExt};
+use futures::StreamExt;
 use tokio::{sync::mpsc::Sender, task::JoinHandle};
 use tracing::debug;
 
 use crate::{
-    external::v3::External,
-    pipeline::v3::Pipeline,
-    registry::v3::Registry,
-    runs_on::v3::RunsOn,
-    step::v3::{BuildStep, BuildStepExec},
-    RunnerBuilder,
+    external::v3::External, pipeline::v3::Pipeline, registry::v3::Registry, runs_on::v3::RunsOn,
+    step::v3::Step, RunnerBuilder,
 };
 
-type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
+use super::common::RecursiveFuture;
 
 struct Job {
     pub job_name: String,
@@ -46,6 +42,7 @@ struct Job {
     pub pipeline: Arc<Pipeline>,
     pub context: Arc<Context>,
     pub platform: Option<Arc<Platform>>,
+    pub regex_cache: Arc<RegexCache>,
 }
 
 impl Job {
@@ -69,30 +66,27 @@ impl Job {
         Ok(self)
     }
 
-    async fn exec(&self, exec: &BuildStepExec, working_dir: &Option<String>) -> Result<()> {
-        match exec {
-            BuildStepExec::Shell(cmd) => self.shell(working_dir, cmd).await,
-            BuildStepExec::External { value } => self.external(value).await,
-        }
-    }
-
-    async fn step(&self, step: &BuildStep) -> Result<()> {
+    async fn step(&self, step: &Step) -> Result<()> {
         match step {
-            BuildStep::One(exec) => self.exec(exec, &None).await?,
-            BuildStep::Many {
-                name,
-                working_dir,
-                exec,
-            } => {
-                if let Some(name) = name {
+            Step::SingleSh(sh) => self.shell(&None, sh).await?,
+
+            Step::ComplexSh(complex) => {
+                if let Some(name) = complex.name.as_ref() {
                     let mut message = String::new();
                     writeln!(message, "{:<15}: {name}", "Step")?;
                     self.logger.write_line(message).await?;
                 }
-                for exec in exec.iter() {
-                    self.exec(exec, working_dir).await?
+                self.shell(&complex.working_dir, &complex.run).await?;
+                self.artifacts(complex.name.as_deref()).await?;
+            }
+
+            Step::ExternalFile(external) => {
+                if let Some(name) = external.name.as_ref() {
+                    let mut message = String::new();
+                    writeln!(message, "{:<15}: {name}", "Step")?;
+                    self.logger.write_line(message).await?;
                 }
-                self.artifacts(name.as_ref().map(|x| x.as_str())).await?;
+                self.external(external).await?;
             }
         }
         Ok(())
@@ -142,13 +136,8 @@ impl Job {
         Ok(())
     }
 
-    async fn external(&self, value: &str) -> Result<()> {
-        debug!("starting execution of external section {value}");
-
-        let Some(external) = self.pipeline.external.iter().find(|i| i.is(value)) else {
-            self.local_external(&External::local(value)).await?;
-            return Ok(());
-        };
+    async fn external(&self, external: &External) -> Result<()> {
+        debug!("calling external pipeline or action {}", external.uses);
 
         match external.server.as_ref() {
             Some(server) => self.server_external(server, external).await?,
@@ -159,9 +148,13 @@ impl Job {
     }
 
     async fn local_external(&self, details: &External) -> Result<()> {
-        debug!("building runner for child pipeline");
+        debug!("building runner for child file");
 
-        let inputs = details.inputs.clone();
+        let Some(platform) = self.platform.as_ref() else {
+            bail!("no platform instance for runner");
+        };
+
+        let inputs = details.with.clone();
         let env = details.env.clone();
 
         let runner = RunnerBuilder::default()
@@ -169,16 +162,18 @@ impl Job {
             .run_start_time(&self.run_start_time)
             .config(self.config.clone())
             .fs(self.fs.clone())
-            .pipeline(&details.pipeline)
+            .file(&details.uses)
             .logger(self.logger.clone())
             .env(env.into_arc())
             .inputs(inputs.into_arc())
             .context(self.context.clone())
+            .platform(platform.clone())
+            .regex_cache(self.regex_cache.clone())
             .is_child(true)
             .build()
             .await?;
 
-        debug!("starting child pipeline runner");
+        debug!("starting child file runner");
         runner.run().await?;
 
         Ok(())
@@ -188,7 +183,7 @@ impl Job {
         let server_name = server.to_owned();
         let server = self.config.server(server)?;
         let auth_path = self.config.auth_full_path(&server.name);
-        let inputs = details.inputs.clone();
+        let inputs = details.with.clone();
         let env = details.env.clone();
 
         let url = format!("{}/v1/ws-exec/", server.base_url_ws());
@@ -220,7 +215,7 @@ impl Job {
         debug!("sending message for pipeline execution over the web socket");
 
         addr.send(ExecClientMessage::EnqueueRun {
-            name: details.pipeline.to_owned(),
+            name: details.uses.to_owned(),
             env: Some(env),
             inputs: Some(inputs),
         })
@@ -265,7 +260,7 @@ impl RunningJob {
     }
 }
 
-pub struct Runner {
+pub struct PipelineRunner {
     pub run_id: String,
     pub run_start_time: String,
     pub config: Arc<BldConfig>,
@@ -282,7 +277,7 @@ pub struct Runner {
     pub has_faulted: bool,
 }
 
-impl Runner {
+impl PipelineRunner {
     async fn register_start(&self) -> Result<()> {
         if !self.is_child {
             debug!("setting the pipeline as running in the execution context");
@@ -446,7 +441,7 @@ impl Runner {
             writeln!(message, "{:<15}: {name}", "Name")?;
         }
         writeln!(message, "{:<15}: {}", "Runs on", &self.pipeline.runs_on)?;
-        writeln!(message, "{:<15}: 2", "Version")?;
+        writeln!(message, "{:<15}: 3", "Version")?;
 
         self.logger.write_line(message).await
     }
@@ -477,6 +472,7 @@ impl Runner {
             logger,
             context: self.context.clone(),
             platform: self.platform.clone(),
+            regex_cache: self.regex_cache.clone(),
         }
     }
 
