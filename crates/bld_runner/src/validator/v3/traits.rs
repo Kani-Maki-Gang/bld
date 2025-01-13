@@ -19,7 +19,6 @@ pub trait ValidatorContext<'a> {
     fn validate_env(&mut self, env: &'a HashMap<String, String>);
 }
 
-#[allow(async_fn_in_trait)]
 pub trait ConsumeValidator {
     async fn validate(self) -> Result<()>;
 }
