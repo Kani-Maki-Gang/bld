@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "all")]
-use crate::token_context::v3::ExecutionContext;
-
-#[cfg(feature = "all")]
-use crate::validator::v3::{Validate, ValidatorContext};
+use crate::{
+    token_context::v3::{ApplyContext, ExecutionContext},
+    validator::v3::{Validate, ValidatorContext},
+};
 
 #[cfg(feature = "all")]
 use anyhow::Result;
@@ -24,26 +24,28 @@ pub enum Input {
 }
 
 impl Input {
-    #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &'a ExecutionContext<'a>) -> Result<()> {
-        match self {
-            Input::Simple(v) => {
-                *v = context.transform(v.to_owned()).await?;
-            }
-            Input::Complex { default, .. } => {
-                if let Some(v) = default {
-                    *default = Some(context.transform(v.to_owned()).await?);
-                }
-            }
-        }
-        Ok(())
-    }
-
     pub fn is_required(&self) -> bool {
         match self {
             Input::Simple(_) => false,
             Input::Complex { required, .. } => *required,
         }
+    }
+}
+
+#[cfg(feature = "all")]
+impl ApplyContext for Input {
+    async fn apply_context<C: ExecutionContext>(&mut self, ctx: &C) -> Result<()> {
+        match self {
+            Input::Simple(v) => {
+                *v = ctx.transform(v.to_owned()).await?;
+            }
+            Input::Complex { default, .. } => {
+                if let Some(v) = default {
+                    *default = Some(ctx.transform(v.to_owned()).await?);
+                }
+            }
+        }
+        Ok(())
     }
 }
 

@@ -7,10 +7,10 @@ use anyhow::Result;
 use tracing::debug;
 
 #[cfg(feature = "all")]
-use crate::token_context::v3::ExecutionContext;
-
-#[cfg(feature = "all")]
-use crate::validator::v3::{Validate, ValidatorContext};
+use crate::{
+    token_context::v3::{ApplyContext, ExecutionContext},
+    validator::v3::{Validate, ValidatorContext},
+};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Artifacts {
@@ -21,14 +21,14 @@ pub struct Artifacts {
     pub after: Option<String>,
 }
 
-impl Artifacts {
-    #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &'a ExecutionContext<'a>) -> Result<()> {
-        self.from = context.transform(self.from.to_owned()).await?;
-        self.to = context.transform(self.to.to_owned()).await?;
+#[cfg(feature = "all")]
+impl ApplyContext for Artifacts {
+    async fn apply_context<C: ExecutionContext>(&mut self, ctx: &C) -> Result<()> {
+        self.from = ctx.transform(self.from.to_owned()).await?;
+        self.to = ctx.transform(self.to.to_owned()).await?;
 
         if let Some(after) = self.after.as_mut() {
-            self.after = Some(context.transform(after.to_owned()).await?);
+            self.after = Some(ctx.transform(after.to_owned()).await?);
         }
 
         Ok(())

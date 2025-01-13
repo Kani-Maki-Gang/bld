@@ -13,7 +13,7 @@ use bld_config::BldConfig;
 
 #[cfg(feature = "all")]
 use crate::{
-    token_context::v3::ExecutionContext,
+    token_context::v3::{ApplyContext, ExecutionContext},
     traits::Dependencies,
     validator::v3::{Validate, ValidatorContext},
 };
@@ -36,19 +36,6 @@ pub struct Action {
 }
 
 impl Action {
-    #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &'a ExecutionContext<'a>) -> Result<()> {
-        for (_name, input) in self.inputs.iter_mut() {
-            input.apply_tokens(context).await?;
-        }
-
-        for step in self.steps.iter_mut() {
-            step.apply_tokens(context).await?;
-        }
-
-        Ok(())
-    }
-
     pub fn inputs_map(&self) -> HashMap<String, String> {
         let mut inputs = HashMap::new();
         for (name, input) in &self.inputs {
@@ -73,16 +60,6 @@ impl Action {
     }
 }
 
-#[cfg(feature = "all")]
-impl Dependencies for Action {
-    fn local_deps(&self, config: &BldConfig) -> Vec<String> {
-        self.steps
-            .iter()
-            .flat_map(|s| s.local_deps(config))
-            .collect()
-    }
-}
-
 impl IntoVariables for Action {
     fn into_variables(self) -> Variables {
         let mut inputs = HashMap::new();
@@ -97,6 +74,31 @@ impl IntoVariables for Action {
             }
         }
         (inputs, HashMap::new())
+    }
+}
+
+#[cfg(feature = "all")]
+impl Dependencies for Action {
+    fn local_deps(&self, config: &BldConfig) -> Vec<String> {
+        self.steps
+            .iter()
+            .flat_map(|s| s.local_deps(config))
+            .collect()
+    }
+}
+
+#[cfg(feature = "all")]
+impl ApplyContext for Action {
+    async fn apply_context<C: ExecutionContext>(&mut self, ctx: &C) -> Result<()> {
+        for (_name, input) in self.inputs.iter_mut() {
+            input.apply_context(ctx).await?;
+        }
+
+        for step in self.steps.iter_mut() {
+            step.apply_context(ctx).await?;
+        }
+
+        Ok(())
     }
 }
 

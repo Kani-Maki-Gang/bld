@@ -25,7 +25,7 @@ use crate::{
         versioned::{VersionedFile, Yaml},
     },
     runner::{self, v3::FileRunner, versioned::VersionedRunner},
-    token_context,
+    token_context::{self, v3::ApplyContext},
     traits::Load,
 };
 
@@ -248,7 +248,7 @@ impl<'a> RunnerBuilder<'a> {
                     .regex_cache(self.regex_cache.clone())
                     .build()?;
 
-                pipeline.apply_tokens(&pipeline_context).await?;
+                pipeline.apply_context(&pipeline_context).await?;
 
                 let pipeline = Arc::new(*pipeline);
                 VersionedRunner::V3(FileRunner::Pipeline(runner::v3::PipelineRunner {
@@ -289,7 +289,7 @@ impl<'a> RunnerBuilder<'a> {
                     .regex_cache(self.regex_cache.clone())
                     .build()?;
 
-                action.apply_tokens(&execution_context).await?;
+                action.apply_context(&execution_context).await?;
 
                 VersionedRunner::V3(FileRunner::Action(runner::v3::ActionRunner {
                     logger: self.logger,

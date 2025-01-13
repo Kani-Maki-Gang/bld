@@ -10,10 +10,10 @@ use anyhow::Result;
 use bld_config::{DockerUrl, SshUserAuth};
 
 #[cfg(feature = "all")]
-use crate::token_context::v3::ExecutionContext;
-
-#[cfg(feature = "all")]
-use crate::validator::v3::{Validate, ValidatorContext};
+use crate::{
+    token_context::v3::{ApplyContext, ExecutionContext},
+    validator::v3::{Validate, ValidatorContext},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -74,9 +74,11 @@ impl RunsOn {
             _ => None,
         }
     }
+}
 
-    #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &ExecutionContext<'a>) -> Result<()> {
+#[cfg(feature = "all")]
+impl ApplyContext for RunsOn {
+    async fn apply_context<C: ExecutionContext>(&mut self, ctx: &C) -> Result<()> {
         match self {
             RunsOn::Pull {
                 image,
@@ -84,12 +86,12 @@ impl RunsOn {
                 docker_url,
                 ..
             } => {
-                *image = context.transform(image.to_owned()).await?;
+                *image = ctx.transform(image.to_owned()).await?;
                 if let Some(docker_url) = docker_url {
-                    *docker_url = context.transform(docker_url.to_owned()).await?;
+                    *docker_url = ctx.transform(docker_url.to_owned()).await?;
                 }
                 if let Some(registry) = registry.as_mut() {
-                    registry.apply_tokens(context).await?;
+                    registry.apply_context(ctx).await?;
                 }
             }
 
@@ -99,26 +101,26 @@ impl RunsOn {
                 dockerfile,
                 docker_url,
             } => {
-                *name = context.transform(name.to_owned()).await?;
-                *tag = context.transform(tag.to_owned()).await?;
-                *dockerfile = context.transform(dockerfile.to_owned()).await?;
+                *name = ctx.transform(name.to_owned()).await?;
+                *tag = ctx.transform(tag.to_owned()).await?;
+                *dockerfile = ctx.transform(dockerfile.to_owned()).await?;
                 *docker_url = if let Some(url) = docker_url {
-                    Some(context.transform(url.to_owned()).await?)
+                    Some(ctx.transform(url.to_owned()).await?)
                 } else {
                     None
                 };
             }
 
             RunsOn::ContainerOrMachine(image) if image != "machine" => {
-                *image = context.transform(image.to_owned()).await?;
+                *image = ctx.transform(image.to_owned()).await?;
             }
 
             RunsOn::ContainerOrMachine(_) => {}
 
             RunsOn::Ssh(ref mut config) => {
-                config.host = context.transform(config.host.to_owned()).await?;
-                config.port = context.transform(config.port.to_owned()).await?;
-                config.user = context.transform(config.user.to_owned()).await?;
+                config.host = ctx.transform(config.host.to_owned()).await?;
+                config.port = ctx.transform(config.port.to_owned()).await?;
+                config.user = ctx.transform(config.user.to_owned()).await?;
                 config.userauth = match &config.userauth {
                     SshUserAuth::Agent => SshUserAuth::Agent,
                     SshUserAuth::Keys {
@@ -126,25 +128,25 @@ impl RunsOn {
                         private_key,
                     } => {
                         let public_key = if let Some(pubkey) = public_key {
-                            Some(context.transform(pubkey.to_owned()).await?)
+                            Some(ctx.transform(pubkey.to_owned()).await?)
                         } else {
                             None
                         };
-                        let private_key = context.transform(private_key.to_owned()).await?;
+                        let private_key = ctx.transform(private_key.to_owned()).await?;
                         SshUserAuth::Keys {
                             public_key,
                             private_key,
                         }
                     }
                     SshUserAuth::Password { password } => {
-                        let password = context.transform(password.to_owned()).await?;
+                        let password = ctx.transform(password.to_owned()).await?;
                         SshUserAuth::Password { password }
                     }
                 }
             }
 
             RunsOn::SshFromGlobalConfig { ssh_config } => {
-                *ssh_config = context.transform(ssh_config.to_owned()).await?;
+                *ssh_config = ctx.transform(ssh_config.to_owned()).await?;
             }
         }
         Ok(())

@@ -1,17 +1,19 @@
-use crate::external::v3::External;
-use crate::inputs::v3::Input;
-use crate::runs_on::v3::RunsOn;
-use crate::step::v3::Step;
-use crate::traits::Variables;
-use crate::{artifacts::v3::Artifacts, traits::IntoVariables};
+use crate::{
+    artifacts::v3::Artifacts,
+    external::v3::External,
+    inputs::v3::Input,
+    runs_on::v3::RunsOn,
+    step::v3::Step,
+    traits::{IntoVariables, Variables},
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 #[cfg(feature = "all")]
-use crate::token_context::v3::ExecutionContext;
-
-#[cfg(feature = "all")]
-use crate::validator::v3::{Validate, ValidatorContext};
+use crate::{
+    token_context::v3::{ApplyContext, ExecutionContext},
+    validator::v3::{Validate, ValidatorContext},
+};
 
 #[cfg(feature = "all")]
 use anyhow::Result;
@@ -70,33 +72,6 @@ impl Pipeline {
         inputs
     }
 
-    #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &'a ExecutionContext<'a>) -> Result<()> {
-        self.runs_on.apply_tokens(context).await?;
-
-        for (_, v) in self.env.iter_mut() {
-            *v = context.transform(v.to_owned()).await?;
-        }
-
-        for (_name, input) in self.inputs.iter_mut() {
-            input.apply_tokens(context).await?;
-        }
-
-        for entry in self.external.iter_mut() {
-            entry.apply_tokens(context).await?;
-        }
-
-        for entry in self.artifacts.iter_mut() {
-            entry.apply_tokens(context).await?;
-        }
-
-        for step in self.jobs.iter_mut().flat_map(|(_, steps)| steps) {
-            step.apply_tokens(context).await?;
-        }
-
-        Ok(())
-    }
-
     pub fn required_inputs(&self) -> HashSet<&str> {
         self.inputs
             .iter()
@@ -133,6 +108,35 @@ impl IntoVariables for Pipeline {
             }
         }
         (inputs, self.env)
+    }
+}
+
+#[cfg(feature = "all")]
+impl ApplyContext for Pipeline {
+    async fn apply_context<C: ExecutionContext>(&mut self, ctx: &C) -> Result<()> {
+        self.runs_on.apply_context(ctx).await?;
+
+        for (_, v) in self.env.iter_mut() {
+            *v = ctx.transform(v.to_owned()).await?;
+        }
+
+        for (_name, input) in self.inputs.iter_mut() {
+            input.apply_context(ctx).await?;
+        }
+
+        for entry in self.external.iter_mut() {
+            entry.apply_context(ctx).await?;
+        }
+
+        for entry in self.artifacts.iter_mut() {
+            entry.apply_context(ctx).await?;
+        }
+
+        for step in self.jobs.iter_mut().flat_map(|(_, steps)| steps) {
+            step.apply_context(ctx).await?;
+        }
+
+        Ok(())
     }
 }
 

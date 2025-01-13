@@ -32,6 +32,15 @@ impl RunnerFile {
     }
 }
 
+impl IntoVariables for RunnerFile {
+    fn into_variables(self) -> Variables {
+        match self {
+            Self::PipelineFileType(p) => p.into_variables(),
+            Self::ActionFileType(a) => a.into_variables(),
+        }
+    }
+}
+
 #[cfg(feature = "all")]
 impl Dependencies for RunnerFile {
     fn local_deps(&self, config: &BldConfig) -> Vec<String> {
@@ -53,15 +62,6 @@ impl Dependencies for RunnerFile {
             }
 
             Self::ActionFileType(action) => action.local_deps(config),
-        }
-    }
-}
-
-impl IntoVariables for RunnerFile {
-    fn into_variables(self) -> Variables {
-        match self {
-            Self::PipelineFileType(p) => p.into_variables(),
-            Self::ActionFileType(a) => a.into_variables(),
         }
     }
 }

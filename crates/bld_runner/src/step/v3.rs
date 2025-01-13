@@ -14,13 +14,11 @@ use bld_utils::fs::IsYaml;
 use tracing::debug;
 
 #[cfg(feature = "all")]
-use crate::token_context::v3::ExecutionContext;
-
-#[cfg(feature = "all")]
-use crate::validator::v3::{Validate, ValidatorContext};
-
-#[cfg(feature = "all")]
-use crate::traits::Dependencies;
+use crate::{
+    token_context::v3::{ApplyContext, ExecutionContext},
+    traits::Dependencies,
+    validator::v3::{Validate, ValidatorContext},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShellCommand {
@@ -38,27 +36,6 @@ pub enum Step {
 }
 
 impl Step {
-    #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &ExecutionContext<'a>) -> Result<()> {
-        match self {
-            Self::SingleSh(run) => {
-                *run = context.transform(run.to_owned()).await?;
-            }
-
-            Self::ComplexSh(complex) => {
-                if let Some(wd) = complex.working_dir.as_mut() {
-                    *wd = context.transform(wd.to_owned()).await?;
-                }
-                complex.run = context.transform(complex.run.to_owned()).await?;
-            }
-
-            Self::ExternalFile(external) => {
-                external.apply_tokens(context).await?;
-            }
-        }
-        Ok(())
-    }
-
     pub fn is(&self, name: &str) -> bool {
         if let Self::ComplexSh(complex) = self {
             return complex.name.as_ref().map(|x| x == name).unwrap_or_default();
@@ -85,6 +62,29 @@ impl Dependencies for Step {
             }
             Self::SingleSh(_) | Self::ComplexSh { .. } | Self::ExternalFile { .. } => vec![],
         }
+    }
+}
+
+#[cfg(feature = "all")]
+impl ApplyContext for Step {
+    async fn apply_context<C: ExecutionContext>(&mut self, ctx: &C) -> Result<()> {
+        match self {
+            Self::SingleSh(run) => {
+                *run = ctx.transform(run.to_owned()).await?;
+            }
+
+            Self::ComplexSh(complex) => {
+                if let Some(wd) = complex.working_dir.as_mut() {
+                    *wd = ctx.transform(wd.to_owned()).await?;
+                }
+                complex.run = ctx.transform(complex.run.to_owned()).await?;
+            }
+
+            Self::ExternalFile(external) => {
+                external.apply_context(ctx).await?;
+            }
+        }
+        Ok(())
     }
 }
 

@@ -5,10 +5,8 @@ use std::collections::HashMap;
 use anyhow::Result;
 
 #[cfg(feature = "all")]
-use crate::token_context::v3::ExecutionContext;
-
-#[cfg(feature = "all")]
 use crate::{
+    token_context::v3::{ApplyContext, ExecutionContext},
     validator::v3::{Validate, ValidatorContext},
     Load, Yaml,
 };
@@ -43,25 +41,27 @@ impl External {
             ..Default::default()
         }
     }
+}
 
-    #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &'a ExecutionContext<'a>) -> Result<()> {
+#[cfg(feature = "all")]
+impl ApplyContext for External {
+    async fn apply_context<C: ExecutionContext>(&mut self, ctx: &C) -> Result<()> {
         if let Some(name) = self.name.as_mut() {
-            *name = context.transform(name.to_owned()).await?;
+            *name = ctx.transform(name.to_owned()).await?;
         }
 
         if let Some(server) = self.server.as_mut() {
-            *server = context.transform(server.to_owned()).await?;
+            *server = ctx.transform(server.to_owned()).await?;
         }
 
-        self.uses = context.transform(self.uses.to_owned()).await?;
+        self.uses = ctx.transform(self.uses.to_owned()).await?;
 
         for (_, v) in self.with.iter_mut() {
-            *v = context.transform(v.to_owned()).await?;
+            *v = ctx.transform(v.to_owned()).await?;
         }
 
         for (_, v) in self.env.iter_mut() {
-            *v = context.transform(v.to_owned()).await?;
+            *v = ctx.transform(v.to_owned()).await?;
         }
 
         Ok(())
