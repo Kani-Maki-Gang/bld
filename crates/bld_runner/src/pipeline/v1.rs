@@ -3,6 +3,7 @@ use crate::step::v1::BuildStep;
 use crate::traits::Variables;
 use crate::{artifacts::v1::Artifacts, traits::IntoVariables};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[cfg(feature = "all")]
 use bld_config::BldConfig;
