@@ -72,12 +72,18 @@ impl Pipeline {
         inputs
     }
 
-    pub fn required_inputs(&self) -> HashSet<&str> {
-        self.inputs
-            .iter()
-            .filter(|(_, v)| v.is_required())
-            .map(|(k, _)| k.as_str())
-            .collect()
+    pub fn required_inputs(&self) -> Option<HashSet<&str>> {
+        if !self.inputs.is_empty() {
+            let inputs = self
+                .inputs
+                .iter()
+                .filter(|(_, v)| v.is_required())
+                .map(|(k, _)| k.as_str())
+                .collect();
+            Some(inputs)
+        } else {
+            None
+        }
     }
 
     #[cfg(feature = "all")]
@@ -96,18 +102,21 @@ impl Pipeline {
 
 impl IntoVariables for Pipeline {
     fn into_variables(self) -> Variables {
-        let mut inputs = HashMap::new();
-        for (name, input) in self.inputs {
-            match input {
-                Input::Simple(v) => {
-                    inputs.insert(name, v);
-                }
-                Input::Complex { default, .. } => {
-                    inputs.insert(name, default.unwrap_or_default());
-                }
-            }
+        let mut inputs: Option<HashMap<String, String>> = None;
+
+        if !self.inputs.is_empty() {
+            let map = self
+                .inputs
+                .into_iter()
+                .map(|(name, input)| match input {
+                    Input::Simple(v) => (name, v),
+                    Input::Complex { default, .. } => (name, default.unwrap_or_default()),
+                })
+                .collect();
+            inputs = Some(map);
         }
-        (inputs, self.env)
+
+        (inputs, Some(self.env))
     }
 }
 

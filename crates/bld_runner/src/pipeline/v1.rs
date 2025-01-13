@@ -3,7 +3,6 @@ use crate::step::v1::BuildStep;
 use crate::traits::Variables;
 use crate::{artifacts::v1::Artifacts, traits::IntoVariables};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
 
 #[cfg(feature = "all")]
 use bld_config::BldConfig;
@@ -39,15 +38,11 @@ impl Pipeline {
     fn default_dispose() -> bool {
         true
     }
-
-    pub fn required_inputs(&self) -> HashSet<&str> {
-        HashSet::new()
-    }
 }
 
 impl IntoVariables for Pipeline {
     fn into_variables(self) -> Variables {
-        (self.variables, self.environment)
+        (Some(self.variables), Some(self.environment))
     }
 }
 

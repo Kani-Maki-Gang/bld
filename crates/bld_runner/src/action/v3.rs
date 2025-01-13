@@ -51,12 +51,18 @@ impl Action {
         inputs
     }
 
-    pub fn required_inputs(&self) -> HashSet<&str> {
-        self.inputs
-            .iter()
-            .filter(|(_, v)| v.is_required())
-            .map(|(k, _)| k.as_str())
-            .collect()
+    pub fn required_inputs(&self) -> Option<HashSet<&str>> {
+        if !self.inputs.is_empty() {
+            let map = self
+                .inputs
+                .iter()
+                .filter(|(_, v)| v.is_required())
+                .map(|(k, _)| k.as_str())
+                .collect();
+            Some(map)
+        } else {
+            None
+        }
     }
 }
 
@@ -73,7 +79,7 @@ impl IntoVariables for Action {
                 }
             }
         }
-        (inputs, HashMap::new())
+        (Some(inputs), None)
     }
 }
 

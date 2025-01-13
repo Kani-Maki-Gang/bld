@@ -139,10 +139,9 @@ impl VersionedFile {
         }
     }
 
-    pub fn required_inputs(&self) -> HashSet<&str> {
+    pub fn required_inputs(&self) -> Option<HashSet<&str>> {
         match self {
-            Self::Version1(pip) => pip.required_inputs(),
-            Self::Version2(pip) => pip.required_inputs(),
+            Self::Version1(_) | Self::Version2(_) => None,
             Self::Version3(file) => file.required_inputs(),
         }
     }

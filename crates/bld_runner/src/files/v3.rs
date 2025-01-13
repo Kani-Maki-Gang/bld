@@ -24,7 +24,7 @@ pub enum RunnerFile {
 }
 
 impl RunnerFile {
-    pub fn required_inputs(&self) -> HashSet<&str> {
+    pub fn required_inputs(&self) -> Option<HashSet<&str>> {
         match self {
             Self::PipelineFileType(pipeline) => pipeline.required_inputs(),
             Self::ActionFileType(action) => action.required_inputs(),

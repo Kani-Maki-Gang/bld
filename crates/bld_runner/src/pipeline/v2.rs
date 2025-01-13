@@ -4,7 +4,7 @@ use crate::step::v2::BuildStep;
 use crate::traits::Variables;
 use crate::{artifacts::v2::Artifacts, traits::IntoVariables};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 #[cfg(feature = "all")]
 use crate::token_context::v2::PipelineContext;
@@ -75,15 +75,11 @@ impl Pipeline {
 
         Ok(())
     }
-
-    pub fn required_inputs(&self) -> HashSet<&str> {
-        HashSet::new()
-    }
 }
 
 impl IntoVariables for Pipeline {
     fn into_variables(self) -> Variables {
-        (self.variables, self.environment)
+        (Some(self.variables), Some(self.environment))
     }
 }
 
