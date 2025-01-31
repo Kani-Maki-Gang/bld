@@ -185,7 +185,7 @@ jobs:
 # Graceful shutdown
 Since each run could create and run container as well as issue remote runs to bld servers, the cli handles the SIGINT and SIGTERM signals in order to properly cleanup all of the external components. To be noted that the stop command which stops a pipeline running on a server, can be used for a graceful early shutdown of a pipeline.
 
-# Gihub action
+# Github action
 Bld has an alpha version of a github action called [bld-action](https://github.com/marketplace/actions/bld-action) and you can access the repository [here](https://github.com/Kani-Maki-Gang/bld-github-action).
 
 The action will look inside a repository to find the `.bld` directory in order to run the bld binary. An example that runs a pipeline with one variable is shown below:
