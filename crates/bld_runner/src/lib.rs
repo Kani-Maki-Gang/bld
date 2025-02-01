@@ -18,6 +18,9 @@ mod token_context;
 #[cfg(feature = "all")]
 mod validator;
 
+#[cfg(feature = "all")]
+mod expr;
+
 pub use files::versioned::VersionedFile;
 pub use traits::Load;
 
