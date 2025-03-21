@@ -235,22 +235,7 @@ impl<'a> RunnerBuilder<'a> {
                 })
             }
 
-            VersionedFile::Version3(RunnerFile::PipelineFileType(mut pipeline)) => {
-                let pipeline_context = token_context::v3::ExecutionContextBuilder::default()
-                    .root_dir(&config.root_dir)
-                    .project_dir(&config.project_dir)
-                    .add_inputs(&pipeline.inputs_map())
-                    .add_inputs(&inputs)
-                    .add_env(&pipeline.env)
-                    .add_env(&env)
-                    .run_id(&self.run_id)
-                    .run_start_time(&self.run_start_time)
-                    .regex_cache(self.regex_cache.clone())
-                    .build()?;
-
-                pipeline.apply_context(&pipeline_context).await?;
-
-                let pipeline = Arc::new(*pipeline);
+            VersionedFile::Version3(RunnerFile::PipelineFileType(pipeline)) => {
                 VersionedRunner::V3(FileRunner::Pipeline(runner::v3::PipelineRunner {
                     run_id: self.run_id,
                     run_start_time: self.run_start_time,
@@ -259,7 +244,7 @@ impl<'a> RunnerBuilder<'a> {
                     logger: self.logger,
                     regex_cache: self.regex_cache,
                     fs: self.fs,
-                    pipeline,
+                    pipeline: (*pipeline).into_arc(),
                     ipc: self.ipc,
                     env,
                     context,

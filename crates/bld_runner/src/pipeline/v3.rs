@@ -10,22 +10,21 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 #[cfg(feature = "all")]
-use crate::{
-    token_context::v3::{ApplyContext, ExecutionContext},
-    validator::v3::{Validate, ValidatorContext},
+use {
+    crate::{
+        expr::v3::{
+            parser::Rule,
+            traits::{EvalObject, ExprValue},
+        },
+        token_context::v3::{ApplyContext, ExecutionContext},
+        validator::v3::{Validate, ValidatorContext},
+    },
+    anyhow::{anyhow, bail, Result},
+    cron::Schedule,
+    pest::iterators::Pairs,
+    std::str::FromStr,
+    tracing::debug,
 };
-
-#[cfg(feature = "all")]
-use anyhow::Result;
-
-#[cfg(feature = "all")]
-use std::str::FromStr;
-
-#[cfg(feature = "all")]
-use tracing::debug;
-
-#[cfg(feature = "all")]
-use cron::Schedule;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pipeline {
@@ -146,6 +145,67 @@ impl ApplyContext for Pipeline {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(feature = "all")]
+impl<'a> EvalObject<'a> for Pipeline {
+    fn eval_object(&'a self, path: &mut Pairs<'_, Rule>) -> Result<ExprValue<'a>> {
+        let Some(object) = path.next() else {
+            bail!("no object path present");
+        };
+
+        let Rule::Object = object.as_rule() else {
+            bail!("expected object path");
+        };
+
+        let mut object_parts = object.into_inner();
+        let Some(part) = object_parts.next() else {
+            bail!("expected at least one part in the object path");
+        };
+
+        match part.as_span().get_input() {
+            "name" => {
+                let name = self.name.as_ref().map_or("", |x| x.as_str());
+                Ok(ExprValue::Text(name))
+            }
+
+            "runs_on" => self.runs_on.eval_object(&mut object_parts),
+
+            "dispose" => Ok(ExprValue::Boolean(self.dispose)),
+
+            "cron" => {
+                let cron = self.cron.as_ref().map_or("", |x| x.as_str());
+                Ok(ExprValue::Text(cron))
+            }
+
+            "inputs" => {
+                let Some(part) = object_parts.next() else {
+                    bail!("expected name of input in object path");
+                };
+                let name = part.as_span().get_input();
+                let input = self
+                    .inputs
+                    .get(name)
+                    .ok_or_else(|| anyhow!("input '{name}' not found"))?;
+                input.try_into().map(|x| ExprValue::Text(x))
+            }
+
+            "env" => {
+                let Some(part) = object_parts.next() else {
+                    bail!("expected name of env variable in object path");
+                };
+                let name = part.as_span().get_input();
+                self.env
+                    .get(name)
+                    .map(|x| ExprValue::Text(x))
+                    .ok_or_else(|| anyhow!("env variable '{name}' not found"))
+            }
+
+            "jobs" => unimplemented!(),
+
+            _ => unimplemented!(),
+        }
     }
 }
 

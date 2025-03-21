@@ -4,15 +4,18 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 #[cfg(feature = "all")]
-use anyhow::Result;
-
-#[cfg(feature = "all")]
-use bld_config::{DockerUrl, SshUserAuth};
-
-#[cfg(feature = "all")]
-use crate::{
-    token_context::v3::{ApplyContext, ExecutionContext},
-    validator::v3::{Validate, ValidatorContext},
+use {
+    crate::{
+        expr::v3::{
+            parser::Rule,
+            traits::{EvalObject, ExprValue},
+        },
+        token_context::v3::{ApplyContext, ExecutionContext},
+        validator::v3::{Validate, ValidatorContext},
+    },
+    anyhow::Result,
+    bld_config::{DockerUrl, SshUserAuth},
+    pest::iterators::Pairs,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -150,6 +153,13 @@ impl ApplyContext for RunsOn {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(feature = "all")]
+impl<'a> EvalObject<'a> for RunsOn {
+    fn eval_object(&'a self, _path: &mut Pairs<'_, Rule>) -> Result<ExprValue<'a>> {
+        unimplemented!()
     }
 }
 

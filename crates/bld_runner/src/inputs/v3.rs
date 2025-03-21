@@ -1,16 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "all")]
-use crate::{
-    token_context::v3::{ApplyContext, ExecutionContext},
-    validator::v3::{Validate, ValidatorContext},
+use {
+    crate::{
+        token_context::v3::{ApplyContext, ExecutionContext},
+        validator::v3::{Validate, ValidatorContext},
+    },
+    anyhow::{anyhow, Error, Result},
+    tracing::debug,
 };
-
-#[cfg(feature = "all")]
-use anyhow::Result;
-
-#[cfg(feature = "all")]
-use tracing::debug;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -28,6 +26,20 @@ impl Input {
         match self {
             Input::Simple(_) => false,
             Input::Complex { required, .. } => *required,
+        }
+    }
+}
+
+#[cfg(feature = "all")]
+impl<'a> TryInto<&'a str> for &'a Input {
+    type Error = Error;
+
+    fn try_into(self) -> Result<&'a str, Self::Error> {
+        match self {
+            Input::Simple(v) => Ok(v),
+            Input::Complex { default, .. } => default
+                .as_deref()
+                .ok_or_else(|| anyhow!("default value not found")),
         }
     }
 }

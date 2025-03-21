@@ -62,7 +62,6 @@ Expression = { "(" ~ " "* ~ ExpressionInner ~ " "* ~ ")" | ExpressionInner }
 LogicalExpression = { Expression ~ (AndOperator | OrOperator) ~ Expression ~ (LogicalExpression)* }
 
 //
-// Defining full expression syntax
+// Define full grammar
 //
-Full = { "${{" ~ " "* ~ (LogicalExpression | Expression)* ~ " "* ~ "}}" }
-
+Full = { LogicalExpression | Expression }

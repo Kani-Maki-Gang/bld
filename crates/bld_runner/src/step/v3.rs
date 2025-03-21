@@ -22,6 +22,7 @@ use crate::{
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShellCommand {
+    pub id: Option<String>,
     pub name: Option<String>,
     pub working_dir: Option<String>,
     pub run: String,
@@ -99,6 +100,10 @@ impl<'a> Validate<'a> for Step {
 
             Step::ComplexSh(complex) => {
                 debug!("Step is a complex shell command");
+                if let Some(id) = complex.id.as_ref() {
+                    ctx.push_section(id);
+                }
+
                 if let Some(name) = complex.name.as_ref() {
                     ctx.push_section(name);
                 }
