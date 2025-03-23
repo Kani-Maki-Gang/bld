@@ -9,7 +9,7 @@ use crate::{
     context::RefreshHistory,
     error::Error,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use bld_models::dtos::{HistQueryParams, HistoryEntry};
 use leptos::{leptos_dom::logging, *};
 use leptos_use::signal_debounced;

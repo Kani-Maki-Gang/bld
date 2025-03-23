@@ -1,15 +1,15 @@
 use std::{collections::HashMap, fmt::Write, sync::Arc, time::Duration};
 
 use actix::{clock::sleep, spawn};
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use bld_config::{BldConfig, SshUserAuth};
 use bld_core::{
     context::Context,
     fs::FileSystem,
     logger::Logger,
     platform::{
-        builder::{PlatformBuilder, PlatformOptions},
         Image, Platform, SshAuthOptions, SshConnectOptions,
+        builder::{PlatformBuilder, PlatformOptions},
     },
     regex::RegexCache,
     signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend},

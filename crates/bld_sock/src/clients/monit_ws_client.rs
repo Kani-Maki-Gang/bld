@@ -1,9 +1,9 @@
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, Context, Handler, StreamHandler, System};
 use actix_codec::Framed;
+use awc::BoxedSocket;
 use awc::error::WsProtocolError;
 use awc::ws::{Codec, Frame, Message};
-use awc::BoxedSocket;
 use bld_models::dtos::MonitInfo;
 use futures::stream::SplitSink;
 use tracing::{debug, error};

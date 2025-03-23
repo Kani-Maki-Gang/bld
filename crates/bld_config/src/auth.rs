@@ -2,9 +2,9 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 
 use anyhow::Result;
 use openidconnect::{
+    AuthUrl, ClientId, ClientSecret, IssuerUrl, RedirectUrl, Scope, TokenUrl,
     core::{CoreClient, CoreProviderMetadata},
     reqwest::async_http_client,
-    AuthUrl, ClientId, ClientSecret, IssuerUrl, RedirectUrl, Scope, TokenUrl,
 };
 use serde::{Deserialize, Serialize};
 

@@ -6,9 +6,9 @@ use anyhow::Result;
 
 #[cfg(feature = "all")]
 use crate::{
+    Load, Yaml,
     token_context::v3::{ApplyContext, ExecutionContext},
     validator::v3::{Validate, ValidatorContext},
-    Load, Yaml,
 };
 
 #[cfg(feature = "all")]

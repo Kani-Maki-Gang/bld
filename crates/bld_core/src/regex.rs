@@ -1,10 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
 use actix_web::rt::spawn;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use regex::Regex;
 use tokio::sync::{
-    mpsc::{channel, Receiver, Sender},
+    mpsc::{Receiver, Sender, channel},
     oneshot,
 };
 use tracing::error;

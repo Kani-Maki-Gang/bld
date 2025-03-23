@@ -14,7 +14,7 @@ pub mod pipeline;
 pub mod pipeline_run_containers;
 pub mod pipeline_runs;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use bld_config::BldConfig;
 use bld_migrations::{Migrator, MigratorTrait};
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};

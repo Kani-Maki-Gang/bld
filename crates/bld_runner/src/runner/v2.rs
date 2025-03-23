@@ -1,18 +1,18 @@
 use std::{collections::HashMap, fmt::Write, pin::Pin, sync::Arc, time::Duration};
 
-use actix::{clock::sleep, io::SinkWrite, spawn, Actor, StreamHandler};
-use anyhow::{anyhow, bail, Result};
+use actix::{Actor, StreamHandler, clock::sleep, io::SinkWrite, spawn};
+use anyhow::{Result, anyhow, bail};
 use bld_config::{
-    definitions::{GET, PUSH},
     BldConfig, SshUserAuth,
+    definitions::{GET, PUSH},
 };
 use bld_core::{
     context::Context,
     fs::FileSystem,
     logger::Logger,
     platform::{
-        builder::{PlatformBuilder, PlatformOptions},
         Image, Platform, SshAuthOptions, SshConnectOptions,
+        builder::{PlatformBuilder, PlatformOptions},
     },
     regex::RegexCache,
     signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend},
@@ -26,12 +26,12 @@ use tokio::{sync::mpsc::Sender, task::JoinHandle};
 use tracing::debug;
 
 use crate::{
+    RunnerBuilder,
     external::v2::External,
     pipeline::v2::Pipeline,
     registry::v2::Registry,
     runs_on::v2::RunsOn,
     step::v2::{BuildStep, BuildStepExec},
-    RunnerBuilder,
 };
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;

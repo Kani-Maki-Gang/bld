@@ -1,7 +1,7 @@
 use crate::command::BldCommand;
-use actix::{io::SinkWrite, Actor, StreamHandler};
+use actix::{Actor, StreamHandler, io::SinkWrite};
 use actix_web::rt::System;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
 use bld_http::WebSocket;
 use bld_models::dtos::MonitInfo;

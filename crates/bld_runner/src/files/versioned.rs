@@ -21,7 +21,7 @@ use crate::validator::v2 as validator_v2;
 use crate::validator::v3::{self as validator_v3, ConsumeValidator};
 
 #[cfg(feature = "all")]
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 #[cfg(feature = "all")]
 use bld_config::BldConfig;

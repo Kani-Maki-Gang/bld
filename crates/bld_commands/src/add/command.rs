@@ -1,7 +1,7 @@
 use actix::System;
 use anyhow::Result;
-use bld_config::definitions::DEFAULT_V3_PIPELINE_CONTENT;
 use bld_config::BldConfig;
+use bld_config::definitions::DEFAULT_V3_PIPELINE_CONTENT;
 use bld_core::fs::FileSystem;
 use bld_http::HttpClient;
 use bld_utils::sync::IntoArc;

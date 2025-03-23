@@ -5,18 +5,18 @@ use std::{
 };
 
 use actix::{
+    Actor, ActorContext, ActorFutureExt, AsyncContext, Context, Handler, StreamHandler, System,
     fut::WrapFuture,
     io::{SinkWrite, WriteHandler},
-    Actor, ActorContext, ActorFutureExt, AsyncContext, Context, Handler, StreamHandler, System,
 };
 use actix_codec::Framed;
 use anyhow::Result;
 use awc::{
+    BoxedSocket,
     error::WsProtocolError,
     ws::{Codec, Frame, Message},
-    BoxedSocket,
 };
-use bld_config::{os_name, BldConfig, OSname};
+use bld_config::{BldConfig, OSname, os_name};
 use bld_models::dtos::{LoginClientMessage, LoginServerMessage};
 use bld_utils::fs::write_tokens;
 use futures::stream::SplitSink;
@@ -65,26 +65,20 @@ impl LoginClient {
                 command.stdout(Stdio::null());
                 command.stderr(Stdio::null());
 
-                let status_fut = command
-                    .status()
-                    .into_actor(self)
-                    .then(move |res, _, _| {
-                        let success = res
-                            .as_ref()
-                            .map(ExitStatus::success)
-                            .unwrap_or_default();
-                        debug!("browser process was closed with exit status: {res:?}");
-                        if !success {
-                            let mut message = String::new();
-                            let _ = writeln!(
-                                message,
-                                "Couldn't open the browser, please use the below url in order to login:"
-                            );
-                            let _ = write!(message, "{url}");
-                            println!("{message}");
-                        }
-                        ready(())
-                    });
+                let status_fut = command.status().into_actor(self).then(move |res, _, _| {
+                    let success = res.as_ref().map(ExitStatus::success).unwrap_or_default();
+                    debug!("browser process was closed with exit status: {res:?}");
+                    if !success {
+                        let mut message = String::new();
+                        let _ = writeln!(
+                            message,
+                            "Couldn't open the browser, please use the below url in order to login:"
+                        );
+                        let _ = write!(message, "{url}");
+                        println!("{message}");
+                    }
+                    ready(())
+                });
                 ctx.spawn(status_fut);
             }
 

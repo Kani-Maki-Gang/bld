@@ -1,6 +1,6 @@
 use anyhow::Result;
 use bld_config::BldConfig;
-use bollard::{Docker, API_DEFAULT_VERSION};
+use bollard::{API_DEFAULT_VERSION, Docker};
 
 fn uses_http(url: &str) -> bool {
     url.starts_with("http:/") || url.starts_with("tcp:/")

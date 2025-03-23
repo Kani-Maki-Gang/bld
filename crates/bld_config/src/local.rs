@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    definitions, ssh::SshConfig, BldLocalServerConfig, BldLocalSupervisorConfig, DockerUrl,
-    RegistryConfig,
+    BldLocalServerConfig, BldLocalSupervisorConfig, DockerUrl, RegistryConfig, definitions,
+    ssh::SshConfig,
 };
 use serde::{Deserialize, Serialize};
 

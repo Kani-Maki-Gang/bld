@@ -1,5 +1,5 @@
-use actix::{io::SinkWrite, Actor, StreamHandler};
-use anyhow::{anyhow, Result};
+use actix::{Actor, StreamHandler, io::SinkWrite};
+use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
 use bld_core::{context::Context, fs::FileSystem, logger::Logger};
 use bld_http::{HttpClient, WebSocket};

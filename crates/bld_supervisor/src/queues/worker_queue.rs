@@ -1,5 +1,5 @@
 use actix_web::{rt::spawn, web::Data};
-use anyhow::{anyhow, Error, Result};
+use anyhow::{Error, Result, anyhow};
 use bld_config::BldConfig;
 use bld_core::{platform::docker, workers::Worker};
 use bld_models::{
@@ -7,7 +7,7 @@ use bld_models::{
     pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED},
 };
 use bld_utils::sync::IntoArc;
-use bollard::{container::RemoveContainerOptions, errors::Error as BollardError, Docker};
+use bollard::{Docker, container::RemoveContainerOptions, errors::Error as BollardError};
 use sea_orm::DatabaseConnection;
 use std::{collections::VecDeque, sync::Arc};
 use tokio::sync::{mpsc, oneshot};

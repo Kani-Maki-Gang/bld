@@ -1,7 +1,6 @@
 use actix_web::{
-    delete, get, patch, post,
+    HttpResponse, Responder, delete, get, patch, post,
     web::{Data, Json, Path, Query},
-    HttpResponse, Responder,
 };
 use bld_models::dtos::{AddJobRequest, JobFiltersParams, UpdateJobRequest};
 use tracing::info;

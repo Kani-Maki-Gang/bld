@@ -4,7 +4,7 @@ use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use awc::http::StatusCode;
 use awc::ws::WebsocketsRequest;
 use awc::{Client, ClientRequest, Connector, SendClientRequest};
@@ -18,8 +18,8 @@ use bld_utils::fs::{read_tokens, write_tokens};
 use bld_utils::sync::IntoArc;
 use bld_utils::tls::load_root_certificates;
 use rustls::ClientConfig;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use tracing::{debug, error};
 
 #[derive(Debug)]

@@ -1,7 +1,7 @@
 use crate::{command::BldCommand, signals::CommandSignals};
-use actix::{io::SinkWrite, Actor, StreamHandler};
-use actix_web::rt::{spawn, System};
-use anyhow::{anyhow, Result};
+use actix::{Actor, StreamHandler, io::SinkWrite};
+use actix_web::rt::{System, spawn};
+use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
 use bld_core::{context::Context, fs::FileSystem, logger::Logger};
 use bld_http::WebSocket;
@@ -13,7 +13,7 @@ use chrono::Utc;
 use clap::Args;
 use futures::{join, stream::StreamExt};
 use std::sync::Arc;
-use tokio::sync::mpsc::{channel, Receiver};
+use tokio::sync::mpsc::{Receiver, channel};
 use tracing::{debug, error};
 
 #[derive(Args)]

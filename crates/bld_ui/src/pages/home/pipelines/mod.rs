@@ -11,7 +11,7 @@ use leptos::*;
 use table::PipelinesTable;
 
 pub use info::PipelineInfo;
-pub use run::{variables::RunPipelineVariables, RunPipeline};
+pub use run::{RunPipeline, variables::RunPipelineVariables};
 
 #[component]
 pub fn Pipelines() -> impl IntoView {

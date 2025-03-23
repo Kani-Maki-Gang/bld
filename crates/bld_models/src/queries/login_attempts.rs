@@ -1,5 +1,5 @@
 use crate::generated::login_attempts::{self, Entity as LoginAttemptsEntity};
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use bld_migrations::Expr;
 use chrono::{Duration, Utc};
 use sea_orm::{

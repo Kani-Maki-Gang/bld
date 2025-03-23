@@ -1,8 +1,8 @@
 use crate::queues::WorkerQueueSender;
 use actix::prelude::*;
 use actix_web::{
-    web::{Bytes, Data, Payload},
     Error, HttpRequest, HttpResponse,
+    web::{Bytes, Data, Payload},
 };
 use actix_web_actors::ws;
 use anyhow::Result;

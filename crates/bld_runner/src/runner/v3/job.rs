@@ -1,10 +1,10 @@
 use std::{fmt::Write, sync::Arc, time::Duration};
 
-use actix::{clock::sleep, io::SinkWrite, Actor, StreamHandler};
-use anyhow::{anyhow, bail, Result};
+use actix::{Actor, StreamHandler, clock::sleep, io::SinkWrite};
+use anyhow::{Result, anyhow, bail};
 use bld_config::{
-    definitions::{GET, PUSH},
     BldConfig,
+    definitions::{GET, PUSH},
 };
 use bld_core::{
     context::Context, fs::FileSystem, logger::Logger, platform::Platform, regex::RegexCache,
@@ -17,7 +17,7 @@ use futures::StreamExt;
 use tokio::task::JoinHandle;
 use tracing::debug;
 
-use crate::{external::v3::External, pipeline::v3::Pipeline, step::v3::Step, RunnerBuilder};
+use crate::{RunnerBuilder, external::v3::External, pipeline::v3::Pipeline, step::v3::Step};
 
 pub struct JobRunner {
     pub job_name: String,

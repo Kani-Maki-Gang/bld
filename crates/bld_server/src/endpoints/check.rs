@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::extractors::User;
 use actix_web::web::{Data, Query};
-use actix_web::{get, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, get};
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::fs::FileSystem;

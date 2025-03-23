@@ -19,7 +19,7 @@ use {
         token_context::v3::{ApplyContext, ExecutionContext},
         validator::v3::{Validate, ValidatorContext},
     },
-    anyhow::{anyhow, bail, Result},
+    anyhow::{Result, anyhow, bail},
     cron::Schedule,
     pest::iterators::Pairs,
     std::str::FromStr,

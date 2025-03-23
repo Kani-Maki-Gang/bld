@@ -1,9 +1,8 @@
 use actix_web::{
-    get,
+    HttpResponse, Responder, get,
     web::{Data, Query},
-    HttpResponse, Responder,
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use bld_config::{Auth, BldConfig};
 use bld_models::{
     dtos::{AuthRedirectParams, AuthTokens, RefreshTokenParams},
@@ -11,11 +10,11 @@ use bld_models::{
 };
 use chrono::Utc;
 use openidconnect::{
+    AccessTokenHash, AuthorizationCode, CsrfToken, Nonce, OAuth2TokenResponse, PkceCodeChallenge,
+    PkceCodeVerifier, RefreshToken, TokenResponse,
     core::{CoreAuthenticationFlow, CoreClient},
     reqwest::async_http_client,
     url::Url,
-    AccessTokenHash, AuthorizationCode, CsrfToken, Nonce, OAuth2TokenResponse, PkceCodeChallenge,
-    PkceCodeVerifier, RefreshToken, TokenResponse,
 };
 use sea_orm::DatabaseConnection;
 use tracing::{error, info};

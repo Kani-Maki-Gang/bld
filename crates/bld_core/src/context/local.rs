@@ -1,6 +1,6 @@
 use crate::platform::Platform;
 use actix::spawn;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
 use bld_http::Request;
 use std::sync::Arc;

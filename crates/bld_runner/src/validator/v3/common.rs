@@ -5,13 +5,14 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use bld_config::{
+    BldConfig,
     definitions::{
         KEYWORD_BLD_DIR_V3, KEYWORD_PROJECT_DIR_V3, KEYWORD_RUN_PROPS_ID_V3,
         KEYWORD_RUN_PROPS_START_TIME_V3,
     },
-    path, BldConfig,
+    path,
 };
 use bld_core::fs::FileSystem;
 use regex::Regex;

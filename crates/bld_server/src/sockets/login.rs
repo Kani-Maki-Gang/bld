@@ -1,15 +1,15 @@
 use std::time::Duration;
 
 use actix::{
-    fut::{future::ActorFutureExt, ready},
     Actor, ActorContext, AsyncContext, StreamHandler, WrapFuture,
+    fut::{future::ActorFutureExt, ready},
 };
 use actix_web::{
-    web::{Data, Payload},
     Error, HttpRequest, HttpResponse,
+    web::{Data, Payload},
 };
-use actix_web_actors::ws::{start, Message, ProtocolError, WebsocketContext};
-use anyhow::{bail, Result};
+use actix_web_actors::ws::{Message, ProtocolError, WebsocketContext, start};
+use anyhow::{Result, bail};
 use bld_config::{Auth, BldConfig};
 use bld_models::{
     dtos::{AuthTokens, LoginClientMessage, LoginServerMessage},
@@ -17,8 +17,8 @@ use bld_models::{
 };
 use chrono::Utc;
 use openidconnect::{
-    core::{CoreAuthenticationFlow, CoreClient},
     CsrfToken, Nonce, PkceCodeChallenge,
+    core::{CoreAuthenticationFlow, CoreClient},
 };
 use sea_orm::DatabaseConnection;
 use tracing::error;

@@ -7,7 +7,7 @@ use crate::{
 use codee::string::FromToStringCodec;
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
-use leptos_use::{core::ConnectionReadyState, use_websocket, UseWebSocketReturn};
+use leptos_use::{UseWebSocketReturn, core::ConnectionReadyState, use_websocket};
 use serde::{Deserialize, Serialize};
 
 type StopActionArgs = (String, NodeRef<Dialog>, RwSignal<Option<View>>);

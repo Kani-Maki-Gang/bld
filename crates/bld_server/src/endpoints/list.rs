@@ -1,9 +1,8 @@
 use crate::extractors::User;
 use actix_web::{
-    get,
+    HttpResponse, get,
     http::header,
     web::{Data, Header},
-    HttpResponse,
 };
 use bld_models::{dtos::ListResponse, pipeline};
 use sea_orm::DatabaseConnection;

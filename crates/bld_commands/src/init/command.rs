@@ -1,23 +1,23 @@
 use crate::command::BldCommand;
 use actix::System;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use bld_config::definitions::{
     DEFAULT_V3_PIPELINE_CONTENT, LOCAL_DEFAULT_DB_DIR, LOCAL_DEFAULT_DB_NAME,
 };
 use bld_config::path;
 use bld_config::{
+    BldConfig,
     definitions::{
         LOCAL_LOGS, LOCAL_SERVER_PIPELINES, TOOL_DEFAULT_CONFIG_FILE, TOOL_DEFAULT_PIPELINE,
         TOOL_DEFAULT_PIPELINE_FILE, TOOL_DIR,
     },
-    BldConfig,
 };
 use bld_utils::term::print_info;
 use clap::Args;
 use std::env::current_dir;
 use std::path::Component::Normal;
 use std::path::{Path, PathBuf};
-use tokio::fs::{create_dir, read_dir, write, File};
+use tokio::fs::{File, create_dir, read_dir, write};
 use tracing::debug;
 
 #[derive(Args)]

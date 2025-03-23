@@ -1,8 +1,8 @@
-use actix::{io::SinkWrite, Actor, StreamHandler};
+use actix::{Actor, StreamHandler, io::SinkWrite};
 use actix_codec::Framed;
 use actix_http::ws::Codec;
 use actix_web::rt::spawn;
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use awc::BoxedSocket;
 use bld_config::BldConfig;
 use bld_http::WebSocket;
@@ -12,7 +12,7 @@ use futures::stream::StreamExt;
 use std::{env::current_exe, sync::Arc, time::Duration};
 use tokio::{
     process::{Child, Command},
-    sync::mpsc::{channel, Receiver, Sender},
+    sync::mpsc::{Receiver, Sender, channel},
     task::JoinHandle,
     time::sleep,
 };
@@ -28,17 +28,15 @@ async fn try_ws_connection(url: &str) -> Result<Framed<BoxedSocket, Codec>> {
     for _ in 0..10 {
         debug!("establishing web socket connection on {}", url);
 
-        let Ok((_, framed)) = WebSocket::new(url)?
-            .request()
-            .connect()
-            .await
-            .map_err(|e| {
-                error!("connection to supervisor web socket failed due to {e}, retrying in {RETRY_DELAY}ms");
-                anyhow!(e.to_string())
-            }) else {
-                sleep(Duration::from_millis(RETRY_DELAY)).await;
-                continue;
-            };
+        let Ok((_, framed)) = WebSocket::new(url)?.request().connect().await.map_err(|e| {
+            error!(
+                "connection to supervisor web socket failed due to {e}, retrying in {RETRY_DELAY}ms"
+            );
+            anyhow!(e.to_string())
+        }) else {
+            sleep(Duration::from_millis(RETRY_DELAY)).await;
+            continue;
+        };
 
         return Ok(framed);
     }

@@ -1,6 +1,6 @@
 use crate::command::BldCommand;
 use actix_web::rt::System;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use bld_config::BldConfig;
 use bld_supervisor::supervisor;
 use clap::Args;

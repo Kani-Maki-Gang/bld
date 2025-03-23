@@ -1,12 +1,12 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use bld_config::BldConfig;
 use bld_core::{
     context::Context,
     fs::FileSystem,
     logger::Logger,
     platform::{
-        builder::{PlatformBuilder, PlatformOptions},
         Image, Platform,
+        builder::{PlatformBuilder, PlatformOptions},
     },
     regex::RegexCache,
     signals::UnixSignalsBackend,
