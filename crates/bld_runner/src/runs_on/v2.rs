@@ -112,7 +112,7 @@ impl RunsOn {
 
             RunsOn::ContainerOrMachine(_) => {}
 
-            RunsOn::Ssh(ref mut config) => {
+            RunsOn::Ssh(config) => {
                 config.host = context.transform(config.host.to_owned()).await?;
                 config.port = context.transform(config.port.to_owned()).await?;
                 config.user = context.transform(config.user.to_owned()).await?;

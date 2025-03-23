@@ -7,8 +7,8 @@ use tracing::info;
 #[folder = "static_files/"]
 struct StaticFiles;
 
-fn get_static_file(path: &str) -> impl Responder {
-    match StaticFiles::get(path) {
+fn get_static_file<'a, 'b>(path: &'a str) -> impl Responder + use<'b> {
+    match StaticFiles::get(&path) {
         Some(content) => HttpResponse::Ok()
             .content_type(from_path(path).first_or_octet_stream().as_ref())
             .body(content.data.into_owned()),
@@ -27,5 +27,5 @@ async fn index() -> impl Responder {
 #[get("/{_:.*}")]
 async fn fallback(path: Path<String>) -> impl Responder {
     info!("Reached handler for / route");
-    get_static_file(&path)
+    get_static_file(path.as_str())
 }

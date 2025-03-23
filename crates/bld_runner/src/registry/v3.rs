@@ -21,7 +21,7 @@ impl ApplyContext for Registry {
             Registry::FromConfig(url) => {
                 *url = ctx.transform(url.to_owned()).await?;
             }
-            Registry::Full(ref mut config) => {
+            Registry::Full(config) => {
                 config.url = ctx.transform(config.url.to_owned()).await?;
                 if let Some(ref mut username) = config.username {
                     config.username = Some(ctx.transform(username.to_owned()).await?);

@@ -1,5 +1,5 @@
-use anyhow::{bail, Result};
-use bld_config::{os_name, OSname};
+use anyhow::{Result, bail};
+use bld_config::{OSname, os_name};
 use tokio::process::Command;
 
 pub fn get_shell(args: &mut Vec<&str>) -> Result<Command> {

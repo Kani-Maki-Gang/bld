@@ -43,7 +43,9 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
     .await?
     .into_data();
 
-    set_var("RUST_LOG", "actix_server=info,actix_web=debug");
+    unsafe {
+        set_var("RUST_LOG", "actix_server=info,actix_web=debug");
+    }
     let mut server = HttpServer::new(move || {
         let cors = Cors::default()
             .allow_any_origin()
