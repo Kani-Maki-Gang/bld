@@ -237,7 +237,7 @@ pub struct RunningJob {
     pub logger: Arc<Logger>,
 }
 
-impl<'a> RunningJob {
+impl RunningJob {
     pub fn new(name: &str, handle: JoinHandle<Result<JobRunner>>, logger: Arc<Logger>) -> Self {
         Self {
             name: name.to_owned(),

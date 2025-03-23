@@ -16,7 +16,7 @@ pub enum Registry {
 
 impl Registry {
     #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
+    pub async fn apply_tokens(&mut self, context: &PipelineContext<'_>) -> Result<()> {
         match self {
             Registry::FromConfig(url) => {
                 *url = context.transform(url.to_owned()).await?;

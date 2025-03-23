@@ -33,7 +33,7 @@ impl<'a> RunnerFileValidator<'a> {
     }
 }
 
-impl<'a> ConsumeValidator for RunnerFileValidator<'a> {
+impl ConsumeValidator for RunnerFileValidator<'_> {
     async fn validate(self) -> Result<()> {
         match self {
             Self::Pipeline(validator) => validator.validate().await,

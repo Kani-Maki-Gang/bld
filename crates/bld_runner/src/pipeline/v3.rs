@@ -188,7 +188,7 @@ impl<'a> EvalObject<'a> for Pipeline {
                     .inputs
                     .get(name)
                     .ok_or_else(|| anyhow!("input '{name}' not found"))?;
-                input.try_into().map(|x| ExprValue::Text(x))
+                input.try_into().map(ExprValue::Text)
             }
 
             "env" => {

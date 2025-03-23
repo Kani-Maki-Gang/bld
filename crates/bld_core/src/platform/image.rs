@@ -20,7 +20,7 @@ pub struct PullImage<'a> {
     registry: Option<&'a RegistryConfig>,
 }
 
-impl<'a> PullImage<'a> {
+impl PullImage<'_> {
     pub async fn pull(&self, client: &Docker, logger: &Logger) -> Result<()> {
         let image = self.image;
         let opts = CreateImageOptions {

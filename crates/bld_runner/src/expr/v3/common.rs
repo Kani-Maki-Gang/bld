@@ -1,11 +1,6 @@
 use std::collections::HashMap;
-
 use anyhow::{anyhow, Result};
-use pest::Parser;
-
-use crate::expr::v3::parser::{ExprParser, Rule};
-
-use super::traits::{EvalExpr, ExprValue, RuntimeExecutionContext};
+use super::traits::RuntimeExecutionContext;
 
 #[derive(Debug, Default)]
 pub struct CommonRuntimeExecutionContext<'a> {
@@ -37,7 +32,7 @@ impl<'a> RuntimeExecutionContext<'a> for CommonRuntimeExecutionContext<'a> {
     fn get_output(&self, name: &'a str) -> Result<&'a str> {
         self.outputs
             .get(name)
-            .map(|x| *x)
+            .copied()
             .ok_or_else(|| anyhow!("output '{name}' not found"))
     }
 

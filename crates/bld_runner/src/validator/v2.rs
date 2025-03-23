@@ -36,7 +36,7 @@ pub struct PipelineValidator<'a> {
     errors: String,
 }
 
-impl<'a> Validate for PipelineValidator<'a> {
+impl Validate for PipelineValidator<'_> {
     async fn validate(mut self) -> Result<()> {
         self.validate_runs_on();
         self.validate_cron();

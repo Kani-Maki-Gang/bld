@@ -14,7 +14,7 @@ pub struct PipelineValidator<'a> {
     fs: Arc<FileSystem>,
 }
 
-impl<'a> Validate for PipelineValidator<'a> {
+impl Validate for PipelineValidator<'_> {
     async fn validate(self) -> Result<()> {
         let mut errors = String::new();
 

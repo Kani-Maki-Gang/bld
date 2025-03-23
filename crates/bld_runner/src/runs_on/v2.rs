@@ -73,7 +73,7 @@ impl RunsOn {
     }
 
     #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
+    pub async fn apply_tokens(&mut self, context: &PipelineContext<'_>) -> Result<()> {
         match self {
             RunsOn::Pull {
                 image,
