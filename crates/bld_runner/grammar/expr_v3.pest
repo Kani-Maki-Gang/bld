@@ -36,11 +36,9 @@ Char = {
     | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
     | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
 }
-StringInner = @{ Char* }
-String = ${ "\"" ~ StringInner ~ "\"" | "'" ~ StringInner ~ "'" }
+String = ${ "\"" ~ Char* ~ "\"" | "'" ~ Char* ~ "'" }
 
-ObjectChar = @{ 'a'..'z' | 'A'..'Z' | "_" | "-" | "(" | ")" | ASCII_NONZERO_DIGIT | ASCII_DIGIT }
-ObjectPart = @{ ObjectChar+ }
+ObjectPart = @{ ('a'..'z' | 'A'..'Z' | "_" | "-" | "(" | ")" | ASCII_NONZERO_DIGIT | ASCII_DIGIT)+ }
 Object = ${
     ObjectPart ~ ("." ~ ObjectPart)*
 }
@@ -59,9 +57,9 @@ LessEquals = { Symbol ~ LessEqualsOperator ~ Symbol }
 ExpressionInner = { Equals | Greater | GreaterEquals | Less | LessEquals | Symbol }
 Expression = { "(" ~ " "* ~ ExpressionInner ~ " "* ~ ")" | ExpressionInner }
 
-LogicalExpression = { Expression ~ (AndOperator | OrOperator) ~ Expression ~ (LogicalExpression)* }
+LogicalExpression = {  Expression ~ ((AndOperator | OrOperator) ~ Expression)+ }
 
 //
 // Define full grammar
 //
-Full = { LogicalExpression | Expression }
+Full = { "${{" ~ " "* ~ LogicalExpression | Expression ~ " "* ~ "}}" }

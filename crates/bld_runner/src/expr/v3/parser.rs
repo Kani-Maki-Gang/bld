@@ -16,15 +16,13 @@ mod tests {
         let data = ["==", " ==", "== ", " == "];
         for op in data {
             let Ok(pairs) = ExprParser::parse(Rule::EqualsOperator, op) else {
-                panic!("unable to parse EQUALS operator");
+                panic!("unable to parse EqualsOperator");
             };
             for pair in pairs {
-                match pair.as_rule() {
-                    Rule::EqualsOperator => {
-                        assert_eq!(pair.as_span().get_input(), op);
-                    }
-                    _ => panic!("parsed value is not a EQUALS operator rule"),
-                }
+                let Rule::EqualsOperator = pair.as_rule() else {
+                    panic!("parsed value is not a EqualsOperator rule");
+                };
+                assert_eq!(pair.as_span().as_str(), op);
             }
         }
     }
@@ -34,15 +32,13 @@ mod tests {
         let data = [">", " >", "> ", " > "];
         for op in data {
             let Ok(pairs) = ExprParser::parse(Rule::GreaterOperator, op) else {
-                panic!("unable to parse GREATER operator");
+                panic!("unable to parse GreaterOperator");
             };
             for pair in pairs {
-                match pair.as_rule() {
-                    Rule::GreaterOperator => {
-                        assert_eq!(pair.as_span().get_input(), op);
-                    }
-                    _ => panic!("parsed value is not a GREATER operator rule"),
-                }
+                let Rule::GreaterOperator = pair.as_rule() else {
+                    panic!("parsed value is not a GreaterOperator rule");
+                };
+                assert_eq!(pair.as_span().as_str(), op);
             }
         }
     }
@@ -52,15 +48,13 @@ mod tests {
         let data = [">=", " >=", ">= ", " >= "];
         for op in data {
             let Ok(pairs) = ExprParser::parse(Rule::GreaterEqualsOperator, op) else {
-                panic!("unable to parse GREATER EQUALS operator");
+                panic!("unable to parse GreaterEqualsOperator");
             };
             for pair in pairs {
-                match pair.as_rule() {
-                    Rule::GreaterEqualsOperator => {
-                        assert_eq!(pair.as_span().get_input(), op);
-                    }
-                    _ => panic!("parsed value is not a GREATER EQUALS operator rule"),
-                }
+                let Rule::GreaterEqualsOperator = pair.as_rule() else {
+                    panic!("parsed value is not a GreaterEqualsOperator rule");
+                };
+                assert_eq!(pair.as_span().as_str(), op);
             }
         }
     }
@@ -70,15 +64,13 @@ mod tests {
         let data = ["<", " <", "< ", " < "];
         for op in data {
             let Ok(pairs) = ExprParser::parse(Rule::LessOperator, op) else {
-                panic!("unable to parse LESS operator");
+                panic!("unable to parse LessOperator");
             };
             for pair in pairs {
-                match pair.as_rule() {
-                    Rule::LessOperator => {
-                        assert_eq!(pair.as_span().get_input(), op);
-                    }
-                    _ => panic!("parsed value is not a LESS operator rule"),
-                }
+                let Rule::LessOperator = pair.as_rule() else {
+                    panic!("parsed value is not a LessOperator rule");
+                };
+                assert_eq!(pair.as_span().as_str(), op);
             }
         }
     }
@@ -88,15 +80,13 @@ mod tests {
         let data = ["<=", " <=", "<= ", " <= "];
         for op in data {
             let Ok(pairs) = ExprParser::parse(Rule::LessEqualsOperator, op) else {
-                panic!("unable to parse LESS EQUALS operator");
+                panic!("unable to parse LessEqualsOperator");
             };
             for pair in pairs {
-                match pair.as_rule() {
-                    Rule::LessEqualsOperator => {
-                        assert_eq!(pair.as_span().get_input(), op);
-                    }
-                    _ => panic!("parsed value is not a LESS EQUALS operator rule"),
-                }
+                let Rule::LessEqualsOperator = pair.as_rule() else {
+                    panic!("parsed value is not a LessEqualsOperator rule");
+                };
+                assert_eq!(pair.as_span().as_str(), op);
             }
         }
     }
@@ -106,15 +96,13 @@ mod tests {
         let data = ["&&", " &&", "&& ", " && "];
         for op in data {
             let Ok(pairs) = ExprParser::parse(Rule::AndOperator, op) else {
-                panic!("unable to parse AND operator");
+                panic!("unable to parse AndOperator");
             };
             for pair in pairs {
-                match pair.as_rule() {
-                    Rule::AndOperator => {
-                        assert_eq!(pair.as_span().get_input(), op);
-                    }
-                    _ => panic!("parsed value is not an AND operator rule"),
-                }
+                let Rule::AndOperator = pair.as_rule() else {
+                    panic!("parsed value is not an AndOperator rule");
+                };
+                assert_eq!(pair.as_span().as_str(), op);
             }
         }
     }
@@ -124,15 +112,13 @@ mod tests {
         let data = ["||", " ||", "|| ", " || "];
         for op in data {
             let Ok(pairs) = ExprParser::parse(Rule::OrOperator, op) else {
-                panic!("unable to parse OR operator");
+                panic!("unable to parse OrOperator");
             };
             for pair in pairs {
-                match pair.as_rule() {
-                    Rule::OrOperator => {
-                        assert_eq!(pair.as_span().get_input(), op);
-                    }
-                    _ => panic!("parsed value is not an OR operator rule"),
-                }
+                let Rule::OrOperator = pair.as_rule() else {
+                    panic!("parsed value is not an OrOperatorrule");
+                };
+                assert_eq!(pair.as_span().as_str(), op);
             }
         }
     }
@@ -152,15 +138,13 @@ mod tests {
         ];
         for number in data {
             let Ok(pairs) = ExprParser::parse(Rule::Number, number) else {
-                panic!("unable to parse NUMBER symbol");
+                panic!("unable to parse Number symbol");
             };
             for pair in pairs {
-                match pair.as_rule() {
-                    Rule::Number => {
-                        assert_eq!(pair.as_span().get_input(), number);
-                    }
-                    _ => panic!("parsed value is not a NUMBER rule"),
-                }
+                let Rule::Number = pair.as_rule() else {
+                    panic!("parsed value is not a Number rule");
+                };
+                assert_eq!(pair.as_span().get_input(), number);
             }
         }
     }
@@ -170,15 +154,13 @@ mod tests {
         let data = ["true", "false"];
         for boolean in data {
             let Ok(pairs) = ExprParser::parse(Rule::Boolean, boolean) else {
-                panic!("unable to parse BOOLEAN symbol");
+                panic!("unable to parse Boolean symbol");
             };
             for pair in pairs {
-                match pair.as_rule() {
-                    Rule::Boolean => {
-                        assert_eq!(pair.as_span().get_input(), boolean);
-                    }
-                    _ => panic!("parse value is not a BOOLEAN rule"),
-                }
+                let Rule::Boolean = pair.as_rule() else {
+                    panic!("parsed value is not a Boolean rule");
+                };
+                assert_eq!(pair.as_span().as_str(), boolean);
             }
         }
     }
@@ -188,15 +170,13 @@ mod tests {
         let data = ["\"hellow world\""];
         for string in data {
             let Ok(pairs) = ExprParser::parse(Rule::String, string) else {
-                panic!("unable to parse STRING symbol");
+                panic!("unable to parse String symbol");
             };
             for pair in pairs {
-                match pair.as_rule() {
-                    Rule::String => {
-                        assert_eq!(pair.as_span().get_input(), string);
-                    }
-                    _ => panic!("parsed value is not a STRING rule"),
-                }
+                let Rule::String = pair.as_rule() else {
+                    panic!("parsed value is not String rule");
+                };
+                assert_eq!(pair.as_span().as_str(), string);
             }
         }
     }
@@ -204,28 +184,39 @@ mod tests {
     #[test]
     fn parse_object_success() {
         let data = [
-            "customer",
-            "customer.name",
-            "customer.123",
-            "customer.name.toString()",
-            "customer.name.toString()",
-            "customer().name().length()",
-            "customer().name23_23().length()",
+            vec!["customer", "customer"],
+            vec!["customer.name", "customer", "name"],
+            vec!["customer.123", "customer", "123"],
+            vec!["customer.name.toString()", "customer", "name", "toString()"],
+            vec![
+                "customer().name().length()",
+                "customer()",
+                "name()",
+                "length()",
+            ],
+            vec![
+                "customer().name23_23().length()",
+                "customer()",
+                "name23_23()",
+                "length()",
+            ],
         ];
-        for (i, object) in data.iter().enumerate() {
-            let Ok(pairs) = ExprParser::parse(Rule::Object, object) else {
+        for entry in data.iter() {
+            let expr = entry.first().unwrap();
+
+            let Ok(pairs) = ExprParser::parse(Rule::Object, expr) else {
                 panic!("unable to parse OBJECT symbol");
             };
-            if i == 3 {
-                dbg!(&pairs);
-                panic!("stop");
-            }
-            for pair in pairs {
-                match pair.as_rule() {
-                    Rule::Object => {
-                        assert_eq!(pair.as_span().get_input(), *object);
-                    }
-                    _ => panic!("parsed value is not a OBJECT rule"),
+
+            let spans = &entry[1..];
+
+            for object in pairs {
+                assert_eq!(object.as_rule(), Rule::Object);
+                let object_parts = object.into_inner();
+                for (i, object_part) in object_parts.into_iter().enumerate() {
+                    assert_eq!(object_part.as_rule(), Rule::ObjectPart);
+                    assert_eq!(object_part.as_span().as_str(), spans[i]);
+                    assert_eq!(object_part.into_inner().count(), 0 as usize);
                 }
             }
         }
@@ -234,42 +225,61 @@ mod tests {
     #[test]
     fn parse_symbol_success() {
         let data = [
-            "98",
-            "-98",
-            "0",
-            "156",
-            "-156",
-            "0.945",
-            "-0.945",
-            "140.2341",
-            "-140.2341",
-            "true",
-            "false",
-            "\"hello world\"",
-            "customer",
-            "customer.name",
-            "customer.123",
-            "customer.name.toString()",
-            "customer().name().length()",
-            "customer().name23_23().length()",
+            vec!["98"],
+            vec!["-98"],
+            vec!["0"],
+            vec!["156"],
+            vec!["-156"],
+            vec!["0.945"],
+            vec!["-0.945"],
+            vec!["140.2341"],
+            vec!["-140.2341"],
+            vec!["true"],
+            vec!["false"],
+            vec!["\"hello world\""],
+            vec!["customer", "customer"],
+            vec!["customer.name", "customer", "name"],
+            vec!["customer.123", "customer", "123"],
+            vec!["customer.name.toString()", "customer", "name", "toString()"],
+            vec![
+                "customer().name().length()",
+                "customer()",
+                "name()",
+                "length()",
+            ],
+            vec![
+                "customer().name23_23().length()",
+                "customer()",
+                "name23_23()",
+                "length()",
+            ],
         ];
         for symbol in data {
-            let Ok(pairs) = ExprParser::parse(Rule::Symbol, symbol) else {
-                panic!("unable to parse SYMBOL");
+            let Ok(pairs) = ExprParser::parse(Rule::Symbol, symbol[0]) else {
+                panic!("unable to parse Symbol");
             };
             for pair in pairs {
-                match pair.as_rule() {
-                    Rule::Symbol => {
-                        for pair in pair.into_inner() {
-                            match pair.as_rule() {
-                                Rule::Number | Rule::Boolean | Rule::String | Rule::Object => {
-                                    assert_eq!(pair.as_span().get_input(), symbol);
-                                }
-                                _ => panic!("parsed value is not a SYMBOL rule"),
+                let Rule::Symbol = pair.as_rule() else {
+                    panic!("parsed value is not a Symbol rule");
+                };
+
+                for pair_inner in pair.into_inner() {
+                    match pair_inner.as_rule() {
+                        Rule::Number | Rule::Boolean | Rule::String => {
+                            assert_eq!(pair_inner.as_span().as_str(), symbol[0]);
+                        }
+
+                        Rule::Object => {
+                            let object_parts = pair_inner.into_inner();
+                            for (i, object_part) in object_parts.into_iter().enumerate() {
+                                assert_eq!(object_part.as_rule(), Rule::ObjectPart);
+                                assert_eq!(object_part.as_span().as_str(), symbol[i + 1]);
+                                assert_eq!(object_part.into_inner().count(), 0 as usize);
                             }
                         }
+
+                        _ => panic!("inner pair is not of a valid rule"),
                     }
-                    _ => panic!("parsed value is not a SYMBOL rule"),
                 }
             }
         }
@@ -341,9 +351,28 @@ mod tests {
             "\"hello world\" > \"hello\"",
         ];
         for op in data {
-            let pair = ExprParser::parse(Rule::Greater, op);
-            dbg!(&pair);
-            assert!(pair.is_ok());
+            let Ok(pairs) = ExprParser::parse(Rule::Greater, op) else {
+                panic!("unable to parse Greater rule");
+            };
+
+            for pair in pairs {
+                let mut pair_inner = pair.into_inner();
+
+                let Some(left) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain a left operand");
+                };
+                assert_eq!(left.as_rule(), Rule::Symbol);
+
+                let Some(operator) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain an operator");
+                };
+                assert_eq!(operator.as_rule(), Rule::GreaterOperator);
+
+                let Some(right) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain a right operand");
+                };
+                assert_eq!(right.as_rule(), Rule::Symbol);
+            }
         }
     }
 
@@ -378,9 +407,28 @@ mod tests {
             "\"hello world\" >= \"hello\"",
         ];
         for op in data {
-            let pair = ExprParser::parse(Rule::GreaterEquals, op);
-            dbg!(&pair);
-            assert!(pair.is_ok());
+            let Ok(pairs) = ExprParser::parse(Rule::GreaterEquals, op) else {
+                panic!("unable to parse GreaterEquals rule");
+            };
+
+            for pair in pairs {
+                let mut pair_inner = pair.into_inner();
+
+                let Some(left) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain a left operand");
+                };
+                assert_eq!(left.as_rule(), Rule::Symbol);
+
+                let Some(operator) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain an operator");
+                };
+                assert_eq!(operator.as_rule(), Rule::GreaterEqualsOperator);
+
+                let Some(right) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain a right operand");
+                };
+                assert_eq!(right.as_rule(), Rule::Symbol);
+            }
         }
     }
 
@@ -415,9 +463,28 @@ mod tests {
             "\"hello world\" < \"hello\"",
         ];
         for op in data {
-            let pair = ExprParser::parse(Rule::Less, op);
-            dbg!(&pair);
-            assert!(pair.is_ok());
+            let Ok(pairs) = ExprParser::parse(Rule::Less, op) else {
+                panic!("unable to parse Less rule");
+            };
+
+            for pair in pairs {
+                let mut pair_inner = pair.into_inner();
+
+                let Some(left) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain a left operand");
+                };
+                assert_eq!(left.as_rule(), Rule::Symbol);
+
+                let Some(operator) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain an operator");
+                };
+                assert_eq!(operator.as_rule(), Rule::LessOperator);
+
+                let Some(right) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain a right operand");
+                };
+                assert_eq!(right.as_rule(), Rule::Symbol);
+            }
         }
     }
 
@@ -452,9 +519,28 @@ mod tests {
             "\"hello world\" <= \"hello\"",
         ];
         for op in data {
-            let pair = ExprParser::parse(Rule::LessEquals, op);
-            dbg!(&pair);
-            assert!(pair.is_ok());
+            let Ok(pairs) = ExprParser::parse(Rule::LessEquals, op) else {
+                panic!("unable to parse LessEquals rule");
+            };
+
+            for pair in pairs {
+                let mut pair_inner = pair.into_inner();
+
+                let Some(left) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain a left operand");
+                };
+                assert_eq!(left.as_rule(), Rule::Symbol);
+
+                let Some(operator) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain an operator");
+                };
+                assert_eq!(operator.as_rule(), Rule::LessEqualsOperator);
+
+                let Some(right) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain a right operand");
+                };
+                assert_eq!(right.as_rule(), Rule::Symbol);
+            }
         }
     }
 
@@ -489,9 +575,28 @@ mod tests {
             "\"hello world\" && \"hello\"",
         ];
         for op in data {
-            let pair = ExprParser::parse(Rule::LogicalExpression, op);
-            dbg!(&pair);
-            assert!(pair.is_ok());
+            let Ok(pairs) = ExprParser::parse(Rule::LogicalExpression, op) else {
+                panic!("unable to parse LogicalExpression rule");
+            };
+
+            for pair in pairs {
+                let mut pair_inner = pair.into_inner();
+
+                let Some(left) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain a left operand");
+                };
+                assert_eq!(left.as_rule(), Rule::Expression);
+
+                let Some(operator) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain an operator");
+                };
+                assert_eq!(operator.as_rule(), Rule::AndOperator);
+
+                let Some(right) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain a right operand");
+                };
+                assert_eq!(right.as_rule(), Rule::Expression);
+            }
         }
     }
 
@@ -526,9 +631,28 @@ mod tests {
             "\"hello world\" || \"hello\"",
         ];
         for op in data {
-            let pair = ExprParser::parse(Rule::LogicalExpression, op);
-            dbg!(&pair);
-            assert!(pair.is_ok());
+            let Ok(pairs) = ExprParser::parse(Rule::LogicalExpression, op) else {
+                panic!("unable to parse LogicalExpression rule");
+            };
+
+            for pair in pairs {
+                let mut pair_inner = pair.into_inner();
+
+                let Some(left) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain a left operand");
+                };
+                assert_eq!(left.as_rule(), Rule::Expression);
+
+                let Some(operator) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain an operator");
+                };
+                assert_eq!(operator.as_rule(), Rule::OrOperator);
+
+                let Some(right) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain a right operand");
+                };
+                assert_eq!(right.as_rule(), Rule::Expression);
+            }
         }
     }
 
@@ -536,9 +660,14 @@ mod tests {
     fn parse_composite_logical_expression_success() {
         let data = ["100 == 200 && true == false || (\"hello world\" > \"world\")"];
         for expr in data {
-            let pair = ExprParser::parse(Rule::LogicalExpression, expr);
-            dbg!(&pair);
-            assert!(pair.is_ok());
+            let Ok(pairs) = ExprParser::parse(Rule::LogicalExpression, expr) else {
+                panic!("unable to parse LogicalExpression rule");
+            };
+            // for pair in pairs {
+            //     let mut pair_inner = pair.into_inner();
+            // }
+            dbg!(&pairs);
+            panic!();
         }
     }
 
