@@ -31,12 +31,15 @@ Number = ${
 
 Boolean = @{ "true" | "false" }
 
-Char = {
-    !("\"" | "\\") ~ ANY
-    | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
-    | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+String = ${
+    ("\"" | "'")
+    ~ (
+        !("\"" | "\\") ~ ANY
+        | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+        | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+    )*
+    ~ ("\"" | "'")
 }
-String = ${ "\"" ~ Char* ~ "\"" | "'" ~ Char* ~ "'" }
 
 ObjectPart = @{ ('a'..'z' | 'A'..'Z' | "_" | "-" | "(" | ")" | ASCII_NONZERO_DIGIT | ASCII_DIGIT)+ }
 Object = ${
@@ -62,4 +65,4 @@ LogicalExpression = {  Expression ~ ((AndOperator | OrOperator) ~ Expression)+ }
 //
 // Define full grammar
 //
-Full = { "${{" ~ " "* ~ LogicalExpression | Expression ~ " "* ~ "}}" }
+Full = ${ "${{" ~ " "* ~ LogicalExpression | Expression ~ " "* ~ "}}" }
