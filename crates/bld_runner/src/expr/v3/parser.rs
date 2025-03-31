@@ -663,21 +663,49 @@ mod tests {
             let Ok(pairs) = ExprParser::parse(Rule::LogicalExpression, expr) else {
                 panic!("unable to parse LogicalExpression rule");
             };
-            // for pair in pairs {
-            //     let mut pair_inner = pair.into_inner();
-            // }
-            dbg!(&pairs);
-            panic!();
+            for logical in pairs {
+                let logical_inner = logical.into_inner();
+
+                for expr in logical_inner {
+                    match expr.as_rule() {
+                        Rule::Expression => {
+                            let expr_inner = expr.into_inner();
+
+                            for inner in expr_inner {
+                                assert_eq!(inner.as_rule(), Rule::ExpressionInner);
+
+                                let mut body = inner.into_inner();
+                                assert_eq!(body.len(), 1);
+
+                                let body_inner = body.next().unwrap();
+                                assert!(
+                                    body_inner.as_rule() == Rule::Equals
+                                        || body_inner.as_rule() == Rule::Greater
+                                        || body_inner.as_rule() == Rule::GreaterEquals
+                                        || body_inner.as_rule() == Rule::Less
+                                        || body_inner.as_rule() == Rule::LessEquals
+                                        || body_inner.as_rule() == Rule::LogicalExpression
+                                        || body_inner.as_rule() == Rule::Symbol
+                                );
+                            }
+                        }
+
+                        Rule::AndOperator | Rule::OrOperator => {}
+
+                        _ => panic!("parsed value is not a valid rule"),
+                    }
+                }
+            }
         }
     }
 
     #[test]
     fn parse_full_expression_success() {
-        let data = ["100 == 200 && true == false", "100 == 200"];
+        let data = ["${{ 100 == 200 && true == false }}", "${{ 100 == 200 }}"];
         for expr in data {
-            let pair = ExprParser::parse(Rule::Full, expr);
-            dbg!(&pair);
-            assert!(pair.is_ok());
+            let Ok(_pairs) = ExprParser::parse(Rule::Full, expr) else {
+                panic!("unable to parse Full rule");
+            };
         }
     }
 }
