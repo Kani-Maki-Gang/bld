@@ -703,9 +703,17 @@ mod tests {
     fn parse_full_expression_success() {
         let data = ["${{ 100 == 200 && true == false }}", "${{ 100 == 200 }}"];
         for expr in data {
-            let Ok(_pairs) = ExprParser::parse(Rule::Full, expr) else {
+            let Ok(pairs) = ExprParser::parse(Rule::Full, expr) else {
                 panic!("unable to parse Full rule");
             };
+            for full in pairs {
+                let full_inner = full.into_inner();
+
+                for expr in full_inner {
+                    let expr_rule = expr.as_rule();
+                    assert!(expr_rule == Rule::Expression || expr_rule == Rule::LogicalExpression);
+                }
+            }
         }
     }
 }
