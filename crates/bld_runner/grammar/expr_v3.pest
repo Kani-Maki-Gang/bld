@@ -58,11 +58,11 @@ Less = { Symbol ~ LessOperator ~ Symbol }
 LessEquals = { Symbol ~ LessEqualsOperator ~ Symbol }
 
 ExpressionInner = { Equals | Greater | GreaterEquals | Less | LessEquals | Symbol }
-Expression = { "(" ~ " "* ~ ExpressionInner ~ " "* ~ ")" | ExpressionInner }
+Expression = { ("(" ~ " "* ~ ExpressionInner ~ " "* ~ ")") | ExpressionInner }
 
 LogicalExpression = {  Expression ~ ((AndOperator | OrOperator) ~ Expression)+ }
 
 //
 // Define full grammar
 //
-Full = ${ "${{" ~ " "* ~ LogicalExpression | Expression ~ " "* ~ "}}" }
+Full = ${ "${{" ~ " "* ~ (LogicalExpression | Expression) ~ " "* ~ "}}" }
