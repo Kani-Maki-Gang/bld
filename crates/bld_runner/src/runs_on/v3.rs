@@ -1,7 +1,7 @@
-use crate::registry::v3::Registry;
+use crate::{expr::v3::traits::RuntimeExecutionContext, registry::v3::Registry};
 use bld_config::SshConfig;
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
+use std::{fmt::Display, iter::Peekable};
 
 #[cfg(feature = "all")]
 use {
@@ -158,7 +158,11 @@ impl ApplyContext for RunsOn {
 
 #[cfg(feature = "all")]
 impl<'a> EvalObject<'a> for RunsOn {
-    fn eval_object(&'a self, _path: &mut Pairs<'_, Rule>) -> Result<ExprValue<'a>> {
+    fn eval_object<Ctx: RuntimeExecutionContext<'a>>(
+        &'a self,
+        _path: &mut Peekable<Pairs<'_, Rule>>,
+        _ctx: &Ctx,
+    ) -> Result<ExprValue<'a>> {
         unimplemented!()
     }
 }

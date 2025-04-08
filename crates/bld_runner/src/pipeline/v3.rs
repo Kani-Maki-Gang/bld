@@ -1,5 +1,6 @@
 use crate::{
     artifacts::v3::Artifacts,
+    expr::v3::traits::{ExprText, RuntimeExecutionContext},
     external::v3::External,
     inputs::v3::Input,
     runs_on::v3::RunsOn,
@@ -7,7 +8,10 @@ use crate::{
     traits::{IntoVariables, Variables},
 };
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    iter::Peekable,
+};
 
 #[cfg(feature = "all")]
 use {
@@ -150,7 +154,11 @@ impl ApplyContext for Pipeline {
 
 #[cfg(feature = "all")]
 impl<'a> EvalObject<'a> for Pipeline {
-    fn eval_object(&'a self, path: &mut Pairs<'_, Rule>) -> Result<ExprValue<'a>> {
+    fn eval_object<Ctx: RuntimeExecutionContext<'a>>(
+        &'a self,
+        path: &mut Peekable<Pairs<'_, Rule>>,
+        ctx: &Ctx,
+    ) -> Result<ExprValue<'a>> {
         let Some(object) = path.next() else {
             bail!("no object path present");
         };
@@ -167,16 +175,16 @@ impl<'a> EvalObject<'a> for Pipeline {
         match part.as_span().get_input() {
             "name" => {
                 let name = self.name.as_ref().map_or("", |x| x.as_str());
-                Ok(ExprValue::Text(name))
+                Ok(ExprValue::Text(ExprText::Ref(name)))
             }
 
-            "runs_on" => self.runs_on.eval_object(&mut object_parts),
+            "runs_on" => self.runs_on.eval_object(&mut object_parts.peekable(), ctx),
 
             "dispose" => Ok(ExprValue::Boolean(self.dispose)),
 
             "cron" => {
                 let cron = self.cron.as_ref().map_or("", |x| x.as_str());
-                Ok(ExprValue::Text(cron))
+                Ok(ExprValue::Text(ExprText::Ref(cron)))
             }
 
             "inputs" => {
@@ -188,7 +196,7 @@ impl<'a> EvalObject<'a> for Pipeline {
                     .inputs
                     .get(name)
                     .ok_or_else(|| anyhow!("input '{name}' not found"))?;
-                input.try_into().map(ExprValue::Text)
+                input.try_into().map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
             "env" => {
@@ -198,7 +206,7 @@ impl<'a> EvalObject<'a> for Pipeline {
                 let name = part.as_span().get_input();
                 self.env
                     .get(name)
-                    .map(|x| ExprValue::Text(x))
+                    .map(|x| ExprValue::Text(ExprText::Ref(x)))
                     .ok_or_else(|| anyhow!("env variable '{name}' not found"))
             }
 
