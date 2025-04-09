@@ -172,7 +172,7 @@ impl<'a> EvalObject<'a> for Pipeline {
             bail!("expected at least one part in the object path");
         };
 
-        match part.as_span().get_input() {
+        match part.as_span().as_str() {
             "name" => {
                 let name = self.name.as_ref().map_or("", |x| x.as_str());
                 Ok(ExprValue::Text(ExprText::Ref(name)))
@@ -191,7 +191,7 @@ impl<'a> EvalObject<'a> for Pipeline {
                 let Some(part) = object_parts.next() else {
                     bail!("expected name of input in object path");
                 };
-                let name = part.as_span().get_input();
+                let name = part.as_span().as_str();
                 let input = self
                     .inputs
                     .get(name)
@@ -203,7 +203,7 @@ impl<'a> EvalObject<'a> for Pipeline {
                 let Some(part) = object_parts.next() else {
                     bail!("expected name of env variable in object path");
                 };
-                let name = part.as_span().get_input();
+                let name = part.as_span().as_str();
                 self.env
                     .get(name)
                     .map(|x| ExprValue::Text(ExprText::Ref(x)))
