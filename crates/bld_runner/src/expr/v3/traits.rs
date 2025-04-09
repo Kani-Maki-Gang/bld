@@ -55,6 +55,30 @@ impl<'a, 'b> ExprValue<'a> {
         };
         Ok(ExprValue::<'b>::Boolean(value))
     }
+
+    pub fn try_and(&self, other: &'a Self) -> Result<ExprValue<'b>> {
+        let value = match (self, other) {
+            (Self::Boolean(l), Self::Boolean(r)) => *l && *r,
+            _ => bail!(
+                "cannot use logical AND comparison on type {} and {}",
+                self.type_as_string(),
+                other.type_as_string()
+            ),
+        };
+        Ok(ExprValue::<'b>::Boolean(value))
+    }
+
+    pub fn try_or(&self, other: &'a Self) -> Result<ExprValue<'b>> {
+        let value = match (self, other) {
+            (Self::Boolean(l), Self::Boolean(r)) => *l || *r,
+            _ => bail!(
+                "cannot use logical OR comparison on type {} and {}",
+                self.type_as_string(),
+                other.type_as_string()
+            ),
+        };
+        Ok(ExprValue::<'b>::Boolean(value))
+    }
 }
 
 impl<'b> TryFrom<&'b str> for ExprValue<'_> {

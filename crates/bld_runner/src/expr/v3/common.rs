@@ -67,10 +67,7 @@ pub struct CommonExprExecutor<'a, T: EvalObject<'a>> {
 
 impl<'a, T: EvalObject<'a>> CommonExprExecutor<'a, T> {
     pub fn new(obj_executor: T, ctx: CommonRuntimeExecutionContext<'a>) -> Self {
-        Self {
-            obj_executor,
-            ctx,
-        }
+        Self { obj_executor, ctx }
     }
 }
 
@@ -177,8 +174,62 @@ impl<'a, T: EvalObject<'a>> EvalExpr<'a> for CommonExprExecutor<'a, T> {
         }
     }
 
-    fn eval_logical_expr(&'a self, _expr: Pair<'_, Rule>) -> Result<ExprValue<'a>> {
-        unimplemented!()
+    fn eval_logical_expr(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>> {
+        let Rule::LogicalExpression = expr.as_rule() else {
+            bail!(
+                "expected logical expression rule, found {:?}",
+                expr.as_rule()
+            );
+        };
+
+        let expr_inner = expr.into_inner();
+        let mut accumulator: Option<ExprValue<'a>> = None;
+        let mut current_value: Option<ExprValue<'a>> = None;
+
+        for inner in expr_inner {
+            match inner.as_rule() {
+                Rule::Expression if current_value.is_none() => {
+                    current_value = Some(self.eval_expr(inner)?);
+                }
+
+                Rule::Expression if current_value.is_some() => {
+                    bail!(
+                        "multiple expressions found in logical expression without any logical operator"
+                    );
+                }
+
+                Rule::AndOperator => {
+                    let Some(curr) = current_value.take() else {
+                        bail!("no current value found before AND operator");
+                    };
+
+                    if let Some(acc) = accumulator {
+                        accumulator = Some(acc.try_and(&curr)?);
+                    } else {
+                        accumulator = Some(curr);
+                    }
+                }
+
+                Rule::OrOperator => {
+                    let Some(curr) = current_value.take() else {
+                        bail!("no current value found before OR operator");
+                    };
+
+                    if let Some(acc) = accumulator {
+                        accumulator = Some(acc.try_or(&curr)?);
+                    } else {
+                        accumulator = Some(curr);
+                    }
+                }
+
+                _ => bail!(
+                    "unexpected rule in logical expression: {:?}",
+                    inner.as_rule()
+                ),
+            }
+        }
+
+        accumulator.ok_or_else(|| anyhow!("no accumulator found in logical expression"))
     }
 
     fn eval(&'a mut self, expr: &'a str) -> Result<ExprValue<'a>> {
