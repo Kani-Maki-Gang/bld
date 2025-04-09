@@ -7,13 +7,35 @@ use std::collections::HashMap;
 
 #[derive(Debug, Default)]
 pub struct CommonRuntimeExecutionContext<'a> {
-    root_dir: &'a str,
-    project_dir: &'a str,
-    inputs: HashMap<&'a str, &'a str>,
-    outputs: HashMap<&'a str, &'a str>,
-    env: HashMap<&'a str, &'a str>,
-    run_id: &'a str,
-    run_start_time: &'a str,
+    pub root_dir: &'a str,
+    pub project_dir: &'a str,
+    pub inputs: HashMap<&'a str, &'a str>,
+    pub outputs: HashMap<&'a str, &'a str>,
+    pub env: HashMap<&'a str, &'a str>,
+    pub run_id: &'a str,
+    pub run_start_time: &'a str,
+}
+
+impl<'a> CommonRuntimeExecutionContext<'a> {
+    pub fn new(
+        root_dir: &'a str,
+        project_dir: &'a str,
+        inputs: HashMap<&'a str, &'a str>,
+        outputs: HashMap<&'a str, &'a str>,
+        env: HashMap<&'a str, &'a str>,
+        run_id: &'a str,
+        run_start_time: &'a str,
+    ) -> Self {
+        Self {
+            root_dir,
+            project_dir,
+            inputs,
+            outputs,
+            env,
+            run_id,
+            run_start_time,
+        }
+    }
 }
 
 impl<'a> RuntimeExecutionContext<'a> for CommonRuntimeExecutionContext<'a> {
@@ -61,12 +83,12 @@ impl<'a> RuntimeExecutionContext<'a> for CommonRuntimeExecutionContext<'a> {
 }
 
 pub struct CommonExprExecutor<'a, T: EvalObject<'a>> {
-    obj_executor: T,
+    obj_executor: &'a T,
     ctx: CommonRuntimeExecutionContext<'a>,
 }
 
 impl<'a, T: EvalObject<'a>> CommonExprExecutor<'a, T> {
-    pub fn new(obj_executor: T, ctx: CommonRuntimeExecutionContext<'a>) -> Self {
+    pub fn new(obj_executor: &'a T, ctx: CommonRuntimeExecutionContext<'a>) -> Self {
         Self { obj_executor, ctx }
     }
 }
@@ -98,11 +120,11 @@ impl<'a, T: EvalObject<'a>> EvalExpr<'a> for CommonExprExecutor<'a, T> {
 
         let operator_rule = operator.as_rule();
         match &operator_rule {
-            Rule::Equals => left.try_eq(&right),
+            Rule::EqualsOperator => left.try_eq(&right),
 
-            Rule::Greater => left.try_ord(&right),
+            Rule::GreaterOperator => left.try_ord(&right),
 
-            Rule::GreaterEquals => left.try_ord(&right).and_then(|v| {
+            Rule::GreaterEqualsOperator => left.try_ord(&right).and_then(|v| {
                 if matches!(v, ExprValue::Boolean(false)) {
                     left.try_eq(&right)
                 } else {
@@ -110,9 +132,9 @@ impl<'a, T: EvalObject<'a>> EvalExpr<'a> for CommonExprExecutor<'a, T> {
                 }
             }),
 
-            Rule::Less => right.try_ord(&left),
+            Rule::LessOperator => right.try_ord(&left),
 
-            Rule::LessEquals => right.try_ord(&left).and_then(|v| {
+            Rule::LessEqualsOperator => right.try_ord(&left).and_then(|v| {
                 if matches!(v, ExprValue::Boolean(false)) {
                     left.try_eq(&right)
                 } else {
@@ -232,7 +254,7 @@ impl<'a, T: EvalObject<'a>> EvalExpr<'a> for CommonExprExecutor<'a, T> {
         accumulator.ok_or_else(|| anyhow!("no accumulator found in logical expression"))
     }
 
-    fn eval(&'a mut self, expr: &'a str) -> Result<ExprValue<'a>> {
+    fn eval(&'a self, expr: &'a str) -> Result<ExprValue<'a>> {
         let mut pairs = ExprParser::parse(Rule::Full, expr)?;
         let pair = pairs.next().ok_or_else(|| anyhow!("no expression found"))?;
 

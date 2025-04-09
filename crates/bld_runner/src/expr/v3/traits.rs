@@ -97,6 +97,17 @@ impl<'b> TryFrom<&'b str> for ExprValue<'_> {
     }
 }
 
+impl ToString for ExprValue<'_> {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Boolean(value) => value.to_string(),
+            Self::Number(value) => value.to_string(),
+            Self::Text(ExprText::Ref(value)) => value.to_string(),
+            Self::Text(ExprText::Owned(value)) => value.to_string(),
+        }
+    }
+}
+
 pub trait RuntimeExecutionContext<'a> {
     fn get_root_dir(&self) -> &'a str;
     fn get_project_dir(&self) -> &'a str;
@@ -121,5 +132,5 @@ pub trait EvalExpr<'a> {
     fn eval_symbol(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>>;
     fn eval_expr(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>>;
     fn eval_logical_expr(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>>;
-    fn eval(&'a mut self, expr: &'a str) -> Result<ExprValue<'a>>;
+    fn eval(&'a self, expr: &'a str) -> Result<ExprValue<'a>>;
 }
