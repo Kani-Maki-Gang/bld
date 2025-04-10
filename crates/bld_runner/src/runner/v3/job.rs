@@ -1,4 +1,4 @@
-use std::{fmt::Write, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt::Write, sync::Arc, time::Duration};
 
 use actix::{Actor, StreamHandler, clock::sleep, io::SinkWrite};
 use anyhow::{Result, anyhow, bail};
@@ -14,10 +14,20 @@ use bld_models::dtos::ExecClientMessage;
 use bld_sock::ExecClient;
 use bld_utils::sync::IntoArc;
 use futures::StreamExt;
+use regex::Regex;
 use tokio::task::JoinHandle;
 use tracing::debug;
 
-use crate::{RunnerBuilder, external::v3::External, pipeline::v3::Pipeline, step::v3::Step};
+use crate::{
+    RunnerBuilder,
+    expr::v3::{
+        common::{CommonExprExecutor, CommonRuntimeExecutionContext},
+        traits::EvalExpr,
+    },
+    external::v3::External,
+    pipeline::v3::Pipeline,
+    step::v3::Step,
+};
 
 pub struct JobRunner {
     pub job_name: String,
@@ -223,8 +233,29 @@ impl JobRunner {
         };
 
         debug!("executing shell command {}", command);
+
+        let regex = Regex::new(r"\$\{\{\s*.*?\s*\}\}")?;
+        let mut command = command.to_string();
+
+        if let Some(matches) = regex.find(&command) {
+            let expr_ctx = CommonRuntimeExecutionContext::new(
+                &self.config.root_dir,
+                &self.config.project_dir,
+                HashMap::new(),
+                HashMap::new(),
+                HashMap::new(),
+                &self.run_id,
+                &self.run_start_time,
+            );
+
+            let expr_exec = CommonExprExecutor::new(self.pipeline.as_ref(), expr_ctx);
+            let matches = matches.as_str();
+            let value = expr_exec.eval(matches)?.to_string();
+            command = command.replace(matches, &value);
+        }
+
         platform
-            .shell(self.logger.clone(), working_dir, command)
+            .shell(self.logger.clone(), working_dir, &command)
             .await?;
 
         Ok(())
