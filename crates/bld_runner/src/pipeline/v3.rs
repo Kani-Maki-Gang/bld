@@ -1,6 +1,6 @@
 use crate::{
     artifacts::v3::Artifacts,
-    expr::v3::traits::{ExprText, RuntimeExecutionContext},
+    expr::v3::traits::{ExprText, ReadonlyRuntimeExprContext, WritableRuntimeExprContext},
     external::v3::External,
     inputs::v3::Input,
     runs_on::v3::RunsOn,
@@ -154,10 +154,11 @@ impl ApplyContext for Pipeline {
 
 #[cfg(feature = "all")]
 impl<'a> EvalObject<'a> for Pipeline {
-    fn eval_object<Ctx: RuntimeExecutionContext<'a>>(
+    fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
         &'a self,
         path: &mut Peekable<Pairs<'_, Rule>>,
-        ctx: &Ctx,
+        rctx: &RCtx,
+        wctx: &WCtx,
     ) -> Result<ExprValue<'a>> {
         let Some(object) = path.next() else {
             bail!("no object path present");
@@ -178,7 +179,9 @@ impl<'a> EvalObject<'a> for Pipeline {
                 Ok(ExprValue::Text(ExprText::Ref(name)))
             }
 
-            "runs_on" => self.runs_on.eval_object(&mut object_parts.peekable(), ctx),
+            "runs_on" => self
+                .runs_on
+                .eval_object(&mut object_parts.peekable(), rctx, wctx),
 
             "dispose" => Ok(ExprValue::Boolean(self.dispose)),
 

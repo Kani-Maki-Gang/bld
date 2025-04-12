@@ -1,99 +1,37 @@
 use crate::expr::v3::parser::{ExprParser, Rule};
 
-use super::traits::{EvalExpr, EvalObject, ExprValue, RuntimeExecutionContext};
+use super::traits::{
+    EvalExpr, EvalObject, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
+};
 use anyhow::{Result, anyhow, bail};
 use pest::{Parser, iterators::Pair};
-use std::collections::HashMap;
 
-#[derive(Debug, Default)]
-pub struct CommonRuntimeExecutionContext<'a> {
-    pub root_dir: &'a str,
-    pub project_dir: &'a str,
-    pub inputs: HashMap<&'a str, &'a str>,
-    pub outputs: HashMap<&'a str, &'a str>,
-    pub env: HashMap<&'a str, &'a str>,
-    pub run_id: &'a str,
-    pub run_start_time: &'a str,
+pub struct CommonExprExecutor<
+    'a,
+    T: EvalObject<'a>,
+    RCtx: ReadonlyRuntimeExprContext<'a>,
+    WCtx: WritableRuntimeExprContext,
+> {
+    obj_executor: &'a T,
+    rctx: &'a RCtx,
+    wctx: &'a WCtx,
 }
 
-impl<'a> CommonRuntimeExecutionContext<'a> {
-    pub fn new(
-        root_dir: &'a str,
-        project_dir: &'a str,
-        inputs: HashMap<&'a str, &'a str>,
-        outputs: HashMap<&'a str, &'a str>,
-        env: HashMap<&'a str, &'a str>,
-        run_id: &'a str,
-        run_start_time: &'a str,
-    ) -> Self {
+impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>
+    CommonExprExecutor<'a, T, RCtx, WCtx>
+{
+    pub fn new(obj_executor: &'a T, rctx: &'a RCtx, wctx: &'a mut WCtx) -> Self {
         Self {
-            root_dir,
-            project_dir,
-            inputs,
-            outputs,
-            env,
-            run_id,
-            run_start_time,
+            obj_executor,
+            rctx,
+            wctx,
         }
     }
 }
 
-impl<'a> RuntimeExecutionContext<'a> for CommonRuntimeExecutionContext<'a> {
-    fn get_root_dir(&self) -> &'a str {
-        self.root_dir
-    }
-
-    fn get_project_dir(&self) -> &'a str {
-        self.project_dir
-    }
-
-    fn get_input(&'a self, name: &'a str) -> Result<&'a str> {
-        self.inputs
-            .get(name)
-            .copied()
-            .ok_or_else(|| anyhow!("input '{name}' not found"))
-    }
-
-    fn get_output(&self, name: &'a str) -> Result<&'a str> {
-        self.outputs
-            .get(name)
-            .copied()
-            .ok_or_else(|| anyhow!("output '{name}' not found"))
-    }
-
-    fn set_output(&mut self, name: &'a str, value: &'a str) -> Result<()> {
-        self.outputs.insert(name, value);
-        Ok(())
-    }
-
-    fn get_env(&'a self, name: &'a str) -> Result<&'a str> {
-        self.env
-            .get(name)
-            .copied()
-            .ok_or_else(|| anyhow!("env variable '{name}' not found"))
-    }
-
-    fn get_run_id(&self) -> &'a str {
-        self.run_id
-    }
-
-    fn get_run_start_time(&self) -> &'a str {
-        self.run_start_time
-    }
-}
-
-pub struct CommonExprExecutor<'a, T: EvalObject<'a>> {
-    obj_executor: &'a T,
-    ctx: CommonRuntimeExecutionContext<'a>,
-}
-
-impl<'a, T: EvalObject<'a>> CommonExprExecutor<'a, T> {
-    pub fn new(obj_executor: &'a T, ctx: CommonRuntimeExecutionContext<'a>) -> Self {
-        Self { obj_executor, ctx }
-    }
-}
-
-impl<'a, T: EvalObject<'a>> EvalExpr<'a> for CommonExprExecutor<'a, T> {
+impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>
+    EvalExpr<'a> for CommonExprExecutor<'a, T, RCtx, WCtx>
+{
     fn eval_cmp(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>> {
         if !matches!(
             expr.as_rule(),
@@ -160,7 +98,9 @@ impl<'a, T: EvalObject<'a>> EvalExpr<'a> for CommonExprExecutor<'a, T> {
 
         match &symbol_rule {
             Rule::Boolean | Rule::Number | Rule::String => symbol_span.as_str().try_into(),
-            Rule::Object => self.obj_executor.eval_object(&mut symbol, &self.ctx),
+            Rule::Object => self
+                .obj_executor
+                .eval_object(&mut symbol, self.rctx, self.wctx),
             _ => bail!("unexpected rule: {:?}", &symbol_rule),
         }
     }

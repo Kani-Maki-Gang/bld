@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Write, sync::Arc, time::Duration};
+use std::{fmt::Write, sync::Arc, time::Duration};
 
 use actix::{clock::sleep, spawn};
 use anyhow::{Result, anyhow, bail};
@@ -19,7 +19,10 @@ use bld_utils::sync::IntoArc;
 use tokio::sync::mpsc::Sender;
 use tracing::debug;
 
-use crate::{pipeline::v3::Pipeline, registry::v3::Registry, runs_on::v3::RunsOn};
+use crate::{
+    expr::v3::context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext}, pipeline::v3::Pipeline,
+    registry::v3::Registry, runs_on::v3::RunsOn,
+};
 
 use super::{
     common::RecursiveFuture,
@@ -27,8 +30,6 @@ use super::{
 };
 
 pub struct PipelineRunner {
-    pub run_id: String,
-    pub run_start_time: String,
     pub config: Arc<BldConfig>,
     pub signals: Option<UnixSignalsBackend>,
     pub logger: Arc<Logger>,
@@ -36,9 +37,9 @@ pub struct PipelineRunner {
     pub fs: Arc<FileSystem>,
     pub pipeline: Arc<Pipeline>,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
-    pub env: Arc<HashMap<String, String>>,
     pub context: Arc<Context>,
     pub platform: Option<Arc<Platform>>,
+    pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
     pub is_child: bool,
     pub has_faulted: bool,
 }
@@ -48,7 +49,7 @@ impl PipelineRunner {
         if !self.is_child {
             debug!("setting the pipeline as running in the execution context");
             self.context
-                .set_pipeline_as_running(self.run_id.to_owned())
+                .set_pipeline_as_running(self.expr_rctx.run_id.to_owned())
                 .await?;
         }
         Ok(())
@@ -59,11 +60,11 @@ impl PipelineRunner {
             debug!("setting state of root pipeline");
             if self.has_faulted {
                 self.context
-                    .set_pipeline_as_faulted(self.run_id.to_owned())
+                    .set_pipeline_as_faulted(self.expr_rctx.run_id.to_owned())
                     .await?;
             } else {
                 self.context
-                    .set_pipeline_as_finished(self.run_id.to_owned())
+                    .set_pipeline_as_finished(self.expr_rctx.run_id.to_owned())
                     .await?;
             }
         }
@@ -158,11 +159,11 @@ impl PipelineRunner {
 
         let conn = self.context.get_conn();
         let platform = PlatformBuilder::default()
-            .run_id(&self.run_id)
+            .run_id(&self.expr_rctx.run_id)
             .config(self.config.clone())
             .options(options)
             .pipeline_env(&self.pipeline.env)
-            .env(self.env.clone())
+            .env(self.expr_rctx.env.clone())
             .logger(self.logger.clone())
             .conn(conn)
             .build()
@@ -228,17 +229,18 @@ impl PipelineRunner {
     }
 
     fn create_job(&self, name: &str, logger: Arc<Logger>) -> JobRunner {
+        let name = name.to_string();
         JobRunner {
-            pipeline: self.pipeline.clone(),
-            job_name: name.to_owned(),
-            fs: self.fs.clone(),
-            run_id: self.run_id.clone(),
-            run_start_time: self.run_start_time.clone(),
+            job_name: name,
             config: self.config.clone(),
-            logger,
+            logger: logger.clone(),
+            fs: self.fs.clone(),
+            pipeline: self.pipeline.clone(),
             context: self.context.clone(),
             platform: self.platform.clone(),
             regex_cache: self.regex_cache.clone(),
+            expr_rctx: self.expr_rctx.clone(),
+            expr_wctx: CommonWritableRuntimeExprContext::default()
         }
     }
 

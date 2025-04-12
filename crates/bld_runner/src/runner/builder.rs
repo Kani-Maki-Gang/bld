@@ -20,6 +20,7 @@ use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
 
 use crate::{
+    expr::v3::context::CommonReadonlyRuntimeExprContext,
     files::{
         v3::RunnerFile,
         versioned::{VersionedFile, Yaml},
@@ -236,9 +237,15 @@ impl<'a> RunnerBuilder<'a> {
             }
 
             VersionedFile::Version3(RunnerFile::PipelineFileType(pipeline)) => {
+                let expr_rctx = CommonReadonlyRuntimeExprContext::new(
+                    config.clone(),
+                    inputs,
+                    env,
+                    self.run_id,
+                    self.run_start_time,
+                )
+                .into_arc();
                 VersionedRunner::V3(FileRunner::Pipeline(runner::v3::PipelineRunner {
-                    run_id: self.run_id,
-                    run_start_time: self.run_start_time,
                     config,
                     signals: self.signals,
                     logger: self.logger,
@@ -246,9 +253,9 @@ impl<'a> RunnerBuilder<'a> {
                     fs: self.fs,
                     pipeline: (*pipeline).into_arc(),
                     ipc: self.ipc,
-                    env,
                     context,
                     platform: None,
+                    expr_rctx,
                     is_child: self.is_child,
                     has_faulted: false,
                 }))

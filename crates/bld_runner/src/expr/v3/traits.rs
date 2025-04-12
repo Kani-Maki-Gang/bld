@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::iter::Peekable;
+use std::{fmt::Display, iter::Peekable};
 
 use anyhow::{Result, bail};
 use pest::iterators::{Pair, Pairs};
@@ -97,33 +97,38 @@ impl<'b> TryFrom<&'b str> for ExprValue<'_> {
     }
 }
 
-impl ToString for ExprValue<'_> {
-    fn to_string(&self) -> String {
-        match self {
+impl Display for ExprValue<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let value = match self {
             Self::Boolean(value) => value.to_string(),
             Self::Number(value) => value.to_string(),
             Self::Text(ExprText::Ref(value)) => value.to_string(),
             Self::Text(ExprText::Owned(value)) => value.to_string(),
-        }
+        };
+        f.write_str(&value)
     }
 }
 
-pub trait RuntimeExecutionContext<'a> {
-    fn get_root_dir(&self) -> &'a str;
-    fn get_project_dir(&self) -> &'a str;
+pub trait ReadonlyRuntimeExprContext<'a> {
+    fn get_root_dir(&'a self) -> &'a str;
+    fn get_project_dir(&'a self) -> &'a str;
     fn get_input(&'a self, name: &'a str) -> Result<&'a str>;
-    fn get_output(&self, name: &'a str) -> Result<&'a str>;
-    fn set_output(&mut self, name: &'a str, value: &'a str) -> Result<()>;
     fn get_env(&'a self, name: &'a str) -> Result<&'a str>;
-    fn get_run_id(&self) -> &'a str;
-    fn get_run_start_time(&self) -> &'a str;
+    fn get_run_id(&'a self) -> &'a str;
+    fn get_run_start_time(&'a self) -> &'a str;
+}
+
+pub trait WritableRuntimeExprContext {
+    fn get_output(&self, name: &str) -> Result<&str>;
+    fn set_output(&mut self, name: String, value: String) -> Result<()>;
 }
 
 pub trait EvalObject<'a> {
-    fn eval_object<Ctx: RuntimeExecutionContext<'a>>(
+    fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
         &'a self,
         path: &mut Peekable<Pairs<'_, Rule>>,
-        ctx: &Ctx,
+        rctx: &RCtx,
+        wctx: &WCtx,
     ) -> Result<ExprValue<'a>>;
 }
 

@@ -1,4 +1,7 @@
-use crate::{expr::v3::traits::RuntimeExecutionContext, registry::v3::Registry};
+use crate::{
+    expr::v3::traits::{ReadonlyRuntimeExprContext, WritableRuntimeExprContext},
+    registry::v3::Registry,
+};
 use bld_config::SshConfig;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Display, iter::Peekable};
@@ -158,10 +161,11 @@ impl ApplyContext for RunsOn {
 
 #[cfg(feature = "all")]
 impl<'a> EvalObject<'a> for RunsOn {
-    fn eval_object<Ctx: RuntimeExecutionContext<'a>>(
+    fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
         &'a self,
         _path: &mut Peekable<Pairs<'_, Rule>>,
-        _ctx: &Ctx,
+        _rctx: &RCtx,
+        _wctx: &WCtx,
     ) -> Result<ExprValue<'a>> {
         unimplemented!()
     }

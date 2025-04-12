@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Write, sync::Arc, time::Duration};
+use std::{fmt::Write, sync::Arc, time::Duration};
 
 use actix::{Actor, StreamHandler, clock::sleep, io::SinkWrite};
 use anyhow::{Result, anyhow, bail};
@@ -21,7 +21,9 @@ use tracing::debug;
 use crate::{
     RunnerBuilder,
     expr::v3::{
-        common::{CommonExprExecutor, CommonRuntimeExecutionContext},
+        context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+        exec::CommonExprExecutor,
+        parser::EXPR_REGEX,
         traits::EvalExpr,
     },
     external::v3::External,
@@ -31,8 +33,6 @@ use crate::{
 
 pub struct JobRunner {
     pub job_name: String,
-    pub run_id: String,
-    pub run_start_time: String,
     pub config: Arc<BldConfig>,
     pub logger: Arc<Logger>,
     pub fs: Arc<FileSystem>,
@@ -40,12 +40,14 @@ pub struct JobRunner {
     pub context: Arc<Context>,
     pub platform: Option<Arc<Platform>>,
     pub regex_cache: Arc<RegexCache>,
+    pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
+    pub expr_wctx: CommonWritableRuntimeExprContext,
 }
 
 impl JobRunner {
-    pub async fn run(self) -> Result<Self> {
-        let (_, steps) = self
-            .pipeline
+    pub async fn run(mut self) -> Result<Self> {
+        let pipeline = self.pipeline.clone();
+        let (_, steps) = pipeline
             .jobs
             .iter()
             .find(|(name, _)| **name == self.job_name)
@@ -63,7 +65,7 @@ impl JobRunner {
         Ok(self)
     }
 
-    async fn step(&self, step: &Step) -> Result<()> {
+    async fn step(&mut self, step: &Step) -> Result<()> {
         match step {
             Step::SingleSh(sh) => self.shell(&None, sh).await?,
 
@@ -155,8 +157,8 @@ impl JobRunner {
         let env = details.env.clone();
 
         let runner = RunnerBuilder::default()
-            .run_id(&self.run_id)
-            .run_start_time(&self.run_start_time)
+            .run_id(&self.expr_rctx.run_id)
+            .run_start_time(&self.expr_rctx.run_start_time)
             .config(self.config.clone())
             .fs(self.fs.clone())
             .file(&details.uses)
@@ -226,7 +228,7 @@ impl JobRunner {
         Ok(())
     }
 
-    async fn shell(&self, working_dir: &Option<String>, command: &str) -> Result<()> {
+    async fn shell(&mut self, working_dir: &Option<String>, command: &str) -> Result<()> {
         debug!("start execution of exec section for step");
         let Some(platform) = self.platform.as_ref() else {
             bail!("no platform instance for runner");
@@ -234,29 +236,26 @@ impl JobRunner {
 
         debug!("executing shell command {}", command);
 
-        let regex = Regex::new(r"\$\{\{\s*.*?\s*\}\}")?;
-        let mut command = command.to_string();
-
-        if let Some(matches) = regex.find(&command) {
-            let expr_ctx = CommonRuntimeExecutionContext::new(
-                &self.config.root_dir,
-                &self.config.project_dir,
-                HashMap::new(),
-                HashMap::new(),
-                HashMap::new(),
-                &self.run_id,
-                &self.run_start_time,
+        let regex = Regex::new(EXPR_REGEX)?;
+        if let Some(matches) = regex.find(command) {
+            let mut command = command.to_string();
+            let expr_exec = CommonExprExecutor::new(
+                self.pipeline.as_ref(),
+                self.expr_rctx.as_ref(),
+                &mut self.expr_wctx,
             );
-
-            let expr_exec = CommonExprExecutor::new(self.pipeline.as_ref(), expr_ctx);
             let matches = matches.as_str();
             let value = expr_exec.eval(matches)?.to_string();
             command = command.replace(matches, &value);
-        }
 
-        platform
-            .shell(self.logger.clone(), working_dir, &command)
-            .await?;
+            platform
+                .shell(self.logger.clone(), working_dir, &command)
+                .await?;
+        } else {
+            platform
+                .shell(self.logger.clone(), working_dir, command)
+                .await?;
+        }
 
         Ok(())
     }

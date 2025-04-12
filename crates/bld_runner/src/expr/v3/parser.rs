@@ -2,6 +2,8 @@
 
 use pest_derive::Parser;
 
+pub const EXPR_REGEX: &str = r"\$\{\{\s*.*?\s*\}\}";
+
 #[derive(Parser)]
 #[grammar = "grammar/expr_v3.pest"]
 pub struct ExprParser;
