@@ -2,16 +2,8 @@ use std::{fmt::Write, sync::Arc, time::Duration};
 
 use actix::{clock::sleep, spawn};
 use anyhow::{Result, anyhow, bail};
-use bld_config::{BldConfig, SshUserAuth};
 use bld_core::{
-    context::Context,
-    fs::FileSystem,
     logger::Logger,
-    platform::{
-        Image, Platform, SshAuthOptions, SshConnectOptions,
-        builder::{PlatformBuilder, PlatformOptions},
-    },
-    regex::RegexCache,
     signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend},
 };
 use bld_models::dtos::WorkerMessages;
@@ -19,27 +11,17 @@ use bld_utils::sync::IntoArc;
 use tokio::sync::mpsc::Sender;
 use tracing::debug;
 
-use crate::{
-    expr::v3::context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext}, pipeline::v3::Pipeline,
-    registry::v3::Registry, runs_on::v3::RunsOn,
-};
-
 use super::{
     common::RecursiveFuture,
     job::{JobRunner, RunningJob},
+    services::RunServices,
 };
 
 pub struct PipelineRunner {
-    pub config: Arc<BldConfig>,
+    pub services: Arc<RunServices>,
     pub signals: Option<UnixSignalsBackend>,
     pub logger: Arc<Logger>,
-    pub regex_cache: Arc<RegexCache>,
-    pub fs: Arc<FileSystem>,
-    pub pipeline: Arc<Pipeline>,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
-    pub context: Arc<Context>,
-    pub platform: Option<Arc<Platform>>,
-    pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
     pub is_child: bool,
     pub has_faulted: bool,
 }
@@ -48,8 +30,9 @@ impl PipelineRunner {
     async fn register_start(&self) -> Result<()> {
         if !self.is_child {
             debug!("setting the pipeline as running in the execution context");
-            self.context
-                .set_pipeline_as_running(self.expr_rctx.run_id.to_owned())
+            self.services
+                .run_ctx
+                .set_pipeline_as_running(self.services.expr_rctx.run_id.to_owned())
                 .await?;
         }
         Ok(())
@@ -59,134 +42,33 @@ impl PipelineRunner {
         if !self.is_child {
             debug!("setting state of root pipeline");
             if self.has_faulted {
-                self.context
-                    .set_pipeline_as_faulted(self.expr_rctx.run_id.to_owned())
+                self.services
+                    .run_ctx
+                    .set_pipeline_as_faulted(self.services.expr_rctx.run_id.to_owned())
                     .await?;
             } else {
-                self.context
-                    .set_pipeline_as_finished(self.expr_rctx.run_id.to_owned())
+                self.services
+                    .run_ctx
+                    .set_pipeline_as_finished(self.services.expr_rctx.run_id.to_owned())
                     .await?;
             }
         }
-        Ok(())
-    }
-
-    async fn create_platform(&mut self) -> Result<()> {
-        let options = match &self.pipeline.runs_on {
-            RunsOn::ContainerOrMachine(image) if image == "machine" => PlatformOptions::Machine,
-
-            RunsOn::ContainerOrMachine(image) => PlatformOptions::Container {
-                image: Image::Use(image),
-                docker_url: None,
-            },
-
-            RunsOn::Pull {
-                image,
-                pull,
-                docker_url,
-                registry,
-            } => {
-                let image = if pull.unwrap_or_default() {
-                    match registry.as_ref() {
-                        Some(Registry::FromConfig(value)) => {
-                            Image::pull(image, self.config.registry(value))
-                        }
-                        Some(Registry::Full(config)) => Image::pull(image, Some(config)),
-                        None => Image::pull(image, None),
-                    }
-                } else {
-                    Image::Use(image)
-                };
-                PlatformOptions::Container {
-                    docker_url: docker_url.as_deref(),
-                    image,
-                }
-            }
-
-            RunsOn::Build {
-                name,
-                tag,
-                dockerfile,
-                docker_url,
-            } => PlatformOptions::Container {
-                image: Image::build(name, dockerfile, tag),
-                docker_url: docker_url.as_deref(),
-            },
-
-            RunsOn::SshFromGlobalConfig { ssh_config } => {
-                let config = self.config.ssh(ssh_config)?;
-                let port = config.port.parse::<u16>()?;
-                let auth = match &config.userauth {
-                    SshUserAuth::Agent => SshAuthOptions::Agent,
-                    SshUserAuth::Password { password } => SshAuthOptions::Password { password },
-                    SshUserAuth::Keys {
-                        public_key,
-                        private_key,
-                    } => SshAuthOptions::Keys {
-                        public_key: public_key.as_deref(),
-                        private_key,
-                    },
-                };
-                PlatformOptions::Ssh(SshConnectOptions::new(
-                    &config.host,
-                    port,
-                    &config.user,
-                    auth,
-                ))
-            }
-
-            RunsOn::Ssh(config) => {
-                let port = config.port.parse::<u16>()?;
-                let auth = match &config.userauth {
-                    SshUserAuth::Agent => SshAuthOptions::Agent,
-                    SshUserAuth::Password { password } => SshAuthOptions::Password { password },
-                    SshUserAuth::Keys {
-                        public_key,
-                        private_key,
-                    } => SshAuthOptions::Keys {
-                        public_key: public_key.as_deref(),
-                        private_key,
-                    },
-                };
-                PlatformOptions::Ssh(SshConnectOptions::new(
-                    &config.host,
-                    port,
-                    &config.user,
-                    auth,
-                ))
-            }
-        };
-
-        let conn = self.context.get_conn();
-        let platform = PlatformBuilder::default()
-            .run_id(&self.expr_rctx.run_id)
-            .config(self.config.clone())
-            .options(options)
-            .pipeline_env(&self.pipeline.env)
-            .env(self.expr_rctx.env.clone())
-            .logger(self.logger.clone())
-            .conn(conn)
-            .build()
-            .await?;
-
-        self.context.add_platform(platform.clone()).await?;
-        self.platform = Some(platform);
         Ok(())
     }
 
     async fn dispose_platform(&self) -> Result<()> {
-        let Some(platform) = self.platform.as_ref() else {
-            bail!("no platform instance for runner");
-        };
-        if self.pipeline.dispose {
+        if self.services.pipeline.dispose {
             debug!("executing dispose operations for platform");
-            platform.dispose(self.is_child).await?;
+            self.services.platform.dispose(self.is_child).await?;
         } else {
             debug!("keeping platform alive");
-            platform.keep_alive().await?;
+            self.services.platform.keep_alive().await?;
         }
 
-        self.context.remove_platform(platform.id()).await
+        self.services
+            .run_ctx
+            .remove_platform(self.services.platform.id())
+            .await
     }
 
     async fn ipc_send_completed(&self) -> Result<()> {
@@ -204,17 +86,16 @@ impl PipelineRunner {
 
         let mut message = String::new();
 
-        if let Some(name) = &self.pipeline.name {
+        if let Some(name) = &self.services.pipeline.name {
             writeln!(message, "{:<15}: {name}", "Name")?;
         }
-        writeln!(message, "{:<15}: {}", "Runs on", &self.pipeline.runs_on)?;
+        writeln!(message, "{:<15}: {}", "Runs on", &self.services.pipeline.runs_on)?;
         writeln!(message, "{:<15}: 3", "Version")?;
 
         self.logger.write_line(message).await
     }
 
     async fn start(&mut self) -> Result<()> {
-        self.create_platform().await?;
         self.register_start().await?;
         self.info().await?;
         Ok(())
@@ -229,24 +110,12 @@ impl PipelineRunner {
     }
 
     fn create_job(&self, name: &str, logger: Arc<Logger>) -> JobRunner {
-        let name = name.to_string();
-        JobRunner {
-            job_name: name,
-            config: self.config.clone(),
-            logger: logger.clone(),
-            fs: self.fs.clone(),
-            pipeline: self.pipeline.clone(),
-            context: self.context.clone(),
-            platform: self.platform.clone(),
-            regex_cache: self.regex_cache.clone(),
-            expr_rctx: self.expr_rctx.clone(),
-            expr_wctx: CommonWritableRuntimeExprContext::default()
-        }
+        JobRunner::new(name.to_string(), self.services.clone(), logger.clone())
     }
 
     async fn prepare_jobs(&self) -> Result<Vec<Option<RunningJob>>> {
         let mut jobs = Vec::new();
-        for name in self.pipeline.jobs.keys() {
+        for name in self.services.pipeline.jobs.keys() {
             self.logger
                 .write_line(format!("{:<15}: {}", "Running job", name))
                 .await?;
@@ -259,7 +128,7 @@ impl PipelineRunner {
     }
 
     async fn run_first_job(&self) -> Result<()> {
-        let Some(name) = self.pipeline.jobs.keys().next() else {
+        let Some(name) = self.services.pipeline.jobs.keys().next() else {
             bail!("unable to retrieve job");
         };
         debug!("found only one job so running it in the current context");
@@ -310,7 +179,7 @@ impl PipelineRunner {
     }
 
     async fn jobs(&self) -> Result<()> {
-        if self.pipeline.jobs.len() == 1 {
+        if self.services.pipeline.jobs.len() == 1 {
             self.run_first_job().await
         } else {
             self.run_all_jobs().await
@@ -345,7 +214,7 @@ impl PipelineRunner {
                 return self.execute().await.map(|_| ());
             }
 
-            let context = self.context.clone();
+            let context = self.services.run_ctx.clone();
             let logger = self.logger.clone();
             let mut signals = signals.unwrap();
             let runner_handle = spawn(self.execute());
