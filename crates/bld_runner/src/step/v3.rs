@@ -2,9 +2,6 @@ use crate::external::v3::External;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "all")]
-use anyhow::Result;
-
-#[cfg(feature = "all")]
 use bld_config::BldConfig;
 
 #[cfg(feature = "all")]
@@ -15,7 +12,6 @@ use tracing::debug;
 
 #[cfg(feature = "all")]
 use crate::{
-    token_context::v3::{ApplyContext, ExecutionContext},
     traits::Dependencies,
     validator::v3::{Validate, ValidatorContext},
 };
@@ -63,29 +59,6 @@ impl Dependencies for Step {
             }
             Self::SingleSh(_) | Self::ComplexSh { .. } | Self::ExternalFile { .. } => vec![],
         }
-    }
-}
-
-#[cfg(feature = "all")]
-impl ApplyContext for Step {
-    async fn apply_context<C: ExecutionContext>(&mut self, ctx: &C) -> Result<()> {
-        match self {
-            Self::SingleSh(run) => {
-                *run = ctx.transform(run.to_owned()).await?;
-            }
-
-            Self::ComplexSh(complex) => {
-                if let Some(wd) = complex.working_dir.as_mut() {
-                    *wd = ctx.transform(wd.to_owned()).await?;
-                }
-                complex.run = ctx.transform(complex.run.to_owned()).await?;
-            }
-
-            Self::ExternalFile(external) => {
-                external.apply_context(ctx).await?;
-            }
-        }
-        Ok(())
     }
 }
 

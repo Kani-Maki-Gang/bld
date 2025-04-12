@@ -89,7 +89,11 @@ impl PipelineRunner {
         if let Some(name) = &self.services.pipeline.name {
             writeln!(message, "{:<15}: {name}", "Name")?;
         }
-        writeln!(message, "{:<15}: {}", "Runs on", &self.services.pipeline.runs_on)?;
+        writeln!(
+            message,
+            "{:<15}: {}",
+            "Runs on", &self.services.pipeline.runs_on
+        )?;
         writeln!(message, "{:<15}: 3", "Version")?;
 
         self.logger.write_line(message).await

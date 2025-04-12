@@ -13,13 +13,9 @@ use bld_config::BldConfig;
 
 #[cfg(feature = "all")]
 use crate::{
-    token_context::v3::{ApplyContext, ExecutionContext},
     traits::Dependencies,
     validator::v3::{Validate, ValidatorContext},
 };
-
-#[cfg(feature = "all")]
-use anyhow::Result;
 
 #[cfg(feature = "all")]
 use tracing::debug;
@@ -90,21 +86,6 @@ impl Dependencies for Action {
             .iter()
             .flat_map(|s| s.local_deps(config))
             .collect()
-    }
-}
-
-#[cfg(feature = "all")]
-impl ApplyContext for Action {
-    async fn apply_context<C: ExecutionContext>(&mut self, ctx: &C) -> Result<()> {
-        for (_name, input) in self.inputs.iter_mut() {
-            input.apply_context(ctx).await?;
-        }
-
-        for step in self.steps.iter_mut() {
-            step.apply_context(ctx).await?;
-        }
-
-        Ok(())
     }
 }
 

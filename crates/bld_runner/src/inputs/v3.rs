@@ -2,10 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "all")]
 use {
-    crate::{
-        token_context::v3::{ApplyContext, ExecutionContext},
-        validator::v3::{Validate, ValidatorContext},
-    },
+    crate::validator::v3::{Validate, ValidatorContext},
     anyhow::{Error, Result, anyhow},
     tracing::debug,
 };
@@ -41,23 +38,6 @@ impl<'a> TryInto<&'a str> for &'a Input {
                 .as_deref()
                 .ok_or_else(|| anyhow!("default value not found")),
         }
-    }
-}
-
-#[cfg(feature = "all")]
-impl ApplyContext for Input {
-    async fn apply_context<C: ExecutionContext>(&mut self, ctx: &C) -> Result<()> {
-        match self {
-            Input::Simple(v) => {
-                *v = ctx.transform(v.to_owned()).await?;
-            }
-            Input::Complex { default, .. } => {
-                if let Some(v) = default {
-                    *default = Some(ctx.transform(v.to_owned()).await?);
-                }
-            }
-        }
-        Ok(())
     }
 }
 

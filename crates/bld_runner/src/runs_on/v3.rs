@@ -13,7 +13,6 @@ use {
             parser::Rule,
             traits::{EvalObject, ExprValue},
         },
-        token_context::v3::{ApplyContext, ExecutionContext},
         validator::v3::{Validate, ValidatorContext},
     },
     anyhow::Result,
@@ -79,83 +78,6 @@ impl RunsOn {
             } => config.username.as_deref(),
             _ => None,
         }
-    }
-}
-
-#[cfg(feature = "all")]
-impl ApplyContext for RunsOn {
-    async fn apply_context<C: ExecutionContext>(&mut self, ctx: &C) -> Result<()> {
-        match self {
-            RunsOn::Pull {
-                image,
-                registry,
-                docker_url,
-                ..
-            } => {
-                *image = ctx.transform(image.to_owned()).await?;
-                if let Some(docker_url) = docker_url {
-                    *docker_url = ctx.transform(docker_url.to_owned()).await?;
-                }
-                if let Some(registry) = registry.as_mut() {
-                    registry.apply_context(ctx).await?;
-                }
-            }
-
-            RunsOn::Build {
-                name,
-                tag,
-                dockerfile,
-                docker_url,
-            } => {
-                *name = ctx.transform(name.to_owned()).await?;
-                *tag = ctx.transform(tag.to_owned()).await?;
-                *dockerfile = ctx.transform(dockerfile.to_owned()).await?;
-                *docker_url = if let Some(url) = docker_url {
-                    Some(ctx.transform(url.to_owned()).await?)
-                } else {
-                    None
-                };
-            }
-
-            RunsOn::ContainerOrMachine(image) if image != "machine" => {
-                *image = ctx.transform(image.to_owned()).await?;
-            }
-
-            RunsOn::ContainerOrMachine(_) => {}
-
-            RunsOn::Ssh(config) => {
-                config.host = ctx.transform(config.host.to_owned()).await?;
-                config.port = ctx.transform(config.port.to_owned()).await?;
-                config.user = ctx.transform(config.user.to_owned()).await?;
-                config.userauth = match &config.userauth {
-                    SshUserAuth::Agent => SshUserAuth::Agent,
-                    SshUserAuth::Keys {
-                        public_key,
-                        private_key,
-                    } => {
-                        let public_key = if let Some(pubkey) = public_key {
-                            Some(ctx.transform(pubkey.to_owned()).await?)
-                        } else {
-                            None
-                        };
-                        let private_key = ctx.transform(private_key.to_owned()).await?;
-                        SshUserAuth::Keys {
-                            public_key,
-                            private_key,
-                        }
-                    }
-                    SshUserAuth::Password { password } => {
-                        let password = ctx.transform(password.to_owned()).await?;
-                        SshUserAuth::Password { password }
-                    }
-                }
-            }
-
-            RunsOn::SshFromGlobalConfig { ssh_config } => {
-                *ssh_config = ctx.transform(ssh_config.to_owned()).await?;
-            }
-        }
-        Ok(())
     }
 }
 

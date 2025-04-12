@@ -26,7 +26,7 @@ use crate::{
         versioned::{VersionedFile, Yaml},
     },
     runner::{self, v3::FileRunner, versioned::VersionedRunner},
-    token_context::{self, v3::ApplyContext},
+    token_context,
     traits::Load,
 };
 
@@ -266,7 +266,7 @@ impl<'a> RunnerBuilder<'a> {
                 }))
             }
 
-            VersionedFile::Version3(RunnerFile::ActionFileType(mut action)) => {
+            VersionedFile::Version3(RunnerFile::ActionFileType(action)) => {
                 if !self.is_child {
                     bail!("cannot run action files");
                 }
@@ -274,19 +274,6 @@ impl<'a> RunnerBuilder<'a> {
                 let platform = self
                     .platform
                     .ok_or_else(|| anyhow!("no platform provided"))?;
-
-                let execution_context = token_context::v3::ExecutionContextBuilder::default()
-                    .root_dir(&config.root_dir)
-                    .project_dir(&config.project_dir)
-                    .add_inputs(&action.inputs_map())
-                    .add_inputs(&inputs)
-                    .add_env(&env)
-                    .run_id(&self.run_id)
-                    .run_start_time(&self.run_start_time)
-                    .regex_cache(self.regex_cache.clone())
-                    .build()?;
-
-                action.apply_context(&execution_context).await?;
 
                 VersionedRunner::V3(FileRunner::Action(runner::v3::ActionRunner {
                     logger: self.logger,

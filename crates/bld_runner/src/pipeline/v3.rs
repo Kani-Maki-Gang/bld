@@ -20,7 +20,6 @@ use {
             parser::Rule,
             traits::{EvalObject, ExprValue},
         },
-        token_context::v3::{ApplyContext, ExecutionContext},
         validator::v3::{Validate, ValidatorContext},
     },
     anyhow::{Result, anyhow, bail},
@@ -120,35 +119,6 @@ impl IntoVariables for Pipeline {
         }
 
         (inputs, Some(self.env))
-    }
-}
-
-#[cfg(feature = "all")]
-impl ApplyContext for Pipeline {
-    async fn apply_context<C: ExecutionContext>(&mut self, ctx: &C) -> Result<()> {
-        self.runs_on.apply_context(ctx).await?;
-
-        for (_, v) in self.env.iter_mut() {
-            *v = ctx.transform(v.to_owned()).await?;
-        }
-
-        for (_name, input) in self.inputs.iter_mut() {
-            input.apply_context(ctx).await?;
-        }
-
-        for entry in self.external.iter_mut() {
-            entry.apply_context(ctx).await?;
-        }
-
-        for entry in self.artifacts.iter_mut() {
-            entry.apply_context(ctx).await?;
-        }
-
-        for step in self.jobs.iter_mut().flat_map(|(_, steps)| steps) {
-            step.apply_context(ctx).await?;
-        }
-
-        Ok(())
     }
 }
 

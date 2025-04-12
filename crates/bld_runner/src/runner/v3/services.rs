@@ -2,9 +2,21 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use bld_config::{BldConfig, SshUserAuth};
-use bld_core::{context::Context, fs::FileSystem, logger::Logger, platform::{builder::{PlatformBuilder, PlatformOptions}, Image, Platform, SshAuthOptions, SshConnectOptions}, regex::RegexCache};
+use bld_core::{
+    context::Context,
+    fs::FileSystem,
+    logger::Logger,
+    platform::{
+        Image, Platform, SshAuthOptions, SshConnectOptions,
+        builder::{PlatformBuilder, PlatformOptions},
+    },
+    regex::RegexCache,
+};
 
-use crate::{expr::v3::context::CommonReadonlyRuntimeExprContext, pipeline::v3::Pipeline, registry::v3::Registry, runs_on::v3::RunsOn};
+use crate::{
+    expr::v3::context::CommonReadonlyRuntimeExprContext, pipeline::v3::Pipeline,
+    registry::v3::Registry, runs_on::v3::RunsOn,
+};
 
 pub struct RunServices {
     pub config: Arc<BldConfig>,
