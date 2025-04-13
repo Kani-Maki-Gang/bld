@@ -2,8 +2,13 @@ use std::{fmt::Write, sync::Arc, time::Duration};
 
 use actix::{Actor, StreamHandler, clock::sleep, io::SinkWrite};
 use anyhow::{Result, anyhow};
-use bld_config::definitions::{GET, PUSH};
-use bld_core::logger::Logger;
+use bld_config::{
+    BldConfig,
+    definitions::{GET, PUSH},
+};
+use bld_core::{
+    context::Context, fs::FileSystem, logger::Logger, platform::Platform, regex::RegexCache,
+};
 use bld_http::WebSocket;
 use bld_models::dtos::ExecClientMessage;
 use bld_sock::ExecClient;
@@ -16,34 +21,32 @@ use tracing::debug;
 use crate::{
     RunnerBuilder,
     expr::v3::{
-        context::CommonWritableRuntimeExprContext, exec::CommonExprExecutor, parser::EXPR_REGEX,
+        context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+        exec::CommonExprExecutor,
         traits::EvalExpr,
     },
     external::v3::External,
+    pipeline::v3::Pipeline,
     step::v3::Step,
 };
 
-use super::services::RunServices;
-
 pub struct JobRunner {
     pub job_name: String,
-    pub services: Arc<RunServices>,
     pub logger: Arc<Logger>,
+    pub config: Arc<BldConfig>,
+    pub fs: Arc<FileSystem>,
+    pub run_ctx: Arc<Context>,
+    pub pipeline: Arc<Pipeline>,
+    pub platform: Arc<Platform>,
+    pub regex_cache: Arc<RegexCache>,
+    pub expr_regex: Arc<Regex>,
+    pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
     pub expr_wctx: CommonWritableRuntimeExprContext,
 }
 
 impl JobRunner {
-    pub fn new(job_name: String, services: Arc<RunServices>, logger: Arc<Logger>) -> Self {
-        Self {
-            job_name,
-            services,
-            logger,
-            expr_wctx: CommonWritableRuntimeExprContext::default(),
-        }
-    }
-
     pub async fn run(mut self) -> Result<Self> {
-        let pipeline = self.services.pipeline.clone();
+        let pipeline = self.pipeline.clone();
         let (_, steps) = pipeline
             .jobs
             .iter()
@@ -92,7 +95,6 @@ impl JobRunner {
         debug!("executing artifact operation related for {:?}", name);
 
         for artifact in self
-            .services
             .pipeline
             .artifacts
             .iter()
@@ -111,17 +113,11 @@ impl JobRunner {
                 let result = match &artifact.method[..] {
                     PUSH => {
                         debug!("executing {PUSH} artifact operation");
-                        self.services
-                            .platform
-                            .push(&artifact.from, &artifact.to)
-                            .await
+                        self.platform.push(&artifact.from, &artifact.to).await
                     }
                     GET => {
                         debug!("executing {GET} artifact operation");
-                        self.services
-                            .platform
-                            .get(&artifact.from, &artifact.to)
-                            .await
+                        self.platform.get(&artifact.from, &artifact.to).await
                     }
                     _ => unreachable!(),
                 };
@@ -153,17 +149,17 @@ impl JobRunner {
         let env = details.env.clone();
 
         let runner = RunnerBuilder::default()
-            .run_id(&self.services.expr_rctx.run_id)
-            .run_start_time(&self.services.expr_rctx.run_start_time)
-            .config(self.services.config.clone())
-            .fs(self.services.fs.clone())
+            .run_id(&self.expr_rctx.run_id)
+            .run_start_time(&self.expr_rctx.run_start_time)
+            .config(self.config.clone())
+            .fs(self.fs.clone())
             .file(&details.uses)
             .logger(self.logger.clone())
             .env(env.into_arc())
             .inputs(inputs.into_arc())
-            .context(self.services.run_ctx.clone())
-            .platform(self.services.platform.clone())
-            .regex_cache(self.services.regex_cache.clone())
+            .context(self.run_ctx.clone())
+            .platform(self.platform.clone())
+            .regex_cache(self.regex_cache.clone())
             .is_child(true)
             .build()
             .await?;
@@ -176,8 +172,8 @@ impl JobRunner {
 
     async fn server_external(&self, server: &str, details: &External) -> Result<()> {
         let server_name = server.to_owned();
-        let server = self.services.config.server(server)?;
-        let auth_path = self.services.config.auth_full_path(&server.name);
+        let server = self.config.server(server)?;
+        let auth_path = self.config.auth_full_path(&server.name);
         let inputs = details.with.clone();
         let env = details.env.clone();
 
@@ -202,7 +198,7 @@ impl JobRunner {
             ExecClient::new(
                 server_name,
                 self.logger.clone(),
-                self.services.run_ctx.clone(),
+                self.run_ctx.clone(),
                 SinkWrite::new(sink, ctx),
             )
         });
@@ -228,25 +224,22 @@ impl JobRunner {
         debug!("start execution of exec section for step");
         debug!("executing shell command {}", command);
 
-        let regex = Regex::new(EXPR_REGEX)?;
-        if let Some(matches) = regex.find(command) {
+        if let Some(matches) = self.expr_regex.find(command) {
             let mut command = command.to_string();
             let expr_exec = CommonExprExecutor::new(
-                &self.services.pipeline,
-                &self.services.expr_rctx,
+                self.pipeline.as_ref(),
+                self.expr_rctx.as_ref(),
                 &mut self.expr_wctx,
             );
             let matches = matches.as_str();
             let value = expr_exec.eval(matches)?.to_string();
             command = command.replace(matches, &value);
 
-            self.services
-                .platform
+            self.platform
                 .shell(self.logger.clone(), working_dir, &command)
                 .await?;
         } else {
-            self.services
-                .platform
+            self.platform
                 .shell(self.logger.clone(), working_dir, command)
                 .await?;
         }

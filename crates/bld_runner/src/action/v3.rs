@@ -1,8 +1,17 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    iter::Peekable,
+};
 
+use anyhow::Result;
+use pest::iterators::Pairs;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    expr::v3::{
+        parser::Rule,
+        traits::{EvalObject, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext},
+    },
     inputs::v3::Input,
     step::v3::Step,
     traits::{IntoVariables, Variables},
@@ -86,6 +95,18 @@ impl Dependencies for Action {
             .iter()
             .flat_map(|s| s.local_deps(config))
             .collect()
+    }
+}
+
+#[cfg(feature = "all")]
+impl<'a> EvalObject<'a> for Action {
+    fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
+        &'a self,
+        _path: &mut Peekable<Pairs<'_, Rule>>,
+        _rctx: &RCtx,
+        _wctx: &WCtx,
+    ) -> Result<ExprValue<'a>> {
+        unimplemented!()
     }
 }
 

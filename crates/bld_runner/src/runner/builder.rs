@@ -14,6 +14,7 @@ use bld_core::{
 use bld_models::dtos::WorkerMessages;
 use bld_utils::sync::IntoArc;
 use chrono::Utc;
+use regex::Regex;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
@@ -29,6 +30,8 @@ use crate::{
     token_context,
     traits::Load,
 };
+
+use super::v3::build_platform;
 
 pub struct RunnerBuilder<'a> {
     run_id: String,
@@ -237,27 +240,36 @@ impl<'a> RunnerBuilder<'a> {
             }
 
             VersionedFile::Version3(RunnerFile::PipelineFileType(pipeline)) => {
+                let pipeline = (*pipeline).into_arc();
                 let expr_rctx = expr::v3::context::CommonReadonlyRuntimeExprContext::new(
                     config.clone(),
                     inputs,
                     env,
                     self.run_id,
                     self.run_start_time,
-                );
+                )
+                .into_arc();
 
-                let services = runner::v3::RunServices::create(
+                let expr_regex = Regex::new(expr::v3::parser::EXPR_REGEX)?.into_arc();
+
+                let platform = build_platform(
+                    pipeline.clone(),
                     config.clone(),
-                    self.fs.clone(),
-                    context.clone(),
-                    self.regex_cache.clone(),
-                    expr_rctx,
-                    *pipeline,
                     self.logger.clone(),
+                    context.clone(),
+                    expr_rctx.clone(),
                 )
                 .await?;
 
                 VersionedRunner::V3(FileRunner::Pipeline(runner::v3::PipelineRunner {
-                    services: services.into_arc(),
+                    config,
+                    expr_regex,
+                    expr_rctx,
+                    pipeline,
+                    platform,
+                    run_ctx: context,
+                    fs: self.fs.clone(),
+                    regex_cache: self.regex_cache.clone(),
                     signals: self.signals,
                     logger: self.logger,
                     ipc: self.ipc,
@@ -271,15 +283,27 @@ impl<'a> RunnerBuilder<'a> {
                     bail!("cannot run action files");
                 }
 
+                let expr_regex = Regex::new(expr::v3::parser::EXPR_REGEX)?;
+
+                let expr_rctx = expr::v3::context::CommonReadonlyRuntimeExprContext::new(
+                    config.clone(),
+                    inputs,
+                    env,
+                    self.run_id,
+                    self.run_start_time,
+                );
+
                 let platform = self
                     .platform
                     .ok_or_else(|| anyhow!("no platform provided"))?;
 
-                VersionedRunner::V3(FileRunner::Action(runner::v3::ActionRunner {
-                    logger: self.logger,
-                    action: *action,
-                    platform: platform.clone(),
-                }))
+                VersionedRunner::V3(FileRunner::Action(runner::v3::ActionRunner::new(
+                    self.logger,
+                    *action,
+                    platform,
+                    expr_regex,
+                    expr_rctx,
+                )))
             }
         };
 
