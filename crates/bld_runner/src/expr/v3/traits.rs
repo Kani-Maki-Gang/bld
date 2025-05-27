@@ -145,8 +145,8 @@ pub trait EvalObject<'a> {
     fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
         &'a self,
         path: &mut Peekable<Pairs<'_, Rule>>,
-        rctx: &RCtx,
-        wctx: &WCtx,
+        rctx: &'a RCtx,
+        wctx: &'a WCtx,
     ) -> Result<ExprValue<'a>>;
 }
 

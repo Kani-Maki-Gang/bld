@@ -42,6 +42,12 @@ pub enum RunsOn {
     },
 }
 
+impl Default for RunsOn {
+    fn default() -> Self {
+        Self::ContainerOrMachine("machine".to_string())
+    }
+}
+
 impl Display for RunsOn {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

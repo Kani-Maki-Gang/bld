@@ -29,7 +29,7 @@ use {
     tracing::debug,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Pipeline {
     pub name: Option<String>,
     pub runs_on: RunsOn,
@@ -127,8 +127,8 @@ impl<'a> EvalObject<'a> for Pipeline {
     fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
         &'a self,
         path: &mut Peekable<Pairs<'_, Rule>>,
-        rctx: &RCtx,
-        wctx: &WCtx,
+        rctx: &'a RCtx,
+        wctx: &'a WCtx,
     ) -> Result<ExprValue<'a>> {
         let Some(object) = path.next() else {
             bail!("no object path present");

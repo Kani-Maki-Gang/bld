@@ -215,107 +215,16 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 
 #[cfg(test)]
 mod tests {
-    use std::{iter::Peekable, collections::HashMap};
-
-    use anyhow::anyhow;
-    use pest::iterators::Pairs;
-
-    use crate::expr::v3::traits::ExprText;
+    use crate::{
+        expr::v3::{
+            context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+            traits::ExprText,
+        },
+        inputs::v3::Input,
+        pipeline::v3::Pipeline,
+    };
 
     use super::*;
-
-    struct MockObjectExecutor;
-
-    impl<'a> EvalObject<'a> for MockObjectExecutor {
-        fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
-            &'a self,
-            path: &mut Peekable<Pairs<'_, Rule>>,
-            rctx: &RCtx,
-            _wctx: &WCtx,
-        ) -> Result<ExprValue<'a>> {
-            let Some(object) = path.next() else {
-                bail!("no object path present");
-            };
-
-            let Rule::Object = object.as_rule() else {
-                bail!("expected object path");
-            };
-
-            let mut object_parts = object.into_inner();
-            let Some(part) = object_parts.next() else {
-                bail!("expected at least one part in the object path");
-            };
-
-            match part.as_span().as_str() {
-                "inputs" => {
-                    let Some(part) = object_parts.next() else {
-                        bail!("expected name of input in object path");
-                    };
-                    let name = part.as_span().as_str();
-                    rctx.get_input(name).map(|x| ExprValue::Text(ExprText::Ref(x)))
-                }
-
-                "env" => {
-                    let Some(part) = object_parts.next() else {
-                        bail!("expected name of input in object path");
-                    };
-                    let name = part.as_span().as_str();
-                    let value = rctx.get_env(name);
-                    value.map(|x| ExprValue::Text(ExprText::Ref(x)))
-                }
-
-                _ => unimplemented!(),
-            }
-        }
-    }
-
-    #[derive(Default)]
-    struct MockReadonlyRuntimeExprContext {
-        env: HashMap<String, String>,
-        inputs: HashMap<String, String>,
-        run_id: String,
-        root_dir: String,
-        project_dir: String,
-        run_start_time: String
-    }
-
-    impl ReadonlyRuntimeExprContext<'_> for MockReadonlyRuntimeExprContext {
-        fn get_env(&'_ self, name: &'_ str) -> Result<&'_ str> {
-            self.env.get(name).map(|x| x.as_str()).ok_or_else(|| anyhow!("unable to find value"))
-        }
-
-        fn get_input(&'_ self, name: &'_ str) -> Result<&'_ str> {
-            self.inputs.get(name).map(|x| x.as_str()).ok_or_else(|| anyhow!("unable to find value"))
-        }
-
-        fn get_run_id(&'_ self) -> &'_ str {
-            &self.run_id
-        }
-
-        fn get_root_dir(&'_ self) -> &'_ str {
-            &self.root_dir
-        }
-
-        fn get_project_dir(&'_ self) -> &'_ str {
-            &self.project_dir
-        }
-
-        fn get_run_start_time(&'_ self) -> &'_ str {
-            &self.run_start_time
-        }
-    }
-
-    struct MockWritableRuntimeExprContext;
-
-    impl WritableRuntimeExprContext for MockWritableRuntimeExprContext {
-        fn get_output(&self, _name: &str) -> Result<&str> {
-            unimplemented!();
-        }
-
-        fn set_output(&mut self, _name: String, _value: String) -> Result<()> {
-            unimplemented!();
-        }
-    }
 
     #[test]
     pub fn number_eval_success() {
@@ -330,13 +239,10 @@ mod tests {
             ("${{ -150.20 }}", ExprValue::Number(-150.20)),
         ];
 
-        let mut wctx = MockWritableRuntimeExprContext;
-        let rctx = MockReadonlyRuntimeExprContext::default();
-        let exec = CommonExprExecutor::new(
-            &MockObjectExecutor,
-            &rctx,
-            &mut wctx,
-        );
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
 
         for (expr, expected) in data {
             let Ok(value) = exec.eval(expr) else {
@@ -362,13 +268,10 @@ mod tests {
             ("${{ false }}", ExprValue::Boolean(false)),
         ];
 
-        let mut wctx = MockWritableRuntimeExprContext;
-        let rctx = MockReadonlyRuntimeExprContext::default();
-        let exec = CommonExprExecutor::new(
-            &MockObjectExecutor,
-            &rctx,
-            &mut wctx,
-        );
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
 
         for (expr, expected) in data {
             let Ok(value) = exec.eval(expr) else {
@@ -389,17 +292,15 @@ mod tests {
 
     #[test]
     pub fn string_eval_success() {
-        let data = vec![
-            ("${{ \"hello\" }}", ExprValue::Text(ExprText::Owned("hello".to_string()))),
-        ];
+        let data = vec![(
+            "${{ \"hello\" }}",
+            ExprValue::Text(ExprText::Owned("hello".to_string())),
+        )];
 
-        let mut wctx = MockWritableRuntimeExprContext;
-        let rctx = MockReadonlyRuntimeExprContext::default();
-        let exec = CommonExprExecutor::new(
-            &MockObjectExecutor,
-            &rctx,
-            &mut wctx,
-        );
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
 
         for (expr, expected) in data {
             match exec.eval(expr) {
@@ -423,37 +324,87 @@ mod tests {
 
     #[test]
     pub fn object_eval_succes() {
-        let mut wctx = MockWritableRuntimeExprContext;
-        let mut rctx = MockReadonlyRuntimeExprContext::default();
-        rctx.inputs.insert("name".to_string(), "John".to_string());
-        rctx.inputs.insert("surname".to_string(), "Doe".to_string());
-        rctx.inputs.insert("age".to_string(), "32".to_string());
-        rctx.env.insert("WORKDIR".to_string(), "/home/somedir".to_string());
-        rctx.env.insert("NODE".to_string(), "lts".to_string());
-
         let data = vec![
             ("${{ inputs.name }}", ExprValue::Text(ExprText::Ref("John"))),
-            ("${{ inputs.surname }}", ExprValue::Text(ExprText::Ref("Doe"))),
-            ("${{ inputs.age }}", ExprValue::Number(32.0)),
-            ("${{ env.WORKDIR }}", ExprValue::Text(ExprText::Ref("/home/somedir"))),
+            (
+                "${{ inputs.surname }}",
+                ExprValue::Text(ExprText::Ref("Doe")),
+            ),
+            ("${{ inputs.age }}", ExprValue::Text(ExprText::Ref("32"))),
+            (
+                "${{ env.WORKDIR }}",
+                ExprValue::Text(ExprText::Ref("/home/somedir")),
+            ),
             ("${{ env.NODE }}", ExprValue::Text(ExprText::Ref("lts"))),
         ];
 
-        let exec = CommonExprExecutor::new(
-            &MockObjectExecutor,
-            &rctx,
-            &mut wctx,
-        );
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .inputs
+            .insert("name".to_string(), Input::Simple("John".to_string()));
+        pipeline
+            .inputs
+            .insert("surname".to_string(), Input::Simple("Doe".to_string()));
+        pipeline
+            .inputs
+            .insert("age".to_string(), Input::Simple("32".to_string()));
+        pipeline
+            .env
+            .insert("WORKDIR".to_string(), "/home/somedir".to_string());
+        pipeline.env.insert("NODE".to_string(), "lts".to_string());
+
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
 
         for (expr, expected) in data {
             match exec.eval(expr) {
                 Ok(value) => {
-                    let ExprValue::Text(value) = value else {
-                        panic!("expected text, found {:?}", value);
+                    assert!(matches!(
+                        value.try_eq(&expected),
+                        Result::Ok(ExprValue::Boolean(true))
+                    ));
+                }
+                Err(e) => {
+                    panic!("failed to parse expression {expr} due to {e}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    pub fn and_operator_eval_success() {
+        let data = vec![
+            ("${{ true == true }}", ExprValue::Boolean(true)),
+            ("${{ true == false }}", ExprValue::Boolean(false)),
+            ("${{ false == true }}", ExprValue::Boolean(false)),
+            ("${{ false == false }}", ExprValue::Boolean(true)),
+            ("${{ 4 == 4.0 }}", ExprValue::Boolean(true)),
+            ("${{ 4 == 4 }}", ExprValue::Boolean(true)),
+            ("${{ 4 == 5 }}", ExprValue::Boolean(false)),
+            ("${{ 5 == 4 }}", ExprValue::Boolean(false)),
+            ("${{ \"hello\" == \"hello\" }}", ExprValue::Boolean(true)),
+            (
+                "${{ \"hello\" == \"hello world\" }}",
+                ExprValue::Boolean(false),
+            ),
+        ];
+
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        for (expr, expected) in data {
+            match exec.eval(expr) {
+                Ok(value) => {
+                    let ExprValue::Boolean(value) = value else {
+                        panic!("expected boolean, found {:?}", value);
                     };
 
-                    let ExprValue::Text(expected) = expected else {
-                        panic!("expected text, found {:?}", expected);
+                    let ExprValue::Boolean(expected) = expected else {
+                        panic!("expected boolean, found {:?}", expected);
                     };
 
                     assert_eq!(value, expected);
