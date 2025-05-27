@@ -147,6 +147,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
         let expr_inner = expr.into_inner();
         let mut accumulator: Option<ExprValue<'a>> = None;
         let mut current_value: Option<ExprValue<'a>> = None;
+        let mut current_operator: Option<Rule> = None;
 
         for inner in expr_inner {
             match inner.as_rule() {
@@ -170,6 +171,8 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
                     } else {
                         accumulator = Some(curr);
                     }
+
+                    current_operator = Some(Rule::AndOperator);
                 }
 
                 Rule::OrOperator => {
@@ -182,12 +185,36 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
                     } else {
                         accumulator = Some(curr);
                     }
+
+                    current_operator = Some(Rule::OrOperator);
                 }
 
                 _ => bail!(
                     "unexpected rule in logical expression: {:?}",
                     inner.as_rule()
                 ),
+            }
+        }
+
+        if let Some(curr) = current_value.take() {
+            match current_operator {
+                Some(Rule::AndOperator) => {
+                    if let Some(acc) = accumulator {
+                        accumulator = Some(acc.try_and(&curr)?);
+                    } else {
+                        accumulator = Some(curr);
+                    }
+                }
+
+                Some(Rule::OrOperator) => {
+                    if let Some(acc) = accumulator {
+                        accumulator = Some(acc.try_or(&curr)?);
+                    } else {
+                        accumulator = Some(curr);
+                    }
+                }
+
+                _ => bail!("unexpected rule in logical expression"),
             }
         }
 
@@ -385,7 +412,10 @@ mod tests {
             ("${{ 4 == 4 }}", Ok(ExprValue::Boolean(true))),
             ("${{ 4 == 5 }}", Ok(ExprValue::Boolean(false))),
             ("${{ 5 == 4 }}", Ok(ExprValue::Boolean(false))),
-            ("${{ \"hello\" == \"hello\" }}", Ok(ExprValue::Boolean(true))),
+            (
+                "${{ \"hello\" == \"hello\" }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
             (
                 "${{ \"hello\" == \"hello world\" }}",
                 Ok(ExprValue::Boolean(false)),
@@ -407,7 +437,10 @@ mod tests {
                 let Ok(value) = value else {
                     panic!("invalid result after eval");
                 };
-                assert!(matches!(value.try_eq(&expected), Ok(ExprValue::Boolean(true))));
+                assert!(matches!(
+                    value.try_eq(&expected),
+                    Ok(ExprValue::Boolean(true))
+                ));
                 continue;
             }
 
@@ -431,7 +464,10 @@ mod tests {
             ("${{ \"hello\" > true }}", Err(anyhow!(""))),
             ("${{ false > \"world\" }}", Err(anyhow!(""))),
             ("${{ false > true }}", Ok(ExprValue::Boolean(false))),
-            ("${{ \"hello\" > \"world\" }}", Ok(ExprValue::Boolean(false))),
+            (
+                "${{ \"hello\" > \"world\" }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
         ];
 
         let mut wctx = CommonWritableRuntimeExprContext::default();
@@ -446,7 +482,10 @@ mod tests {
                 let Ok(value) = value else {
                     panic!("invalid result after eval");
                 };
-                assert!(matches!(value.try_eq(&expected), Ok(ExprValue::Boolean(true))));
+                assert!(matches!(
+                    value.try_eq(&expected),
+                    Ok(ExprValue::Boolean(true))
+                ));
                 continue;
             }
 
@@ -471,8 +510,14 @@ mod tests {
             ("${{ false >= \"world\" }}", Err(anyhow!(""))),
             ("${{ false >= true }}", Ok(ExprValue::Boolean(false))),
             ("${{ false >= false }}", Ok(ExprValue::Boolean(true))),
-            ("${{ \"hello\" >= \"world\" }}", Ok(ExprValue::Boolean(false))),
-            ("${{ \"hello\" >= \"hello\" }}", Ok(ExprValue::Boolean(true))),
+            (
+                "${{ \"hello\" >= \"world\" }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            (
+                "${{ \"hello\" >= \"hello\" }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
         ];
 
         let mut wctx = CommonWritableRuntimeExprContext::default();
@@ -487,7 +532,10 @@ mod tests {
                 let Ok(value) = value else {
                     panic!("invalid result after eval");
                 };
-                assert!(matches!(value.try_eq(&expected), Ok(ExprValue::Boolean(true))));
+                assert!(matches!(
+                    value.try_eq(&expected),
+                    Ok(ExprValue::Boolean(true))
+                ));
                 continue;
             }
 
@@ -526,7 +574,10 @@ mod tests {
                 let Ok(value) = value else {
                     panic!("invalid result after eval");
                 };
-                assert!(matches!(value.try_eq(&expected), Ok(ExprValue::Boolean(true))));
+                assert!(matches!(
+                    value.try_eq(&expected),
+                    Ok(ExprValue::Boolean(true))
+                ));
                 continue;
             }
 
@@ -551,8 +602,14 @@ mod tests {
             ("${{ false <= \"world\" }}", Err(anyhow!(""))),
             ("${{ false <= true }}", Ok(ExprValue::Boolean(true))),
             ("${{ false <= false }}", Ok(ExprValue::Boolean(true))),
-            ("${{ \"hello\" <= \"world\" }}", Ok(ExprValue::Boolean(true))),
-            ("${{ \"hello\" <= \"hello\" }}", Ok(ExprValue::Boolean(true))),
+            (
+                "${{ \"hello\" <= \"world\" }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ \"hello\" <= \"hello\" }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
         ];
 
         let mut wctx = CommonWritableRuntimeExprContext::default();
@@ -568,7 +625,138 @@ mod tests {
                     panic!("invalid result after eval");
                 };
                 dbg!(expr);
-                assert!(matches!(value.try_eq(&expected), Ok(ExprValue::Boolean(true))));
+                assert!(matches!(
+                    value.try_eq(&expected),
+                    Ok(ExprValue::Boolean(true))
+                ));
+                continue;
+            }
+
+            if expected.is_err() && value.is_ok() {
+                panic!("invalid result after eval");
+            }
+        }
+    }
+
+    #[test]
+    pub fn and_logical_expression_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            (
+                "${{ 4 == 4 && true == true }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ 4 == 4 && false == true }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            (
+                "${{ 5 == 4 && false == true }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            (
+                "${{ 5 >= 4 && false >= true }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            (
+                "${{ 5 >= 4 && false <= true }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ \"hello\" >= \"hello\" && false <= true && 42 > 41 }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ \"hello\" >= \"hello\" && true <= false && 42 > 41 }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+        ];
+
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        for (expr, expected) in data {
+            let value = exec.eval(expr);
+
+            if let Ok(expected) = expected {
+                let Ok(value) = value else {
+                    panic!("invalid result after eval");
+                };
+                dbg!(expr);
+                dbg!(&value);
+                assert!(matches!(
+                    value.try_eq(&expected),
+                    Ok(ExprValue::Boolean(true))
+                ));
+                continue;
+            }
+
+            if expected.is_err() && value.is_ok() {
+                panic!("invalid result after eval");
+            }
+        }
+    }
+
+    #[test]
+    pub fn or_logical_expression_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            (
+                "${{ 4 == 4 || true == true }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ 4 == 4 || false == true }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ 5 == 4 || false == true }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            (
+                "${{ 5 >= 4 || false >= true }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ 5 >= 4 || false <= true }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ 5 == 4 || false == true }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            (
+                "${{ \"hello\" >= \"hello\" || false <= true || 42 > 41 }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ \"hello\" >= \"hello\" || true <= false || 42 > 41 }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ \"hello\" > \"hello\" || true < false || 42 < 41 }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+        ];
+
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        for (expr, expected) in data {
+            let value = exec.eval(expr);
+
+            if let Ok(expected) = expected {
+                let Ok(value) = value else {
+                    panic!("invalid result after eval");
+                };
+                dbg!(expr);
+                dbg!(&value);
+                assert!(matches!(
+                    value.try_eq(&expected),
+                    Ok(ExprValue::Boolean(true))
+                ));
                 continue;
             }
 
