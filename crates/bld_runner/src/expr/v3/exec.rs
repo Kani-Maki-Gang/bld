@@ -223,6 +223,7 @@ mod tests {
         inputs::v3::Input,
         pipeline::v3::Pipeline,
     };
+    use anyhow::Result;
 
     use super::*;
 
@@ -374,21 +375,24 @@ mod tests {
     }
 
     #[test]
-    pub fn and_operator_eval_success() {
-        let data = vec![
-            ("${{ true == true }}", ExprValue::Boolean(true)),
-            ("${{ true == false }}", ExprValue::Boolean(false)),
-            ("${{ false == true }}", ExprValue::Boolean(false)),
-            ("${{ false == false }}", ExprValue::Boolean(true)),
-            ("${{ 4 == 4.0 }}", ExprValue::Boolean(true)),
-            ("${{ 4 == 4 }}", ExprValue::Boolean(true)),
-            ("${{ 4 == 5 }}", ExprValue::Boolean(false)),
-            ("${{ 5 == 4 }}", ExprValue::Boolean(false)),
-            ("${{ \"hello\" == \"hello\" }}", ExprValue::Boolean(true)),
+    pub fn equals_operator_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            ("${{ true == true }}", Ok(ExprValue::Boolean(true))),
+            ("${{ true == false }}", Ok(ExprValue::Boolean(false))),
+            ("${{ false == true }}", Ok(ExprValue::Boolean(false))),
+            ("${{ false == false }}", Ok(ExprValue::Boolean(true))),
+            ("${{ 4 == 4.0 }}", Ok(ExprValue::Boolean(true))),
+            ("${{ 4 == 4 }}", Ok(ExprValue::Boolean(true))),
+            ("${{ 4 == 5 }}", Ok(ExprValue::Boolean(false))),
+            ("${{ 5 == 4 }}", Ok(ExprValue::Boolean(false))),
+            ("${{ \"hello\" == \"hello\" }}", Ok(ExprValue::Boolean(true))),
             (
                 "${{ \"hello\" == \"hello world\" }}",
-                ExprValue::Boolean(false),
+                Ok(ExprValue::Boolean(false)),
             ),
+            ("${{ 4 == true }}", Err(anyhow!(""))),
+            ("${{ false == 52.0 }}", Err(anyhow!(""))),
+            ("${{ \"hello\" == 52.0 }}", Err(anyhow!(""))),
         ];
 
         let mut wctx = CommonWritableRuntimeExprContext::default();
@@ -397,21 +401,179 @@ mod tests {
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
 
         for (expr, expected) in data {
-            match exec.eval(expr) {
-                Ok(value) => {
-                    let ExprValue::Boolean(value) = value else {
-                        panic!("expected boolean, found {:?}", value);
-                    };
+            let value = exec.eval(expr);
 
-                    let ExprValue::Boolean(expected) = expected else {
-                        panic!("expected boolean, found {:?}", expected);
-                    };
+            if let Ok(expected) = expected {
+                let Ok(value) = value else {
+                    panic!("invalid result after eval");
+                };
+                assert!(matches!(value.try_eq(&expected), Ok(ExprValue::Boolean(true))));
+                continue;
+            }
 
-                    assert_eq!(value, expected);
-                }
-                Err(e) => {
-                    panic!("failed to parse expression {expr} due to {e}");
-                }
+            if expected.is_err() && value.is_ok() {
+                panic!("invalid result after eval");
+            }
+        }
+    }
+
+    #[test]
+    pub fn greater_operator_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            ("${{ 4 > 4.0 }}", Ok(ExprValue::Boolean(false))),
+            ("${{ 4 > 4 }}", Ok(ExprValue::Boolean(false))),
+            ("${{ 4 > 5 }}", Ok(ExprValue::Boolean(false))),
+            ("${{ 10 > 4.0 }}", Ok(ExprValue::Boolean(true))),
+            ("${{ 10 > 9.8 }}", Ok(ExprValue::Boolean(true))),
+            ("${{ 10 > 7.2 }}", Ok(ExprValue::Boolean(true))),
+            ("${{ true > 5 }}", Err(anyhow!(""))),
+            ("${{ 5 > true }}", Err(anyhow!(""))),
+            ("${{ \"hello\" > true }}", Err(anyhow!(""))),
+            ("${{ false > \"world\" }}", Err(anyhow!(""))),
+            ("${{ false > true }}", Ok(ExprValue::Boolean(false))),
+            ("${{ \"hello\" > \"world\" }}", Ok(ExprValue::Boolean(false))),
+        ];
+
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        for (expr, expected) in data {
+            let value = exec.eval(expr);
+
+            if let Ok(expected) = expected {
+                let Ok(value) = value else {
+                    panic!("invalid result after eval");
+                };
+                assert!(matches!(value.try_eq(&expected), Ok(ExprValue::Boolean(true))));
+                continue;
+            }
+
+            if expected.is_err() && value.is_ok() {
+                panic!("invalid result after eval");
+            }
+        }
+    }
+
+    #[test]
+    pub fn greater_equals_operator_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            ("${{ 4 >= 4.0 }}", Ok(ExprValue::Boolean(true))),
+            ("${{ 4 >= 4 }}", Ok(ExprValue::Boolean(true))),
+            ("${{ 4 >= 5 }}", Ok(ExprValue::Boolean(false))),
+            ("${{ 10 >= 4.0 }}", Ok(ExprValue::Boolean(true))),
+            ("${{ 10 >= 9.8 }}", Ok(ExprValue::Boolean(true))),
+            ("${{ 10 >= 7.2 }}", Ok(ExprValue::Boolean(true))),
+            ("${{ true >= 5 }}", Err(anyhow!(""))),
+            ("${{ 5 >= true }}", Err(anyhow!(""))),
+            ("${{ \"hello\" >= true }}", Err(anyhow!(""))),
+            ("${{ false >= \"world\" }}", Err(anyhow!(""))),
+            ("${{ false >= true }}", Ok(ExprValue::Boolean(false))),
+            ("${{ false >= false }}", Ok(ExprValue::Boolean(true))),
+            ("${{ \"hello\" >= \"world\" }}", Ok(ExprValue::Boolean(false))),
+            ("${{ \"hello\" >= \"hello\" }}", Ok(ExprValue::Boolean(true))),
+        ];
+
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        for (expr, expected) in data {
+            let value = exec.eval(expr);
+
+            if let Ok(expected) = expected {
+                let Ok(value) = value else {
+                    panic!("invalid result after eval");
+                };
+                assert!(matches!(value.try_eq(&expected), Ok(ExprValue::Boolean(true))));
+                continue;
+            }
+
+            if expected.is_err() && value.is_ok() {
+                panic!("invalid result after eval");
+            }
+        }
+    }
+
+    #[test]
+    pub fn less_operator_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            ("${{ 4 < 4.0 }}", Ok(ExprValue::Boolean(false))),
+            ("${{ 4 < 4 }}", Ok(ExprValue::Boolean(false))),
+            ("${{ 4 < 5 }}", Ok(ExprValue::Boolean(true))),
+            ("${{ 10 < 4.0 }}", Ok(ExprValue::Boolean(false))),
+            ("${{ 10 < 9.8 }}", Ok(ExprValue::Boolean(false))),
+            ("${{ 10 < 7.2 }}", Ok(ExprValue::Boolean(false))),
+            ("${{ true < 5 }}", Err(anyhow!(""))),
+            ("${{ 5 < true }}", Err(anyhow!(""))),
+            ("${{ \"hello\" < true }}", Err(anyhow!(""))),
+            ("${{ false < \"world\" }}", Err(anyhow!(""))),
+            ("${{ false < true }}", Ok(ExprValue::Boolean(true))),
+            ("${{ \"hello\" < \"world\" }}", Ok(ExprValue::Boolean(true))),
+        ];
+
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        for (expr, expected) in data {
+            let value = exec.eval(expr);
+
+            if let Ok(expected) = expected {
+                let Ok(value) = value else {
+                    panic!("invalid result after eval");
+                };
+                assert!(matches!(value.try_eq(&expected), Ok(ExprValue::Boolean(true))));
+                continue;
+            }
+
+            if expected.is_err() && value.is_ok() {
+                panic!("invalid result after eval");
+            }
+        }
+    }
+
+    #[test]
+    pub fn less_equals_operator_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            ("${{ 4 <= 4.0 }}", Ok(ExprValue::Boolean(true))),
+            ("${{ 4 <= 4 }}", Ok(ExprValue::Boolean(true))),
+            ("${{ 4 <= 5 }}", Ok(ExprValue::Boolean(true))),
+            ("${{ 10 <= 4.0 }}", Ok(ExprValue::Boolean(false))),
+            ("${{ 10 <= 9.8 }}", Ok(ExprValue::Boolean(false))),
+            ("${{ 10 <= 7.2 }}", Ok(ExprValue::Boolean(false))),
+            ("${{ true <= 5 }}", Err(anyhow!(""))),
+            ("${{ 5 <= true }}", Err(anyhow!(""))),
+            ("${{ \"hello\" <= true }}", Err(anyhow!(""))),
+            ("${{ false <= \"world\" }}", Err(anyhow!(""))),
+            ("${{ false <= true }}", Ok(ExprValue::Boolean(true))),
+            ("${{ false <= false }}", Ok(ExprValue::Boolean(true))),
+            ("${{ \"hello\" <= \"world\" }}", Ok(ExprValue::Boolean(true))),
+            ("${{ \"hello\" <= \"hello\" }}", Ok(ExprValue::Boolean(true))),
+        ];
+
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        for (expr, expected) in data {
+            let value = exec.eval(expr);
+
+            if let Ok(expected) = expected {
+                let Ok(value) = value else {
+                    panic!("invalid result after eval");
+                };
+                dbg!(expr);
+                assert!(matches!(value.try_eq(&expected), Ok(ExprValue::Boolean(true))));
+                continue;
+            }
+
+            if expected.is_err() && value.is_ok() {
+                panic!("invalid result after eval");
             }
         }
     }
