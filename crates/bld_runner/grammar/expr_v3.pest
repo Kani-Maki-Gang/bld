@@ -32,13 +32,13 @@ Number = ${
 Boolean = @{ "true" | "false" }
 
 String = ${
-    ("\"" | "'")
+    ("\"" | "\'")
     ~ (
         !("\"" | "\\") ~ ANY
         | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
         | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
     )*
-    ~ ("\"" | "'")
+    ~ ("\"" | "\'")
 }
 
 ObjectPart = @{ ('a'..'z' | 'A'..'Z' | "_" | "-" | "(" | ")" | ASCII_NONZERO_DIGIT | ASCII_DIGIT)+ }

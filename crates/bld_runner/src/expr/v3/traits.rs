@@ -7,12 +7,13 @@ use pest::iterators::{Pair, Pairs};
 
 use super::parser::Rule;
 
-#[derive(Eq, Ord, PartialOrd, PartialEq)]
+#[derive(Debug, Eq, Ord, PartialOrd, PartialEq)]
 pub enum ExprText<'a> {
     Ref(&'a str),
     Owned(String),
 }
 
+#[derive(Debug)]
 pub enum ExprValue<'a> {
     Boolean(bool),
     Number(f64),
@@ -93,7 +94,24 @@ impl<'b> TryFrom<&'b str> for ExprValue<'_> {
             return Ok(ExprValue::Boolean(boolean));
         }
 
-        Ok(ExprValue::Text(ExprText::Owned(value.to_string())))
+        let mut text = String::new();
+        if value.starts_with("\\\"") {
+            text = value.replace("\\\"", "");
+        }
+
+        if value.starts_with("\"") {
+            text = value.replace("\"", "");
+        }
+
+        if value.ends_with("\\\"") {
+            text = value.replace("\\\"", "");
+        }
+
+        if value.ends_with("\"") {
+            text = value.replace("\"", "");
+        }
+
+        Ok(ExprValue::Text(ExprText::Owned(text)))
     }
 }
 
