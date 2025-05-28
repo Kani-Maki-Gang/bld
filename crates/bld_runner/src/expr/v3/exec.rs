@@ -145,80 +145,56 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
         };
 
         let expr_inner = expr.into_inner();
-        let mut accumulator: Option<ExprValue<'a>> = None;
-        let mut current_value: Option<ExprValue<'a>> = None;
-        let mut current_operator: Option<Rule> = None;
+        let mut result: Option<ExprValue<'a>> = None;
+        let mut operator: Option<Rule> = None;
 
         for inner in expr_inner {
             match inner.as_rule() {
-                Rule::Expression if current_value.is_none() => {
-                    current_value = Some(self.eval_expr(inner)?);
-                }
+                Rule::Expression => {
+                    let value = self.eval_expr(inner)?;
 
-                Rule::Expression if current_value.is_some() => {
-                    bail!(
-                        "multiple expressions found in logical expression without any logical operator"
-                    );
+                    // this is the case of starting the evaluation of the logical expression
+                    // during the rest of the evaluation there should always be a result value and
+                    // an operator.
+                    let Some(operator) = operator else {
+                        result = Some(value);
+                        continue;
+                    };
+
+                    match operator {
+                        Rule::AndOperator => {
+                            if let Some(res) = result {
+                                result = Some(res.try_and(&value)?);
+                            }
+                        }
+
+                        Rule::OrOperator => {
+                            if let Some(res) = result {
+                                result = Some(res.try_or(&value)?);
+                            }
+                        }
+
+                        _ => bail!(
+                            "invalid operator encountered during evaluation of logical expression"
+                        ),
+                    }
                 }
 
                 Rule::AndOperator => {
-                    let Some(curr) = current_value.take() else {
-                        bail!("no current value found before AND operator");
-                    };
-
-                    if let Some(acc) = accumulator {
-                        accumulator = Some(acc.try_and(&curr)?);
-                    } else {
-                        accumulator = Some(curr);
-                    }
-
-                    current_operator = Some(Rule::AndOperator);
+                    operator = Some(Rule::AndOperator);
                 }
 
                 Rule::OrOperator => {
-                    let Some(curr) = current_value.take() else {
-                        bail!("no current value found before OR operator");
-                    };
-
-                    if let Some(acc) = accumulator {
-                        accumulator = Some(acc.try_or(&curr)?);
-                    } else {
-                        accumulator = Some(curr);
-                    }
-
-                    current_operator = Some(Rule::OrOperator);
+                    operator = Some(Rule::OrOperator);
                 }
 
-                _ => bail!(
-                    "unexpected rule in logical expression: {:?}",
-                    inner.as_rule()
-                ),
+                _ => {
+                    bail!("invalid expression encountered during evaluation of logical expression")
+                }
             }
         }
 
-        if let Some(curr) = current_value.take() {
-            match current_operator {
-                Some(Rule::AndOperator) => {
-                    if let Some(acc) = accumulator {
-                        accumulator = Some(acc.try_and(&curr)?);
-                    } else {
-                        accumulator = Some(curr);
-                    }
-                }
-
-                Some(Rule::OrOperator) => {
-                    if let Some(acc) = accumulator {
-                        accumulator = Some(acc.try_or(&curr)?);
-                    } else {
-                        accumulator = Some(curr);
-                    }
-                }
-
-                _ => bail!("unexpected rule in logical expression"),
-            }
-        }
-
-        accumulator.ok_or_else(|| anyhow!("no accumulator found in logical expression"))
+        result.ok_or_else(|| anyhow!("no value was computed during logical expression evaluation"))
     }
 
     fn eval(&'a self, expr: &'a str) -> Result<ExprValue<'a>> {
@@ -681,6 +657,7 @@ mod tests {
 
             if let Ok(expected) = expected {
                 let Ok(value) = value else {
+                    dbg!(&value);
                     panic!("invalid result after eval");
                 };
                 dbg!(expr);
@@ -735,6 +712,74 @@ mod tests {
             ),
             (
                 "${{ \"hello\" > \"hello\" || true < false || 42 < 41 }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+        ];
+
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        for (expr, expected) in data {
+            let value = exec.eval(expr);
+
+            if let Ok(expected) = expected {
+                let Ok(value) = value else {
+                    panic!("invalid result after eval");
+                };
+                dbg!(expr);
+                dbg!(&value);
+                assert!(matches!(
+                    value.try_eq(&expected),
+                    Ok(ExprValue::Boolean(true))
+                ));
+                continue;
+            }
+
+            if expected.is_err() && value.is_ok() {
+                panic!("invalid result after eval");
+            }
+        }
+    }
+
+    #[test]
+    pub fn complex_logical_expression_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            (
+                "${{ true == true && 42 >= 41 || \"hello\" == \"hello\" }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ true == true && 41 >= 42 || \"hello\" == \"hello\" }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ true == true && 41 >= 42 || \"hello2\" == \"hello\" }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            (
+                "${{ true == true && 41 >= 42 || \"hello2\" == \"hello\" || 5 == 5 }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ true == true && 41 >= 42 || \"hello2\" == \"hello\" || 3 == 5 }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            (
+                "${{ true == true && 41 >= 42 || \"hello2\" == \"hello\" || 5 == 5 && false > true }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            (
+                "${{ true == true && 41 >= 42 || \"hello2\" == \"hello\" || 4 == 5 && false > true }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            (
+                "${{ true == true && 41 >= 42 || \"hello2\" == \"hello\" || 5 == 5 && true > false }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ true == true && 41 >= 42 || \"hello2\" == \"hello\" || 5 == 5 && true > true }}",
                 Ok(ExprValue::Boolean(false)),
             ),
         ];
