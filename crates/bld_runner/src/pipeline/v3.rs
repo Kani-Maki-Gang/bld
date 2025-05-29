@@ -247,3 +247,168 @@ impl<'a> Validate<'a> for Pipeline {
         ctx.pop_section();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        expr::v3::{
+            context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+            exec::CommonExprExecutor,
+            traits::{EvalExpr, ExprText, ExprValue},
+        },
+        inputs::v3::Input,
+    };
+
+    use super::Pipeline;
+
+    #[test]
+    pub fn name_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        let data = vec![Some("test"), Some("hello world"), Some(""), None];
+
+        for entry in data {
+            pipeline.name = entry.map(|x| x.to_string());
+
+            let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+            let Ok(value) = exec.eval("${{ name }}") else {
+                panic!("result is an error during expression evaluation");
+            };
+
+            let expected = entry
+                .map(|x| ExprValue::Text(ExprText::Ref(x)))
+                .unwrap_or_else(|| ExprValue::Text(ExprText::Ref("")));
+
+            assert!(matches!(
+                value.try_eq(&expected),
+                Ok(ExprValue::Boolean(true))
+            ));
+        }
+    }
+
+    #[test]
+    pub fn cron_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        let data = vec![
+            Some("30 * * * * 1"),
+            Some("H 5 * * 1"),
+            Some("1 M * * * 2"),
+            None,
+        ];
+
+        for entry in data {
+            pipeline.cron = entry.map(|x| x.to_string());
+
+            let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+            let Ok(value) = exec.eval("${{ cron }}") else {
+                panic!("result is an error during expression evaluation");
+            };
+
+            let expected = entry
+                .map(|x| ExprValue::Text(ExprText::Ref(x)))
+                .unwrap_or_else(|| ExprValue::Text(ExprText::Ref("")));
+
+            assert!(matches!(
+                value.try_eq(&expected),
+                Ok(ExprValue::Boolean(true))
+            ));
+        }
+    }
+
+    #[test]
+    pub fn dispose_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        let data = vec![true, false];
+
+        for entry in data {
+            pipeline.dispose = entry;
+
+            let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+            let Ok(value) = exec.eval("${{ dispose }}") else {
+                panic!("result is an error during expression evaluation");
+            };
+            let expected = ExprValue::Boolean(entry);
+            assert!(matches!(
+                value.try_eq(&expected),
+                Ok(ExprValue::Boolean(true))
+            ));
+        }
+    }
+
+    #[test]
+    pub fn env_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        pipeline.env.insert("NODE".to_string(), "22.10".to_string());
+        pipeline.env.insert("PATH".to_string(), "value".to_string());
+        pipeline
+            .env
+            .insert("HOME".to_string(), "/home/user".to_string());
+
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        for (k, v) in &pipeline.env {
+            let expr = format!("{} env.{k} {}", "${{", "}}");
+            let Ok(value) = exec.eval(&expr) else {
+                panic!("result is an error during expression evaluation");
+            };
+            let expected = ExprValue::Text(ExprText::Ref(&v));
+            assert!(matches!(
+                value.try_eq(&expected),
+                Ok(ExprValue::Boolean(true))
+            ));
+        }
+    }
+
+    #[test]
+    pub fn inputs_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .inputs
+            .insert("name".to_string(), Input::Simple("john".to_string()));
+        pipeline
+            .inputs
+            .insert("surname".to_string(), Input::Simple("doe".to_string()));
+        pipeline
+            .inputs
+            .insert("age".to_string(), Input::Simple("30".to_string()));
+        pipeline.inputs.insert(
+            "address".to_string(),
+            Input::Complex {
+                default: Some("highway".to_string()),
+                description: None,
+                required: false,
+            },
+        );
+        pipeline.inputs.insert(
+            "taxId".to_string(),
+            Input::Complex {
+                default: Some("999999999".to_string()),
+                description: Some("a test input".to_string()),
+                required: true,
+            },
+        );
+
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        for (k, v) in &pipeline.env {
+            let expr = format!("{} inputs.{k} {}", "${{", "}}");
+            let Ok(value) = exec.eval(&expr) else {
+                panic!("result is an error during expression evaluation");
+            };
+            let expected = ExprValue::Text(ExprText::Ref(&v));
+            assert!(matches!(
+                value.try_eq(&expected),
+                Ok(ExprValue::Boolean(true))
+            ));
+        }
+    }
+}
