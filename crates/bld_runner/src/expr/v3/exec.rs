@@ -810,4 +810,59 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    pub fn full_expression_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            (
+                "${{ inputs.name == \"john\" && inputs.surname == \"doe\" }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ inputs.name == \"josh\" && inputs.surname == \"doe\" || inputs.age >= \"42\" }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            (
+                "${{ inputs.name == \"josh\" && inputs.surname == \"doe\" || inputs.age >= \"29\" }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+        ];
+
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .inputs
+            .insert("name".to_string(), Input::Simple("john".to_string()));
+        pipeline
+            .inputs
+            .insert("surname".to_string(), Input::Simple("doe".to_string()));
+        pipeline
+            .inputs
+            .insert("age".to_string(), Input::Simple("30".to_string()));
+
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        for (expr, expected) in data {
+            let value = exec.eval(expr);
+
+            if let Ok(expected) = expected {
+                let Ok(value) = value else {
+                    panic!("invalid result after eval");
+                };
+                dbg!(expr);
+                dbg!(&value);
+                assert!(matches!(
+                    value.try_eq(&expected),
+                    Ok(ExprValue::Boolean(true))
+                ));
+                continue;
+            }
+
+            if expected.is_err() && value.is_ok() {
+                panic!("invalid result after eval");
+            }
+        }
+    }
 }
