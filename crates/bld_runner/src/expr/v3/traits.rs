@@ -13,6 +13,15 @@ pub enum ExprText<'a> {
     Owned(String),
 }
 
+impl<'a> ExprText<'a> {
+    pub fn inner(&'a self) -> &'a str {
+        match self {
+            Self::Ref(v) => v,
+            Self::Owned(v) => &v,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum ExprValue<'a> {
     Boolean(bool),
@@ -33,7 +42,7 @@ impl<'a, 'b> ExprValue<'a> {
         let value = match (self, other) {
             (Self::Boolean(l), Self::Boolean(r)) => l == r,
             (Self::Number(l), Self::Number(r)) => l == r,
-            (Self::Text(l), Self::Text(r)) => l == r,
+            (Self::Text(l), Self::Text(r)) => l.inner() == r.inner(),
             _ => bail!(
                 "cannot compare {} and {}",
                 self.type_as_string(),
@@ -46,7 +55,7 @@ impl<'a, 'b> ExprValue<'a> {
     pub fn try_ord(&self, other: &'a Self) -> Result<ExprValue<'b>> {
         let value = match (self, other) {
             (Self::Number(l), Self::Number(r)) => l > r,
-            (Self::Text(l), Self::Text(r)) => l > r,
+            (Self::Text(l), Self::Text(r)) => l.inner() > r.inner(),
             (Self::Boolean(l), Self::Boolean(r)) => l > r,
             _ => bail!(
                 "cannot compare {} and {}",
