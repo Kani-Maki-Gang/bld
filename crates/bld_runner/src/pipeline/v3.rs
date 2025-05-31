@@ -134,10 +134,6 @@ impl<'a> EvalObject<'a> for Pipeline {
             bail!("no object path present");
         };
 
-        let Rule::Object = object.as_rule() else {
-            bail!("expected object path");
-        };
-
         let mut object_parts = object.into_inner();
         let Some(part) = object_parts.next() else {
             bail!("expected at least one part in the object path");
