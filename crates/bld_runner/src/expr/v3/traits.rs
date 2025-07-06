@@ -17,7 +17,7 @@ impl<'a> ExprText<'a> {
     pub fn inner(&'a self) -> &'a str {
         match self {
             Self::Ref(v) => v,
-            Self::Owned(v) => &v,
+            Self::Owned(v) => v,
         }
     }
 }

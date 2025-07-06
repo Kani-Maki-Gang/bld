@@ -69,7 +69,7 @@ async fn build_dir_exists() -> Result<bool> {
     while let Ok(Some(entry)) = read_dir.next_entry().await {
         let path = entry.path();
         if path.is_dir() {
-            let component = path.components().last();
+            let component = path.components().next_back();
             if let Some(Normal(name)) = component {
                 if name == TOOL_DIR {
                     return Ok(true);
