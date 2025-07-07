@@ -144,4 +144,165 @@ impl<'a> Validate<'a> for Step {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use crate::{
+        expr::v3::{
+            context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+            exec::CommonExprExecutor,
+            traits::{EvalExpr, ExprText, ExprValue},
+        },
+        external::v3::External,
+        pipeline::v3::Pipeline,
+        step::v3::{ShellCommand, Step},
+    };
+
+    #[test]
+    pub fn jobs_complex_step_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            "main".to_string(),
+            vec![
+                Step::ComplexSh(Box::new(ShellCommand {
+                    id: Some("second".to_string()),
+                    name: Some("second_name".to_string()),
+                    working_dir: Some("some_second_working_directory".to_string()),
+                    run: "second_run_command".to_string(),
+                })),
+                Step::ComplexSh(Box::new(ShellCommand {
+                    id: Some("third".to_string()),
+                    name: Some("third_name".to_string()),
+                    working_dir: Some("some_third_working_directory".to_string()),
+                    run: "third_run_command".to_string(),
+                })),
+            ],
+        );
+        pipeline.jobs.insert(
+            "backup".to_string(),
+            vec![Step::ComplexSh(Box::new(ShellCommand {
+                id: Some("first".to_string()),
+                name: Some("first_name".to_string()),
+                working_dir: Some("some_first_working_directory".to_string()),
+                run: "first_run_command".to_string(),
+            }))],
+        );
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        let actual = exec.eval("${{ jobs.main.second.name }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("second_name"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ jobs.main.third.name }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("third_name"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ jobs.backup.first.name }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("first_name"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ jobs.main.second.working_dir }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref(
+                "some_second_working_directory"
+            ))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ jobs.main.third.working_dir }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref(
+                "some_third_working_directory"
+            ))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ jobs.backup.first.working_dir }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref(
+                "some_first_working_directory"
+            ))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ jobs.main.second.run }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("second_run_command"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ jobs.main.third.run }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("third_run_command"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ jobs.backup.first.run }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("first_run_command"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
+
+    #[test]
+    pub fn jobs_simple_step_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            "main".to_string(),
+            vec![
+                Step::SingleSh("first_run_command".to_string()),
+                Step::SingleSh("second_run_command".to_string()),
+            ],
+        );
+        pipeline.jobs.insert(
+            "backup".to_string(),
+            vec![Step::SingleSh("third_run_command".to_string())],
+        );
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        let actual = exec.eval("${{ jobs.main.first }}");
+        assert!(actual.is_err());
+
+        let actual = exec.eval("${{ jobs.main.second }}");
+        assert!(actual.is_err());
+
+        let actual = exec.eval("${{ jobs.backup.third }}");
+        assert!(actual.is_err());
+    }
+
+    #[test]
+    pub fn jobs_external_step_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            "main".to_string(),
+            vec![
+                Step::ExternalFile(Box::new(External::default())),
+                Step::ExternalFile(Box::new(External::default())),
+            ],
+        );
+        pipeline.jobs.insert(
+            "backup".to_string(),
+            vec![Step::ExternalFile(Box::new(External::default()))],
+        );
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        let actual = exec.eval("${{ jobs.main.first }}");
+        assert!(actual.is_err());
+
+        let actual = exec.eval("${{ jobs.main.second }}");
+        assert!(actual.is_err());
+
+        let actual = exec.eval("${{ jobs.backup.third }}");
+        assert!(actual.is_err());
+    }
+}
