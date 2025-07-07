@@ -1,4 +1,16 @@
-use crate::external::v3::External;
+use std::iter::Peekable;
+
+use crate::{
+    expr::v3::{
+        parser::Rule,
+        traits::{
+            EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
+        },
+    },
+    external::v3::External,
+};
+use anyhow::{Result, bail};
+use pest::iterators::Pairs;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "all")]
@@ -33,20 +45,11 @@ pub enum Step {
 }
 
 impl Step {
-    pub fn is(&self, name: &str) -> bool {
-        if let Self::ComplexSh(complex) = self {
-            return complex.name.as_ref().map(|x| x == name).unwrap_or_default();
-        }
-
-        if let Self::ExternalFile(external) = self {
-            return external
-                .name
-                .as_ref()
-                .map(|x| x == name)
-                .unwrap_or_default();
-        }
-
-        false
+    pub fn is(&self, id: &str) -> bool {
+        let Self::ComplexSh(complex) = self else {
+            return false;
+        };
+        complex.id.as_ref().map(|x| x == id).unwrap_or_default()
     }
 }
 
@@ -59,6 +62,42 @@ impl Dependencies for Step {
             }
             Self::SingleSh(_) | Self::ComplexSh { .. } | Self::ExternalFile { .. } => vec![],
         }
+    }
+}
+
+#[cfg(feature = "all")]
+impl<'a> EvalObject<'a> for Step {
+    fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
+        &'a self,
+        path: &mut Peekable<Pairs<'_, Rule>>,
+        _rctx: &'a RCtx,
+        _wctx: &'a WCtx,
+    ) -> Result<ExprValue<'a>> {
+        let Some(object) = path.next() else {
+            bail!("no object path present");
+        };
+        let value = match self {
+            Self::SingleSh(_) => {
+                bail!("invalid expression for step");
+            }
+
+            Self::ExternalFile(_) => {
+                // TODO: Remove once external section is removed.
+                bail!("invalid expression for step");
+            }
+
+            Self::ComplexSh(command) => match object.as_span().as_str() {
+                "name" => command.name.as_ref().map(|x| x.as_str()).unwrap_or(""),
+                "working_dir" => command
+                    .working_dir
+                    .as_ref()
+                    .map(|x| x.as_str())
+                    .unwrap_or(""),
+                "run" => &command.run,
+                value => bail!("invalid steps field: {value}"),
+            },
+        };
+        Ok(ExprValue::Text(ExprText::Ref(value)))
     }
 }
 
@@ -103,3 +142,6 @@ impl<'a> Validate<'a> for Step {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {}
