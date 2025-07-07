@@ -200,7 +200,7 @@ impl<'a> EvalObject<'a> for Pipeline {
                 step.eval_object(&mut object_parts.peekable(), rctx, wctx)
             }
 
-            _ => unimplemented!(),
+            value => bail!("invalid expression identifier {value}"),
         }
     }
 }
