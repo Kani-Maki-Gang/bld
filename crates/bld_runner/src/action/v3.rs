@@ -3,14 +3,16 @@ use std::{
     iter::Peekable,
 };
 
-use anyhow::Result;
+use anyhow::{Result, anyhow, bail};
 use pest::iterators::Pairs;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     expr::v3::{
         parser::Rule,
-        traits::{EvalObject, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext},
+        traits::{
+            EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
+        },
     },
     inputs::v3::Input,
     step::v3::Step,
@@ -102,11 +104,49 @@ impl Dependencies for Action {
 impl<'a> EvalObject<'a> for Action {
     fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
         &'a self,
-        _path: &mut Peekable<Pairs<'_, Rule>>,
-        _rctx: &RCtx,
-        _wctx: &WCtx,
+        path: &mut Peekable<Pairs<'_, Rule>>,
+        rctx: &'a RCtx,
+        wctx: &'a WCtx,
     ) -> Result<ExprValue<'a>> {
-        unimplemented!()
+        let Some(object) = path.next() else {
+            bail!("no object path present");
+        };
+
+        let mut object_parts = object.into_inner();
+        let Some(part) = object_parts.next() else {
+            bail!("expected at least one part in the object path");
+        };
+
+        match part.as_span().as_str() {
+            "name" => Ok(ExprValue::Text(ExprText::Ref(self.name.as_str()))),
+
+            "inputs" => {
+                let Some(part) = object_parts.next() else {
+                    bail!("expected name of input in object path");
+                };
+                let name = part.as_span().as_str();
+                let input = self
+                    .inputs
+                    .get(name)
+                    .ok_or_else(|| anyhow!("input '{name}' not found"))?;
+                input.try_into().map(|x| ExprValue::Text(ExprText::Ref(x)))
+            }
+
+            "steps" => {
+                let Some(step_id) = object_parts.next() else {
+                    bail!("expected id for step in expression");
+                };
+
+                let step_id = step_id.as_span().as_str();
+                let Some(step) = self.steps.iter().find(|x| x.is(step_id)) else {
+                    bail!("step with id {step_id} not defined");
+                };
+
+                step.eval_object(&mut object_parts.peekable(), rctx, wctx)
+            }
+
+            value => bail!("invalid expression identifier {value}"),
+        }
     }
 }
 
