@@ -146,11 +146,15 @@ impl<'a> Validate<'a> for Step {
 #[cfg(test)]
 mod tests {
     use crate::{
-        action::v3::Action, expr::v3::{
+        action::v3::Action,
+        expr::v3::{
             context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
             exec::CommonExprExecutor,
             traits::{EvalExpr, ExprText, ExprValue},
-        }, external::v3::External, pipeline::v3::Pipeline, step::v3::{ShellCommand, Step}
+        },
+        external::v3::External,
+        pipeline::v3::Pipeline,
+        step::v3::{ShellCommand, Step},
     };
 
     #[test]
@@ -252,30 +256,24 @@ mod tests {
         let mut wctx = CommonWritableRuntimeExprContext::default();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut action = Action::default();
-        action.steps.push(
-            Step::ComplexSh(Box::new(ShellCommand {
-                id: Some("second".to_string()),
-                name: Some("second_name".to_string()),
-                working_dir: Some("some_second_working_directory".to_string()),
-                run: "second_run_command".to_string(),
-            }))
-        );
-        action.steps.push(
-            Step::ComplexSh(Box::new(ShellCommand {
-                id: Some("third".to_string()),
-                name: Some("third_name".to_string()),
-                working_dir: Some("some_third_working_directory".to_string()),
-                run: "third_run_command".to_string(),
-            }))
-        );
-        action.steps.push(
-            Step::ComplexSh(Box::new(ShellCommand {
-                id: Some("first".to_string()),
-                name: Some("first_name".to_string()),
-                working_dir: Some("some_first_working_directory".to_string()),
-                run: "first_run_command".to_string(),
-            }))
-        );
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: Some("second".to_string()),
+            name: Some("second_name".to_string()),
+            working_dir: Some("some_second_working_directory".to_string()),
+            run: "second_run_command".to_string(),
+        })));
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: Some("third".to_string()),
+            name: Some("third_name".to_string()),
+            working_dir: Some("some_third_working_directory".to_string()),
+            run: "third_run_command".to_string(),
+        })));
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: Some("first".to_string()),
+            name: Some("first_name".to_string()),
+            working_dir: Some("some_first_working_directory".to_string()),
+            run: "first_run_command".to_string(),
+        })));
 
         let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
 
@@ -373,15 +371,15 @@ mod tests {
         let mut wctx = CommonWritableRuntimeExprContext::default();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut action = Action::default();
-        action.steps.push(
-            Step::SingleSh("first_run_command".to_string())
-        );
-        action.steps.push(
-            Step::SingleSh("second_run_command".to_string())
-        );
-        action.steps.push(
-            Step::SingleSh("third_run_command".to_string())
-        );
+        action
+            .steps
+            .push(Step::SingleSh("first_run_command".to_string()));
+        action
+            .steps
+            .push(Step::SingleSh("second_run_command".to_string()));
+        action
+            .steps
+            .push(Step::SingleSh("third_run_command".to_string()));
         let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
 
         let actual = exec.eval("${{ steps.first }}");
@@ -427,15 +425,15 @@ mod tests {
         let mut wctx = CommonWritableRuntimeExprContext::default();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut action = Action::default();
-        action.steps.push(
-            Step::ExternalFile(Box::new(External::default()))
-        );
-        action.steps.push(
-            Step::ExternalFile(Box::new(External::default()))
-        );
-        action.steps.push(
-            Step::ExternalFile(Box::new(External::default()))
-        );
+        action
+            .steps
+            .push(Step::ExternalFile(Box::new(External::default())));
+        action
+            .steps
+            .push(Step::ExternalFile(Box::new(External::default())));
+        action
+            .steps
+            .push(Step::ExternalFile(Box::new(External::default())));
         let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
 
         let actual = exec.eval("${{ steps.main.first }}");

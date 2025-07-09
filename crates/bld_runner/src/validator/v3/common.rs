@@ -44,11 +44,7 @@ pub struct CommonValidator<'a, V: Validate<'a>> {
 }
 
 impl<'a, V: Validate<'a>> CommonValidator<'a, V> {
-    pub fn new(
-        validatable: &'a V,
-        config: Arc<BldConfig>,
-        fs: Arc<FileSystem>,
-    ) -> Result<Self> {
+    pub fn new(validatable: &'a V, config: Arc<BldConfig>, fs: Arc<FileSystem>) -> Result<Self> {
         Ok(Self {
             validatable,
             config,
