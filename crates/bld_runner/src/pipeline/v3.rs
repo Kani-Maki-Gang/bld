@@ -414,12 +414,19 @@ mod tests {
 
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
 
-        for (k, v) in &pipeline.env {
+        for (k, v) in &pipeline.inputs {
             let expr = format!("{} inputs.{k} {}", "${{", "}}");
             let Ok(value) = exec.eval(&expr) else {
                 panic!("result is an error during expression evaluation");
             };
-            let expected = ExprValue::Text(ExprText::Ref(&v));
+            let expected = match v {
+                Input::Simple(value) => ExprValue::Text(ExprText::Ref(value)),
+                Input::Complex {
+                    default: Some(default),
+                    ..
+                } => ExprValue::Text(ExprText::Ref(default)),
+                _ => panic!("no value defined"),
+            };
             assert!(matches!(
                 value.try_eq(&expected),
                 Ok(ExprValue::Boolean(true))

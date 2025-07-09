@@ -146,14 +146,11 @@ impl<'a> Validate<'a> for Step {
 #[cfg(test)]
 mod tests {
     use crate::{
-        expr::v3::{
+        action::v3::Action, expr::v3::{
             context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
             exec::CommonExprExecutor,
             traits::{EvalExpr, ExprText, ExprValue},
-        },
-        external::v3::External,
-        pipeline::v3::Pipeline,
-        step::v3::{ShellCommand, Step},
+        }, external::v3::External, pipeline::v3::Pipeline, step::v3::{ShellCommand, Step}
     };
 
     #[test]
@@ -251,6 +248,99 @@ mod tests {
     }
 
     #[test]
+    pub fn steps_complex_step_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut action = Action::default();
+        action.steps.push(
+            Step::ComplexSh(Box::new(ShellCommand {
+                id: Some("second".to_string()),
+                name: Some("second_name".to_string()),
+                working_dir: Some("some_second_working_directory".to_string()),
+                run: "second_run_command".to_string(),
+            }))
+        );
+        action.steps.push(
+            Step::ComplexSh(Box::new(ShellCommand {
+                id: Some("third".to_string()),
+                name: Some("third_name".to_string()),
+                working_dir: Some("some_third_working_directory".to_string()),
+                run: "third_run_command".to_string(),
+            }))
+        );
+        action.steps.push(
+            Step::ComplexSh(Box::new(ShellCommand {
+                id: Some("first".to_string()),
+                name: Some("first_name".to_string()),
+                working_dir: Some("some_first_working_directory".to_string()),
+                run: "first_run_command".to_string(),
+            }))
+        );
+
+        let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+
+        let actual = exec.eval("${{ steps.second.name }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("second_name"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ steps.third.name }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("third_name"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ steps.first.name }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("first_name"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ steps.second.working_dir }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref(
+                "some_second_working_directory"
+            ))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ steps.third.working_dir }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref(
+                "some_third_working_directory"
+            ))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ steps.first.working_dir }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref(
+                "some_first_working_directory"
+            ))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ steps.second.run }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("second_run_command"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ steps.third.run }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("third_run_command"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ steps.first.run }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("first_run_command"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
+
+    #[test]
     pub fn jobs_simple_step_expr_eval_success() {
         let mut wctx = CommonWritableRuntimeExprContext::default();
         let rctx = CommonReadonlyRuntimeExprContext::default();
@@ -279,6 +369,32 @@ mod tests {
     }
 
     #[test]
+    pub fn steps_simple_step_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut action = Action::default();
+        action.steps.push(
+            Step::SingleSh("first_run_command".to_string())
+        );
+        action.steps.push(
+            Step::SingleSh("second_run_command".to_string())
+        );
+        action.steps.push(
+            Step::SingleSh("third_run_command".to_string())
+        );
+        let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+
+        let actual = exec.eval("${{ steps.first }}");
+        assert!(actual.is_err());
+
+        let actual = exec.eval("${{ steps.second }}");
+        assert!(actual.is_err());
+
+        let actual = exec.eval("${{ steps.third }}");
+        assert!(actual.is_err());
+    }
+
+    #[test]
     pub fn jobs_external_step_expr_eval_success() {
         let mut wctx = CommonWritableRuntimeExprContext::default();
         let rctx = CommonReadonlyRuntimeExprContext::default();
@@ -303,6 +419,32 @@ mod tests {
         assert!(actual.is_err());
 
         let actual = exec.eval("${{ jobs.backup.third }}");
+        assert!(actual.is_err());
+    }
+
+    #[test]
+    pub fn steps_external_step_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut action = Action::default();
+        action.steps.push(
+            Step::ExternalFile(Box::new(External::default()))
+        );
+        action.steps.push(
+            Step::ExternalFile(Box::new(External::default()))
+        );
+        action.steps.push(
+            Step::ExternalFile(Box::new(External::default()))
+        );
+        let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+
+        let actual = exec.eval("${{ steps.main.first }}");
+        assert!(actual.is_err());
+
+        let actual = exec.eval("${{ steps.main.second }}");
+        assert!(actual.is_err());
+
+        let actual = exec.eval("${{ steps.backup.third }}");
         assert!(actual.is_err());
     }
 }

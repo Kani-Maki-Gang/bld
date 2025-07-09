@@ -31,7 +31,7 @@ use crate::{
 #[cfg(feature = "all")]
 use tracing::debug;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Action {
     pub name: String,
 
@@ -173,5 +173,96 @@ impl<'a> Validate<'a> for Action {
             step.validate(ctx).await;
         }
         ctx.pop_section();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        expr::v3::{
+            context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+            exec::CommonExprExecutor,
+            traits::{EvalExpr, ExprText, ExprValue},
+        },
+        inputs::v3::Input,
+    };
+
+    use super::Action;
+
+    #[test]
+    pub fn name_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut action = Action::default();
+        let data = vec!["test", "hello world", ""];
+
+        for entry in data {
+            action.name = entry.to_string();
+
+            let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+            let Ok(value) = exec.eval("${{ name }}") else {
+                panic!("result is an error during expression evaluation");
+            };
+
+            let expected = ExprValue::Text(ExprText::Ref(entry));
+
+            assert!(matches!(
+                value.try_eq(&expected),
+                Ok(ExprValue::Boolean(true))
+            ));
+        }
+    }
+
+    #[test]
+    pub fn inputs_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut action = Action::default();
+        action
+            .inputs
+            .insert("name".to_string(), Input::Simple("john".to_string()));
+        action
+            .inputs
+            .insert("surname".to_string(), Input::Simple("doe".to_string()));
+        action
+            .inputs
+            .insert("age".to_string(), Input::Simple("30".to_string()));
+        action.inputs.insert(
+            "address".to_string(),
+            Input::Complex {
+                default: Some("highway".to_string()),
+                description: None,
+                required: false,
+            },
+        );
+        action.inputs.insert(
+            "taxId".to_string(),
+            Input::Complex {
+                default: Some("999999999".to_string()),
+                description: Some("a test input".to_string()),
+                required: true,
+            },
+        );
+
+        let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+
+        for (k, v) in &action.inputs {
+            let expr = format!("{} inputs.{k} {}", "${{", "}}");
+            let Ok(value) = exec.eval(&expr) else {
+                panic!("result is an error during expression evaluation");
+            };
+            let expected = match v {
+                Input::Simple(value) => ExprValue::Text(ExprText::Ref(value)),
+                Input::Complex {
+                    default: Some(default),
+                    ..
+                } => ExprValue::Text(ExprText::Ref(default)),
+                _ => panic!("no value defined"),
+            };
+            assert!(matches!(
+                value.try_eq(&expected),
+                Ok(ExprValue::Boolean(true))
+            ));
+        }
     }
 }
