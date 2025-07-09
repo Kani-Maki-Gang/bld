@@ -33,28 +33,12 @@ pub fn create_keywords() -> HashSet<&'static str> {
     keywords
 }
 
-pub fn create_symbols<'a>(inputs: HashSet<&'a str>, env: HashSet<&'a str>) -> HashSet<&'a str> {
-    let mut symbols = HashSet::new();
-    symbols.insert(KEYWORD_BLD_DIR_V3);
-    symbols.insert(KEYWORD_PROJECT_DIR_V3);
-    symbols.insert(KEYWORD_RUN_PROPS_ID_V3);
-    symbols.insert(KEYWORD_RUN_PROPS_START_TIME_V3);
-    symbols.extend(&inputs);
-    symbols.extend(&env);
-    symbols
-}
-
-pub fn sanitize_symbol(symbol: &str) -> &str {
-    symbol[3..symbol.len() - 2].trim()
-}
-
 pub struct CommonValidator<'a, V: Validate<'a>> {
     validatable: &'a V,
     config: Arc<BldConfig>,
     fs: Arc<FileSystem>,
     regex: Regex,
     keywords: HashSet<&'a str>,
-    symbols: HashSet<&'a str>,
     section: Vec<&'a str>,
     errors: String,
 }
@@ -64,8 +48,6 @@ impl<'a, V: Validate<'a>> CommonValidator<'a, V> {
         validatable: &'a V,
         config: Arc<BldConfig>,
         fs: Arc<FileSystem>,
-        inputs: HashSet<&'a str>,
-        env: HashSet<&'a str>,
     ) -> Result<Self> {
         Ok(Self {
             validatable,
@@ -73,7 +55,6 @@ impl<'a, V: Validate<'a>> CommonValidator<'a, V> {
             fs,
             regex: create_expression_regex()?,
             keywords: create_keywords(),
-            symbols: create_symbols(inputs, env),
             section: Vec::new(),
             errors: String::new(),
         })
@@ -110,17 +91,7 @@ impl<'a, V: Validate<'a>> ValidatorContext<'a> for CommonValidator<'a, V> {
         self.regex.find(value).is_some()
     }
 
-    fn validate_symbols(&mut self, value: &'a str) {
-        for symbol in self.regex.find_iter(value).map(|x| x.as_str()) {
-            if !self.symbols.contains(sanitize_symbol(symbol)) {
-                let section = self.section.join(" > ");
-                let _ = writeln!(
-                    self.errors,
-                    "[{section} > {symbol}] Expression isn't a keyword or variable"
-                );
-            }
-        }
-    }
+    fn validate_symbols(&mut self, _value: &'a str) {}
 
     fn validate_keywords(&mut self, name: &'a str) {
         if self.keywords.contains(name) {
