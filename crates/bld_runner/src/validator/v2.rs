@@ -328,12 +328,11 @@ impl<'a> PipelineValidator<'a> {
             Ok(path) if !path.is_yaml() => {
                 let _ = writeln!(
                     self.errors,
-                    "[external > pipeline > {}] File not found",
-                    pipeline
+                    "[external > pipeline > {pipeline}] File not found"
                 );
             }
             Err(e) => {
-                let _ = writeln!(self.errors, "[external > pipeline > {}] {e}", pipeline);
+                let _ = writeln!(self.errors, "[external > pipeline > {pipeline}] {e}");
             }
             _ => {}
         }
@@ -353,8 +352,7 @@ impl<'a> PipelineValidator<'a> {
         if self.config.server(server).is_err() {
             let _ = writeln!(
                 self.errors,
-                "[external > server > {}] Doesn't exist in current config",
-                server
+                "[external > server > {server}] Doesn't exist in current config"
             );
         }
     }

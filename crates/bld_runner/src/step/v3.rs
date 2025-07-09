@@ -87,12 +87,8 @@ impl<'a> EvalObject<'a> for Step {
             }
 
             Self::ComplexSh(command) => match object.as_span().as_str() {
-                "name" => command.name.as_ref().map(|x| x.as_str()).unwrap_or(""),
-                "working_dir" => command
-                    .working_dir
-                    .as_ref()
-                    .map(|x| x.as_str())
-                    .unwrap_or(""),
+                "name" => command.name.as_deref().unwrap_or(""),
+                "working_dir" => command.working_dir.as_deref().unwrap_or(""),
                 "run" => &command.run,
                 value => bail!("invalid steps field: {value}"),
             },

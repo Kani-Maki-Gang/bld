@@ -132,7 +132,7 @@ async fn validate_external_with<'a, C: ValidatorContext<'a>>(
                 if let Some(required) = required {
                     for name in required {
                         if !with.contains_key(name) {
-                            let message = format!("Missing required input: {}", name);
+                            let message = format!("Missing required input: {name}");
                             ctx.append_error(&message);
                         }
                     }

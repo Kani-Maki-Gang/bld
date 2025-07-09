@@ -52,7 +52,7 @@ impl BldCommand for InitCommand {
                 create_config_yaml(self.is_server).await?;
                 Ok(())
             } else {
-                let message = format!("{} dir already exists in the current directory", TOOL_DIR);
+                let message = format!("{TOOL_DIR} dir already exists in the current directory");
                 bail!(message)
             }
         })
@@ -60,7 +60,7 @@ impl BldCommand for InitCommand {
 }
 
 fn print_dir_created(dir: &str) -> Result<()> {
-    print_info(&format!("{} directory created", dir))
+    print_info(&format!("{dir} directory created"))
 }
 
 async fn build_dir_exists() -> Result<bool> {
@@ -119,7 +119,7 @@ async fn create_server_pipelines_dir(is_server: bool) -> Result<()> {
 async fn create_default_yaml() -> Result<()> {
     let path = path![TOOL_DIR, TOOL_DEFAULT_PIPELINE_FILE];
     write(path, DEFAULT_V3_PIPELINE_CONTENT).await?;
-    print_info(&format!("{} yaml file created", TOOL_DEFAULT_PIPELINE))?;
+    print_info(&format!("{TOOL_DEFAULT_PIPELINE} yaml file created"))?;
     Ok(())
 }
 

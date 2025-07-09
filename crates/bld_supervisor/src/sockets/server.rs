@@ -60,7 +60,8 @@ impl ServerSocket {
                 let tx = self.worker_queue_tx.clone();
 
                 let success_msg = format!("worker for pipeline: {pipeline} has been queued");
-                let enqueque_fut = async move { tx.enqueue(Worker::new(run_id, command)).await }
+                let worker = Box::new(Worker::new(run_id, command));
+                let enqueque_fut = async move { tx.enqueue(worker).await }
                     .into_actor(self)
                     .then(move |res, _, _| {
                         match res {

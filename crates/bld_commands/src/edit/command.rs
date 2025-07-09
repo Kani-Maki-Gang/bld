@@ -44,7 +44,7 @@ impl EditCommand {
 
         let tmp_name = format!("{}.yaml", Uuid::new_v4());
 
-        println!("Editing temporary local pipeline {}", tmp_name);
+        println!("Editing temporary local pipeline {tmp_name}");
 
         debug!("creating temporary pipeline file: {tmp_name}");
         fs.create_tmp(&tmp_name, &data.content, true).await?;

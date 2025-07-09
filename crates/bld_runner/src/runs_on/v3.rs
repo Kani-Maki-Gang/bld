@@ -56,7 +56,7 @@ impl Display for RunsOn {
             Self::ContainerOrMachine(image) => write!(f, "{image}"),
             Self::Pull { image, .. } => write!(f, "{image}"),
             Self::Build { name, tag, .. } => write!(f, "{name}:{tag}"),
-            Self::SshFromGlobalConfig { ssh_config } => write!(f, "{}", ssh_config),
+            Self::SshFromGlobalConfig { ssh_config } => write!(f, "{ssh_config}"),
             Self::Ssh(config) => write!(f, "{}:{}", config.host, config.port),
         }
     }

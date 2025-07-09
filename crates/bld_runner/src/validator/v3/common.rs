@@ -80,7 +80,7 @@ impl<'a, V: Validate<'a>> ValidatorContext<'a> for CommonValidator<'a, V> {
 
     fn append_error(&mut self, error: &str) {
         let section = self.section.join(" > ");
-        let _ = writeln!(self.errors, "[{}] {}", section, error);
+        let _ = writeln!(self.errors, "[{section}] {error}");
     }
 
     fn contains_symbols(&mut self, value: &str) -> bool {

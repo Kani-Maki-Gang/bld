@@ -69,7 +69,7 @@ impl PushCommand {
         }
 
         for (name, content) in pipelines.into_iter() {
-            print!("Pushing {}...", name);
+            print!("Pushing {name}...");
 
             client
                 .push(&name, &content)

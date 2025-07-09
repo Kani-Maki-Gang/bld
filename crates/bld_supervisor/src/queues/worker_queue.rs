@@ -20,7 +20,7 @@ fn oneshot_send_err<T>(_: T) -> Error {
 #[derive(Debug)]
 pub enum WorkerQueueMessage {
     Enqueue {
-        worker: Worker,
+        worker: Box<Worker>,
         resp_tx: oneshot::Sender<Result<()>>,
     },
     Dequeue {
@@ -109,10 +109,10 @@ impl WorkerQueueReceiver {
         Ok(())
     }
 
-    async fn add_backlog(&mut self, worker: Worker) -> Result<()> {
+    async fn add_backlog(&mut self, worker: Box<Worker>) -> Result<()> {
         pipeline_runs::update_state(self.conn.as_ref(), worker.get_run_id(), PR_STATE_QUEUED)
             .await?;
-        self.backlog.push_back(worker);
+        self.backlog.push_back(*worker);
         Ok(())
     }
 
@@ -135,9 +135,9 @@ impl WorkerQueueReceiver {
     }
 
     /// Used to spawn the child process of the worker and add it to the active workers vector.
-    async fn enqueue(&mut self, item: Worker) -> Result<()> {
+    async fn enqueue(&mut self, item: Box<Worker>) -> Result<()> {
         if self.active.len() < self.capacity {
-            self.activate(item)?;
+            self.activate(*item)?;
         } else {
             self.add_backlog(item).await?;
         }
@@ -226,7 +226,7 @@ impl WorkerQueueSender {
         Self { tx }
     }
 
-    pub async fn enqueue(&self, worker: Worker) -> Result<()> {
+    pub async fn enqueue(&self, worker: Box<Worker>) -> Result<()> {
         let (resp_tx, resp_rx) = oneshot::channel();
         let message = WorkerQueueMessage::Enqueue { worker, resp_tx };
 

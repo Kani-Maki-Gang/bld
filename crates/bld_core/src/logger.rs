@@ -135,7 +135,7 @@ impl LoggerBackend {
     pub async fn write(&mut self, text: &str, resp_tx: oneshot::Sender<()>) -> Result<()> {
         match &mut self.logger_type {
             LoggerType::Shell => {
-                print!("{}", text);
+                print!("{text}");
             }
             LoggerType::File(handle) => {
                 let bytes = text.as_bytes();

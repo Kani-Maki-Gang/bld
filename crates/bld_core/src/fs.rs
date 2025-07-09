@@ -288,7 +288,7 @@ impl FileSystem {
         if !ExitStatus::success(&status) {
             let mut error = String::new();
             let output = editor.output().await?;
-            writeln!(error, "editor process finished with {}", status)?;
+            writeln!(error, "editor process finished with {status}")?;
             write!(error, "{}", String::from_utf8_lossy(&output.stderr))?;
             bail!(error);
         }
