@@ -3,7 +3,7 @@ use chrono::{DateTime, Datelike, TimeZone, Utc};
 use html::Div;
 use leptos::*;
 use leptos_chartistry::*;
-use leptos_use::{use_element_size, UseElementSizeReturn};
+use leptos_use::{UseElementSizeReturn, use_element_size};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

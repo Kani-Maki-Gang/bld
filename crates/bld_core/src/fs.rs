@@ -1,11 +1,11 @@
-use anyhow::{anyhow, bail, Result};
-use bld_config::{path, BldConfig};
+use anyhow::{Result, anyhow, bail};
+use bld_config::{BldConfig, path};
 use bld_models::pipeline::{self, InsertPipeline, Pipeline};
 use bld_utils::{fs::IsYaml, shell::get_shell, sync::IntoArc};
 use sea_orm::DatabaseConnection;
 use std::{fmt::Write as FmtWrite, path::PathBuf, process::ExitStatus, sync::Arc};
 use tokio::{
-    fs::{copy, create_dir_all, read_to_string, remove_file, rename, File},
+    fs::{File, copy, create_dir_all, read_to_string, remove_file, rename},
     io::AsyncWriteExt,
 };
 use uuid::Uuid;
@@ -288,7 +288,7 @@ impl FileSystem {
         if !ExitStatus::success(&status) {
             let mut error = String::new();
             let output = editor.output().await?;
-            writeln!(error, "editor process finished with {}", status)?;
+            writeln!(error, "editor process finished with {status}")?;
             write!(error, "{}", String::from_utf8_lossy(&output.stderr))?;
             bail!(error);
         }

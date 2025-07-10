@@ -4,15 +4,26 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 #[cfg(feature = "all")]
-use anyhow::Result;
+use std::iter::Peekable;
 
 #[cfg(feature = "all")]
-use bld_config::{DockerUrl, SshUserAuth};
+use anyhow::{anyhow, bail};
 
 #[cfg(feature = "all")]
-use crate::{
-    token_context::v3::{ApplyContext, ExecutionContext},
-    validator::v3::{Validate, ValidatorContext},
+use {
+    crate::{
+        expr::v3::{
+            parser::Rule,
+            traits::{
+                EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext,
+                WritableRuntimeExprContext,
+            },
+        },
+        validator::v3::{Validate, ValidatorContext},
+    },
+    anyhow::Result,
+    bld_config::{DockerUrl, SshUserAuth},
+    pest::iterators::Pairs,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,6 +48,12 @@ pub enum RunsOn {
     },
 }
 
+impl Default for RunsOn {
+    fn default() -> Self {
+        Self::ContainerOrMachine("machine".to_string())
+    }
+}
+
 impl Display for RunsOn {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -44,7 +61,7 @@ impl Display for RunsOn {
             Self::ContainerOrMachine(image) => write!(f, "{image}"),
             Self::Pull { image, .. } => write!(f, "{image}"),
             Self::Build { name, tag, .. } => write!(f, "{name}:{tag}"),
-            Self::SshFromGlobalConfig { ssh_config } => write!(f, "{}", ssh_config),
+            Self::SshFromGlobalConfig { ssh_config } => write!(f, "{ssh_config}"),
             Self::Ssh(config) => write!(f, "{}:{}", config.host, config.port),
         }
     }
@@ -77,79 +94,188 @@ impl RunsOn {
 }
 
 #[cfg(feature = "all")]
-impl ApplyContext for RunsOn {
-    async fn apply_context<C: ExecutionContext>(&mut self, ctx: &C) -> Result<()> {
-        match self {
-            RunsOn::Pull {
+impl<'a> EvalObject<'a> for RunsOn {
+    fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
+        &'a self,
+        path: &mut Peekable<Pairs<'_, Rule>>,
+        rctx: &'a RCtx,
+        wctx: &'a WCtx,
+    ) -> Result<ExprValue<'a>> {
+        let value = match self {
+            Self::ContainerOrMachine(value) => {
+                if path.peek().is_some() {
+                    bail!("invalid expression for runs_on expression");
+                }
+                ExprValue::Text(ExprText::Ref(value.as_str()))
+            }
+
+            Self::Pull {
                 image,
                 registry,
+                pull,
                 docker_url,
-                ..
             } => {
-                *image = ctx.transform(image.to_owned()).await?;
-                if let Some(docker_url) = docker_url {
-                    *docker_url = ctx.transform(docker_url.to_owned()).await?;
-                }
-                if let Some(registry) = registry.as_mut() {
-                    registry.apply_context(ctx).await?;
+                let Some(next) = path.next() else {
+                    bail!("expected a path for evaluating runs_on",);
+                };
+
+                match next.as_span().as_str() {
+                    "image" => ExprValue::Text(ExprText::Ref(image.as_str())),
+                    "registry" => {
+                        let registry = registry
+                            .as_ref()
+                            .ok_or_else(|| anyhow!("registry field is not set"))?;
+                        return registry.eval_object(path, rctx, wctx);
+                    }
+                    "pull" => ExprValue::Boolean(pull.unwrap_or_default()),
+                    "docker_url" => ExprValue::Text(ExprText::Ref(
+                        docker_url.as_ref().map(|x| x.as_str()).unwrap_or_default(),
+                    )),
+                    value => bail!("invalid runs_on field: {value}"),
                 }
             }
 
-            RunsOn::Build {
+            Self::Build {
                 name,
                 tag,
                 dockerfile,
                 docker_url,
             } => {
-                *name = ctx.transform(name.to_owned()).await?;
-                *tag = ctx.transform(tag.to_owned()).await?;
-                *dockerfile = ctx.transform(dockerfile.to_owned()).await?;
-                *docker_url = if let Some(url) = docker_url {
-                    Some(ctx.transform(url.to_owned()).await?)
-                } else {
-                    None
+                let Some(next) = path.next() else {
+                    bail!("expected a path for evaluating runs_on",);
                 };
-            }
 
-            RunsOn::ContainerOrMachine(image) if image != "machine" => {
-                *image = ctx.transform(image.to_owned()).await?;
-            }
-
-            RunsOn::ContainerOrMachine(_) => {}
-
-            RunsOn::Ssh(ref mut config) => {
-                config.host = ctx.transform(config.host.to_owned()).await?;
-                config.port = ctx.transform(config.port.to_owned()).await?;
-                config.user = ctx.transform(config.user.to_owned()).await?;
-                config.userauth = match &config.userauth {
-                    SshUserAuth::Agent => SshUserAuth::Agent,
-                    SshUserAuth::Keys {
-                        public_key,
-                        private_key,
-                    } => {
-                        let public_key = if let Some(pubkey) = public_key {
-                            Some(ctx.transform(pubkey.to_owned()).await?)
-                        } else {
-                            None
-                        };
-                        let private_key = ctx.transform(private_key.to_owned()).await?;
-                        SshUserAuth::Keys {
-                            public_key,
-                            private_key,
-                        }
+                match next.as_span().as_str() {
+                    "name" => ExprValue::Text(ExprText::Ref(name)),
+                    "tag" => ExprValue::Text(ExprText::Ref(tag)),
+                    "dockerfile" => ExprValue::Text(ExprText::Ref(dockerfile)),
+                    "docker_url" => {
+                        let docker_url = docker_url
+                            .as_ref()
+                            .ok_or_else(|| anyhow!("docker_url field is not set"))?;
+                        ExprValue::Text(ExprText::Ref(docker_url))
                     }
-                    SshUserAuth::Password { password } => {
-                        let password = ctx.transform(password.to_owned()).await?;
-                        SshUserAuth::Password { password }
-                    }
+                    value => bail!("invalid runs_on field: {value}"),
                 }
             }
 
-            RunsOn::SshFromGlobalConfig { ssh_config } => {
-                *ssh_config = ctx.transform(ssh_config.to_owned()).await?;
+            Self::Ssh(config) => config.eval_object(path, rctx, wctx)?,
+
+            Self::SshFromGlobalConfig { ssh_config } => {
+                let Some(next) = path.next() else {
+                    bail!("expected a path for evaluating runs_on",);
+                };
+                match next.as_span().as_str() {
+                    "ssh_config" => ExprValue::Text(ExprText::Ref(ssh_config)),
+                    value => bail!("invalid runs_on field: {value}"),
+                }
+            }
+        };
+
+        if path.peek().is_some() {
+            bail!("invalid expression for runs_on");
+        }
+
+        Ok(value)
+    }
+}
+
+#[cfg(feature = "all")]
+impl<'a> EvalObject<'a> for SshConfig {
+    fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
+        &'a self,
+        path: &mut Peekable<Pairs<'_, Rule>>,
+        rctx: &'a RCtx,
+        wctx: &'a WCtx,
+    ) -> Result<ExprValue<'a>> {
+        let Some(object) = path.next() else {
+            bail!("no object path present to evaluate runs_on");
+        };
+
+        let value = match object.as_span().as_str() {
+            "host" => &self.host,
+            "port" => &self.port,
+            "user" => &self.user,
+            "userauth" => {
+                return self.userauth.eval_object(path, rctx, wctx);
+            }
+            value => bail!("invalid runs_on field: {value}"),
+        };
+
+        if path.peek().is_some() {
+            bail!("invalid expression for runs_on");
+        }
+
+        Ok(ExprValue::Text(ExprText::Ref(value)))
+    }
+}
+
+#[cfg(feature = "all")]
+impl<'a> EvalObject<'a> for SshUserAuth {
+    fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
+        &'a self,
+        path: &mut Peekable<Pairs<'_, Rule>>,
+        _rctx: &'a RCtx,
+        _wctx: &'a WCtx,
+    ) -> Result<ExprValue<'a>> {
+        match self {
+            Self::Keys {
+                public_key,
+                private_key,
+            } => {
+                let Some(object) = path.next() else {
+                    bail!("no object path present to evaluate runs_on");
+                };
+
+                let value = match object.as_span().as_str() {
+                    "type" => "keys",
+                    "public_key" => public_key.as_ref().map(|x| x.as_str()).unwrap_or(""),
+                    "private_key" => private_key.as_str(),
+                    value => bail!("invalid userauth field: {value}"),
+                };
+
+                if path.peek().is_some() {
+                    bail!("invalid expression for runs_on");
+                }
+
+                Ok(ExprValue::Text(ExprText::Ref(value)))
+            }
+
+            Self::Password { password } => {
+                let Some(object) = path.next() else {
+                    bail!("no object path present to evaluate runs_on");
+                };
+
+                let value = match object.as_span().as_str() {
+                    "type" => "password",
+                    "password" => password,
+                    value => bail!("invalid userauth field: {value}"),
+                };
+
+                if path.peek().is_some() {
+                    bail!("invalid expression for runs_on");
+                }
+
+                Ok(ExprValue::Text(ExprText::Ref(value)))
+            }
+
+            Self::Agent => {
+                let Some(object) = path.next() else {
+                    bail!("invalid expression for runs_on");
+                };
+
+                let value = match object.as_span().as_str() {
+                    "type" => "agent",
+                    value => bail!("invalid userauth field: {value}"),
+                };
+
+                if path.peek().is_some() {
+                    bail!("invalid expression for runs_on");
+                }
+
+                Ok(ExprValue::Text(ExprText::Ref(value)))
             }
         }
-        Ok(())
     }
 }
 
@@ -331,4 +457,299 @@ fn validate_global_ssh_config<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &
     }
 
     ctx.pop_section();
+}
+
+#[cfg(test)]
+mod tests {
+    use bld_config::{SshConfig, SshUserAuth};
+
+    use crate::{
+        expr::v3::{
+            context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+            exec::CommonExprExecutor,
+            traits::{EvalExpr, ExprText, ExprValue},
+        },
+        pipeline::v3::Pipeline,
+        registry::v3::Registry,
+    };
+
+    use super::RunsOn;
+
+    #[test]
+    pub fn runs_on_machine_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        pipeline.runs_on = RunsOn::ContainerOrMachine("machine".to_string());
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        let expected = ExprValue::Text(ExprText::Ref("machine"));
+        let actual = exec.eval("${{ runs_on }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&expected),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
+
+    #[test]
+    pub fn runs_on_container_name_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+
+        let data: Vec<(&str, ExprValue)> = vec![
+            ("ubuntu", ExprValue::Text(ExprText::Ref("ubuntu"))),
+            (
+                "ubuntu:latest",
+                ExprValue::Text(ExprText::Ref("ubuntu:latest")),
+            ),
+            (
+                "ubuntu:24.04",
+                ExprValue::Text(ExprText::Ref("ubuntu:24.04")),
+            ),
+            ("arch", ExprValue::Text(ExprText::Ref("arch"))),
+            ("arch:latest", ExprValue::Text(ExprText::Ref("arch:latest"))),
+        ];
+
+        for (value, expected) in data {
+            pipeline.runs_on = RunsOn::ContainerOrMachine(value.to_string());
+            let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+            let actual = exec.eval("${{ runs_on }}").unwrap();
+            assert!(matches!(
+                actual.try_eq(&expected),
+                Ok(ExprValue::Boolean(true))
+            ));
+        }
+    }
+
+    #[test]
+    pub fn runs_on_pull_image_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        pipeline.runs_on = RunsOn::Pull {
+            image: "ubuntu:latest".to_string(),
+            registry: Some(Registry::FromConfig("registry-config".to_string())),
+            pull: Some(true),
+            docker_url: Some("docker-url".to_string()),
+        };
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        let actual = exec.eval("${{ runs_on.image }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("ubuntu:latest"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.registry }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("registry-config"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.pull }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Boolean(true)),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.docker_url }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("docker-url"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
+
+    #[test]
+    pub fn runs_on_build_image_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        pipeline.runs_on = RunsOn::Build {
+            name: "test-image".to_string(),
+            tag: "1.3.4".to_string(),
+            dockerfile: "path-to-dockerfile".to_string(),
+            docker_url: Some("docker-url".to_string()),
+        };
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        let actual = exec.eval("${{ runs_on.name}}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("test-image"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.tag }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("1.3.4"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.dockerfile }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("path-to-dockerfile"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.docker_url }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("docker-url"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
+
+    #[test]
+    pub fn runs_on_ssh_with_user_auth_key_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        pipeline.runs_on = RunsOn::Ssh(SshConfig {
+            host: "localhost".to_string(),
+            port: "3000".to_string(),
+            user: "some_user".to_string(),
+            userauth: SshUserAuth::Keys {
+                public_key: Some("some_public_key".to_string()),
+                private_key: "some_private_key".to_string(),
+            },
+        });
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        let actual = exec.eval("${{ runs_on.host }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("localhost"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.port }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("3000"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.user }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("some_user"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.userauth.type }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("keys"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.userauth.public_key }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("some_public_key"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.userauth.private_key }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("some_private_key"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
+
+    #[test]
+    pub fn runs_on_ssh_with_user_password_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        pipeline.runs_on = RunsOn::Ssh(SshConfig {
+            host: "localhost".to_string(),
+            port: "3000".to_string(),
+            user: "some_user".to_string(),
+            userauth: SshUserAuth::Password {
+                password: "some_password".to_string(),
+            },
+        });
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        let actual = exec.eval("${{ runs_on.host }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("localhost"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.port }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("3000"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.user }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("some_user"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.userauth.type }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("password"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.userauth.password }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("some_password"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
+
+    #[test]
+    pub fn runs_on_ssh_with_user_agent_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        pipeline.runs_on = RunsOn::Ssh(SshConfig {
+            host: "localhost".to_string(),
+            port: "3000".to_string(),
+            user: "some_user".to_string(),
+            userauth: SshUserAuth::Agent,
+        });
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        let actual = exec.eval("${{ runs_on.host }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("localhost"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.port }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("3000"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.user }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("some_user"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ runs_on.userauth.type }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("agent"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
+
+    #[test]
+    pub fn runs_on_ssh_config_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        pipeline.runs_on = RunsOn::SshFromGlobalConfig {
+            ssh_config: "some_global_ssh_config".to_string(),
+        };
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        let actual = exec.eval("${{ runs_on.ssh_config }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("some_global_ssh_config"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
 }

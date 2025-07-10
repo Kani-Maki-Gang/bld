@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use bld_models::dtos::{
     AddJobRequest, AuthTokens, CompletedPipelinesKpi, CronJobResponse, HistQueryParams,
     HistoryEntry, JobFiltersParams, ListResponse, PipelineInfoQueryParams, PipelinePathRequest,
@@ -6,11 +6,11 @@ use bld_models::dtos::{
     RunningPipelinesKpi, RunsPerUserKpi, UpdateJobRequest,
 };
 use leptos::leptos_dom::logging;
-use leptos_router::{use_navigate, NavigateOptions};
+use leptos_router::{NavigateOptions, use_navigate};
 use reqwest::{Client, RequestBuilder, StatusCode};
 use serde::Serialize;
 use std::{collections::HashMap, fmt::Display};
-use web_sys::{window, Storage};
+use web_sys::{Storage, window};
 
 const LOCAL_STORAGE_AUTH_AVAILABLE_KEY: &str = "auth_available";
 const LOCAL_STORAGE_AUTH_TOKENS_KEY: &str = "auth_tokens";

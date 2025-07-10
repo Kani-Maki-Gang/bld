@@ -3,13 +3,13 @@ use actix_web::error::ErrorUnauthorized;
 use actix_web::http::header::HeaderValue;
 use actix_web::web::Data;
 use actix_web::{Error, FromRequest, HttpRequest};
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use bld_config::{Auth, BldConfig, UserInfoProperty};
 use futures::Future;
 use futures_util::future::FutureExt;
+use openidconnect::AccessToken;
 use openidconnect::core::{CoreClient, CoreUserInfoClaims};
 use openidconnect::reqwest::async_http_client;
-use openidconnect::AccessToken;
 use std::pin::Pin;
 
 #[derive(Debug)]

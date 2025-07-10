@@ -1,16 +1,15 @@
 use crate::cron::CronScheduler;
 use crate::endpoints::auth::WebCoreClient;
 use crate::endpoints::{
-    auth, check, copy, cron, deps, hist, home, list, print, pull, push, r#move, remove, run, stop,
+    auth, check, copy, cron, deps, hist, home, list, r#move, print, pull, push, remove, run, stop,
     ui,
 };
 use crate::sockets::{exec, login, monit};
 use crate::supervisor::channel::SupervisorMessageSender;
 use actix_cors::Cors;
 use actix_web::{
-    middleware,
+    App, HttpServer, middleware,
     web::{get, resource},
-    App, HttpServer,
 };
 use anyhow::Result;
 use bld_config::BldConfig;
@@ -43,7 +42,9 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
     .await?
     .into_data();
 
-    set_var("RUST_LOG", "actix_server=info,actix_web=debug");
+    unsafe {
+        set_var("RUST_LOG", "actix_server=info,actix_web=debug");
+    }
     let mut server = HttpServer::new(move || {
         let cors = Cors::default()
             .allow_any_origin()

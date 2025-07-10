@@ -1,7 +1,7 @@
 use crate::pipeline::v1::Pipeline;
 use crate::step::v1::BuildStepExec;
 use crate::traits::Validate;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use bld_config::BldConfig;
 use bld_core::fs::FileSystem;
 use bld_utils::fs::IsYaml;
@@ -14,7 +14,7 @@ pub struct PipelineValidator<'a> {
     fs: Arc<FileSystem>,
 }
 
-impl<'a> Validate for PipelineValidator<'a> {
+impl Validate for PipelineValidator<'_> {
     async fn validate(self) -> Result<()> {
         let mut errors = String::new();
 
@@ -129,7 +129,9 @@ impl<'a> PipelineValidator<'a> {
             .map(|x| x.is_yaml())
             .unwrap_or_default();
         if !found_path {
-            bail!("[steps > exec > ext: {value}] Not found in either the external section or as a local pipeline");
+            bail!(
+                "[steps > exec > ext: {value}] Not found in either the external section or as a local pipeline"
+            );
         }
 
         Ok(())

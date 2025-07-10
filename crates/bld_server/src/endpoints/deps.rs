@@ -2,9 +2,8 @@ use std::sync::Arc;
 
 use crate::extractors::User;
 use actix_web::{
-    get,
+    HttpResponse, Responder, get,
     web::{Data, Query},
-    HttpResponse, Responder,
 };
 use anyhow::Result;
 use bld_config::BldConfig;

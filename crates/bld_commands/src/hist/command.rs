@@ -6,7 +6,7 @@ use bld_http::HttpClient;
 use bld_models::dtos::HistoryEntry;
 use bld_utils::sync::IntoArc;
 use clap::Args;
-use tabled::{settings::Style, Table, Tabled};
+use tabled::{Table, Tabled, settings::Style};
 use tracing::debug;
 
 #[derive(Tabled)]

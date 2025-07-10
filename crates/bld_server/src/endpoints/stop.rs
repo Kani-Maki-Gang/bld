@@ -1,7 +1,7 @@
 use crate::extractors::User;
 use crate::supervisor::channel::SupervisorMessageSender;
 use actix_web::web::{Data, Json};
-use actix_web::{post, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, post};
 use tracing::info;
 
 #[post("/v1/stop")]

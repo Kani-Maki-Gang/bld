@@ -7,7 +7,7 @@ use crate::{
     context::{AppDialog, AppDialogContent, RefreshCronJobs},
     error::SmallError,
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use leptos::{html::Dialog, leptos_dom::logging, *};
 
 type DeleteActionArgs = (

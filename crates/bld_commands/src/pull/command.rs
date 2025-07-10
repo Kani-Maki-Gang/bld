@@ -1,6 +1,6 @@
 use crate::command::BldCommand;
 use actix_web::rt::System;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
 use bld_core::fs::FileSystem;
 use bld_http::HttpClient;

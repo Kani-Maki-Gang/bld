@@ -1,11 +1,11 @@
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, Context as ActixContext, Handler, StreamHandler};
 use actix_codec::Framed;
-use actix_web::rt::{spawn, System};
+use actix_web::rt::{System, spawn};
 use anyhow::Result;
+use awc::BoxedSocket;
 use awc::error::WsProtocolError;
 use awc::ws::{Codec, Frame, Message};
-use awc::BoxedSocket;
 use bld_core::context::Context;
 use bld_core::logger::Logger;
 use bld_models::dtos::{ExecClientMessage, ExecServerMessage};

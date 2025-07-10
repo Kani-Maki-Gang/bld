@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use bld_models::pipeline_run_containers::{
     self, InsertPipelineRunContainer, PRC_STATE_ACTIVE, PRC_STATE_FAULTED, PRC_STATE_KEEP_ALIVE,
     PRC_STATE_REMOVED,

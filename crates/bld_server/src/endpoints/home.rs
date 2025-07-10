@@ -1,4 +1,4 @@
-use actix_web::{get, web::Path, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, get, web::Path};
 use mime_guess::from_path;
 use rust_embed::Embed;
 use tracing::info;
@@ -7,7 +7,7 @@ use tracing::info;
 #[folder = "static_files/"]
 struct StaticFiles;
 
-fn get_static_file(path: &str) -> impl Responder {
+fn get_static_file<'b>(path: &str) -> impl Responder + use<'b> {
     match StaticFiles::get(path) {
         Some(content) => HttpResponse::Ok()
             .content_type(from_path(path).first_or_octet_stream().as_ref())

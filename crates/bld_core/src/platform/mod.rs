@@ -15,11 +15,11 @@ use futures::channel::oneshot;
 pub use image::*;
 pub use machine::*;
 pub use ssh::*;
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::mpsc::{Receiver, Sender, channel};
 use uuid::Uuid;
 
 use actix::spawn;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use tracing::{debug, error};
 
 use crate::logger::Logger;

@@ -16,12 +16,12 @@ pub enum Registry {
 
 impl Registry {
     #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
+    pub async fn apply_tokens(&mut self, context: &PipelineContext<'_>) -> Result<()> {
         match self {
             Registry::FromConfig(url) => {
                 *url = context.transform(url.to_owned()).await?;
             }
-            Registry::Full(ref mut config) => {
+            Registry::Full(config) => {
                 config.url = context.transform(config.url.to_owned()).await?;
                 if let Some(ref mut username) = config.username {
                     config.username = Some(context.transform(username.to_owned()).await?);

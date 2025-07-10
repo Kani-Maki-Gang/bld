@@ -1,6 +1,5 @@
-use std::collections::{HashMap, HashSet};
-
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     inputs::v3::Input,
@@ -9,22 +8,33 @@ use crate::{
 };
 
 #[cfg(feature = "all")]
+use std::iter::Peekable;
+
+#[cfg(feature = "all")]
+use anyhow::{Result, anyhow, bail};
+
+#[cfg(feature = "all")]
 use bld_config::BldConfig;
 
 #[cfg(feature = "all")]
 use crate::{
-    token_context::v3::{ApplyContext, ExecutionContext},
+    expr::v3::{
+        parser::Rule,
+        traits::{
+            EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
+        },
+    },
     traits::Dependencies,
     validator::v3::{Validate, ValidatorContext},
 };
 
 #[cfg(feature = "all")]
-use anyhow::Result;
-
-#[cfg(feature = "all")]
 use tracing::debug;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg(feature = "all")]
+use pest::iterators::Pairs;
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Action {
     pub name: String,
 
@@ -94,17 +104,52 @@ impl Dependencies for Action {
 }
 
 #[cfg(feature = "all")]
-impl ApplyContext for Action {
-    async fn apply_context<C: ExecutionContext>(&mut self, ctx: &C) -> Result<()> {
-        for (_name, input) in self.inputs.iter_mut() {
-            input.apply_context(ctx).await?;
-        }
+impl<'a> EvalObject<'a> for Action {
+    fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
+        &'a self,
+        path: &mut Peekable<Pairs<'_, Rule>>,
+        rctx: &'a RCtx,
+        wctx: &'a WCtx,
+    ) -> Result<ExprValue<'a>> {
+        let Some(object) = path.next() else {
+            bail!("no object path present");
+        };
 
-        for step in self.steps.iter_mut() {
-            step.apply_context(ctx).await?;
-        }
+        let mut object_parts = object.into_inner();
+        let Some(part) = object_parts.next() else {
+            bail!("expected at least one part in the object path");
+        };
 
-        Ok(())
+        match part.as_span().as_str() {
+            "name" => Ok(ExprValue::Text(ExprText::Ref(self.name.as_str()))),
+
+            "inputs" => {
+                let Some(part) = object_parts.next() else {
+                    bail!("expected name of input in object path");
+                };
+                let name = part.as_span().as_str();
+                let input = self
+                    .inputs
+                    .get(name)
+                    .ok_or_else(|| anyhow!("input '{name}' not found"))?;
+                input.try_into().map(|x| ExprValue::Text(ExprText::Ref(x)))
+            }
+
+            "steps" => {
+                let Some(step_id) = object_parts.next() else {
+                    bail!("expected id for step in expression");
+                };
+
+                let step_id = step_id.as_span().as_str();
+                let Some(step) = self.steps.iter().find(|x| x.is(step_id)) else {
+                    bail!("step with id {step_id} not defined");
+                };
+
+                step.eval_object(&mut object_parts.peekable(), rctx, wctx)
+            }
+
+            value => bail!("invalid expression identifier {value}"),
+        }
     }
 }
 
@@ -131,5 +176,96 @@ impl<'a> Validate<'a> for Action {
             step.validate(ctx).await;
         }
         ctx.pop_section();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        expr::v3::{
+            context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+            exec::CommonExprExecutor,
+            traits::{EvalExpr, ExprText, ExprValue},
+        },
+        inputs::v3::Input,
+    };
+
+    use super::Action;
+
+    #[test]
+    pub fn name_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut action = Action::default();
+        let data = vec!["test", "hello world", ""];
+
+        for entry in data {
+            action.name = entry.to_string();
+
+            let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+            let Ok(value) = exec.eval("${{ name }}") else {
+                panic!("result is an error during expression evaluation");
+            };
+
+            let expected = ExprValue::Text(ExprText::Ref(entry));
+
+            assert!(matches!(
+                value.try_eq(&expected),
+                Ok(ExprValue::Boolean(true))
+            ));
+        }
+    }
+
+    #[test]
+    pub fn inputs_expr_eval_success() {
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut action = Action::default();
+        action
+            .inputs
+            .insert("name".to_string(), Input::Simple("john".to_string()));
+        action
+            .inputs
+            .insert("surname".to_string(), Input::Simple("doe".to_string()));
+        action
+            .inputs
+            .insert("age".to_string(), Input::Simple("30".to_string()));
+        action.inputs.insert(
+            "address".to_string(),
+            Input::Complex {
+                default: Some("highway".to_string()),
+                description: None,
+                required: false,
+            },
+        );
+        action.inputs.insert(
+            "taxId".to_string(),
+            Input::Complex {
+                default: Some("999999999".to_string()),
+                description: Some("a test input".to_string()),
+                required: true,
+            },
+        );
+
+        let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+
+        for (k, v) in &action.inputs {
+            let expr = format!("{} inputs.{k} {}", "${{", "}}");
+            let Ok(value) = exec.eval(&expr) else {
+                panic!("result is an error during expression evaluation");
+            };
+            let expected = match v {
+                Input::Simple(value) => ExprValue::Text(ExprText::Ref(value)),
+                Input::Complex {
+                    default: Some(default),
+                    ..
+                } => ExprValue::Text(ExprText::Ref(default)),
+                _ => panic!("no value defined"),
+            };
+            assert!(matches!(
+                value.try_eq(&expected),
+                Ok(ExprValue::Boolean(true))
+            ));
+        }
     }
 }

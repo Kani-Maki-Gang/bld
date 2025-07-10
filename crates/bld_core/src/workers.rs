@@ -1,6 +1,6 @@
 use std::process::ExitStatus;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use tokio::process::{Child, Command};
 
 #[cfg(target_family = "unix")]

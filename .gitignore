@@ -1,11 +1,21 @@
+# Rust
 /target
 **/*/target
+
+# Editors
 /.build
 /.vscode
 /.vimspector.json
+
+# Artifacts
 /dist
 /crates/bld_ui/dist
 /crates/bld_server/static_files
+
+# UI
+**/*/node_modules
+
+# CI CD
 /.bld/**/*
 !/.bld/config.yaml
 !/.bld/pipelines

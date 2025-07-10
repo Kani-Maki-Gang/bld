@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use bld_config::definitions::{
     KEYWORD_BLD_DIR_V2, KEYWORD_PROJECT_DIR_V2, KEYWORD_RUN_PROPS_ID_V2,
     KEYWORD_RUN_PROPS_START_TIME_V2,

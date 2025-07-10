@@ -1,4 +1,4 @@
-use crate::{definitions, Auth, BldTlsConfig};
+use crate::{Auth, BldTlsConfig, definitions};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]

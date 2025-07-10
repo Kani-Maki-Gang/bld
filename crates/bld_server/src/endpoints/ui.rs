@@ -1,5 +1,5 @@
-use actix_web::{get, web::Data, HttpResponse, Responder};
-use anyhow::{anyhow, Result};
+use actix_web::{HttpResponse, Responder, get, web::Data};
+use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
 use bld_models::{
     dtos::{

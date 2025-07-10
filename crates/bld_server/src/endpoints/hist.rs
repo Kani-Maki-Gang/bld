@@ -1,5 +1,5 @@
 use crate::extractors::User;
-use actix_web::{get, web::Data, web::Query, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, get, web::Data, web::Query};
 use anyhow::Result;
 use bld_models::{
     dtos::{HistQueryParams, HistoryEntry},

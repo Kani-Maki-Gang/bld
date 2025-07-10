@@ -1,5 +1,5 @@
 use actix_web::rt::spawn;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
 use std::{fmt::Write as FmtWrite, io::Write, sync::Arc};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
@@ -7,7 +7,7 @@ use tokio::{
     fs::File,
     io::{AsyncReadExt, AsyncWriteExt},
     sync::{
-        mpsc::{channel, Receiver, Sender},
+        mpsc::{Receiver, Sender, channel},
         oneshot,
     },
 };
@@ -135,7 +135,7 @@ impl LoggerBackend {
     pub async fn write(&mut self, text: &str, resp_tx: oneshot::Sender<()>) -> Result<()> {
         match &mut self.logger_type {
             LoggerType::Shell => {
-                print!("{}", text);
+                print!("{text}");
             }
             LoggerType::File(handle) => {
                 let bytes = text.as_bytes();

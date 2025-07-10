@@ -1,12 +1,12 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use bld_config::BldConfig;
 use bld_core::{
     context::Context,
     fs::FileSystem,
     logger::Logger,
     platform::{
-        builder::{PlatformBuilder, PlatformOptions},
         Image, Platform,
+        builder::{PlatformBuilder, PlatformOptions},
     },
     regex::RegexCache,
     signals::UnixSignalsBackend,
@@ -14,20 +14,24 @@ use bld_core::{
 use bld_models::dtos::WorkerMessages;
 use bld_utils::sync::IntoArc;
 use chrono::Utc;
+use regex::Regex;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use uuid::Uuid;
 
 use crate::{
+    expr,
     files::{
         v3::RunnerFile,
         versioned::{VersionedFile, Yaml},
     },
     runner::{self, v3::FileRunner, versioned::VersionedRunner},
-    token_context::{self, v3::ApplyContext},
+    token_context,
     traits::Load,
 };
+
+use super::v3::build_platform;
 
 pub struct RunnerBuilder<'a> {
     run_id: String,
@@ -235,67 +239,71 @@ impl<'a> RunnerBuilder<'a> {
                 })
             }
 
-            VersionedFile::Version3(RunnerFile::PipelineFileType(mut pipeline)) => {
-                let pipeline_context = token_context::v3::ExecutionContextBuilder::default()
-                    .root_dir(&config.root_dir)
-                    .project_dir(&config.project_dir)
-                    .add_inputs(&pipeline.inputs_map())
-                    .add_inputs(&inputs)
-                    .add_env(&pipeline.env)
-                    .add_env(&env)
-                    .run_id(&self.run_id)
-                    .run_start_time(&self.run_start_time)
-                    .regex_cache(self.regex_cache.clone())
-                    .build()?;
+            VersionedFile::Version3(RunnerFile::PipelineFileType(pipeline)) => {
+                let pipeline = (*pipeline).into_arc();
+                let expr_rctx = expr::v3::context::CommonReadonlyRuntimeExprContext::new(
+                    config.clone(),
+                    inputs,
+                    env,
+                    self.run_id,
+                    self.run_start_time,
+                )
+                .into_arc();
 
-                pipeline.apply_context(&pipeline_context).await?;
+                let expr_regex = Regex::new(expr::v3::parser::EXPR_REGEX)?.into_arc();
 
-                let pipeline = Arc::new(*pipeline);
+                let platform = build_platform(
+                    pipeline.clone(),
+                    config.clone(),
+                    self.logger.clone(),
+                    context.clone(),
+                    expr_rctx.clone(),
+                )
+                .await?;
+
                 VersionedRunner::V3(FileRunner::Pipeline(runner::v3::PipelineRunner {
-                    run_id: self.run_id,
-                    run_start_time: self.run_start_time,
                     config,
+                    expr_regex,
+                    expr_rctx,
+                    pipeline,
+                    platform,
+                    run_ctx: context,
+                    fs: self.fs.clone(),
+                    regex_cache: self.regex_cache.clone(),
                     signals: self.signals,
                     logger: self.logger,
-                    regex_cache: self.regex_cache,
-                    fs: self.fs,
-                    pipeline,
                     ipc: self.ipc,
-                    env,
-                    context,
-                    platform: None,
                     is_child: self.is_child,
                     has_faulted: false,
                 }))
             }
 
-            VersionedFile::Version3(RunnerFile::ActionFileType(mut action)) => {
+            VersionedFile::Version3(RunnerFile::ActionFileType(action)) => {
                 if !self.is_child {
                     bail!("cannot run action files");
                 }
+
+                let expr_regex = Regex::new(expr::v3::parser::EXPR_REGEX)?;
+
+                let expr_rctx = expr::v3::context::CommonReadonlyRuntimeExprContext::new(
+                    config.clone(),
+                    inputs,
+                    env,
+                    self.run_id,
+                    self.run_start_time,
+                );
 
                 let platform = self
                     .platform
                     .ok_or_else(|| anyhow!("no platform provided"))?;
 
-                let execution_context = token_context::v3::ExecutionContextBuilder::default()
-                    .root_dir(&config.root_dir)
-                    .project_dir(&config.project_dir)
-                    .add_inputs(&action.inputs_map())
-                    .add_inputs(&inputs)
-                    .add_env(&env)
-                    .run_id(&self.run_id)
-                    .run_start_time(&self.run_start_time)
-                    .regex_cache(self.regex_cache.clone())
-                    .build()?;
-
-                action.apply_context(&execution_context).await?;
-
-                VersionedRunner::V3(FileRunner::Action(runner::v3::ActionRunner {
-                    logger: self.logger,
-                    action: *action,
-                    platform: platform.clone(),
-                }))
+                VersionedRunner::V3(FileRunner::Action(runner::v3::ActionRunner::new(
+                    self.logger,
+                    *action,
+                    platform,
+                    expr_regex,
+                    expr_rctx,
+                )))
             }
         };
 

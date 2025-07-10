@@ -57,13 +57,13 @@ impl BldCommand for CronCatCommand {
 
                 if let Some(inputs) = &entry.inputs {
                     for (k, v) in inputs {
-                        write!(message, " -i {}='{}'", k, v)?;
+                        write!(message, " -i {k}='{v}'")?;
                     }
                 }
 
                 if let Some(environment) = &entry.env {
                     for (k, v) in environment {
-                        write!(message, " -e {}='{}'", k, v)?;
+                        write!(message, " -e {k}='{v}'")?;
                     }
                 }
 

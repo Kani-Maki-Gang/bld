@@ -1,7 +1,6 @@
 use actix_web::{
-    patch,
+    HttpResponse, Responder, patch,
     web::{Data, Json},
-    HttpResponse, Responder,
 };
 use bld_core::fs::FileSystem;
 use bld_models::dtos::PipelinePathRequest;

@@ -4,7 +4,7 @@ mod schedule;
 use super::helpers::hash_map_rw_signals;
 use crate::pages::home::RunPipelineVariables;
 use bld_models::dtos::CronJobResponse;
-use bld_runner::{traits::IntoVariables, VersionedFile};
+use bld_runner::{VersionedFile, traits::IntoVariables};
 use details::CronJobsEditDetails;
 use leptos::*;
 use schedule::CronJobsEditSchedule;

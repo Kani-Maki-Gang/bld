@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
 use bld_utils::sync::IntoArc;
 use sea_orm::DatabaseConnection;
@@ -10,7 +10,7 @@ use crate::{
     platform::{Container, Image, Machine, Platform, Ssh, SshConnectOptions, SshExecutionOptions},
 };
 
-use super::{context::PlatformContext, ContainerOptions};
+use super::{ContainerOptions, context::PlatformContext};
 
 pub enum PlatformOptions<'a> {
     Container {

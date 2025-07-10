@@ -1,14 +1,14 @@
 use std::io::Write;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use bld_config::RegistryConfig;
 use bollard::{
+    Docker,
     auth::DockerCredentials,
     image::{BuildImageOptions, CreateImageOptions},
     service::{BuildInfo, CreateImageInfo},
-    Docker,
 };
-use flate2::{write::GzEncoder, Compression};
+use flate2::{Compression, write::GzEncoder};
 use futures::TryStreamExt;
 use tar::{Builder, Header};
 use tokio::fs::read_to_string;
@@ -20,7 +20,7 @@ pub struct PullImage<'a> {
     registry: Option<&'a RegistryConfig>,
 }
 
-impl<'a> PullImage<'a> {
+impl PullImage<'_> {
     pub async fn pull(&self, client: &Docker, logger: &Logger) -> Result<()> {
         let image = self.image;
         let opts = CreateImageOptions {

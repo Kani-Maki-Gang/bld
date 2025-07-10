@@ -1,16 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "all")]
-use crate::{
-    token_context::v3::{ApplyContext, ExecutionContext},
-    validator::v3::{Validate, ValidatorContext},
+use {
+    crate::validator::v3::{Validate, ValidatorContext},
+    anyhow::{Error, Result, anyhow},
+    tracing::debug,
 };
-
-#[cfg(feature = "all")]
-use anyhow::Result;
-
-#[cfg(feature = "all")]
-use tracing::debug;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -33,19 +28,16 @@ impl Input {
 }
 
 #[cfg(feature = "all")]
-impl ApplyContext for Input {
-    async fn apply_context<C: ExecutionContext>(&mut self, ctx: &C) -> Result<()> {
+impl<'a> TryInto<&'a str> for &'a Input {
+    type Error = Error;
+
+    fn try_into(self) -> Result<&'a str, Self::Error> {
         match self {
-            Input::Simple(v) => {
-                *v = ctx.transform(v.to_owned()).await?;
-            }
-            Input::Complex { default, .. } => {
-                if let Some(v) = default {
-                    *default = Some(ctx.transform(v.to_owned()).await?);
-                }
-            }
+            Input::Simple(v) => Ok(v),
+            Input::Complex { default, .. } => default
+                .as_deref()
+                .ok_or_else(|| anyhow!("default value not found")),
         }
-        Ok(())
     }
 }
 

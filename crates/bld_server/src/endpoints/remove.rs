@@ -1,7 +1,7 @@
 use crate::cron::CronScheduler;
 use crate::extractors::User;
 use actix_web::web::{Data, Query};
-use actix_web::{delete, HttpResponse};
+use actix_web::{HttpResponse, delete};
 use anyhow::Result;
 use bld_core::fs::FileSystem;
 use bld_models::dtos::PipelineQueryParams;

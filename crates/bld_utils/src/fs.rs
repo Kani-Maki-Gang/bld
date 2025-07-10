@@ -1,9 +1,9 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use bld_config::definitions::TOOL_DEFAULT_CONFIG;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
-use tokio::fs::{create_dir_all, read_to_string, remove_file, File};
+use tokio::fs::{File, create_dir_all, read_to_string, remove_file};
 use tokio::io::AsyncWriteExt;
 
 pub trait IsYaml {

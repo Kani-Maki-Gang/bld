@@ -1,5 +1,5 @@
-use crate::definitions;
 use crate::BldTlsConfig;
+use crate::definitions;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]

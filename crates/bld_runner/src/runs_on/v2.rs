@@ -41,7 +41,7 @@ impl Display for RunsOn {
             Self::ContainerOrMachine(image) => write!(f, "{image}"),
             Self::Pull { image, .. } => write!(f, "{image}"),
             Self::Build { name, tag, .. } => write!(f, "{name}:{tag}"),
-            Self::SshFromGlobalConfig { ssh_config } => write!(f, "{}", ssh_config),
+            Self::SshFromGlobalConfig { ssh_config } => write!(f, "{ssh_config}"),
             Self::Ssh(config) => write!(f, "{}:{}", config.host, config.port),
         }
     }
@@ -73,7 +73,7 @@ impl RunsOn {
     }
 
     #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
+    pub async fn apply_tokens(&mut self, context: &PipelineContext<'_>) -> Result<()> {
         match self {
             RunsOn::Pull {
                 image,
@@ -112,7 +112,7 @@ impl RunsOn {
 
             RunsOn::ContainerOrMachine(_) => {}
 
-            RunsOn::Ssh(ref mut config) => {
+            RunsOn::Ssh(config) => {
                 config.host = context.transform(config.host.to_owned()).await?;
                 config.port = context.transform(config.port.to_owned()).await?;
                 config.user = context.transform(config.user.to_owned()).await?;

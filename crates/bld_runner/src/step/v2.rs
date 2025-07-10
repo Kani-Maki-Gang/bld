@@ -40,7 +40,7 @@ impl BuildStep {
     }
 
     #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
+    pub async fn apply_tokens(&mut self, context: &PipelineContext<'_>) -> Result<()> {
         match self {
             Self::One(exec) => {
                 exec.apply_tokens(context).await?;
@@ -90,7 +90,7 @@ impl BuildStepExec {
     }
 
     #[cfg(feature = "all")]
-    pub async fn apply_tokens<'a>(&mut self, context: &PipelineContext<'a>) -> Result<()> {
+    pub async fn apply_tokens(&mut self, context: &PipelineContext<'_>) -> Result<()> {
         match self {
             Self::Shell(cmd) => {
                 *cmd = context.transform(cmd.to_owned()).await?;

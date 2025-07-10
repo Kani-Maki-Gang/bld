@@ -1,23 +1,23 @@
 use crate::command::BldCommand;
 use actix::System;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use bld_config::definitions::{
     DEFAULT_V3_PIPELINE_CONTENT, LOCAL_DEFAULT_DB_DIR, LOCAL_DEFAULT_DB_NAME,
 };
 use bld_config::path;
 use bld_config::{
+    BldConfig,
     definitions::{
         LOCAL_LOGS, LOCAL_SERVER_PIPELINES, TOOL_DEFAULT_CONFIG_FILE, TOOL_DEFAULT_PIPELINE,
         TOOL_DEFAULT_PIPELINE_FILE, TOOL_DIR,
     },
-    BldConfig,
 };
 use bld_utils::term::print_info;
 use clap::Args;
 use std::env::current_dir;
 use std::path::Component::Normal;
 use std::path::{Path, PathBuf};
-use tokio::fs::{create_dir, read_dir, write, File};
+use tokio::fs::{File, create_dir, read_dir, write};
 use tracing::debug;
 
 #[derive(Args)]
@@ -52,7 +52,7 @@ impl BldCommand for InitCommand {
                 create_config_yaml(self.is_server).await?;
                 Ok(())
             } else {
-                let message = format!("{} dir already exists in the current directory", TOOL_DIR);
+                let message = format!("{TOOL_DIR} dir already exists in the current directory");
                 bail!(message)
             }
         })
@@ -60,7 +60,7 @@ impl BldCommand for InitCommand {
 }
 
 fn print_dir_created(dir: &str) -> Result<()> {
-    print_info(&format!("{} directory created", dir))
+    print_info(&format!("{dir} directory created"))
 }
 
 async fn build_dir_exists() -> Result<bool> {
@@ -69,7 +69,7 @@ async fn build_dir_exists() -> Result<bool> {
     while let Ok(Some(entry)) = read_dir.next_entry().await {
         let path = entry.path();
         if path.is_dir() {
-            let component = path.components().last();
+            let component = path.components().next_back();
             if let Some(Normal(name)) = component {
                 if name == TOOL_DIR {
                     return Ok(true);
@@ -119,7 +119,7 @@ async fn create_server_pipelines_dir(is_server: bool) -> Result<()> {
 async fn create_default_yaml() -> Result<()> {
     let path = path![TOOL_DIR, TOOL_DEFAULT_PIPELINE_FILE];
     write(path, DEFAULT_V3_PIPELINE_CONTENT).await?;
-    print_info(&format!("{} yaml file created", TOOL_DEFAULT_PIPELINE))?;
+    print_info(&format!("{TOOL_DEFAULT_PIPELINE} yaml file created"))?;
     Ok(())
 }
 

@@ -5,15 +5,15 @@ use crate::{
     step::v2::{BuildStep, BuildStepExec},
     traits::Validate,
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
+use bld_config::{BldConfig, SshUserAuth, path};
 use bld_config::{
+    DockerUrl,
     definitions::{
         KEYWORD_BLD_DIR_V2, KEYWORD_PROJECT_DIR_V2, KEYWORD_RUN_PROPS_ID_V2,
         KEYWORD_RUN_PROPS_START_TIME_V2,
     },
-    DockerUrl,
 };
-use bld_config::{path, BldConfig, SshUserAuth};
 use bld_core::fs::FileSystem;
 use bld_utils::fs::IsYaml;
 use cron::Schedule;
@@ -36,7 +36,7 @@ pub struct PipelineValidator<'a> {
     errors: String,
 }
 
-impl<'a> Validate for PipelineValidator<'a> {
+impl Validate for PipelineValidator<'_> {
     async fn validate(mut self) -> Result<()> {
         self.validate_runs_on();
         self.validate_cron();
@@ -217,7 +217,10 @@ impl<'a> PipelineValidator<'a> {
             DockerUrl::Multiple(urls) => {
                 let url = urls.keys().find(|x| x.as_str() == value);
                 if url.is_none() {
-                    let _ = writeln!(self.errors, "[runs_on > docker_url] The defined docker url key wasn't found in the config file");
+                    let _ = writeln!(
+                        self.errors,
+                        "[runs_on > docker_url] The defined docker url key wasn't found in the config file"
+                    );
                 }
             }
         }
@@ -325,12 +328,11 @@ impl<'a> PipelineValidator<'a> {
             Ok(path) if !path.is_yaml() => {
                 let _ = writeln!(
                     self.errors,
-                    "[external > pipeline > {}] File not found",
-                    pipeline
+                    "[external > pipeline > {pipeline}] File not found"
                 );
             }
             Err(e) => {
-                let _ = writeln!(self.errors, "[external > pipeline > {}] {e}", pipeline);
+                let _ = writeln!(self.errors, "[external > pipeline > {pipeline}] {e}");
             }
             _ => {}
         }
@@ -350,8 +352,7 @@ impl<'a> PipelineValidator<'a> {
         if self.config.server(server).is_err() {
             let _ = writeln!(
                 self.errors,
-                "[external > server > {}] Doesn't exist in current config",
-                server
+                "[external > server > {server}] Doesn't exist in current config"
             );
         }
     }
@@ -454,7 +455,10 @@ impl<'a> PipelineValidator<'a> {
             .unwrap_or_default();
 
         if !found_path {
-            let _ = writeln!(self.errors, "[{section} > ext > {value}] Not found in either the external section or as a local pipeline");
+            let _ = writeln!(
+                self.errors,
+                "[{section} > ext > {value}] Not found in either the external section or as a local pipeline"
+            );
         }
     }
 }

@@ -1,14 +1,14 @@
 use std::{collections::HashMap, path::Path, path::PathBuf, sync::Arc};
 
-use anyhow::{anyhow, bail, Result};
-use bld_config::{path, BldConfig};
+use anyhow::{Result, anyhow, bail};
+use bld_config::{BldConfig, path};
 use bollard::{
+    Docker,
     container::{
         Config as ContainerConfig, CreateContainerOptions, DownloadFromContainerOptions, LogOutput,
         StartContainerOptions, UploadToContainerOptions,
     },
     exec::{CreateExecOptions, StartExecResults},
-    Docker,
 };
 use futures::StreamExt;
 use tar::{Archive, Builder};
@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::logger::Logger;
 
-use super::{context::PlatformContext, docker, Image};
+use super::{Image, context::PlatformContext, docker};
 
 pub struct ContainerOptions<'a> {
     pub config: Arc<BldConfig>,

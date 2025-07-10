@@ -1,12 +1,12 @@
 use crate::extractors::User;
 use actix::prelude::*;
 use actix_web::{
+    Error, HttpRequest, HttpResponse,
     error::ErrorUnauthorized,
     web::{Data, Payload},
-    Error, HttpRequest, HttpResponse,
 };
 use actix_web_actors::ws;
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use bld_config::BldConfig;
 use bld_core::scanner::FileScanner;
 use bld_models::{

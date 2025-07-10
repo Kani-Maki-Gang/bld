@@ -4,7 +4,7 @@ use crate::queues::worker_queue_channel;
 use crate::sockets::{ws_server_socket, ws_worker_socket};
 use actix_web::web::{get, resource};
 use actix_web::{App, HttpServer};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
 use bld_models::new_connection_pool;
 use bld_utils::sync::IntoData;

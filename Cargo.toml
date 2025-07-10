@@ -2,7 +2,7 @@
 name = "bld"
 version = "0.4.0"
 authors = ["Kostas Vlachos <kvl_93@outlook.com>"]
-edition = "2021"
+edition = "2024"
 
 [workspace]
 members = [

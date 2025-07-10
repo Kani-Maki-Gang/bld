@@ -4,9 +4,9 @@ use crate::{
 };
 use actix::prelude::*;
 use actix_web::{
+    Error, HttpRequest, HttpResponse,
     error::ErrorUnauthorized,
     web::{Data, Payload},
-    Error, HttpRequest, HttpResponse,
 };
 use actix_web_actors::ws;
 use anyhow::Result;

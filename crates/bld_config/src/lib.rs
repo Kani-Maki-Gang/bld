@@ -23,7 +23,7 @@ use crate::definitions::{
     LOCAL_SERVER_PORT, REMOTE_SERVER_AUTH, TOOL_DEFAULT_CONFIG_FILE, TOOL_DIR,
     WEB_CLIENT_DEBUG_ORIGIN,
 };
-use anyhow::{anyhow, Error, Result};
+use anyhow::{Error, Result, anyhow};
 use openidconnect::core::CoreClient;
 use serde::{Deserialize, Serialize};
 use std::env::current_dir;

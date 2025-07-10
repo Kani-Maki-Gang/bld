@@ -1,7 +1,7 @@
 use crate::extractors::User;
 use actix_web::http::header;
 use actix_web::web::{Data, Header, Query};
-use actix_web::{get, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, get};
 use bld_core::fs::FileSystem;
 use bld_models::dtos::PipelineInfoQueryParams;
 use bld_runner::{Load, Yaml};

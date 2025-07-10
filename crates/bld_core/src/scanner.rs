@@ -1,12 +1,12 @@
 use actix::spawn;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
 use std::path::PathBuf;
 use tokio::{
     fs::File,
     io::{AsyncBufReadExt, BufReader},
     sync::{
-        mpsc::{channel, Receiver, Sender},
+        mpsc::{Receiver, Sender, channel},
         oneshot,
     },
 };

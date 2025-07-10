@@ -1,5 +1,5 @@
 use crate::supervisor::channel::SupervisorMessageSender;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use bld_core::fs::FileSystem;
 use bld_models::{
     dtos::ExecClientMessage,

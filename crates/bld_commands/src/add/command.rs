@@ -1,7 +1,7 @@
 use actix::System;
 use anyhow::Result;
-use bld_config::definitions::DEFAULT_V3_PIPELINE_CONTENT;
 use bld_config::BldConfig;
+use bld_config::definitions::DEFAULT_V3_PIPELINE_CONTENT;
 use bld_core::fs::FileSystem;
 use bld_http::HttpClient;
 use bld_utils::sync::IntoArc;
@@ -60,13 +60,13 @@ impl AddCommand {
         let client = HttpClient::new(config, server)?;
         let tmp_name = format!("{}.yaml", Uuid::new_v4());
 
-        println!("Creating temporary local pipeline {}", tmp_name);
+        println!("Creating temporary local pipeline {tmp_name}");
         debug!("creating temporary pipeline file: {tmp_name}");
         fs.create_tmp(&tmp_name, DEFAULT_V3_PIPELINE_CONTENT, true)
             .await?;
 
         if self.edit {
-            println!("Editing temporary local pipeline {}", tmp_name);
+            println!("Editing temporary local pipeline {tmp_name}");
             debug!("starting editor for temporary pipeline file: {tmp_name}");
             fs.edit_tmp(&tmp_name).await?;
         }
