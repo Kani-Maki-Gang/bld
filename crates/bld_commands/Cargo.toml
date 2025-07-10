@@ -27,7 +27,7 @@ serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.132"
 serde_yaml_ng = "0.10.0"
 signal-hook = "0.3.17"
-tokio = { version = "1.41.1", features = ["full"] }
+tokio = { version = "1.43.1", features = ["full"] }
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 uuid = { version = "1.11.0", features = ["v4"] }
