@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.bg-grid {
+  background: url("grid.svg");
+}
+
+body {
+  font-family: "Roboto", sans-serif;
+  @apply text-white;
+}
+
+dialog {
+  font-family: "Roboto", sans-serif;
+  @apply text-white;
+}
