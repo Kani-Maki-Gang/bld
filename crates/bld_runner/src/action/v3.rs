@@ -1,12 +1,22 @@
-use std::{
-    collections::{HashMap, HashSet},
-    iter::Peekable,
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+
+use crate::{
+    inputs::v3::Input,
+    step::v3::Step,
+    traits::{IntoVariables, Variables},
 };
 
-use anyhow::{Result, anyhow, bail};
-use pest::iterators::Pairs;
-use serde::{Deserialize, Serialize};
+#[cfg(feature = "all")]
+use std::iter::Peekable;
 
+#[cfg(feature = "all")]
+use anyhow::{Result, anyhow, bail};
+
+#[cfg(feature = "all")]
+use bld_config::BldConfig;
+
+#[cfg(feature = "all")]
 use crate::{
     expr::v3::{
         parser::Rule,
@@ -14,22 +24,15 @@ use crate::{
             EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
         },
     },
-    inputs::v3::Input,
-    step::v3::Step,
-    traits::{IntoVariables, Variables},
-};
-
-#[cfg(feature = "all")]
-use bld_config::BldConfig;
-
-#[cfg(feature = "all")]
-use crate::{
     traits::Dependencies,
     validator::v3::{Validate, ValidatorContext},
 };
 
 #[cfg(feature = "all")]
 use tracing::debug;
+
+#[cfg(feature = "all")]
+use pest::iterators::Pairs;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Action {

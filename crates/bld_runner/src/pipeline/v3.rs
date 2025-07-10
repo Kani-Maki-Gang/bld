@@ -1,6 +1,5 @@
 use crate::{
     artifacts::v3::Artifacts,
-    expr::v3::traits::{ExprText, ReadonlyRuntimeExprContext, WritableRuntimeExprContext},
     external::v3::External,
     inputs::v3::Input,
     runs_on::v3::RunsOn,
@@ -8,17 +7,20 @@ use crate::{
     traits::{IntoVariables, Variables},
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{HashMap, HashSet},
-    iter::Peekable,
-};
+use std::collections::{HashMap, HashSet};
+
+#[cfg(feature = "all")]
+use std::iter::Peekable;
 
 #[cfg(feature = "all")]
 use {
     crate::{
         expr::v3::{
             parser::Rule,
-            traits::{EvalObject, ExprValue},
+            traits::{
+                EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext,
+                WritableRuntimeExprContext,
+            },
         },
         validator::v3::{Validate, ValidatorContext},
     },

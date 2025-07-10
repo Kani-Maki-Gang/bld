@@ -1,17 +1,8 @@
-use std::iter::Peekable;
-
-use crate::{
-    expr::v3::{
-        parser::Rule,
-        traits::{
-            EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
-        },
-    },
-    external::v3::External,
-};
-use anyhow::{Result, bail};
-use pest::iterators::Pairs;
+use crate::external::v3::External;
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "all")]
+use std::iter::Peekable;
 
 #[cfg(feature = "all")]
 use bld_config::BldConfig;
@@ -23,7 +14,19 @@ use bld_utils::fs::IsYaml;
 use tracing::debug;
 
 #[cfg(feature = "all")]
+use pest::iterators::Pairs;
+
+#[cfg(feature = "all")]
+use anyhow::{Result, bail};
+
+#[cfg(feature = "all")]
 use crate::{
+    expr::v3::{
+        parser::Rule,
+        traits::{
+            EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
+        },
+    },
     traits::Dependencies,
     validator::v3::{Validate, ValidatorContext},
 };

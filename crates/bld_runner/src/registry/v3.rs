@@ -1,16 +1,22 @@
-use std::iter::Peekable;
-
-use anyhow::{Result, anyhow, bail};
 use bld_config::RegistryConfig;
-use pest::iterators::Pairs;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "all")]
+use std::iter::Peekable;
+
+#[cfg(feature = "all")]
+use anyhow::{Result, anyhow, bail};
+
+#[cfg(feature = "all")]
 use crate::expr::v3::{
     parser::Rule,
     traits::{
         EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
     },
 };
+
+#[cfg(feature = "all")]
+use pest::iterators::Pairs;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]

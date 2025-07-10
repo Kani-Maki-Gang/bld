@@ -1,18 +1,23 @@
-use crate::{
-    expr::v3::traits::{ExprText, ReadonlyRuntimeExprContext, WritableRuntimeExprContext},
-    registry::v3::Registry,
-};
-use anyhow::{anyhow, bail};
+use crate::registry::v3::Registry;
 use bld_config::SshConfig;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, iter::Peekable};
+use std::fmt::Display;
+
+#[cfg(feature = "all")]
+use std::iter::Peekable;
+
+#[cfg(feature = "all")]
+use anyhow::{anyhow, bail};
 
 #[cfg(feature = "all")]
 use {
     crate::{
         expr::v3::{
             parser::Rule,
-            traits::{EvalObject, ExprValue},
+            traits::{
+                EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext,
+                WritableRuntimeExprContext,
+            },
         },
         validator::v3::{Validate, ValidatorContext},
     },
