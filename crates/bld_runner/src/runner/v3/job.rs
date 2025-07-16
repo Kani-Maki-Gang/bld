@@ -224,25 +224,22 @@ impl JobRunner {
         debug!("start execution of exec section for step");
         debug!("executing shell command {}", command);
 
-        if let Some(matches) = self.expr_regex.find(command) {
-            let mut command = command.to_string();
-            let expr_exec = CommonExprExecutor::new(
-                self.pipeline.as_ref(),
-                self.expr_rctx.as_ref(),
-                &mut self.expr_wctx,
-            );
-            let matches = matches.as_str();
-            let value = expr_exec.eval(matches)?.to_string();
-            command = command.replace(matches, &value);
+        let mut cmd = command.to_string();
+        let expr_exec = CommonExprExecutor::new(
+            self.pipeline.as_ref(),
+            self.expr_rctx.as_ref(),
+            &mut self.expr_wctx,
+        );
 
-            self.platform
-                .shell(self.logger.clone(), working_dir, &command)
-                .await?;
-        } else {
-            self.platform
-                .shell(self.logger.clone(), working_dir, command)
-                .await?;
+        for entry in self.expr_regex.find_iter(command) {
+            let entry = entry.as_str();
+            let value = expr_exec.eval(entry)?.to_string();
+            cmd = cmd.replace(entry, &value);
         }
+
+        self.platform
+            .shell(self.logger.clone(), working_dir, &cmd)
+            .await?;
 
         Ok(())
     }
