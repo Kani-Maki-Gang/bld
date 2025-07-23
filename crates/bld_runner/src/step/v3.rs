@@ -38,7 +38,7 @@ pub struct ShellCommand {
     pub working_dir: Option<String>,
     pub run: String,
     #[serde(rename = "if")]
-    pub conditional: Option<String>,
+    pub condition: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -171,14 +171,14 @@ mod tests {
                     name: Some("second_name".to_string()),
                     working_dir: Some("some_second_working_directory".to_string()),
                     run: "second_run_command".to_string(),
-                    conditional: None,
+                    condition: None,
                 })),
                 Step::ComplexSh(Box::new(ShellCommand {
                     id: Some("third".to_string()),
                     name: Some("third_name".to_string()),
                     working_dir: Some("some_third_working_directory".to_string()),
                     run: "third_run_command".to_string(),
-                    conditional: None,
+                    condition: None,
                 })),
             ],
         );
@@ -189,7 +189,7 @@ mod tests {
                 name: Some("first_name".to_string()),
                 working_dir: Some("some_first_working_directory".to_string()),
                 run: "first_run_command".to_string(),
-                conditional: None,
+                condition: None,
             }))],
         );
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
@@ -265,21 +265,21 @@ mod tests {
             name: Some("second_name".to_string()),
             working_dir: Some("some_second_working_directory".to_string()),
             run: "second_run_command".to_string(),
-            conditional: None,
+            condition: None,
         })));
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
             id: Some("third".to_string()),
             name: Some("third_name".to_string()),
             working_dir: Some("some_third_working_directory".to_string()),
             run: "third_run_command".to_string(),
-            conditional: None,
+            condition: None,
         })));
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
             id: Some("first".to_string()),
             name: Some("first_name".to_string()),
             working_dir: Some("some_first_working_directory".to_string()),
             run: "first_run_command".to_string(),
-            conditional: None,
+            condition: None,
         })));
 
         let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
