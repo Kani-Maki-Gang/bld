@@ -1,7 +1,7 @@
 use std::{fmt::Write, sync::Arc, time::Duration};
 
 use actix::{Actor, StreamHandler, clock::sleep, io::SinkWrite};
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use bld_config::{
     BldConfig,
     definitions::{GET, PUSH},
@@ -19,15 +19,11 @@ use tokio::task::JoinHandle;
 use tracing::debug;
 
 use crate::{
-    RunnerBuilder,
     expr::v3::{
         context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
         exec::CommonExprExecutor,
-        traits::EvalExpr,
-    },
-    external::v3::External,
-    pipeline::v3::Pipeline,
-    step::v3::Step,
+        traits::{EvalExpr, ExprValue},
+    }, external::v3::External, pipeline::v3::Pipeline, step::v3::{ShellCommand, Step}, RunnerBuilder
 };
 
 pub struct JobRunner {
@@ -70,13 +66,7 @@ impl JobRunner {
             Step::SingleSh(sh) => self.shell(&None, sh).await?,
 
             Step::ComplexSh(complex) => {
-                if let Some(name) = complex.name.as_ref() {
-                    let mut message = String::new();
-                    writeln!(message, "{:<15}: {name}", "Step")?;
-                    self.logger.write_line(message).await?;
-                }
-                self.shell(&complex.working_dir, &complex.run).await?;
-                self.artifacts(complex.name.as_deref()).await?;
+                self.complex_shell(complex).await?
             }
 
             Step::ExternalFile(external) => {
@@ -88,6 +78,24 @@ impl JobRunner {
                 self.external(external).await?;
             }
         }
+        Ok(())
+    }
+
+    async fn complex_shell(&mut self, complex: &ShellCommand) -> Result<()> {
+        let condition = complex.condition.as_deref();
+
+        if !self.condition(condition)? {
+            debug!("condition failed, skiping step");
+            return Ok(());
+        }
+
+        if let Some(name) = complex.name.as_ref() {
+            let mut message = String::new();
+            writeln!(message, "{:<15}: {name}", "Step")?;
+            self.logger.write_line(message).await?;
+        }
+        self.shell(&complex.working_dir, &complex.run).await?;
+        self.artifacts(complex.name.as_deref()).await?;
         Ok(())
     }
 
@@ -242,6 +250,28 @@ impl JobRunner {
             .await?;
 
         Ok(())
+    }
+
+    fn condition(&mut self, condition: Option<&str>) -> Result<bool> {
+        let Some(condition) = condition else {
+            return Ok(true);
+        };
+
+        debug!("evaluating condition {condition} for step");
+
+        let matches = self.expr_regex.find_iter(&condition);
+
+        if matches.count() > 1 {
+            bail!("more than one condition found for step");
+        };
+
+        let expr_exec = CommonExprExecutor::new(
+            self.pipeline.as_ref(),
+            self.expr_rctx.as_ref(),
+            &mut self.expr_wctx,
+        );
+        let value = expr_exec.eval(&condition)?;
+        Ok(matches!(value, ExprValue::Boolean(true)))
     }
 }
 
