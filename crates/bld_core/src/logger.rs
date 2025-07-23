@@ -307,6 +307,11 @@ impl Logger {
         Self { tx }
     }
 
+    pub fn mock() -> Self {
+        let (tx, _) = channel(4096);
+        Self { tx }
+    }
+
     pub async fn write(&self, text: String) -> Result<()> {
         let (resp_tx, resp_rx) = oneshot::channel();
 

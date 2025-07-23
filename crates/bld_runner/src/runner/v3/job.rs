@@ -292,3 +292,65 @@ impl RunningJob {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use bld_config::BldConfig;
+    use bld_core::{
+        context::Context, fs::FileSystem, logger::Logger, platform::Platform, regex::RegexCache,
+    };
+    use bld_utils::sync::IntoArc;
+    use regex::Regex;
+
+    use crate::{
+        expr::v3::{
+            context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+            parser::EXPR_REGEX,
+        },
+        pipeline::v3::Pipeline,
+    };
+
+    use super::JobRunner;
+
+    #[test]
+    pub fn condition_eval_success() {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let platform = Platform::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let expr_wctx = CommonWritableRuntimeExprContext::default();
+        let pipeline = Pipeline::default().into_arc();
+
+        let mut job = JobRunner {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline,
+            platform,
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            expr_wctx,
+        };
+
+        assert!(matches!(job.condition(None), Ok(true)));
+
+        assert!(matches!(job.condition(Some("${{ true }}")), Ok(true)));
+
+        assert!(matches!(
+            job.condition(Some("${{ \"John\" == \"James\" }}")),
+            Ok(false)
+        ));
+
+        assert!(job.condition(Some("${{ true == \"James\" }}")).is_err());
+
+        assert!(job.condition(Some("hello world ${{ true == \"James\" }}")).is_err());
+    }
+}

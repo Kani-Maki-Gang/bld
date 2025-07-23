@@ -39,6 +39,11 @@ impl Context {
         Self::Local(tx)
     }
 
+    pub fn mock() -> Self {
+        let (tx, _) = channel(4096);
+        Self::Local(tx)
+    }
+
     pub fn get_conn(&self) -> Option<Arc<DatabaseConnection>> {
         match self {
             Self::Local(_) => None,
