@@ -19,11 +19,15 @@ use tokio::task::JoinHandle;
 use tracing::debug;
 
 use crate::{
+    RunnerBuilder,
     expr::v3::{
         context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
         exec::CommonExprExecutor,
         traits::{EvalExpr, ExprValue},
-    }, external::v3::External, pipeline::v3::Pipeline, step::v3::{ShellCommand, Step}, RunnerBuilder
+    },
+    external::v3::External,
+    pipeline::v3::Pipeline,
+    step::v3::{ShellCommand, Step},
 };
 
 pub struct JobRunner {
@@ -65,9 +69,7 @@ impl JobRunner {
         match step {
             Step::SingleSh(sh) => self.shell(&None, sh).await?,
 
-            Step::ComplexSh(complex) => {
-                self.complex_shell(complex).await?
-            }
+            Step::ComplexSh(complex) => self.complex_shell(complex).await?,
 
             Step::ExternalFile(external) => {
                 if let Some(name) = external.name.as_ref() {
