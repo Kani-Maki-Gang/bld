@@ -171,14 +171,14 @@ mod tests {
                     name: Some("second_name".to_string()),
                     working_dir: Some("some_second_working_directory".to_string()),
                     run: "second_run_command".to_string(),
-                    condition: None,
+                    condition: Some("second_condition".to_string()),
                 })),
                 Step::ComplexSh(Box::new(ShellCommand {
                     id: Some("third".to_string()),
                     name: Some("third_name".to_string()),
                     working_dir: Some("some_third_working_directory".to_string()),
                     run: "third_run_command".to_string(),
-                    condition: None,
+                    condition: Some("third_condition".to_string()),
                 })),
             ],
         );
@@ -189,7 +189,7 @@ mod tests {
                 name: Some("first_name".to_string()),
                 working_dir: Some("some_first_working_directory".to_string()),
                 run: "first_run_command".to_string(),
-                condition: None,
+                condition: Some("first_condition".to_string()),
             }))],
         );
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
@@ -253,6 +253,15 @@ mod tests {
             actual.try_eq(&ExprValue::Text(ExprText::Ref("first_run_command"))),
             Ok(ExprValue::Boolean(true))
         ));
+
+        let actual = exec.eval("${{ jobs.main.second.condition }}");
+        assert!(actual.is_err());
+
+        let actual = exec.eval("${{ jobs.main.third.condition }}");
+        assert!(actual.is_err());
+
+        let actual = exec.eval("${{ jobs.backup.first.condition }}");
+        assert!(actual.is_err());
     }
 
     #[test]
@@ -265,21 +274,21 @@ mod tests {
             name: Some("second_name".to_string()),
             working_dir: Some("some_second_working_directory".to_string()),
             run: "second_run_command".to_string(),
-            condition: None,
+            condition: Some("second_condition".to_string()),
         })));
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
             id: Some("third".to_string()),
             name: Some("third_name".to_string()),
             working_dir: Some("some_third_working_directory".to_string()),
             run: "third_run_command".to_string(),
-            condition: None,
+            condition: Some("third_condition".to_string()),
         })));
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
             id: Some("first".to_string()),
             name: Some("first_name".to_string()),
             working_dir: Some("some_first_working_directory".to_string()),
             run: "first_run_command".to_string(),
-            condition: None,
+            condition: Some("first_condition".to_string()),
         })));
 
         let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
@@ -343,6 +352,15 @@ mod tests {
             actual.try_eq(&ExprValue::Text(ExprText::Ref("first_run_command"))),
             Ok(ExprValue::Boolean(true))
         ));
+
+        let actual = exec.eval("${{ steps.second.condition }}");
+        assert!(actual.is_err());
+
+        let actual = exec.eval("${{ steps.third.condition }}");
+        assert!(actual.is_err());
+
+        let actual = exec.eval("${{ steps.first.condition }}");
+        assert!(actual.is_err());
     }
 
     #[test]
