@@ -261,7 +261,7 @@ impl JobRunner {
 
         debug!("evaluating condition {condition} for step");
 
-        let matches = self.expr_regex.find_iter(&condition);
+        let matches = self.expr_regex.find_iter(condition);
 
         if matches.count() > 1 {
             bail!("more than one condition found for step");
@@ -272,7 +272,7 @@ impl JobRunner {
             self.expr_rctx.as_ref(),
             &mut self.expr_wctx,
         );
-        let value = expr_exec.eval(&condition)?;
+        let value = expr_exec.eval(condition)?;
         Ok(matches!(value, ExprValue::Boolean(true)))
     }
 }
