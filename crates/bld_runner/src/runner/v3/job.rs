@@ -351,6 +351,9 @@ mod tests {
 
         assert!(job.condition(Some("${{ true == \"James\" }}")).is_err());
 
-        assert!(job.condition(Some("hello world ${{ true == \"James\" }}")).is_err());
+        assert!(
+            job.condition(Some("hello world ${{ true == \"James\" }}"))
+                .is_err()
+        );
     }
 }

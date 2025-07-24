@@ -51,7 +51,7 @@ pub enum PlatformType {
     Machine(Box<Machine>),
     Container(Box<Container>),
     Ssh(Sender<PlatformMessage>),
-    Mock
+    Mock,
 }
 
 struct PlatformBackend {
@@ -200,7 +200,7 @@ impl Platform {
 
                 resp_rx.await?
             }
-            PlatformType::Mock => Ok(())
+            PlatformType::Mock => Ok(()),
         }
     }
 
@@ -221,7 +221,7 @@ impl Platform {
 
                 resp_rx.await?
             }
-            PlatformType::Mock => Ok(())
+            PlatformType::Mock => Ok(()),
         }
     }
 
@@ -247,7 +247,7 @@ impl Platform {
 
                 resp_rx.await?
             }
-            PlatformType::Mock => Ok(())
+            PlatformType::Mock => Ok(()),
         }
     }
 
@@ -269,7 +269,7 @@ impl Platform {
                 ssh.send(PlatformMessage::Dispose { resp_tx }).await?;
                 resp_rx.await?
             }
-            PlatformType::Mock => Ok(())
+            PlatformType::Mock => Ok(()),
         }
     }
 }
