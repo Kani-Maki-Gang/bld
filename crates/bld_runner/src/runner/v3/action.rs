@@ -12,7 +12,7 @@ use crate::{
         exec::CommonExprExecutor,
         traits::EvalExpr,
     },
-    step::v3::Step,
+    step::v3::{ShellCommand, Step},
 };
 
 use super::common::RecursiveFuture;
@@ -86,14 +86,7 @@ impl ActionRunner {
             match step {
                 Step::SingleSh(sh) => self.shell(&None, sh).await?,
 
-                Step::ComplexSh(complex) => {
-                    if let Some(name) = complex.name.as_ref() {
-                        let mut message = String::new();
-                        writeln!(message, "{:<15}: {name}", "Step")?;
-                        self.logger.write_line(message).await?;
-                    }
-                    self.shell(&complex.working_dir, &complex.run).await?;
-                }
+                Step::ComplexSh(complex) => self.complex_shell(complex).await?,
 
                 Step::ExternalFile(_external) => {
                     unimplemented!()
@@ -101,6 +94,16 @@ impl ActionRunner {
             }
         }
 
+        Ok(())
+    }
+
+    async fn complex_shell(&mut self, complex: &ShellCommand) -> Result<()> {
+        if let Some(name) = complex.name.as_ref() {
+            let mut message = String::new();
+            writeln!(message, "{:<15}: {name}", "Step")?;
+            self.logger.write_line(message).await?;
+        }
+        self.shell(&complex.working_dir, &complex.run).await?;
         Ok(())
     }
 
