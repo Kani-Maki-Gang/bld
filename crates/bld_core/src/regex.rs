@@ -83,9 +83,14 @@ impl Default for RegexCache {
 }
 
 impl RegexCache {
-    pub fn new() -> RegexCache {
+    pub fn new() -> Self {
         let (tx, rx) = channel(4096);
         RegexCacheBackend::new(rx).receive();
+        Self { tx }
+    }
+
+    pub fn mock() -> Self {
+        let (tx, _) = channel(4096);
         Self { tx }
     }
 

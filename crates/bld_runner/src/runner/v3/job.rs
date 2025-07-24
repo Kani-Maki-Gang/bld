@@ -1,7 +1,7 @@
 use std::{fmt::Write, sync::Arc, time::Duration};
 
 use actix::{Actor, StreamHandler, clock::sleep, io::SinkWrite};
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use bld_config::{
     BldConfig,
     definitions::{GET, PUSH},
@@ -23,11 +23,11 @@ use crate::{
     expr::v3::{
         context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
         exec::CommonExprExecutor,
-        traits::EvalExpr,
+        traits::{EvalExpr, ExprValue},
     },
     external::v3::External,
     pipeline::v3::Pipeline,
-    step::v3::Step,
+    step::v3::{ShellCommand, Step},
 };
 
 pub struct JobRunner {
@@ -69,15 +69,7 @@ impl JobRunner {
         match step {
             Step::SingleSh(sh) => self.shell(&None, sh).await?,
 
-            Step::ComplexSh(complex) => {
-                if let Some(name) = complex.name.as_ref() {
-                    let mut message = String::new();
-                    writeln!(message, "{:<15}: {name}", "Step")?;
-                    self.logger.write_line(message).await?;
-                }
-                self.shell(&complex.working_dir, &complex.run).await?;
-                self.artifacts(complex.name.as_deref()).await?;
-            }
+            Step::ComplexSh(complex) => self.complex_shell(complex).await?,
 
             Step::ExternalFile(external) => {
                 if let Some(name) = external.name.as_ref() {
@@ -88,6 +80,24 @@ impl JobRunner {
                 self.external(external).await?;
             }
         }
+        Ok(())
+    }
+
+    async fn complex_shell(&mut self, complex: &ShellCommand) -> Result<()> {
+        let condition = complex.condition.as_deref();
+
+        if !self.condition(condition)? {
+            debug!("condition failed, skiping step");
+            return Ok(());
+        }
+
+        if let Some(name) = complex.name.as_ref() {
+            let mut message = String::new();
+            writeln!(message, "{:<15}: {name}", "Step")?;
+            self.logger.write_line(message).await?;
+        }
+        self.shell(&complex.working_dir, &complex.run).await?;
+        self.artifacts(complex.name.as_deref()).await?;
         Ok(())
     }
 
@@ -243,6 +253,28 @@ impl JobRunner {
 
         Ok(())
     }
+
+    fn condition(&mut self, condition: Option<&str>) -> Result<bool> {
+        let Some(condition) = condition else {
+            return Ok(true);
+        };
+
+        debug!("evaluating condition {condition} for step");
+
+        let matches = self.expr_regex.find_iter(condition);
+
+        if matches.count() > 1 {
+            bail!("more than one condition found for step");
+        };
+
+        let expr_exec = CommonExprExecutor::new(
+            self.pipeline.as_ref(),
+            self.expr_rctx.as_ref(),
+            &mut self.expr_wctx,
+        );
+        let value = expr_exec.eval(condition)?;
+        Ok(matches!(value, ExprValue::Boolean(true)))
+    }
 }
 
 pub struct RunningJob {
@@ -258,5 +290,70 @@ impl RunningJob {
             handle,
             logger,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bld_config::BldConfig;
+    use bld_core::{
+        context::Context, fs::FileSystem, logger::Logger, platform::Platform, regex::RegexCache,
+    };
+    use bld_utils::sync::IntoArc;
+    use regex::Regex;
+
+    use crate::{
+        expr::v3::{
+            context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+            parser::EXPR_REGEX,
+        },
+        pipeline::v3::Pipeline,
+    };
+
+    use super::JobRunner;
+
+    #[test]
+    pub fn condition_eval_success() {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let platform = Platform::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let expr_wctx = CommonWritableRuntimeExprContext::default();
+        let pipeline = Pipeline::default().into_arc();
+
+        let mut job = JobRunner {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline,
+            platform,
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            expr_wctx,
+        };
+
+        assert!(matches!(job.condition(None), Ok(true)));
+
+        assert!(matches!(job.condition(Some("${{ true }}")), Ok(true)));
+
+        assert!(matches!(
+            job.condition(Some("${{ \"John\" == \"James\" }}")),
+            Ok(false)
+        ));
+
+        assert!(job.condition(Some("${{ true == \"James\" }}")).is_err());
+
+        assert!(
+            job.condition(Some("hello world ${{ true == \"James\" }}"))
+                .is_err()
+        );
     }
 }

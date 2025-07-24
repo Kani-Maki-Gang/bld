@@ -51,6 +51,7 @@ pub enum PlatformType {
     Machine(Box<Machine>),
     Container(Box<Container>),
     Ssh(Sender<PlatformMessage>),
+    Mock,
 }
 
 struct PlatformBackend {
@@ -167,6 +168,13 @@ impl Platform {
         }
     }
 
+    pub fn mock() -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            inner: PlatformType::Mock,
+        }
+    }
+
     pub fn id(&self) -> &str {
         self.id.as_str()
     }
@@ -192,6 +200,7 @@ impl Platform {
 
                 resp_rx.await?
             }
+            PlatformType::Mock => Ok(()),
         }
     }
 
@@ -212,6 +221,7 @@ impl Platform {
 
                 resp_rx.await?
             }
+            PlatformType::Mock => Ok(()),
         }
     }
 
@@ -237,6 +247,7 @@ impl Platform {
 
                 resp_rx.await?
             }
+            PlatformType::Mock => Ok(()),
         }
     }
 
@@ -258,6 +269,7 @@ impl Platform {
                 ssh.send(PlatformMessage::Dispose { resp_tx }).await?;
                 resp_rx.await?
             }
+            PlatformType::Mock => Ok(()),
         }
     }
 }
