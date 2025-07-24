@@ -1,4 +1,4 @@
-use std::{fmt::Write, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt::Write, sync::Arc, time::Duration};
 
 use actix::{Actor, StreamHandler, clock::sleep, io::SinkWrite};
 use anyhow::{Result, anyhow, bail};
@@ -68,17 +68,8 @@ impl JobRunner {
     async fn step(&mut self, step: &Step) -> Result<()> {
         match step {
             Step::SingleSh(sh) => self.shell(&None, sh).await?,
-
             Step::ComplexSh(complex) => self.complex_shell(complex).await?,
-
-            Step::ExternalFile(external) => {
-                if let Some(name) = external.name.as_ref() {
-                    let mut message = String::new();
-                    writeln!(message, "{:<15}: {name}", "Step")?;
-                    self.logger.write_line(message).await?;
-                }
-                self.external(external).await?;
-            }
+            Step::ExternalFile(external) => self.external(external).await?,
         }
         Ok(())
     }
@@ -141,7 +132,13 @@ impl JobRunner {
         Ok(())
     }
 
-    async fn external(&self, external: &External) -> Result<()> {
+    async fn external(&mut self, external: &External) -> Result<()> {
+        if let Some(name) = external.name.as_ref() {
+            let mut message = String::new();
+            writeln!(message, "{:<15}: {name}", "Step")?;
+            self.logger.write_line(message).await?;
+        }
+
         debug!("calling external pipeline or action {}", external.uses);
 
         match external.server.as_ref() {
@@ -152,11 +149,11 @@ impl JobRunner {
         Ok(())
     }
 
-    async fn local_external(&self, details: &External) -> Result<()> {
+    async fn local_external(&mut self, details: &External) -> Result<()> {
         debug!("building runner for child file");
 
-        let inputs = details.with.clone();
-        let env = details.env.clone();
+        let inputs = self.variables_external(&details.with)?;
+        let env = self.variables_external(&details.env)?;
 
         let runner = RunnerBuilder::default()
             .run_id(&self.expr_rctx.run_id)
@@ -180,12 +177,12 @@ impl JobRunner {
         Ok(())
     }
 
-    async fn server_external(&self, server: &str, details: &External) -> Result<()> {
+    async fn server_external(&mut self, server: &str, details: &External) -> Result<()> {
+        let inputs = self.variables_external(&details.with)?;
+        let env = self.variables_external(&details.env)?;
         let server_name = server.to_owned();
         let server = self.config.server(server)?;
         let auth_path = self.config.auth_full_path(&server.name);
-        let inputs = details.with.clone();
-        let env = details.env.clone();
 
         let url = format!("{}/v1/ws-exec/", server.base_url_ws());
 
@@ -230,25 +227,26 @@ impl JobRunner {
         Ok(())
     }
 
+    fn variables_external(
+        &mut self,
+        vars: &HashMap<String, String>,
+    ) -> Result<HashMap<String, String>> {
+        let mut result = HashMap::new();
+        for (name, value) in vars {
+            let value = self.eval_all_expr(value)?;
+            result.insert(name.to_string(), value);
+        }
+        Ok(result)
+    }
+
     async fn shell(&mut self, working_dir: &Option<String>, command: &str) -> Result<()> {
         debug!("start execution of exec section for step");
         debug!("executing shell command {}", command);
 
-        let mut cmd = command.to_string();
-        let expr_exec = CommonExprExecutor::new(
-            self.pipeline.as_ref(),
-            self.expr_rctx.as_ref(),
-            &mut self.expr_wctx,
-        );
-
-        for entry in self.expr_regex.find_iter(command) {
-            let entry = entry.as_str();
-            let value = expr_exec.eval(entry)?.to_string();
-            cmd = cmd.replace(entry, &value);
-        }
+        let command = self.eval_all_expr(command)?;
 
         self.platform
-            .shell(self.logger.clone(), working_dir, &cmd)
+            .shell(self.logger.clone(), working_dir, &command)
             .await?;
 
         Ok(())
@@ -274,6 +272,23 @@ impl JobRunner {
         );
         let value = expr_exec.eval(condition)?;
         Ok(matches!(value, ExprValue::Boolean(true)))
+    }
+
+    fn eval_all_expr(&mut self, value: &str) -> Result<String> {
+        let expr_exec = CommonExprExecutor::new(
+            self.pipeline.as_ref(),
+            self.expr_rctx.as_ref(),
+            &mut self.expr_wctx,
+        );
+
+        let mut result = value.to_string();
+        for entry in self.expr_regex.find_iter(value) {
+            let entry = entry.as_str();
+            let expr_value = expr_exec.eval(entry)?.to_string();
+            result = result.replace(entry, &expr_value);
+        }
+
+        Ok(result)
     }
 }
 
