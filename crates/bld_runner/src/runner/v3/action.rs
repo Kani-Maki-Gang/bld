@@ -1,6 +1,6 @@
 use std::{fmt::Write, sync::Arc};
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use bld_core::{logger::Logger, platform::Platform};
 use regex::Regex;
 use tracing::debug;
@@ -10,7 +10,7 @@ use crate::{
     expr::v3::{
         context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
         exec::CommonExprExecutor,
-        traits::EvalExpr,
+        traits::{EvalExpr, ExprValue},
     },
     step::v3::{ShellCommand, Step},
 };
@@ -55,26 +55,40 @@ impl ActionRunner {
         self.logger.write_line(message).await
     }
 
+    fn condition(&mut self, condition: Option<&str>) -> Result<bool> {
+        let Some(condition) = condition else {
+            return Ok(true);
+        };
+
+        debug!("evaluating condition {condition} for step");
+
+        let matches = self.expr_regex.find_iter(condition);
+
+        if matches.count() > 1 {
+            bail!("more than one condition found for step");
+        };
+
+        let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &mut self.expr_wctx);
+        let value = expr_exec.eval(condition)?;
+        Ok(matches!(value, ExprValue::Boolean(true)))
+    }
+
     async fn shell(&mut self, working_dir: &Option<String>, command: &str) -> Result<()> {
         debug!("start execution of exec section for step");
         debug!("executing shell command {}", command);
 
-        if let Some(matches) = self.expr_regex.find(command) {
-            let mut command = command.to_string();
-            let expr_exec =
-                CommonExprExecutor::new(&self.action, &self.expr_rctx, &mut self.expr_wctx);
-            let matches = matches.as_str();
-            let value = expr_exec.eval(matches)?.to_string();
-            command = command.replace(matches, &value);
+        let mut cmd = command.to_string();
+        let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &mut self.expr_wctx);
 
-            self.platform
-                .shell(self.logger.clone(), working_dir, &command)
-                .await?;
-        } else {
-            self.platform
-                .shell(self.logger.clone(), working_dir, command)
-                .await?;
+        for entry in self.expr_regex.find_iter(command) {
+            let entry = entry.as_str();
+            let value = expr_exec.eval(entry)?.to_string();
+            cmd = cmd.replace(entry, &value);
         }
+
+        self.platform
+            .shell(self.logger.clone(), working_dir, &cmd)
+            .await?;
 
         Ok(())
     }
@@ -98,6 +112,13 @@ impl ActionRunner {
     }
 
     async fn complex_shell(&mut self, complex: &ShellCommand) -> Result<()> {
+        let condition = complex.condition.as_deref();
+
+        if !self.condition(condition)? {
+            debug!("condition failed, skiping step");
+            return Ok(());
+        }
+
         if let Some(name) = complex.name.as_ref() {
             let mut message = String::new();
             writeln!(message, "{:<15}: {name}", "Step")?;
