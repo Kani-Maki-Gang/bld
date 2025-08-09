@@ -30,6 +30,22 @@ mod tests {
     }
 
     #[test]
+    fn parse_not_equals_operator_success() {
+        let data = ["!=", " !=", "!= ", " != "];
+        for op in data {
+            let Ok(pairs) = ExprParser::parse(Rule::NotEqualsOperator, op) else {
+                panic!("unable to parse NotEqualsOperator");
+            };
+            for pair in pairs {
+                let Rule::NotEqualsOperator = pair.as_rule() else {
+                    panic!("parsed value is not a NotEqualsOperator rule");
+                };
+                assert_eq!(pair.as_span().as_str(), op);
+            }
+        }
+    }
+
+    #[test]
     fn parse_greater_operator_success() {
         let data = [">", " >", "> ", " > "];
         for op in data {
@@ -318,6 +334,41 @@ mod tests {
         ];
         for op in data {
             let pair = ExprParser::parse(Rule::Equals, op);
+            assert!(pair.is_ok());
+        }
+    }
+
+    #[test]
+    fn parse_not_equals_success() {
+        let data = [
+            "100 != 150.12",
+            "100 != -150.12",
+            "-100 != -150.12",
+            "-100 != 150.12",
+            "100!= 150.12",
+            "100 !=-150.12",
+            "-100!=-150.12",
+            "100 != true",
+            "true!= true",
+            "true !=false",
+            "false!=false",
+            "\"hello\" != 100",
+            "\"hello\" != -100",
+            "\"hello\" != true",
+            "\"hello\" != false",
+            "\"hello\" != customer.name.length",
+            "\"hello\" != customer().name().length()",
+            "\"hello\" != customer().name23_23().length()",
+            "\"hello\" != \"hello world\"",
+            "100 != \"hello\"",
+            "-100 != \"hello\"",
+            "true != \"hello\"",
+            "false != \"hello\"",
+            "customer.name.length != \"hello\"",
+            "\"hello world\" != \"hello\"",
+        ];
+        for op in data {
+            let pair = ExprParser::parse(Rule::NotEquals, op);
             assert!(pair.is_ok());
         }
     }
@@ -660,7 +711,7 @@ mod tests {
 
     #[test]
     fn parse_composite_logical_expression_success() {
-        let data = ["100 == 200 && true == false || (\"hello world\" > \"world\")"];
+        let data = ["100 == 200 && true == false || (\"hello world\" > \"world\") || 100 != 200"];
         for expr in data {
             let Ok(pairs) = ExprParser::parse(Rule::LogicalExpression, expr) else {
                 panic!("unable to parse LogicalExpression rule");
@@ -682,6 +733,7 @@ mod tests {
                                 let body_inner = body.next().unwrap();
                                 assert!(
                                     body_inner.as_rule() == Rule::Equals
+                                        || body_inner.as_rule() == Rule::NotEquals
                                         || body_inner.as_rule() == Rule::Greater
                                         || body_inner.as_rule() == Rule::GreaterEquals
                                         || body_inner.as_rule() == Rule::Less
