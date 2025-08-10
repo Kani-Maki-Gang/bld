@@ -2,6 +2,7 @@
 // Defining operators
 //
 EqualsOperator = @{ " "* ~ "==" ~ " "* }
+NotEqualsOperator = @{ " "* ~ "!=" ~ " "* }
 GreaterOperator = @{ " "* ~ ">" ~ " "* }
 GreaterEqualsOperator = @{ " "* ~ ">=" ~ " "* }
 LessOperator = @{ " "* ~ "<" ~ " "* }
@@ -11,6 +12,7 @@ OrOperator = @{ " "* ~ "||" ~ " "* }
 
 Operator = {
     EqualsOperator
+    | NotEqualsOperator
     | GreaterOperator
     | GreaterEqualsOperator
     | LessOperator
@@ -52,12 +54,13 @@ Symbol = { Boolean | Number | String | Object }
 // Defining expressions
 //
 Equals = { Symbol ~ EqualsOperator ~ Symbol }
+NotEquals = { Symbol ~ NotEqualsOperator ~ Symbol }
 Greater = { Symbol ~ GreaterOperator ~ Symbol }
 GreaterEquals = { Symbol ~ GreaterEqualsOperator ~ Symbol }
 Less = { Symbol ~ LessOperator ~ Symbol }
 LessEquals = { Symbol ~ LessEqualsOperator ~ Symbol }
 
-ExpressionInner = { Equals | Greater | GreaterEquals | Less | LessEquals | Symbol }
+ExpressionInner = { Equals | NotEquals | Greater | GreaterEquals | Less | LessEquals | Symbol }
 Expression = { ("(" ~ " "* ~ ExpressionInner ~ " "* ~ ")") | ExpressionInner }
 
 LogicalExpression = {  Expression ~ ((AndOperator | OrOperator) ~ Expression)+ }

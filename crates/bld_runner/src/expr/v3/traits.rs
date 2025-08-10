@@ -52,6 +52,13 @@ impl<'a, 'b> ExprValue<'a> {
         Ok(ExprValue::<'b>::Boolean(value))
     }
 
+    pub fn try_not_eq(&self, other: &'a Self) -> Result<ExprValue<'b>> {
+        let ExprValue::Boolean(value) = self.try_eq(other)? else {
+            bail!("non boolean type is an invalid comparison result");
+        };
+        Ok(ExprValue::<'b>::Boolean(!value))
+    }
+
     pub fn try_ord(&self, other: &'a Self) -> Result<ExprValue<'b>> {
         let value = match (self, other) {
             (Self::Number(l), Self::Number(r)) => l > r,

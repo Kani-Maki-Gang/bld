@@ -35,30 +35,37 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
     fn eval_cmp(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>> {
         if !matches!(
             expr.as_rule(),
-            Rule::Equals | Rule::Greater | Rule::GreaterEquals | Rule::Less | Rule::LessEquals
+            Rule::Equals
+                | Rule::NotEquals
+                | Rule::Greater
+                | Rule::GreaterEquals
+                | Rule::Less
+                | Rule::LessEquals
         ) {
             bail!("expected comparison rule, found {:?}", expr.as_rule());
         }
 
-        let mut equals = expr.into_inner();
+        let mut expr = expr.into_inner();
 
-        let left_expr = equals
+        let left_expr = expr
             .next()
-            .ok_or_else(|| anyhow!("no left operand found for equals expression"))?;
+            .ok_or_else(|| anyhow!("no left operand found for comparison expression"))?;
         let left = self.eval_symbol(left_expr)?;
 
-        let Some(operator) = equals.next() else {
+        let Some(operator) = expr.next() else {
             bail!("expected comparison operator");
         };
 
-        let right_expr = equals
+        let right_expr = expr
             .next()
-            .ok_or_else(|| anyhow!("no right operand found for equals expression"))?;
+            .ok_or_else(|| anyhow!("no right operand found for comparison expression"))?;
         let right = self.eval_symbol(right_expr)?;
 
         let operator_rule = operator.as_rule();
         match &operator_rule {
             Rule::EqualsOperator => left.try_eq(&right),
+
+            Rule::NotEqualsOperator => left.try_not_eq(&right),
 
             Rule::GreaterOperator => left.try_ord(&right),
 
@@ -128,9 +135,12 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
             .ok_or_else(|| anyhow!("no expression found"))?;
 
         match actual_expr.as_rule() {
-            Rule::Equals | Rule::Greater | Rule::GreaterEquals | Rule::Less | Rule::LessEquals => {
-                self.eval_cmp(actual_expr)
-            }
+            Rule::Equals
+            | Rule::NotEquals
+            | Rule::Greater
+            | Rule::GreaterEquals
+            | Rule::Less
+            | Rule::LessEquals => self.eval_cmp(actual_expr),
             Rule::Symbol => self.eval_symbol(actual_expr),
             _ => bail!("unexpected rule: {:?}", actual_expr.as_rule()),
         }
@@ -399,6 +409,55 @@ mod tests {
             ("${{ 4 == true }}", Err(anyhow!(""))),
             ("${{ false == 52.0 }}", Err(anyhow!(""))),
             ("${{ \"hello\" == 52.0 }}", Err(anyhow!(""))),
+        ];
+
+        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        for (expr, expected) in data {
+            let value = exec.eval(expr);
+
+            if let Ok(expected) = expected {
+                let Ok(value) = value else {
+                    panic!("invalid result after eval");
+                };
+                assert!(matches!(
+                    value.try_eq(&expected),
+                    Ok(ExprValue::Boolean(true))
+                ));
+                continue;
+            }
+
+            if expected.is_err() && value.is_ok() {
+                panic!("invalid result after eval");
+            }
+        }
+    }
+
+    #[test]
+    pub fn not_equals_operator_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            ("${{ true != true }}", Ok(ExprValue::Boolean(false))),
+            ("${{ true != false }}", Ok(ExprValue::Boolean(true))),
+            ("${{ false != true }}", Ok(ExprValue::Boolean(true))),
+            ("${{ false != false }}", Ok(ExprValue::Boolean(false))),
+            ("${{ 4 != 4.0 }}", Ok(ExprValue::Boolean(false))),
+            ("${{ 4 != 4 }}", Ok(ExprValue::Boolean(false))),
+            ("${{ 4 != 5 }}", Ok(ExprValue::Boolean(true))),
+            ("${{ 5 != 4 }}", Ok(ExprValue::Boolean(true))),
+            (
+                "${{ \"hello\" != \"hello\" }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            (
+                "${{ \"hello\" != \"hello world\" }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            ("${{ 4 != true }}", Err(anyhow!(""))),
+            ("${{ false != 52.0 }}", Err(anyhow!(""))),
+            ("${{ \"hello\" != 52.0 }}", Err(anyhow!(""))),
         ];
 
         let mut wctx = CommonWritableRuntimeExprContext::default();
