@@ -1,5 +1,4 @@
 use crate::{
-    artifacts::v3::Artifacts,
     external::v3::External,
     inputs::v3::Input,
     runs_on::v3::RunsOn,
@@ -45,9 +44,6 @@ pub struct Pipeline {
 
     #[serde(default)]
     pub inputs: HashMap<String, Input>,
-
-    #[serde(default)]
-    pub artifacts: Vec<Artifacts>,
 
     #[serde(default)]
     pub external: Vec<External>,
@@ -240,14 +236,6 @@ impl<'a> Validate<'a> for Pipeline {
         ctx.push_section("external");
         for external in &self.external {
             external.validate(ctx).await;
-        }
-        ctx.pop_section();
-
-        debug!("Validating pipeline's artifacts section");
-        ctx.push_section("artifacts");
-        for (i, artifact) in self.artifacts.iter().enumerate() {
-            debug!("Validating artifact at index {i}");
-            artifact.validate(ctx).await;
         }
         ctx.pop_section();
 

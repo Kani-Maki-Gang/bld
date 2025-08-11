@@ -2,10 +2,7 @@ use std::{collections::HashMap, fmt::Write, sync::Arc, time::Duration};
 
 use actix::{Actor, StreamHandler, clock::sleep, io::SinkWrite};
 use anyhow::{Result, anyhow, bail};
-use bld_config::{
-    BldConfig,
-    definitions::{GET, PUSH},
-};
+use bld_config::BldConfig;
 use bld_core::{
     context::Context, fs::FileSystem, logger::Logger, platform::Platform, regex::RegexCache,
 };
@@ -53,14 +50,10 @@ impl JobRunner {
             .find(|(name, _)| **name == self.job_name)
             .ok_or_else(|| anyhow!("unable to find job with name {}", self.job_name))?;
 
-        self.artifacts(None).await?;
-
         debug!("starting execution of pipeline steps");
         for step in steps.iter() {
             self.step(step).await?;
         }
-
-        self.artifacts(Some(&self.job_name)).await?;
 
         Ok(self)
     }
@@ -88,47 +81,6 @@ impl JobRunner {
             self.logger.write_line(message).await?;
         }
         self.shell(&complex.working_dir, &complex.run).await?;
-        self.artifacts(complex.name.as_deref()).await?;
-        Ok(())
-    }
-
-    async fn artifacts(&self, name: Option<&str>) -> Result<()> {
-        debug!("executing artifact operation related for {:?}", name);
-
-        for artifact in self
-            .pipeline
-            .artifacts
-            .iter()
-            .filter(|a| a.after.as_deref() == name)
-        {
-            let can_continue = artifact.method == *PUSH || artifact.method == *GET;
-
-            if can_continue {
-                self.logger
-                    .write_line(format!(
-                        "Copying artifacts from: {} into container to: {}",
-                        artifact.from, artifact.to
-                    ))
-                    .await?;
-
-                let result = match &artifact.method[..] {
-                    PUSH => {
-                        debug!("executing {PUSH} artifact operation");
-                        self.platform.push(&artifact.from, &artifact.to).await
-                    }
-                    GET => {
-                        debug!("executing {GET} artifact operation");
-                        self.platform.get(&artifact.from, &artifact.to).await
-                    }
-                    _ => unreachable!(),
-                };
-
-                if !artifact.ignore_errors.unwrap_or_default() {
-                    result?;
-                }
-            }
-        }
-
         Ok(())
     }
 
