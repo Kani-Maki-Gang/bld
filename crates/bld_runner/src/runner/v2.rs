@@ -433,11 +433,11 @@ impl Runner {
     }
 
     async fn ipc_send_completed(&self) -> Result<()> {
-        if !self.is_child {
-            if let Some(ipc) = Option::as_ref(&self.ipc) {
-                debug!("sending message to supervisor for a completed run");
-                ipc.send(WorkerMessages::Completed).await?;
-            }
+        if !self.is_child
+            && let Some(ipc) = Option::as_ref(&self.ipc)
+        {
+            debug!("sending message to supervisor for a completed run");
+            ipc.send(WorkerMessages::Completed).await?;
         }
         Ok(())
     }

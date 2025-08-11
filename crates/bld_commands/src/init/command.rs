@@ -70,10 +70,10 @@ async fn build_dir_exists() -> Result<bool> {
         let path = entry.path();
         if path.is_dir() {
             let component = path.components().next_back();
-            if let Some(Normal(name)) = component {
-                if name == TOOL_DIR {
-                    return Ok(true);
-                }
+            if let Some(Normal(name)) = component
+                && name == TOOL_DIR
+            {
+                return Ok(true);
             }
         }
     }
