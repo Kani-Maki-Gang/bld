@@ -194,7 +194,7 @@ impl<'a> EvalObject<'a> for Pipeline {
                     bail!("job with name {job_name} not defined");
                 };
 
-                let Some(step_id) = object_parts.next() else {
+                let Some(step_id) = object_parts.peek() else {
                     bail!("expected id for step in expression");
                 };
 

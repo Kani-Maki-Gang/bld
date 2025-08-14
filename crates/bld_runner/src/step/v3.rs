@@ -76,28 +76,46 @@ impl<'a> EvalObject<'a> for Step {
         &'a self,
         path: &mut Peekable<Pairs<'_, Rule>>,
         _rctx: &'a RCtx,
-        _wctx: &'a WCtx,
+        wctx: &'a WCtx,
     ) -> Result<ExprValue<'a>> {
+        let Some(object) = path.next() else {
+            bail!("no step id path present");
+        };
+
+        let step_id = object.as_span().as_str();
+
         let Some(object) = path.next() else {
             bail!("no object path present");
         };
-        let value = match self {
-            Self::SingleSh(_) => {
-                bail!("invalid expression for step");
-            }
 
-            Self::ExternalFile(_) => {
-                // TODO: Remove once external section is removed.
-                bail!("invalid expression for step");
-            }
+        let key = object.as_span().as_str();
 
-            Self::ComplexSh(command) => match object.as_span().as_str() {
-                "name" => command.name.as_deref().unwrap_or(""),
-                "working_dir" => command.working_dir.as_deref().unwrap_or(""),
-                "run" => &command.run,
-                value => bail!("invalid steps field: {value}"),
-            },
+        let value = if key == "outputs" {
+            let Some(object) = path.next() else {
+                bail!("no output variable name provided");
+            };
+            let name = object.as_span().as_str();
+            wctx.get_output(step_id, name)?
+        } else {
+            match self {
+                Self::SingleSh(_) => {
+                    bail!("invalid expression for step");
+                }
+
+                Self::ExternalFile(_) => {
+                    // TODO: Remove once external section is removed.
+                    bail!("invalid expression for step");
+                }
+
+                Self::ComplexSh(command) => match key {
+                    "name" => command.name.as_deref().unwrap_or(""),
+                    "working_dir" => command.working_dir.as_deref().unwrap_or(""),
+                    "run" => &command.run,
+                    value => bail!("invalid steps field: {value}"),
+                },
+            }
         };
+
         Ok(ExprValue::Text(ExprText::Ref(value)))
     }
 }

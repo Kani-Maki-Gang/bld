@@ -136,7 +136,7 @@ impl<'a> EvalObject<'a> for Action {
             }
 
             "steps" => {
-                let Some(step_id) = object_parts.next() else {
+                let Some(step_id) = object_parts.peek() else {
                     bail!("expected id for step in expression");
                 };
 
