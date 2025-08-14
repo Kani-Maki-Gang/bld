@@ -124,7 +124,7 @@ impl IntoVariables for Pipeline {
 impl<'a> EvalObject<'a> for Pipeline {
     fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
         &'a self,
-        path: &mut Peekable<Pairs<'_, Rule>>,
+        path: &mut Peekable<Pairs<'a, Rule>>,
         rctx: &'a RCtx,
         wctx: &'a WCtx,
     ) -> Result<ExprValue<'a>> {
@@ -159,11 +159,15 @@ impl<'a> EvalObject<'a> for Pipeline {
                     bail!("expected name of input in object path");
                 };
                 let name = part.as_span().as_str();
-                let input = self
-                    .inputs
-                    .get(name)
-                    .ok_or_else(|| anyhow!("input '{name}' not found"))?;
-                input.try_into().map(|x| ExprValue::Text(ExprText::Ref(x)))
+
+                let input = rctx.get_input(name).or_else(|_| {
+                    self.inputs
+                        .get(name)
+                        .ok_or_else(|| anyhow!("input '{name}' not found"))
+                        .and_then(|x| x.try_into())
+                });
+
+                input.map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
             "env" => {
@@ -171,10 +175,14 @@ impl<'a> EvalObject<'a> for Pipeline {
                     bail!("expected name of env variable in object path");
                 };
                 let name = part.as_span().as_str();
-                self.env
-                    .get(name)
+                rctx.get_env(name)
+                    .or_else(|_| {
+                        self.env
+                            .get(name)
+                            .map(|x| x.as_str())
+                            .ok_or_else(|| anyhow!("env variable '{name}' not found"))
+                    })
                     .map(|x| ExprValue::Text(ExprText::Ref(x)))
-                    .ok_or_else(|| anyhow!("env variable '{name}' not found"))
             }
 
             "jobs" => {

@@ -1,5 +1,5 @@
 use super::traits::{ReadonlyRuntimeExprContext, WritableRuntimeExprContext};
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use bld_config::BldConfig;
 use std::{collections::HashMap, sync::Arc};
 
@@ -64,19 +64,27 @@ impl<'a> ReadonlyRuntimeExprContext<'a> for CommonReadonlyRuntimeExprContext {
 
 #[derive(Debug, Default)]
 pub struct CommonWritableRuntimeExprContext {
-    pub outputs: HashMap<String, String>,
+    pub outputs: HashMap<String, HashMap<String, String>>,
 }
 
 impl WritableRuntimeExprContext for CommonWritableRuntimeExprContext {
-    fn get_output(&self, name: &str) -> Result<&str> {
-        self.outputs
-            .get(name)
+    fn get_output(&self, id: &str, name: &str) -> Result<&str> {
+        let Some(map) = self.outputs.get(id) else {
+            bail!("id {id} has no outputs");
+        };
+        map.get(name)
             .map(|x| x.as_str())
             .ok_or_else(|| anyhow!("output '{name}' not found"))
     }
 
-    fn set_output(&mut self, name: String, value: String) -> Result<()> {
-        self.outputs.insert(name, value);
+    fn set_output(&mut self, id: String, name: String, value: String) -> Result<()> {
+        if let Some(outputs) = self.outputs.get_mut(&id) {
+            let _ = outputs.insert(name, value);
+        } else {
+            let mut map = HashMap::new();
+            map.insert(name, value);
+            let _ = self.outputs.insert(id, map);
+        }
         Ok(())
     }
 }

@@ -97,7 +97,7 @@ impl RunsOn {
 impl<'a> EvalObject<'a> for RunsOn {
     fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
         &'a self,
-        path: &mut Peekable<Pairs<'_, Rule>>,
+        path: &mut Peekable<Pairs<'a, Rule>>,
         rctx: &'a RCtx,
         wctx: &'a WCtx,
     ) -> Result<ExprValue<'a>> {
@@ -184,7 +184,7 @@ impl<'a> EvalObject<'a> for RunsOn {
 impl<'a> EvalObject<'a> for SshConfig {
     fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
         &'a self,
-        path: &mut Peekable<Pairs<'_, Rule>>,
+        path: &mut Peekable<Pairs<'a, Rule>>,
         rctx: &'a RCtx,
         wctx: &'a WCtx,
     ) -> Result<ExprValue<'a>> {
@@ -214,7 +214,7 @@ impl<'a> EvalObject<'a> for SshConfig {
 impl<'a> EvalObject<'a> for SshUserAuth {
     fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
         &'a self,
-        path: &mut Peekable<Pairs<'_, Rule>>,
+        path: &mut Peekable<Pairs<'a, Rule>>,
         _rctx: &'a RCtx,
         _wctx: &'a WCtx,
     ) -> Result<ExprValue<'a>> {

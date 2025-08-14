@@ -153,23 +153,23 @@ pub trait ReadonlyRuntimeExprContext<'a> {
 }
 
 pub trait WritableRuntimeExprContext {
-    fn get_output(&self, name: &str) -> Result<&str>;
-    fn set_output(&mut self, name: String, value: String) -> Result<()>;
+    fn get_output(&self, id: &str, name: &str) -> Result<&str>;
+    fn set_output(&mut self, id: String, name: String, value: String) -> Result<()>;
 }
 
 pub trait EvalObject<'a> {
     fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
         &'a self,
-        path: &mut Peekable<Pairs<'_, Rule>>,
+        path: &mut Peekable<Pairs<'a, Rule>>,
         rctx: &'a RCtx,
         wctx: &'a WCtx,
     ) -> Result<ExprValue<'a>>;
 }
 
 pub trait EvalExpr<'a> {
-    fn eval_cmp(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>>;
-    fn eval_symbol(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>>;
-    fn eval_expr(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>>;
-    fn eval_logical_expr(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>>;
+    fn eval_cmp(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
+    fn eval_symbol(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
+    fn eval_expr(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
+    fn eval_logical_expr(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
     fn eval(&'a self, expr: &'a str) -> Result<ExprValue<'a>>;
 }

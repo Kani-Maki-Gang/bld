@@ -32,7 +32,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>
     EvalExpr<'a> for CommonExprExecutor<'a, T, RCtx, WCtx>
 {
-    fn eval_cmp(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>> {
+    fn eval_cmp(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         if !matches!(
             expr.as_rule(),
             Rule::Equals
@@ -91,7 +91,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
         }
     }
 
-    fn eval_symbol(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>> {
+    fn eval_symbol(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         let Rule::Symbol = expr.as_rule() else {
             bail!("expected symbol rule, found {:?}", expr.as_rule());
         };
@@ -112,7 +112,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
         }
     }
 
-    fn eval_expr(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>> {
+    fn eval_expr(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         let Rule::Expression = expr.as_rule() else {
             bail!("expected expression rule, found {:?}", expr.as_rule());
         };
@@ -146,7 +146,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
         }
     }
 
-    fn eval_logical_expr(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>> {
+    fn eval_logical_expr(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         let Rule::LogicalExpression = expr.as_rule() else {
             bail!(
                 "expected logical expression rule, found {:?}",

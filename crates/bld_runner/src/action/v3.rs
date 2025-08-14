@@ -107,7 +107,7 @@ impl Dependencies for Action {
 impl<'a> EvalObject<'a> for Action {
     fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
         &'a self,
-        path: &mut Peekable<Pairs<'_, Rule>>,
+        path: &mut Peekable<Pairs<'a, Rule>>,
         rctx: &'a RCtx,
         wctx: &'a WCtx,
     ) -> Result<ExprValue<'a>> {
