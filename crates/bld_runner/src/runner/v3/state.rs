@@ -55,11 +55,19 @@ impl WritableRuntimeExprContext for StepState {
         let _ = self.outputs.insert(name, value);
         Ok(())
     }
+
+    fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()> {
+        if self.id != id {
+            bail!("target id {id} is inaccessible");
+        }
+        self.outputs = outputs;
+        Ok(())
+    }
 }
 
 #[derive(Default)]
 pub struct JobState {
-    id: String,
+    _id: String,
     state: State,
     steps: HashMap<String, StepState>,
 }
@@ -67,7 +75,7 @@ pub struct JobState {
 impl JobState {
     pub fn new(id: &str) -> Self {
         Self {
-            id: id.to_string(),
+            _id: id.to_string(),
             ..Default::default()
         }
     }
@@ -102,6 +110,13 @@ impl WritableRuntimeExprContext for JobState {
             bail!("outputs for id {id} weren't found");
         };
         step_state.set_output(id, name, value)
+    }
+
+    fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()> {
+        let Some(step_state) = self.steps.get_mut(id) else {
+            bail!("outputs for id {id} weren't found");
+        };
+        step_state.set_outputs(id, outputs)
     }
 }
 
@@ -142,5 +157,12 @@ impl WritableRuntimeExprContext for ActionState {
             bail!("outputs for id {id} weren't found");
         };
         step_state.set_output(id, name, value)
+    }
+
+    fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()> {
+        let Some(step_state) = self.steps.get_mut(id) else {
+            bail!("outputs for id {id} weren't found");
+        };
+        step_state.set_outputs(id, outputs)
     }
 }

@@ -103,10 +103,7 @@ impl ActionRunner {
         let action = self.action.clone();
         for step in &action.steps {
             match step {
-                Step::SingleSh(sh) => self.shell(&None, sh).await?,
-
                 Step::ComplexSh(complex) => self.complex_shell(complex).await?,
-
                 Step::ExternalFile(_external) => {
                     unimplemented!()
                 }

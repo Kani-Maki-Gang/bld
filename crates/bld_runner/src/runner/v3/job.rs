@@ -20,7 +20,7 @@ use crate::{
     expr::v3::{
         context::CommonReadonlyRuntimeExprContext,
         exec::CommonExprExecutor,
-        traits::{EvalExpr, ExprValue},
+        traits::{EvalExpr, ExprValue, WritableRuntimeExprContext},
     },
     external::v3::External,
     pipeline::v3::Pipeline,
@@ -73,7 +73,6 @@ impl JobRunner {
     async fn step(&mut self, step: &Step) -> Result<()> {
         self.state.update_step_state(step.id(), State::Running);
         let result = match step {
-            Step::SingleSh(sh) => self.shell(&None, sh).await,
             Step::ComplexSh(complex) => self.complex_shell(complex).await,
             Step::ExternalFile(external) => self.external(external).await,
         };
@@ -102,7 +101,8 @@ impl JobRunner {
             writeln!(message, "{:<15}: {name}", "Step")?;
             self.logger.write_line(message).await?;
         }
-        self.shell(&complex.working_dir, &complex.run).await?;
+        self.shell(&complex.id, &complex.working_dir, &complex.run)
+            .await?;
         Ok(())
     }
 
@@ -213,15 +213,23 @@ impl JobRunner {
         Ok(result)
     }
 
-    async fn shell(&mut self, working_dir: &Option<String>, command: &str) -> Result<()> {
+    async fn shell(
+        &mut self,
+        step_id: &str,
+        working_dir: &Option<String>,
+        command: &str,
+    ) -> Result<()> {
         debug!("start execution of exec section for step");
         debug!("executing shell command {}", command);
 
         let command = self.eval_all_expr(command)?;
 
-        self.platform
+        let outputs = self
+            .platform
             .shell(self.logger.clone(), working_dir, &command)
             .await?;
+
+        self.state.set_outputs(step_id, outputs)?;
 
         Ok(())
     }

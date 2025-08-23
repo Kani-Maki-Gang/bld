@@ -1,8 +1,7 @@
 use crate::logger::Logger;
 use anyhow::{Result, bail};
-use bld_config::{definitions::BLD_OUTPUTS_ENV_VAR_V3, path, BldConfig};
+use bld_config::{BldConfig, definitions::BLD_OUTPUTS_ENV_VAR_V3, path};
 use bld_utils::{shell::get_shell, variables::parse_variables_iter};
-use uuid::Uuid;
 use std::{
     collections::HashMap,
     fmt::Write,
@@ -10,8 +9,9 @@ use std::{
     process::ExitStatus,
     sync::Arc,
 };
-use tokio::fs::{copy, create_dir_all, read_to_string, remove_dir_all, File};
+use tokio::fs::{File, copy, create_dir_all, read_to_string, remove_dir_all};
 use tracing::debug;
+use uuid::Uuid;
 
 pub struct Machine {
     tmp_dir: String,

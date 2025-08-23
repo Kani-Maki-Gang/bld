@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{fmt::Display, iter::Peekable};
+use std::{collections::HashMap, fmt::Display, iter::Peekable};
 
 use anyhow::{Result, bail};
 use mockall::automock;
@@ -157,6 +157,7 @@ pub trait ReadonlyRuntimeExprContext<'a> {
 pub trait WritableRuntimeExprContext {
     fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<&'a str>;
     fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
+    fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
 }
 
 pub trait EvalObject<'a> {

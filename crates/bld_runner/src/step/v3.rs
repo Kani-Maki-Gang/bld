@@ -52,7 +52,6 @@ impl ShellCommand {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Step {
-    SingleSh(String),
     ComplexSh(Box<ShellCommand>),
     ExternalFile(Box<External>),
 }
@@ -67,7 +66,6 @@ impl Step {
 
     pub fn id(&self) -> &str {
         match self {
-            Self::SingleSh(_) => unimplemented!(),
             Self::ComplexSh(cmd) => &cmd.id,
             Self::ExternalFile(ext) => &ext.id,
         }
@@ -81,7 +79,7 @@ impl Dependencies for Step {
             Self::ExternalFile(external) if config.full_path(&external.uses).is_yaml() => {
                 vec![external.uses.to_owned()]
             }
-            Self::SingleSh(_) | Self::ComplexSh { .. } | Self::ExternalFile { .. } => vec![],
+            Self::ComplexSh { .. } | Self::ExternalFile { .. } => vec![],
         }
     }
 }
@@ -95,40 +93,28 @@ impl<'a> EvalObject<'a> for Step {
         wctx: &'a WCtx,
     ) -> Result<ExprValue<'a>> {
         let Some(object) = path.next() else {
-            bail!("no step id path present");
-        };
-
-        let step_id = object.as_span().as_str();
-
-        let Some(object) = path.next() else {
             bail!("no object path present");
         };
 
         let key = object.as_span().as_str();
 
-        let value = if key == "outputs" {
-            let Some(object) = path.next() else {
-                bail!("no output variable name provided");
-            };
-            let name = object.as_span().as_str();
-            wctx.get_output(step_id, name)?
-        } else {
-            match self {
-                Self::SingleSh(_) => {
-                    bail!("invalid expression for step");
+        let value = match self {
+            Self::ComplexSh(command) => match key {
+                "name" => command.name.as_deref().unwrap_or(""),
+                "working_dir" => command.working_dir.as_deref().unwrap_or(""),
+                "run" => &command.run,
+                "outputs" => {
+                    let Some(object) = path.next() else {
+                        bail!("no output variable name provided");
+                    };
+                    let name = object.as_span().as_str();
+                    wctx.get_output(&command.id, name)?
                 }
-
-                Self::ExternalFile(_) => {
-                    // TODO: Remove once external section is removed.
-                    bail!("invalid expression for step");
-                }
-
-                Self::ComplexSh(command) => match key {
-                    "name" => command.name.as_deref().unwrap_or(""),
-                    "working_dir" => command.working_dir.as_deref().unwrap_or(""),
-                    "run" => &command.run,
-                    value => bail!("invalid steps field: {value}"),
-                },
+                value => bail!("invalid steps field: {value}"),
+            },
+            Self::ExternalFile(_) => {
+                // TODO: Remove once external section is removed.
+                bail!("invalid expression for step");
             }
         };
 
@@ -140,11 +126,6 @@ impl<'a> EvalObject<'a> for Step {
 impl<'a> Validate<'a> for Step {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         match self {
-            Step::SingleSh(sh) => {
-                debug!("Step is a single shell command");
-                ctx.validate_symbols(sh);
-            }
-
             Step::ComplexSh(complex) => {
                 debug!("Step is a complex shell command");
                 ctx.push_section(&complex.id);
@@ -199,14 +180,14 @@ mod tests {
             "main".to_string(),
             vec![
                 Step::ComplexSh(Box::new(ShellCommand {
-                    id: Some("second".to_string()),
+                    id: "second".to_string(),
                     name: Some("second_name".to_string()),
                     working_dir: Some("some_second_working_directory".to_string()),
                     run: "second_run_command".to_string(),
                     condition: Some("second_condition".to_string()),
                 })),
                 Step::ComplexSh(Box::new(ShellCommand {
-                    id: Some("third".to_string()),
+                    id: "third".to_string(),
                     name: Some("third_name".to_string()),
                     working_dir: Some("some_third_working_directory".to_string()),
                     run: "third_run_command".to_string(),
@@ -217,7 +198,7 @@ mod tests {
         pipeline.jobs.insert(
             "backup".to_string(),
             vec![Step::ComplexSh(Box::new(ShellCommand {
-                id: Some("first".to_string()),
+                id: "first".to_string(),
                 name: Some("first_name".to_string()),
                 working_dir: Some("some_first_working_directory".to_string()),
                 run: "first_run_command".to_string(),
@@ -302,21 +283,21 @@ mod tests {
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut action = Action::default();
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
-            id: Some("second".to_string()),
+            id: "second".to_string(),
             name: Some("second_name".to_string()),
             working_dir: Some("some_second_working_directory".to_string()),
             run: "second_run_command".to_string(),
             condition: Some("second_condition".to_string()),
         })));
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
-            id: Some("third".to_string()),
+            id: "third".to_string(),
             name: Some("third_name".to_string()),
             working_dir: Some("some_third_working_directory".to_string()),
             run: "third_run_command".to_string(),
             condition: Some("third_condition".to_string()),
         })));
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
-            id: Some("first".to_string()),
+            id: "first".to_string(),
             name: Some("first_name".to_string()),
             working_dir: Some("some_first_working_directory".to_string()),
             run: "first_run_command".to_string(),
@@ -392,60 +373,6 @@ mod tests {
         assert!(actual.is_err());
 
         let actual = exec.eval("${{ steps.first.condition }}");
-        assert!(actual.is_err());
-    }
-
-    #[test]
-    pub fn jobs_simple_step_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut pipeline = Pipeline::default();
-        pipeline.jobs.insert(
-            "main".to_string(),
-            vec![
-                Step::SingleSh("first_run_command".to_string()),
-                Step::SingleSh("second_run_command".to_string()),
-            ],
-        );
-        pipeline.jobs.insert(
-            "backup".to_string(),
-            vec![Step::SingleSh("third_run_command".to_string())],
-        );
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
-
-        let actual = exec.eval("${{ jobs.main.first }}");
-        assert!(actual.is_err());
-
-        let actual = exec.eval("${{ jobs.main.second }}");
-        assert!(actual.is_err());
-
-        let actual = exec.eval("${{ jobs.backup.third }}");
-        assert!(actual.is_err());
-    }
-
-    #[test]
-    pub fn steps_simple_step_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut action = Action::default();
-        action
-            .steps
-            .push(Step::SingleSh("first_run_command".to_string()));
-        action
-            .steps
-            .push(Step::SingleSh("second_run_command".to_string()));
-        action
-            .steps
-            .push(Step::SingleSh("third_run_command".to_string()));
-        let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
-
-        let actual = exec.eval("${{ steps.first }}");
-        assert!(actual.is_err());
-
-        let actual = exec.eval("${{ steps.second }}");
-        assert!(actual.is_err());
-
-        let actual = exec.eval("${{ steps.third }}");
         assert!(actual.is_err());
     }
 
