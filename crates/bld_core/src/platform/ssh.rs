@@ -320,7 +320,7 @@ impl Ssh {
         logger: Arc<Logger>,
         working_dir: &Option<String>,
         input: &str,
-    ) -> Result<()> {
+    ) -> Result<HashMap<String, String>> {
         let mut command = String::new();
         if let Some(wd) = working_dir {
             command.push_str(&format!("cd {wd} && "));
@@ -355,7 +355,7 @@ impl Ssh {
 
         channel.close().await?;
 
-        Ok(())
+        Ok(HashMap::new())
     }
 
     pub async fn dispose(&mut self) -> Result<()> {

@@ -19,6 +19,8 @@ pub const KEYWORD_PROJECT_DIR_V3: &str = "bld_project_dir";
 pub const KEYWORD_RUN_PROPS_ID_V3: &str = "bld_run_id";
 pub const KEYWORD_RUN_PROPS_START_TIME_V3: &str = "bld_start_time";
 
+pub const BLD_OUTPUTS_ENV_VAR_V3: &str = "BLD_OUTPUTS";
+
 pub const TOOL_DEFAULT_PIPELINE: &str = "default";
 pub const TOOL_DEFAULT_PIPELINE_FILE: &str = "default.yaml";
 pub const TOOL_DEFAULT_CONFIG: &str = "config";

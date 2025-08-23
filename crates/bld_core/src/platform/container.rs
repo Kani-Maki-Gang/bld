@@ -148,7 +148,7 @@ impl Container {
         logger: Arc<Logger>,
         working_dir: &Option<String>,
         input: &str,
-    ) -> Result<()> {
+    ) -> Result<HashMap<String, String>> {
         let input = working_dir
             .as_ref()
             .map(|wd| format!("cd {wd} && {input}"))
@@ -168,7 +168,7 @@ impl Container {
         let exec_stream = self.client.start_exec(&exec.id, None).await?;
 
         let StartExecResults::Attached { mut output, .. } = exec_stream else {
-            return Ok(());
+            return Ok(HashMap::new());
         };
 
         while let Some(result) = output.next().await {
@@ -196,7 +196,7 @@ impl Container {
             bail!("command finished with exit code: {exit_code}");
         }
 
-        Ok(())
+        Ok(HashMap::new())
     }
 
     pub async fn keep_alive(&self) -> Result<()> {
