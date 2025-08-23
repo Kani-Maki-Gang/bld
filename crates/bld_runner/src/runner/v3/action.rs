@@ -10,9 +10,9 @@ use crate::{
     expr::v3::{
         context::CommonReadonlyRuntimeExprContext,
         exec::CommonExprExecutor,
-        traits::{EvalExpr, ExprValue},
+        traits::{EvalExpr, ExprValue, WritableRuntimeExprContext},
     },
-    runner::v3::state::ActionState,
+    runner::v3::state::{ActionState, State},
     step::v3::{ShellCommand, Step},
 };
 
@@ -78,7 +78,12 @@ impl ActionRunner {
         Ok(matches!(value, ExprValue::Boolean(true)))
     }
 
-    async fn shell(&mut self, working_dir: &Option<String>, command: &str) -> Result<()> {
+    async fn shell(
+        &mut self,
+        step_id: &str,
+        working_dir: &Option<String>,
+        command: &str,
+    ) -> Result<()> {
         debug!("start execution of exec section for step");
         debug!("executing shell command {}", command);
 
@@ -91,9 +96,12 @@ impl ActionRunner {
             cmd = cmd.replace(entry, &value);
         }
 
-        self.platform
+        let outputs = self
+            .platform
             .shell(self.logger.clone(), working_dir, &cmd)
             .await?;
+
+        self.state.set_outputs(step_id, outputs)?;
 
         Ok(())
     }
@@ -102,14 +110,23 @@ impl ActionRunner {
         debug!("starting execution of action steps");
         let action = self.action.clone();
         for step in &action.steps {
+            self.state.update_step_state(step.id(), State::Running);
             match step {
-                Step::ComplexSh(complex) => self.complex_shell(complex).await?,
+                Step::ComplexSh(complex) => self.complex_shell(complex).await,
                 Step::ExternalFile(_external) => {
                     unimplemented!()
                 }
             }
+            .inspect(|_| self.state.update_step_state(step.id(), State::Completed))
+            .inspect_err(|e| {
+                self.state.update_step_state(
+                    step.id(),
+                    State::Failed {
+                        error: e.to_string(),
+                    },
+                )
+            })?;
         }
-
         Ok(())
     }
 
@@ -126,13 +143,24 @@ impl ActionRunner {
             writeln!(message, "{:<15}: {name}", "Step")?;
             self.logger.write_line(message).await?;
         }
-        self.shell(&complex.working_dir, &complex.run).await?;
+        self.shell(&complex.id, &complex.working_dir, &complex.run)
+            .await?;
         Ok(())
     }
 
     async fn execute(mut self) -> Result<()> {
-        self.info().await?;
-        self.steps().await?;
+        self.state.update_state(State::Running);
+        self.info().await.inspect_err(|e| {
+            self.state.update_state(State::Failed {
+                error: e.to_string(),
+            })
+        })?;
+        self.steps().await.inspect_err(|e| {
+            self.state.update_state(State::Failed {
+                error: e.to_string(),
+            })
+        })?;
+        self.state.update_state(State::Completed);
         Ok(())
     }
 
