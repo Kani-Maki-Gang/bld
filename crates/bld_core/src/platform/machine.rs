@@ -9,7 +9,7 @@ use std::{
     process::ExitStatus,
     sync::Arc,
 };
-use tokio::fs::{File, copy, create_dir_all, read_to_string, remove_dir_all};
+use tokio::fs::{copy, create_dir_all, read_to_string, remove_dir_all};
 use tracing::debug;
 use uuid::Uuid;
 
@@ -73,7 +73,7 @@ impl Machine {
     ) -> Result<HashMap<String, String>> {
         let id = Uuid::new_v4();
         let outputs_file = path![&self.tmp_dir, id.to_string()];
-        File::create(&outputs_file).await?;
+        // File::create(&outputs_file).await?;
         debug!("creating new outputs file {}", outputs_file.display());
 
         let current_dir = working_dir.as_ref().unwrap_or(&self.tmp_dir).to_string();
@@ -108,7 +108,7 @@ impl Machine {
         let output_content = read_to_string(&outputs_file).await?;
         let outputs = parse_variables_iter(output_content.lines());
 
-        if outputs.len() > 0 {
+        if outputs.is_empty() {
             debug!("the executed command created {} outputs", outputs.len());
         }
 
