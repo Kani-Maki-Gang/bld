@@ -2,6 +2,7 @@ mod action;
 mod common;
 mod job;
 mod pipeline;
+mod state;
 
 pub use action::*;
 use anyhow::Result;

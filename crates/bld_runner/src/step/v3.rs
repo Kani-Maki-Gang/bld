@@ -1,5 +1,6 @@
 use crate::external::v3::External;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[cfg(feature = "all")]
 use std::iter::Peekable;
@@ -33,12 +34,19 @@ use crate::{
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShellCommand {
-    pub id: Option<String>,
+    #[serde(default = "ShellCommand::default_id")]
+    pub id: String,
     pub name: Option<String>,
     pub working_dir: Option<String>,
     pub run: String,
     #[serde(rename = "if")]
     pub condition: Option<String>,
+}
+
+impl ShellCommand {
+    fn default_id() -> String {
+        Uuid::new_v4().to_string()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,7 +62,15 @@ impl Step {
         let Self::ComplexSh(complex) = self else {
             return false;
         };
-        complex.id.as_ref().map(|x| x == id).unwrap_or_default()
+        complex.id == id
+    }
+
+    pub fn id(&self) -> &str {
+        match self {
+            Self::SingleSh(_) => unimplemented!(),
+            Self::ComplexSh(cmd) => &cmd.id,
+            Self::ExternalFile(ext) => &ext.id,
+        }
     }
 }
 
@@ -131,9 +147,7 @@ impl<'a> Validate<'a> for Step {
 
             Step::ComplexSh(complex) => {
                 debug!("Step is a complex shell command");
-                if let Some(id) = complex.id.as_ref() {
-                    ctx.push_section(id);
-                }
+                ctx.push_section(&complex.id);
 
                 if let Some(name) = complex.name.as_ref() {
                     ctx.push_section(name);

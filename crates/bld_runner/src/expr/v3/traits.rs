@@ -3,6 +3,7 @@
 use std::{fmt::Display, iter::Peekable};
 
 use anyhow::{Result, bail};
+use mockall::automock;
 use pest::iterators::{Pair, Pairs};
 
 use super::parser::Rule;
@@ -152,9 +153,10 @@ pub trait ReadonlyRuntimeExprContext<'a> {
     fn get_run_start_time(&'a self) -> &'a str;
 }
 
+#[automock]
 pub trait WritableRuntimeExprContext {
-    fn get_output(&self, id: &str, name: &str) -> Result<&str>;
-    fn set_output(&mut self, id: String, name: String, value: String) -> Result<()>;
+    fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<&'a str>;
+    fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
 }
 
 pub trait EvalObject<'a> {

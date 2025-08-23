@@ -18,12 +18,13 @@ use tracing::debug;
 use crate::{
     RunnerBuilder,
     expr::v3::{
-        context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+        context::CommonReadonlyRuntimeExprContext,
         exec::CommonExprExecutor,
         traits::{EvalExpr, ExprValue},
     },
     external::v3::External,
     pipeline::v3::Pipeline,
+    runner::v3::state::{JobState, State},
     step::v3::{ShellCommand, Step},
 };
 
@@ -38,33 +39,54 @@ pub struct JobRunner {
     pub regex_cache: Arc<RegexCache>,
     pub expr_regex: Arc<Regex>,
     pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
-    pub expr_wctx: CommonWritableRuntimeExprContext,
+    pub state: JobState,
 }
 
 impl JobRunner {
     pub async fn run(mut self) -> Result<Self> {
+        self.state.update_state(State::Running);
         let pipeline = self.pipeline.clone();
         let (_, steps) = pipeline
             .jobs
             .iter()
             .find(|(name, _)| **name == self.job_name)
-            .ok_or_else(|| anyhow!("unable to find job with name {}", self.job_name))?;
+            .ok_or_else(|| anyhow!("unable to find job with name {}", self.job_name))
+            .inspect_err(|e| {
+                self.state.update_state(State::Failed {
+                    error: e.to_string(),
+                })
+            })?;
 
         debug!("starting execution of pipeline steps");
         for step in steps.iter() {
-            self.step(step).await?;
+            self.step(step).await.inspect_err(|e| {
+                self.state.update_state(State::Failed {
+                    error: e.to_string(),
+                });
+            })?;
         }
 
+        self.state.update_state(State::Completed);
         Ok(self)
     }
 
     async fn step(&mut self, step: &Step) -> Result<()> {
-        match step {
-            Step::SingleSh(sh) => self.shell(&None, sh).await?,
-            Step::ComplexSh(complex) => self.complex_shell(complex).await?,
-            Step::ExternalFile(external) => self.external(external).await?,
-        }
-        Ok(())
+        self.state.update_step_state(step.id(), State::Running);
+        let result = match step {
+            Step::SingleSh(sh) => self.shell(&None, sh).await,
+            Step::ComplexSh(complex) => self.complex_shell(complex).await,
+            Step::ExternalFile(external) => self.external(external).await,
+        };
+        result
+            .inspect(|_| self.state.update_step_state(step.id(), State::Completed))
+            .inspect_err(|e| {
+                self.state.update_step_state(
+                    step.id(),
+                    State::Failed {
+                        error: e.to_string(),
+                    },
+                )
+            })
     }
 
     async fn complex_shell(&mut self, complex: &ShellCommand) -> Result<()> {
@@ -220,7 +242,7 @@ impl JobRunner {
         let expr_exec = CommonExprExecutor::new(
             self.pipeline.as_ref(),
             self.expr_rctx.as_ref(),
-            &mut self.expr_wctx,
+            &mut self.state,
         );
         let value = expr_exec.eval(condition)?;
         Ok(matches!(value, ExprValue::Boolean(true)))
@@ -230,7 +252,7 @@ impl JobRunner {
         let expr_exec = CommonExprExecutor::new(
             self.pipeline.as_ref(),
             self.expr_rctx.as_ref(),
-            &mut self.expr_wctx,
+            &mut self.state,
         );
 
         let mut result = value.to_string();
@@ -270,11 +292,9 @@ mod tests {
     use regex::Regex;
 
     use crate::{
-        expr::v3::{
-            context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
-            parser::EXPR_REGEX,
-        },
+        expr::v3::{context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX},
         pipeline::v3::Pipeline,
+        runner::v3::state::JobState,
     };
 
     use super::JobRunner;
@@ -290,7 +310,7 @@ mod tests {
         let regex_cache = RegexCache::mock().into_arc();
         let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
         let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
-        let expr_wctx = CommonWritableRuntimeExprContext::default();
+        let state = JobState::default();
         let pipeline = Pipeline::default().into_arc();
 
         let mut job = JobRunner {
@@ -304,7 +324,7 @@ mod tests {
             regex_cache,
             expr_regex,
             expr_rctx,
-            expr_wctx,
+            state,
         };
 
         assert!(matches!(job.condition(None), Ok(true)));
