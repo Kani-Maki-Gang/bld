@@ -99,7 +99,7 @@ impl Container {
             client,
             context: options.context,
             env,
-            outputs_dir: path!["/tmp/outputs"],
+            outputs_dir: path!["tmp", "outputs"],
         };
 
         instance
