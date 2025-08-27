@@ -465,9 +465,9 @@ mod tests {
 
     use crate::{
         expr::v3::{
-            context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+            context::CommonReadonlyRuntimeExprContext,
             exec::CommonExprExecutor,
-            traits::{EvalExpr, ExprText, ExprValue},
+            traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext},
         },
         pipeline::v3::Pipeline,
         registry::v3::Registry,
@@ -477,7 +477,7 @@ mod tests {
 
     #[test]
     pub fn runs_on_machine_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.runs_on = RunsOn::ContainerOrMachine("machine".to_string());
@@ -493,7 +493,7 @@ mod tests {
 
     #[test]
     pub fn runs_on_container_name_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
 
@@ -525,7 +525,7 @@ mod tests {
 
     #[test]
     pub fn runs_on_pull_image_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.runs_on = RunsOn::Pull {
@@ -563,7 +563,7 @@ mod tests {
 
     #[test]
     pub fn runs_on_build_image_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.runs_on = RunsOn::Build {
@@ -601,7 +601,7 @@ mod tests {
 
     #[test]
     pub fn runs_on_ssh_with_user_auth_key_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.runs_on = RunsOn::Ssh(SshConfig {
@@ -654,7 +654,7 @@ mod tests {
 
     #[test]
     pub fn runs_on_ssh_with_user_password_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.runs_on = RunsOn::Ssh(SshConfig {
@@ -700,7 +700,7 @@ mod tests {
 
     #[test]
     pub fn runs_on_ssh_with_user_agent_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.runs_on = RunsOn::Ssh(SshConfig {
@@ -738,7 +738,7 @@ mod tests {
 
     #[test]
     pub fn runs_on_ssh_config_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.runs_on = RunsOn::SshFromGlobalConfig {

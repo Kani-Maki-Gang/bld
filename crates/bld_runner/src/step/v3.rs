@@ -162,9 +162,9 @@ mod tests {
     use crate::{
         action::v3::Action,
         expr::v3::{
-            context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+            context::CommonReadonlyRuntimeExprContext,
             exec::CommonExprExecutor,
-            traits::{EvalExpr, ExprText, ExprValue},
+            traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext},
         },
         external::v3::External,
         pipeline::v3::Pipeline,
@@ -173,7 +173,7 @@ mod tests {
 
     #[test]
     pub fn jobs_complex_step_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.jobs.insert(
@@ -205,27 +205,23 @@ mod tests {
                 condition: Some("first_condition".to_string()),
             }))],
         );
+
+        wctx.expect_get_exec_id().returning_st(|| Some("main"));
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
 
-        let actual = exec.eval("${{ jobs.main.second.name }}").unwrap();
+        let actual = exec.eval("${{ steps.second.name }}").unwrap();
         assert!(matches!(
             actual.try_eq(&ExprValue::Text(ExprText::Ref("second_name"))),
             Ok(ExprValue::Boolean(true))
         ));
 
-        let actual = exec.eval("${{ jobs.main.third.name }}").unwrap();
+        let actual = exec.eval("${{ steps.third.name }}").unwrap();
         assert!(matches!(
             actual.try_eq(&ExprValue::Text(ExprText::Ref("third_name"))),
             Ok(ExprValue::Boolean(true))
         ));
 
-        let actual = exec.eval("${{ jobs.backup.first.name }}").unwrap();
-        assert!(matches!(
-            actual.try_eq(&ExprValue::Text(ExprText::Ref("first_name"))),
-            Ok(ExprValue::Boolean(true))
-        ));
-
-        let actual = exec.eval("${{ jobs.main.second.working_dir }}").unwrap();
+        let actual = exec.eval("${{ steps.second.working_dir }}").unwrap();
         assert!(matches!(
             actual.try_eq(&ExprValue::Text(ExprText::Ref(
                 "some_second_working_directory"
@@ -233,7 +229,7 @@ mod tests {
             Ok(ExprValue::Boolean(true))
         ));
 
-        let actual = exec.eval("${{ jobs.main.third.working_dir }}").unwrap();
+        let actual = exec.eval("${{ steps.third.working_dir }}").unwrap();
         assert!(matches!(
             actual.try_eq(&ExprValue::Text(ExprText::Ref(
                 "some_third_working_directory"
@@ -241,7 +237,35 @@ mod tests {
             Ok(ExprValue::Boolean(true))
         ));
 
-        let actual = exec.eval("${{ jobs.backup.first.working_dir }}").unwrap();
+        let actual = exec.eval("${{ steps.second.run }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("second_run_command"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ steps.third.run }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("third_run_command"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ steps.second.condition }}");
+        assert!(actual.is_err());
+
+        let actual = exec.eval("${{ steps.third.condition }}");
+        assert!(actual.is_err());
+
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        wctx.expect_get_exec_id().returning_st(|| Some("backup"));
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        let actual = exec.eval("${{ steps.first.name }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("first_name"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ steps.first.working_dir }}").unwrap();
         assert!(matches!(
             actual.try_eq(&ExprValue::Text(ExprText::Ref(
                 "some_first_working_directory"
@@ -249,37 +273,19 @@ mod tests {
             Ok(ExprValue::Boolean(true))
         ));
 
-        let actual = exec.eval("${{ jobs.main.second.run }}").unwrap();
-        assert!(matches!(
-            actual.try_eq(&ExprValue::Text(ExprText::Ref("second_run_command"))),
-            Ok(ExprValue::Boolean(true))
-        ));
-
-        let actual = exec.eval("${{ jobs.main.third.run }}").unwrap();
-        assert!(matches!(
-            actual.try_eq(&ExprValue::Text(ExprText::Ref("third_run_command"))),
-            Ok(ExprValue::Boolean(true))
-        ));
-
-        let actual = exec.eval("${{ jobs.backup.first.run }}").unwrap();
+        let actual = exec.eval("${{ steps.first.run }}").unwrap();
         assert!(matches!(
             actual.try_eq(&ExprValue::Text(ExprText::Ref("first_run_command"))),
             Ok(ExprValue::Boolean(true))
         ));
 
-        let actual = exec.eval("${{ jobs.main.second.condition }}");
-        assert!(actual.is_err());
-
-        let actual = exec.eval("${{ jobs.main.third.condition }}");
-        assert!(actual.is_err());
-
-        let actual = exec.eval("${{ jobs.backup.first.condition }}");
+        let actual = exec.eval("${{ steps.first.condition }}");
         assert!(actual.is_err());
     }
 
     #[test]
     pub fn steps_complex_step_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut action = Action::default();
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
@@ -378,7 +384,7 @@ mod tests {
 
     #[test]
     pub fn jobs_external_step_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::default();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.jobs.insert(
@@ -406,7 +412,7 @@ mod tests {
 
     #[test]
     pub fn steps_external_step_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut action = Action::default();
         action

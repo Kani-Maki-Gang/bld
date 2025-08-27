@@ -262,9 +262,9 @@ impl<'a> Validate<'a> for Pipeline {
 mod tests {
     use crate::{
         expr::v3::{
-            context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+            context::CommonReadonlyRuntimeExprContext,
             exec::CommonExprExecutor,
-            traits::{EvalExpr, ExprText, ExprValue},
+            traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext},
         },
         inputs::v3::Input,
     };
@@ -273,7 +273,7 @@ mod tests {
 
     #[test]
     pub fn name_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         let data = vec![Some("test"), Some("hello world"), Some(""), None];
@@ -299,7 +299,7 @@ mod tests {
 
     #[test]
     pub fn cron_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         let data = vec![
@@ -330,7 +330,7 @@ mod tests {
 
     #[test]
     pub fn dispose_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         let data = vec![true, false];
@@ -352,7 +352,7 @@ mod tests {
 
     #[test]
     pub fn env_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.env.insert("NODE".to_string(), "22.10".to_string());
@@ -378,7 +378,7 @@ mod tests {
 
     #[test]
     pub fn inputs_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline
