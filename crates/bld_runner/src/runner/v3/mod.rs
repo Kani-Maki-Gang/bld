@@ -9,8 +9,8 @@ use anyhow::Result;
 pub use pipeline::*;
 
 pub enum FileRunner {
-    Action(ActionRunner),
-    Pipeline(PipelineRunner),
+    Action(Box<ActionRunner>),
+    Pipeline(Box<PipelineRunner>),
 }
 
 impl FileRunner {

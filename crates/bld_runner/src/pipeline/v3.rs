@@ -185,20 +185,17 @@ impl<'a> EvalObject<'a> for Pipeline {
                     .map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
-            "jobs" => {
-                let Some(job_name) = object_parts.next() else {
-                    bail!("expected name for job in expression");
-                };
-
-                let Some(job) = self.jobs.get(job_name.as_span().as_str()) else {
-                    bail!("job with name {job_name} not defined");
-                };
-
+            "steps" => {
                 let Some(step_id) = object_parts.next() else {
                     bail!("expected id for step in expression");
                 };
 
                 let step_id = step_id.as_span().as_str();
+
+                let Some(job) = wctx.get_exec_id().and_then(|id| self.jobs.get(id)) else {
+                    bail!("unable to find executing job id");
+                };
+
                 let Some(step) = job.iter().find(|x| x.is(step_id)) else {
                     bail!("step with id {step_id} not defined");
                 };

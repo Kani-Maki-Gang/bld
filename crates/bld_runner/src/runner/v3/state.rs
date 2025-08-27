@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow, bail};
+use uuid::Uuid;
 
 use crate::expr::v3::traits::WritableRuntimeExprContext;
 
@@ -38,6 +39,10 @@ impl StepState {
 }
 
 impl WritableRuntimeExprContext for StepState {
+    fn get_exec_id(&self) -> Option<&str> {
+        Some(self.id.as_str())
+    }
+
     fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<&'a str> {
         if self.id != id {
             bail!("id {id} has no outputs");
@@ -67,7 +72,7 @@ impl WritableRuntimeExprContext for StepState {
 
 #[derive(Default)]
 pub struct JobState {
-    _id: String,
+    id: String,
     state: State,
     steps: HashMap<String, StepState>,
 }
@@ -75,7 +80,7 @@ pub struct JobState {
 impl JobState {
     pub fn new(id: &str) -> Self {
         Self {
-            _id: id.to_string(),
+            id: id.to_string(),
             ..Default::default()
         }
     }
@@ -98,6 +103,10 @@ impl JobState {
 }
 
 impl WritableRuntimeExprContext for JobState {
+    fn get_exec_id(&self) -> Option<&str> {
+        Some(self.id.as_str())
+    }
+
     fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<&'a str> {
         let Some(step_state) = self.steps.get(id) else {
             bail!("outputs for id {id} weren't found");
@@ -120,8 +129,8 @@ impl WritableRuntimeExprContext for JobState {
     }
 }
 
-#[derive(Default)]
 pub struct ActionState {
+    id: String,
     state: State,
     steps: HashMap<String, StepState>,
 }
@@ -144,7 +153,21 @@ impl ActionState {
     }
 }
 
+impl Default for ActionState {
+    fn default() -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            state: State::Default,
+            steps: HashMap::new(),
+        }
+    }
+}
+
 impl WritableRuntimeExprContext for ActionState {
+    fn get_exec_id(&self) -> Option<&str> {
+        Some(self.id.as_str())
+    }
+
     fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<&'a str> {
         let Some(step_state) = self.steps.get(id) else {
             bail!("outputs for id {id} weren't found");

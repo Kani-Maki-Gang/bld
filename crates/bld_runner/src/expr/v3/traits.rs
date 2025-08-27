@@ -155,6 +155,8 @@ pub trait ReadonlyRuntimeExprContext<'a> {
 
 #[automock]
 pub trait WritableRuntimeExprContext {
+    #[allow(clippy::needless_lifetimes)]
+    fn get_exec_id<'a>(&'a self) -> Option<&'a str>;
     fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<&'a str>;
     fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
     fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
