@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 
-use std::{fmt::Display, iter::Peekable};
+use std::{collections::HashMap, fmt::Display, iter::Peekable};
 
 use anyhow::{Result, bail};
+use mockall::automock;
 use pest::iterators::{Pair, Pairs};
 
 use super::parser::Rule;
@@ -152,24 +153,28 @@ pub trait ReadonlyRuntimeExprContext<'a> {
     fn get_run_start_time(&'a self) -> &'a str;
 }
 
+#[automock]
 pub trait WritableRuntimeExprContext {
-    fn get_output(&self, name: &str) -> Result<&str>;
-    fn set_output(&mut self, name: String, value: String) -> Result<()>;
+    #[allow(clippy::needless_lifetimes)]
+    fn get_exec_id<'a>(&'a self) -> Option<&'a str>;
+    fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<&'a str>;
+    fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
+    fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
 }
 
 pub trait EvalObject<'a> {
     fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
         &'a self,
-        path: &mut Peekable<Pairs<'_, Rule>>,
+        path: &mut Peekable<Pairs<'a, Rule>>,
         rctx: &'a RCtx,
         wctx: &'a WCtx,
     ) -> Result<ExprValue<'a>>;
 }
 
 pub trait EvalExpr<'a> {
-    fn eval_cmp(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>>;
-    fn eval_symbol(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>>;
-    fn eval_expr(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>>;
-    fn eval_logical_expr(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>>;
+    fn eval_cmp(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
+    fn eval_symbol(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
+    fn eval_expr(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
+    fn eval_logical_expr(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
     fn eval(&'a self, expr: &'a str) -> Result<ExprValue<'a>>;
 }

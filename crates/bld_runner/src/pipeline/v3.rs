@@ -124,7 +124,7 @@ impl IntoVariables for Pipeline {
 impl<'a> EvalObject<'a> for Pipeline {
     fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
         &'a self,
-        path: &mut Peekable<Pairs<'_, Rule>>,
+        path: &mut Peekable<Pairs<'a, Rule>>,
         rctx: &'a RCtx,
         wctx: &'a WCtx,
     ) -> Result<ExprValue<'a>> {
@@ -159,11 +159,15 @@ impl<'a> EvalObject<'a> for Pipeline {
                     bail!("expected name of input in object path");
                 };
                 let name = part.as_span().as_str();
-                let input = self
-                    .inputs
-                    .get(name)
-                    .ok_or_else(|| anyhow!("input '{name}' not found"))?;
-                input.try_into().map(|x| ExprValue::Text(ExprText::Ref(x)))
+
+                let input = rctx.get_input(name).or_else(|_| {
+                    self.inputs
+                        .get(name)
+                        .ok_or_else(|| anyhow!("input '{name}' not found"))
+                        .and_then(|x| x.try_into())
+                });
+
+                input.map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
             "env" => {
@@ -171,26 +175,27 @@ impl<'a> EvalObject<'a> for Pipeline {
                     bail!("expected name of env variable in object path");
                 };
                 let name = part.as_span().as_str();
-                self.env
-                    .get(name)
+                rctx.get_env(name)
+                    .or_else(|_| {
+                        self.env
+                            .get(name)
+                            .map(|x| x.as_str())
+                            .ok_or_else(|| anyhow!("env variable '{name}' not found"))
+                    })
                     .map(|x| ExprValue::Text(ExprText::Ref(x)))
-                    .ok_or_else(|| anyhow!("env variable '{name}' not found"))
             }
 
-            "jobs" => {
-                let Some(job_name) = object_parts.next() else {
-                    bail!("expected name for job in expression");
-                };
-
-                let Some(job) = self.jobs.get(job_name.as_span().as_str()) else {
-                    bail!("job with name {job_name} not defined");
-                };
-
+            "steps" => {
                 let Some(step_id) = object_parts.next() else {
                     bail!("expected id for step in expression");
                 };
 
                 let step_id = step_id.as_span().as_str();
+
+                let Some(job) = wctx.get_exec_id().and_then(|id| self.jobs.get(id)) else {
+                    bail!("unable to find executing job id");
+                };
+
                 let Some(step) = job.iter().find(|x| x.is(step_id)) else {
                     bail!("step with id {step_id} not defined");
                 };
@@ -257,9 +262,9 @@ impl<'a> Validate<'a> for Pipeline {
 mod tests {
     use crate::{
         expr::v3::{
-            context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+            context::CommonReadonlyRuntimeExprContext,
             exec::CommonExprExecutor,
-            traits::{EvalExpr, ExprText, ExprValue},
+            traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext},
         },
         inputs::v3::Input,
     };
@@ -268,7 +273,7 @@ mod tests {
 
     #[test]
     pub fn name_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         let data = vec![Some("test"), Some("hello world"), Some(""), None];
@@ -294,7 +299,7 @@ mod tests {
 
     #[test]
     pub fn cron_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         let data = vec![
@@ -325,7 +330,7 @@ mod tests {
 
     #[test]
     pub fn dispose_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         let data = vec![true, false];
@@ -347,7 +352,7 @@ mod tests {
 
     #[test]
     pub fn env_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.env.insert("NODE".to_string(), "22.10".to_string());
@@ -373,7 +378,7 @@ mod tests {
 
     #[test]
     pub fn inputs_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline

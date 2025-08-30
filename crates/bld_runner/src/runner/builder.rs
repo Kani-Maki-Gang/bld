@@ -188,7 +188,7 @@ impl<'a> RunnerBuilder<'a> {
 
                 context.add_platform(platform.clone()).await?;
 
-                VersionedRunner::V1(runner::v1::Runner {
+                VersionedRunner::V1(Box::new(runner::v1::Runner {
                     run_id: self.run_id,
                     run_start_time: self.run_start_time,
                     config,
@@ -203,7 +203,7 @@ impl<'a> RunnerBuilder<'a> {
                     platform,
                     is_child: self.is_child,
                     has_faulted: false,
-                })
+                }))
             }
 
             VersionedFile::Version2(mut pipeline) => {
@@ -221,7 +221,7 @@ impl<'a> RunnerBuilder<'a> {
 
                 pipeline.apply_tokens(&pipeline_context).await?;
 
-                VersionedRunner::V2(runner::v2::Runner {
+                VersionedRunner::V2(Box::new(runner::v2::Runner {
                     run_id: self.run_id,
                     run_start_time: self.run_start_time,
                     config,
@@ -236,7 +236,7 @@ impl<'a> RunnerBuilder<'a> {
                     platform: None,
                     is_child: self.is_child,
                     has_faulted: false,
-                })
+                }))
             }
 
             VersionedFile::Version3(RunnerFile::PipelineFileType(pipeline)) => {
@@ -261,7 +261,7 @@ impl<'a> RunnerBuilder<'a> {
                 )
                 .await?;
 
-                VersionedRunner::V3(FileRunner::Pipeline(runner::v3::PipelineRunner {
+                let runner = Box::new(runner::v3::PipelineRunner {
                     config,
                     expr_regex,
                     expr_rctx,
@@ -275,7 +275,8 @@ impl<'a> RunnerBuilder<'a> {
                     ipc: self.ipc,
                     is_child: self.is_child,
                     has_faulted: false,
-                }))
+                });
+                VersionedRunner::V3(FileRunner::Pipeline(runner))
             }
 
             VersionedFile::Version3(RunnerFile::ActionFileType(action)) => {
@@ -297,13 +298,14 @@ impl<'a> RunnerBuilder<'a> {
                     .platform
                     .ok_or_else(|| anyhow!("no platform provided"))?;
 
-                VersionedRunner::V3(FileRunner::Action(runner::v3::ActionRunner::new(
+                let runner = Box::new(runner::v3::ActionRunner::new(
                     self.logger,
                     *action,
                     platform,
                     expr_regex,
                     expr_rctx,
-                )))
+                ));
+                VersionedRunner::V3(FileRunner::Action(runner))
             }
         };
 
