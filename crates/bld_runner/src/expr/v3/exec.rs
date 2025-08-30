@@ -229,7 +229,10 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 #[cfg(test)]
 mod tests {
     use crate::{
-        expr::v3::{context::CommonReadonlyRuntimeExprContext, traits::{ExprText, MockWritableRuntimeExprContext}},
+        expr::v3::{
+            context::CommonReadonlyRuntimeExprContext,
+            traits::{ExprText, MockWritableRuntimeExprContext},
+        },
         inputs::v3::Input,
         pipeline::v3::Pipeline,
     };
