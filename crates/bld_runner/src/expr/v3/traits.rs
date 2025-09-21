@@ -8,6 +8,8 @@ use pest::iterators::{Pair, Pairs};
 
 use super::parser::Rule;
 
+const ESCAPE_CHARS: [&str; 2] = ["\\\"", "\""];
+
 #[derive(Debug, Eq, Ord, PartialOrd, PartialEq)]
 pub enum ExprText<'a> {
     Ref(&'a str),
@@ -112,20 +114,14 @@ impl<'b> TryFrom<&'b str> for ExprValue<'_> {
         }
 
         let mut text = String::new();
-        if value.starts_with("\\\"") {
-            text = value.replace("\\\"", "");
-        }
+        for escape_char in ESCAPE_CHARS {
+            if value.starts_with(escape_char) {
+                text = value.replace(escape_char, "");
+            }
 
-        if value.starts_with("\"") {
-            text = value.replace("\"", "");
-        }
-
-        if value.ends_with("\\\"") {
-            text = value.replace("\\\"", "");
-        }
-
-        if value.ends_with("\"") {
-            text = value.replace("\"", "");
+            if value.ends_with(escape_char) {
+                text = value.replace(escape_char, "");
+            }
         }
 
         Ok(ExprValue::Text(ExprText::Owned(text)))
