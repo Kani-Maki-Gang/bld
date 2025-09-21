@@ -468,7 +468,7 @@ mod tests {
     }
 
     #[test]
-    pub fn ev_use_rctx_expr_eval_success() {
+    pub fn env_use_rctx_expr_eval_success() {
         // Arrange
         let data: HashMap<String, String> = vec![
             ("name", "john"),

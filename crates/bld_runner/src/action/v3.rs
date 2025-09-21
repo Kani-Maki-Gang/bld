@@ -128,11 +128,15 @@ impl<'a> EvalObject<'a> for Action {
                     bail!("expected name of input in object path");
                 };
                 let name = part.as_span().as_str();
-                let input = self
-                    .inputs
-                    .get(name)
-                    .ok_or_else(|| anyhow!("input '{name}' not found"))?;
-                input.try_into().map(|x| ExprValue::Text(ExprText::Ref(x)))
+
+                let input = rctx.get_input(name).or_else(|_| {
+                    self.inputs
+                        .get(name)
+                        .ok_or_else(|| anyhow!("input '{name}' not found"))
+                        .and_then(|x| x.try_into())
+                });
+
+                input.map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
             "steps" => {
@@ -181,6 +185,10 @@ impl<'a> Validate<'a> for Action {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use bld_utils::sync::IntoArc;
+
     use crate::{
         expr::v3::{
             context::CommonReadonlyRuntimeExprContext,
@@ -264,6 +272,38 @@ mod tests {
             };
             assert!(matches!(
                 value.try_eq(&expected),
+                Ok(ExprValue::Boolean(true))
+            ));
+        }
+    }
+
+    #[test]
+    pub fn inputs_use_rctx_expr_eval_success() {
+        // Arrange
+        let data: HashMap<String, String> = vec![
+            ("name", "john"),
+            ("surname", "doe"),
+            ("age", "30"),
+            ("address", "some address"),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext {
+            inputs: data.clone().into_arc(),
+            ..Default::default()
+        };
+        let action = Action::default();
+
+        let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+
+        for (name, expected) in data {
+            let expr = format!("{} inputs.{name} {}", "${{", "}}");
+            let actual = exec.eval(&expr).unwrap();
+            assert!(matches!(
+                actual.try_eq(&ExprValue::Text(ExprText::Ref(&expected))),
                 Ok(ExprValue::Boolean(true))
             ));
         }
