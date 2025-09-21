@@ -73,8 +73,6 @@ impl Machine {
     ) -> Result<HashMap<String, String>> {
         let id = Uuid::new_v4();
         let outputs_file = path![&self.tmp_dir, id.to_string()];
-        // File::create(&outputs_file).await?;
-        debug!("creating new outputs file {}", outputs_file.display());
 
         let current_dir = working_dir.as_ref().unwrap_or(&self.tmp_dir).to_string();
         let current_dir = if Path::new(&current_dir).is_relative() {
