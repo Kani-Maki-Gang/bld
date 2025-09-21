@@ -159,6 +159,8 @@ impl<'a> Validate<'a> for Step {
 
 #[cfg(test)]
 mod tests {
+    use mockall::predicate;
+
     use crate::{
         action::v3::Action,
         expr::v3::{
@@ -434,5 +436,155 @@ mod tests {
 
         let actual = exec.eval("${{ steps.backup.third }}");
         assert!(actual.is_err());
+    }
+
+    #[test]
+    pub fn jobs_outputs_expr_eval_success() {
+        // Arrange
+        let data = vec![
+            (
+                "main",
+                vec![
+                    (
+                        "build",
+                        vec![
+                            ("name", "john"),
+                            ("surname", "doe"),
+                            ("address", "some address"),
+                        ],
+                    ),
+                    (
+                        "test",
+                        vec![
+                            ("test_result", "success"),
+                            ("tests_run", "3000"),
+                            ("tests_skipped", "200"),
+                        ],
+                    ),
+                ],
+            ),
+            (
+                "second",
+                vec![
+                    ("format", vec![("lines", "30K")]),
+                    ("lint", vec![("errors", "true")]),
+                ],
+            ),
+        ];
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+
+        for (job, steps) in data.iter() {
+            if pipeline.jobs.get(*job).is_none() {
+                pipeline.jobs.insert(job.to_string(), vec![]);
+            }
+
+            for (step, outputs) in steps.iter() {
+                let job_steps = pipeline.jobs.get_mut(*job).unwrap();
+                if job_steps.iter().find(|x| x.is(step)).is_none() {
+                    job_steps.push(Step::ComplexSh(Box::new(ShellCommand {
+                        id: step.to_string(),
+                        name: None,
+                        run: String::new(),
+                        condition: None,
+                        working_dir: None,
+                    })));
+                }
+
+                wctx.expect_get_exec_id()
+                    .times(outputs.len())
+                    .returning(|| Some(job));
+
+                for (name, value) in outputs.iter() {
+                    wctx.expect_get_output()
+                        .with(predicate::eq(*step), predicate::eq(*name))
+                        .times(1)
+                        .returning(|_, _| Ok(value));
+                }
+            }
+        }
+
+        for (_, steps) in data.iter() {
+            for (step, outputs) in steps.iter() {
+                for (name, value) in outputs.iter() {
+                    let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+                    let expr = format!("{} steps.{step}.outputs.{name} {}", "${{", "}}");
+
+                    // Act
+                    let actual = exec.eval(&expr);
+
+                    // Assert
+                    assert!(matches!(
+                        actual
+                            .unwrap()
+                            .try_eq(&ExprValue::Text(ExprText::Ref(value))),
+                        Ok(ExprValue::Boolean(true))
+                    ));
+                }
+            }
+        }
+    }
+
+    #[test]
+    pub fn action_outputs_expr_eval_success() {
+        // Arrange
+        let data = vec![
+            (
+                "build",
+                vec![
+                    ("name", "john"),
+                    ("surname", "doe"),
+                    ("address", "some address"),
+                ],
+            ),
+            (
+                "test",
+                vec![
+                    ("test_result", "success"),
+                    ("tests_run", "3000"),
+                    ("tests_skipped", "200"),
+                ],
+            ),
+        ];
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut action = Action::default();
+
+        for (step, outputs) in data.iter() {
+            if action.steps.iter().find(|x| x.is(step)).is_none() {
+                action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+                    id: step.to_string(),
+                    name: None,
+                    run: String::new(),
+                    condition: None,
+                    working_dir: None,
+                })));
+            }
+            for (name, value) in outputs.iter() {
+                wctx.expect_get_output()
+                    .with(predicate::eq(*step), predicate::eq(*name))
+                    .times(1)
+                    .returning(|_, _| Ok(value));
+            }
+        }
+
+        for (step, outputs) in data.iter() {
+            for (name, value) in outputs.iter() {
+                let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+                let expr = format!("{} steps.{step}.outputs.{name} {}", "${{", "}}");
+
+                // Act
+                let actual = exec.eval(&expr);
+
+                // Assert
+                assert!(matches!(
+                    actual
+                        .unwrap()
+                        .try_eq(&ExprValue::Text(ExprText::Ref(value))),
+                    Ok(ExprValue::Boolean(true))
+                ));
+            }
+        }
     }
 }
