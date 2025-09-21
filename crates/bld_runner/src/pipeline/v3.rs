@@ -260,6 +260,10 @@ impl<'a> Validate<'a> for Pipeline {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use bld_utils::sync::IntoArc;
+
     use crate::{
         expr::v3::{
             context::CommonReadonlyRuntimeExprContext,
@@ -424,6 +428,74 @@ mod tests {
             };
             assert!(matches!(
                 value.try_eq(&expected),
+                Ok(ExprValue::Boolean(true))
+            ));
+        }
+    }
+
+    #[test]
+    pub fn inputs_use_rctx_expr_eval_success() {
+        // Arrange
+        let data: HashMap<String, String> = vec![
+            ("name", "john"),
+            ("surname", "doe"),
+            ("age", "30"),
+            ("address", "some address"),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext {
+            inputs: data.clone().into_arc(),
+            ..Default::default()
+        };
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        for (name, expected) in data {
+            let expr = format!("{} inputs.{name} {}", "${{", "}}");
+            // Act
+            let actual = exec.eval(&expr).unwrap();
+
+            // Assert
+            assert!(matches!(
+                actual.try_eq(&ExprValue::Text(ExprText::Ref(&expected))),
+                Ok(ExprValue::Boolean(true))
+            ));
+        }
+    }
+
+    #[test]
+    pub fn ev_use_rctx_expr_eval_success() {
+        // Arrange
+        let data: HashMap<String, String> = vec![
+            ("name", "john"),
+            ("surname", "doe"),
+            ("age", "30"),
+            ("address", "some address"),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext {
+            env: data.clone().into_arc(),
+            ..Default::default()
+        };
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        for (name, expected) in data {
+            let expr = format!("{} env.{name} {}", "${{", "}}");
+            // Act
+            let actual = exec.eval(&expr).unwrap();
+
+            // Assert
+            assert!(matches!(
+                actual.try_eq(&ExprValue::Text(ExprText::Ref(&expected))),
                 Ok(ExprValue::Boolean(true))
             ));
         }
