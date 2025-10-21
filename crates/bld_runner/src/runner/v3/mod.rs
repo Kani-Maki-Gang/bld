@@ -5,11 +5,13 @@ mod pipeline;
 mod state;
 
 pub use action::*;
-use anyhow::Result;
 pub use pipeline::*;
+pub use state::*;
+
+use anyhow::Result;
 
 pub enum FileRunner {
-    Action(Box<ActionRunner>),
+    Action(Box<ActionRunner<ActionState>>),
     Pipeline(Box<PipelineRunner>),
 }
 

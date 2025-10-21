@@ -20,15 +20,15 @@ use crate::{
     expr::v3::{
         context::CommonReadonlyRuntimeExprContext,
         exec::CommonExprExecutor,
-        traits::{EvalExpr, ExprValue, WritableRuntimeExprContext},
+        traits::{EvalExpr, ExprValue},
     },
     external::v3::External,
     pipeline::v3::Pipeline,
-    runner::v3::state::{JobState, State},
+    runner::v3::state::{JobState, RootState, State},
     step::v3::{ShellCommand, Step},
 };
 
-pub struct JobRunner {
+pub struct JobRunner<S: RootState> {
     pub job_name: String,
     pub logger: Arc<Logger>,
     pub config: Arc<BldConfig>,
@@ -39,10 +39,10 @@ pub struct JobRunner {
     pub regex_cache: Arc<RegexCache>,
     pub expr_regex: Arc<Regex>,
     pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
-    pub state: JobState,
+    pub state: S,
 }
 
-impl JobRunner {
+impl<S: RootState> JobRunner<S> {
     pub async fn run(mut self) -> Result<Self> {
         self.state.update_state(State::Running);
         let pipeline = self.pipeline.clone();
@@ -71,15 +71,15 @@ impl JobRunner {
     }
 
     async fn step(&mut self, step: &Step) -> Result<()> {
-        self.state.update_step_state(step.id(), State::Running);
+        self.state.update_node_state(step.id(), State::Running);
         let result = match step {
             Step::ComplexSh(complex) => self.complex_shell(complex).await,
             Step::ExternalFile(external) => self.external(external).await,
         };
         result
-            .inspect(|_| self.state.update_step_state(step.id(), State::Completed))
+            .inspect(|_| self.state.update_node_state(step.id(), State::Completed))
             .inspect_err(|e| {
-                self.state.update_step_state(
+                self.state.update_node_state(
                     step.id(),
                     State::Failed {
                         error: e.to_string(),
@@ -276,12 +276,16 @@ impl JobRunner {
 
 pub struct RunningJob {
     pub name: String,
-    pub handle: JoinHandle<Result<JobRunner>>,
+    pub handle: JoinHandle<Result<JobRunner<JobState>>>,
     pub logger: Arc<Logger>,
 }
 
 impl RunningJob {
-    pub fn new(name: &str, handle: JoinHandle<Result<JobRunner>>, logger: Arc<Logger>) -> Self {
+    pub fn new(
+        name: &str,
+        handle: JoinHandle<Result<JobRunner<JobState>>>,
+        logger: Arc<Logger>,
+    ) -> Self {
         Self {
             name: name.to_owned(),
             handle,

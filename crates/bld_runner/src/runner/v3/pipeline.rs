@@ -21,8 +21,11 @@ use tokio::sync::mpsc::Sender;
 use tracing::debug;
 
 use crate::{
-    expr::v3::context::CommonReadonlyRuntimeExprContext, pipeline::v3::Pipeline,
-    registry::v3::Registry, runner::v3::state::JobState, runs_on::v3::RunsOn,
+    expr::v3::context::CommonReadonlyRuntimeExprContext,
+    pipeline::v3::Pipeline,
+    registry::v3::Registry,
+    runner::v3::state::{JobState, RootState},
+    runs_on::v3::RunsOn,
 };
 
 use super::{
@@ -123,7 +126,7 @@ impl PipelineRunner {
         Ok(())
     }
 
-    fn create_job(&self, name: &str, logger: Arc<Logger>, state: JobState) -> JobRunner {
+    fn create_job(&self, name: &str, logger: Arc<Logger>, state: JobState) -> JobRunner<JobState> {
         JobRunner {
             job_name: name.to_string(),
             logger: logger.clone(),
@@ -145,7 +148,7 @@ impl PipelineRunner {
             bail!("job with name {name} not found");
         };
         for step in steps {
-            state.add_step(step.id());
+            state.add_node(step.id());
         }
         Ok(state)
     }

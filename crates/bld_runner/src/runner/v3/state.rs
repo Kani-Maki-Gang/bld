@@ -1,9 +1,25 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow, bail};
+use mockall::{automock, mock};
 use uuid::Uuid;
 
 use crate::expr::v3::traits::WritableRuntimeExprContext;
+
+#[automock]
+pub trait NodeState {
+    fn update_state(&mut self, state: State);
+    #[allow(unused)]
+    fn get_state(&self) -> &State;
+}
+
+pub trait RootState: WritableRuntimeExprContext {
+    fn update_state(&mut self, state: State);
+    fn get_state(&self) -> &State;
+    fn add_node(&mut self, node_id: &str);
+    fn update_node_state(&mut self, node_id: &str, state: State);
+    fn get_node_state<'a>(&'a self, node_id: &str) -> Option<&'a State>;
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
@@ -33,9 +49,15 @@ impl StepState {
             ..Default::default()
         }
     }
+}
 
-    pub fn update_state(&mut self, state: State) {
+impl NodeState for StepState {
+    fn update_state(&mut self, state: State) {
         self.state = state;
+    }
+
+    fn get_state(&self) -> &State {
+        &self.state
     }
 }
 
@@ -85,21 +107,31 @@ impl JobState {
             ..Default::default()
         }
     }
+}
 
-    pub fn update_state(&mut self, state: State) {
+impl RootState for JobState {
+    fn update_state(&mut self, state: State) {
         self.state = state;
     }
 
-    pub fn add_step(&mut self, step_id: &str) {
-        self.steps
-            .insert(step_id.to_string(), StepState::new(step_id));
+    fn get_state(&self) -> &State {
+        &self.state
     }
 
-    pub fn update_step_state(&mut self, step_id: &str, state: State) {
-        let Some(step_state) = self.steps.get_mut(step_id) else {
+    fn add_node(&mut self, node_id: &str) {
+        self.steps
+            .insert(node_id.to_string(), StepState::new(node_id));
+    }
+
+    fn update_node_state(&mut self, node_id: &str, state: State) {
+        let Some(step_state) = self.steps.get_mut(node_id) else {
             return;
         };
         step_state.update_state(state);
+    }
+
+    fn get_node_state<'a>(&'a self, node_id: &str) -> Option<&'a State> {
+        self.steps.get(node_id).map(|x| &x.state)
     }
 }
 
@@ -136,24 +168,6 @@ pub struct ActionState {
     steps: HashMap<String, StepState>,
 }
 
-impl ActionState {
-    pub fn update_state(&mut self, state: State) {
-        self.state = state;
-    }
-
-    pub fn add_step(&mut self, step_id: &str) {
-        self.steps
-            .insert(step_id.to_string(), StepState::new(step_id));
-    }
-
-    pub fn update_step_state(&mut self, step_id: &str, state: State) {
-        let Some(step_state) = self.steps.get_mut(step_id) else {
-            return;
-        };
-        step_state.update_state(state);
-    }
-}
-
 impl Default for ActionState {
     fn default() -> Self {
         Self {
@@ -161,6 +175,32 @@ impl Default for ActionState {
             state: State::Default,
             steps: HashMap::new(),
         }
+    }
+}
+
+impl RootState for ActionState {
+    fn update_state(&mut self, state: State) {
+        self.state = state;
+    }
+
+    fn get_state(&self) -> &State {
+        &self.state
+    }
+
+    fn add_node(&mut self, node_id: &str) {
+        self.steps
+            .insert(node_id.to_string(), StepState::new(node_id));
+    }
+
+    fn update_node_state(&mut self, node_id: &str, state: State) {
+        let Some(step_state) = self.steps.get_mut(node_id) else {
+            return;
+        };
+        step_state.update_state(state);
+    }
+
+    fn get_node_state<'a>(&'a self, node_id: &str) -> Option<&'a State> {
+        self.steps.get(node_id).map(|x| &x.state)
     }
 }
 
@@ -191,6 +231,25 @@ impl WritableRuntimeExprContext for ActionState {
     }
 }
 
+mock! {
+    pub RootState {}
+
+    impl RootState for RootState {
+        fn update_state(&mut self, state: State);
+        fn get_state(&self) -> &State;
+        fn add_node(&mut self, node_id: &str);
+        fn update_node_state(&mut self, node_id: &str, state: State);
+        fn get_node_state<'a>(&'a self, node_id: &str) -> Option<&'a State>;
+    }
+
+    impl WritableRuntimeExprContext for RootState {
+        fn get_exec_id<'a> (&'a self) -> Option<&'a str>;
+        fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<&'a str>;
+        fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
+        fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -199,7 +258,7 @@ mod tests {
 
     use crate::{
         expr::v3::traits::WritableRuntimeExprContext,
-        runner::v3::state::{ActionState, JobState, State, StepState},
+        runner::v3::state::{ActionState, JobState, NodeState, RootState, State, StepState},
     };
 
     #[test]
@@ -227,13 +286,7 @@ mod tests {
 
     #[test]
     pub fn step_state_get_exec_id_success() {
-        let data = vec![
-            "123",
-            "hello",
-            "world",
-            "john",
-            "doe"
-        ];
+        let data = vec!["123", "hello", "world", "john", "doe"];
         for id in data {
             let state = StepState {
                 id: id.to_string(),
@@ -325,13 +378,7 @@ mod tests {
 
     #[test]
     pub fn job_state_get_exec_id_success() {
-        let data = vec![
-            "123",
-            "hello",
-            "world",
-            "john",
-            "doe"
-        ];
+        let data = vec!["123", "hello", "world", "john", "doe"];
         for id in data {
             let state = JobState {
                 id: id.to_string(),
@@ -357,11 +404,14 @@ mod tests {
             state: State::Default,
             steps: HashMap::new(),
         };
-        state.steps.insert(step_id.clone(), StepState {
-            id: step_id.clone(),
-            state: State::Default,
-            outputs: outputs.clone(),
-        });
+        state.steps.insert(
+            step_id.clone(),
+            StepState {
+                id: step_id.clone(),
+                state: State::Default,
+                outputs: outputs.clone(),
+            },
+        );
         for (name, expected_value) in outputs {
             let actual_value = state.get_output(&step_id, &name).unwrap();
             assert_eq!(actual_value, expected_value);
@@ -382,11 +432,14 @@ mod tests {
             state: State::Default,
             steps: HashMap::new(),
         };
-        state.steps.insert(step_id.clone(), StepState {
-            id: step_id.clone(),
-            state: State::Default,
-            outputs: outputs.clone(),
-        });
+        state.steps.insert(
+            step_id.clone(),
+            StepState {
+                id: step_id.clone(),
+                state: State::Default,
+                outputs: outputs.clone(),
+            },
+        );
         for (name, value) in outputs {
             let result = state.set_output(&step_id, name, value);
             assert!(result.is_ok())
@@ -407,24 +460,21 @@ mod tests {
             state: State::Default,
             steps: HashMap::new(),
         };
-        state.steps.insert(step_id.clone(), StepState {
-            id: step_id.clone(),
-            state: State::Default,
-            outputs: outputs.clone(),
-        });
+        state.steps.insert(
+            step_id.clone(),
+            StepState {
+                id: step_id.clone(),
+                state: State::Default,
+                outputs: outputs.clone(),
+            },
+        );
         let result = state.set_outputs(&step_id, outputs);
         assert!(result.is_ok())
     }
 
     #[test]
     pub fn action_state_get_exec_id_success() {
-        let data = vec![
-            "123",
-            "hello",
-            "world",
-            "john",
-            "doe"
-        ];
+        let data = vec!["123", "hello", "world", "john", "doe"];
         for id in data {
             let state = ActionState {
                 id: id.to_string(),
@@ -450,11 +500,14 @@ mod tests {
             state: State::Default,
             steps: HashMap::new(),
         };
-        state.steps.insert(step_id.clone(), StepState {
-            id: step_id.clone(),
-            state: State::Default,
-            outputs: outputs.clone(),
-        });
+        state.steps.insert(
+            step_id.clone(),
+            StepState {
+                id: step_id.clone(),
+                state: State::Default,
+                outputs: outputs.clone(),
+            },
+        );
         for (name, expected_value) in outputs {
             let actual_value = state.get_output(&step_id, &name).unwrap();
             assert_eq!(actual_value, expected_value);
@@ -475,11 +528,14 @@ mod tests {
             state: State::Default,
             steps: HashMap::new(),
         };
-        state.steps.insert(step_id.clone(), StepState {
-            id: step_id.clone(),
-            state: State::Default,
-            outputs: outputs.clone(),
-        });
+        state.steps.insert(
+            step_id.clone(),
+            StepState {
+                id: step_id.clone(),
+                state: State::Default,
+                outputs: outputs.clone(),
+            },
+        );
         for (name, value) in outputs {
             let result = state.set_output(&step_id, name, value);
             assert!(result.is_ok())
@@ -500,11 +556,14 @@ mod tests {
             state: State::Default,
             steps: HashMap::new(),
         };
-        state.steps.insert(step_id.clone(), StepState {
-            id: step_id.clone(),
-            state: State::Default,
-            outputs: outputs.clone(),
-        });
+        state.steps.insert(
+            step_id.clone(),
+            StepState {
+                id: step_id.clone(),
+                state: State::Default,
+                outputs: outputs.clone(),
+            },
+        );
         let result = state.set_outputs(&step_id, outputs);
         assert!(result.is_ok())
     }

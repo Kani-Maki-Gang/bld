@@ -298,7 +298,7 @@ impl<'a> RunnerBuilder<'a> {
                     .platform
                     .ok_or_else(|| anyhow!("no platform provided"))?;
 
-                let runner = Box::new(runner::v3::ActionRunner::new(
+                let runner = Box::new(runner::v3::ActionRunner::<runner::v3::ActionState>::new(
                     self.logger,
                     *action,
                     platform,
