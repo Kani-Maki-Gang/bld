@@ -306,7 +306,8 @@ mod tests {
     use crate::{
         expr::v3::{context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX},
         pipeline::v3::Pipeline,
-        runner::v3::state::JobState,
+        runner::v3::{MockRootState, State, state::JobState},
+        step::v3::{ShellCommand, Step},
     };
 
     use super::JobRunner;
@@ -354,5 +355,79 @@ mod tests {
             job.condition(Some("hello world ${{ true == \"James\" }}"))
                 .is_err()
         );
+    }
+
+    #[tokio::test]
+    pub async fn run_state_management_success() {
+        // Arrange
+        let data: Vec<String> = (0..10).map(|x| format!("step-{x}")).collect();
+        let job_name = "test".to_string();
+        let logger = Logger::mock().into_arc();
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let mut pipeline = Pipeline::default();
+        let platform = Platform::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let mut state = MockRootState::new();
+
+        let mut steps = vec![];
+
+        state
+            .expect_update_state()
+            .withf(|state| matches!(state, State::Running))
+            .return_once(|_| ());
+
+        for node_id in &data {
+            let node_id_arg = node_id.clone();
+            state
+                .expect_update_node_state()
+                .withf(move |node_id, state| {
+                    node_id == node_id_arg && matches!(state, State::Running)
+                })
+                .return_once(|_, _| ());
+
+            state.expect_set_outputs().returning_st(|_, _| Ok(()));
+
+            let node_id_arg = node_id.clone();
+            state
+                .expect_update_node_state()
+                .withf(move |node_id, state| {
+                    node_id == node_id_arg && matches!(state, State::Completed)
+                })
+                .return_once(|_, _| ());
+
+            steps.push(Step::ComplexSh(Box::new(ShellCommand {
+                id: node_id.to_string(),
+                run: "echo hello".to_string(),
+                ..Default::default()
+            })));
+        }
+
+        state
+            .expect_update_state()
+            .withf(|state| matches!(state, State::Completed))
+            .return_once(|_| ());
+
+        pipeline.jobs.insert(job_name.clone(), steps);
+
+        let runner = JobRunner {
+            job_name,
+            run_ctx,
+            pipeline: pipeline.into_arc(),
+            logger,
+            config,
+            fs,
+            platform,
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            state,
+        };
+
+        // Act
+        runner.run().await.unwrap();
     }
 }

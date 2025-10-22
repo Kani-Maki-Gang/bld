@@ -21,6 +21,7 @@ pub enum Context {
         conn: Arc<DatabaseConnection>,
     },
     Local(Sender<LocalContextMessage>),
+    Mock,
 }
 
 impl Context {
@@ -40,14 +41,14 @@ impl Context {
     }
 
     pub fn mock() -> Self {
-        let (tx, _) = channel(4096);
-        Self::Local(tx)
+        Self::Mock
     }
 
     pub fn get_conn(&self) -> Option<Arc<DatabaseConnection>> {
         match self {
             Self::Local(_) => None,
             Self::Server { conn, .. } => Some(conn.clone()),
+            Self::Mock => None,
         }
     }
 
@@ -62,6 +63,7 @@ impl Context {
                 .send(LocalContextMessage::AddRemoteRun(remote_run))
                 .await
                 .map_err(|e| anyhow!(e)),
+            Self::Mock => Ok(()),
         }
     }
 
@@ -75,6 +77,7 @@ impl Context {
                 .send(LocalContextMessage::RemoveRemoteRun(run_id.to_owned()))
                 .await
                 .map_err(|e| anyhow!(e)),
+            Self::Mock => Ok(()),
         }
     }
 
@@ -88,6 +91,7 @@ impl Context {
                 .send(LocalContextMessage::AddPlatform(platform))
                 .await
                 .map_err(|e| anyhow!(e)),
+            Self::Mock => Ok(()),
         }
     }
 
@@ -103,6 +107,7 @@ impl Context {
                 .send(LocalContextMessage::RemovePlatform(platform_id.to_string()))
                 .await
                 .map_err(|e| anyhow!(e)),
+            Self::Mock => Ok(()),
         }
     }
 
@@ -187,6 +192,10 @@ impl Context {
     }
 
     pub async fn run_faulted(&self) -> Result<()> {
+        if matches!(self, Self::Mock) {
+            return Ok(());
+        }
+
         let (resp_tx, resp_rx) = oneshot::channel();
 
         match self {
@@ -198,6 +207,7 @@ impl Context {
                 .send(LocalContextMessage::RunFaulted(resp_tx))
                 .await
                 .map_err(|e| anyhow!(e))?,
+            Self::Mock => unreachable!(),
         }
 
         resp_rx.await.map_err(|e| anyhow!(e))

@@ -49,6 +49,18 @@ impl ShellCommand {
     }
 }
 
+impl Default for ShellCommand {
+    fn default() -> Self {
+        Self {
+            id: Self::default_id(),
+            name: None,
+            working_dir: None,
+            run: String::new(),
+            condition: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Step {

@@ -73,7 +73,7 @@ impl RegexCacheBackend {
 }
 
 pub struct RegexCache {
-    tx: Sender<RegexCacheMessage>,
+    tx: Option<Sender<RegexCacheMessage>>,
 }
 
 impl Default for RegexCache {
@@ -86,34 +86,32 @@ impl RegexCache {
     pub fn new() -> Self {
         let (tx, rx) = channel(4096);
         RegexCacheBackend::new(rx).receive();
-        Self { tx }
+        Self { tx: Some(tx) }
     }
 
     pub fn mock() -> Self {
-        let (tx, _) = channel(4096);
-        Self { tx }
+        Self { tx: None }
     }
 
     pub async fn get(&self, key: String) -> Result<Option<Arc<Regex>>> {
+        let Some(tx) = &self.tx else { return Ok(None) };
         let (resp_tx, resp_rx) = oneshot::channel();
 
-        self.tx
-            .send(RegexCacheMessage::Get { key, resp_tx })
-            .await?;
+        tx.send(RegexCacheMessage::Get { key, resp_tx }).await?;
 
         resp_rx.await.map_err(|e| anyhow!(e))
     }
 
     pub async fn set(&self, key: String, value: Arc<Regex>) -> Result<()> {
+        let Some(tx) = &self.tx else { return Ok(()) };
         let (resp_tx, resp_rx) = oneshot::channel();
 
-        self.tx
-            .send(RegexCacheMessage::Set {
-                key,
-                value,
-                resp_tx,
-            })
-            .await?;
+        tx.send(RegexCacheMessage::Set {
+            key,
+            value,
+            resp_tx,
+        })
+        .await?;
 
         resp_rx.await.map_err(|e| anyhow!(e))
     }
