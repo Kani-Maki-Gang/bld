@@ -4,8 +4,8 @@ use crate::runner::v3;
 use anyhow::Result;
 
 pub enum VersionedRunner {
-    V1(v1::Runner),
-    V2(v2::Runner),
+    V1(Box<v1::Runner>),
+    V2(Box<v2::Runner>),
     V3(v3::FileRunner),
 }
 

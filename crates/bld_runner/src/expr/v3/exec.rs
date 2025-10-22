@@ -32,7 +32,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>
     EvalExpr<'a> for CommonExprExecutor<'a, T, RCtx, WCtx>
 {
-    fn eval_cmp(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>> {
+    fn eval_cmp(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         if !matches!(
             expr.as_rule(),
             Rule::Equals
@@ -91,7 +91,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
         }
     }
 
-    fn eval_symbol(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>> {
+    fn eval_symbol(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         let Rule::Symbol = expr.as_rule() else {
             bail!("expected symbol rule, found {:?}", expr.as_rule());
         };
@@ -112,7 +112,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
         }
     }
 
-    fn eval_expr(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>> {
+    fn eval_expr(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         let Rule::Expression = expr.as_rule() else {
             bail!("expected expression rule, found {:?}", expr.as_rule());
         };
@@ -146,7 +146,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
         }
     }
 
-    fn eval_logical_expr(&'a self, expr: Pair<'_, Rule>) -> Result<ExprValue<'a>> {
+    fn eval_logical_expr(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         let Rule::LogicalExpression = expr.as_rule() else {
             bail!(
                 "expected logical expression rule, found {:?}",
@@ -230,8 +230,8 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 mod tests {
     use crate::{
         expr::v3::{
-            context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
-            traits::ExprText,
+            context::CommonReadonlyRuntimeExprContext,
+            traits::{ExprText, MockWritableRuntimeExprContext},
         },
         inputs::v3::Input,
         pipeline::v3::Pipeline,
@@ -253,7 +253,7 @@ mod tests {
             ("${{ -150.20 }}", ExprValue::Number(-150.20)),
         ];
 
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
@@ -282,7 +282,7 @@ mod tests {
             ("${{ false }}", ExprValue::Boolean(false)),
         ];
 
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
@@ -311,7 +311,7 @@ mod tests {
             ExprValue::Text(ExprText::Owned("hello".to_string())),
         )];
 
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
@@ -352,7 +352,7 @@ mod tests {
             ("${{ env.NODE }}", ExprValue::Text(ExprText::Ref("lts"))),
         ];
 
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
 
         let mut pipeline = Pipeline::default();
@@ -411,7 +411,7 @@ mod tests {
             ("${{ \"hello\" == 52.0 }}", Err(anyhow!(""))),
         ];
 
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
@@ -460,7 +460,7 @@ mod tests {
             ("${{ \"hello\" != 52.0 }}", Err(anyhow!(""))),
         ];
 
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
@@ -505,7 +505,7 @@ mod tests {
             ),
         ];
 
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
@@ -555,7 +555,7 @@ mod tests {
             ),
         ];
 
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
@@ -597,7 +597,7 @@ mod tests {
             ("${{ \"hello\" < \"world\" }}", Ok(ExprValue::Boolean(true))),
         ];
 
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
@@ -647,7 +647,7 @@ mod tests {
             ),
         ];
 
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
@@ -706,7 +706,7 @@ mod tests {
             ),
         ];
 
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
@@ -775,7 +775,7 @@ mod tests {
             ),
         ];
 
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
@@ -843,7 +843,7 @@ mod tests {
             ),
         ];
 
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
@@ -887,7 +887,7 @@ mod tests {
             ),
         ];
 
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
 
         let mut pipeline = Pipeline::default();

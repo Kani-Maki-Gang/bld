@@ -18,16 +18,17 @@ use tracing::debug;
 use crate::{
     RunnerBuilder,
     expr::v3::{
-        context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+        context::CommonReadonlyRuntimeExprContext,
         exec::CommonExprExecutor,
         traits::{EvalExpr, ExprValue},
     },
     external::v3::External,
     pipeline::v3::Pipeline,
+    runner::v3::state::{JobState, RootState, State},
     step::v3::{ShellCommand, Step},
 };
 
-pub struct JobRunner {
+pub struct JobRunner<S: RootState> {
     pub job_name: String,
     pub logger: Arc<Logger>,
     pub config: Arc<BldConfig>,
@@ -38,33 +39,53 @@ pub struct JobRunner {
     pub regex_cache: Arc<RegexCache>,
     pub expr_regex: Arc<Regex>,
     pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
-    pub expr_wctx: CommonWritableRuntimeExprContext,
+    pub state: S,
 }
 
-impl JobRunner {
+impl<S: RootState> JobRunner<S> {
     pub async fn run(mut self) -> Result<Self> {
+        self.state.update_state(State::Running);
         let pipeline = self.pipeline.clone();
         let (_, steps) = pipeline
             .jobs
             .iter()
             .find(|(name, _)| **name == self.job_name)
-            .ok_or_else(|| anyhow!("unable to find job with name {}", self.job_name))?;
+            .ok_or_else(|| anyhow!("unable to find job with name {}", self.job_name))
+            .inspect_err(|e| {
+                self.state.update_state(State::Failed {
+                    error: e.to_string(),
+                })
+            })?;
 
         debug!("starting execution of pipeline steps");
         for step in steps.iter() {
-            self.step(step).await?;
+            self.step(step).await.inspect_err(|e| {
+                self.state.update_state(State::Failed {
+                    error: e.to_string(),
+                });
+            })?;
         }
 
+        self.state.update_state(State::Completed);
         Ok(self)
     }
 
     async fn step(&mut self, step: &Step) -> Result<()> {
-        match step {
-            Step::SingleSh(sh) => self.shell(&None, sh).await?,
-            Step::ComplexSh(complex) => self.complex_shell(complex).await?,
-            Step::ExternalFile(external) => self.external(external).await?,
-        }
-        Ok(())
+        self.state.update_node_state(step.id(), State::Running);
+        let result = match step {
+            Step::ComplexSh(complex) => self.complex_shell(complex).await,
+            Step::ExternalFile(external) => self.external(external).await,
+        };
+        result
+            .inspect(|_| self.state.update_node_state(step.id(), State::Completed))
+            .inspect_err(|e| {
+                self.state.update_node_state(
+                    step.id(),
+                    State::Failed {
+                        error: e.to_string(),
+                    },
+                )
+            })
     }
 
     async fn complex_shell(&mut self, complex: &ShellCommand) -> Result<()> {
@@ -80,7 +101,8 @@ impl JobRunner {
             writeln!(message, "{:<15}: {name}", "Step")?;
             self.logger.write_line(message).await?;
         }
-        self.shell(&complex.working_dir, &complex.run).await?;
+        self.shell(&complex.id, &complex.working_dir, &complex.run)
+            .await?;
         Ok(())
     }
 
@@ -191,15 +213,23 @@ impl JobRunner {
         Ok(result)
     }
 
-    async fn shell(&mut self, working_dir: &Option<String>, command: &str) -> Result<()> {
+    async fn shell(
+        &mut self,
+        step_id: &str,
+        working_dir: &Option<String>,
+        command: &str,
+    ) -> Result<()> {
         debug!("start execution of exec section for step");
         debug!("executing shell command {}", command);
 
         let command = self.eval_all_expr(command)?;
 
-        self.platform
+        let outputs = self
+            .platform
             .shell(self.logger.clone(), working_dir, &command)
             .await?;
+
+        self.state.set_outputs(step_id, outputs)?;
 
         Ok(())
     }
@@ -220,7 +250,7 @@ impl JobRunner {
         let expr_exec = CommonExprExecutor::new(
             self.pipeline.as_ref(),
             self.expr_rctx.as_ref(),
-            &mut self.expr_wctx,
+            &mut self.state,
         );
         let value = expr_exec.eval(condition)?;
         Ok(matches!(value, ExprValue::Boolean(true)))
@@ -230,7 +260,7 @@ impl JobRunner {
         let expr_exec = CommonExprExecutor::new(
             self.pipeline.as_ref(),
             self.expr_rctx.as_ref(),
-            &mut self.expr_wctx,
+            &mut self.state,
         );
 
         let mut result = value.to_string();
@@ -246,12 +276,16 @@ impl JobRunner {
 
 pub struct RunningJob {
     pub name: String,
-    pub handle: JoinHandle<Result<JobRunner>>,
+    pub handle: JoinHandle<Result<JobRunner<JobState>>>,
     pub logger: Arc<Logger>,
 }
 
 impl RunningJob {
-    pub fn new(name: &str, handle: JoinHandle<Result<JobRunner>>, logger: Arc<Logger>) -> Self {
+    pub fn new(
+        name: &str,
+        handle: JoinHandle<Result<JobRunner<JobState>>>,
+        logger: Arc<Logger>,
+    ) -> Self {
         Self {
             name: name.to_owned(),
             handle,
@@ -270,11 +304,10 @@ mod tests {
     use regex::Regex;
 
     use crate::{
-        expr::v3::{
-            context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
-            parser::EXPR_REGEX,
-        },
+        expr::v3::{context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX},
         pipeline::v3::Pipeline,
+        runner::v3::{MockRootState, State, state::JobState},
+        step::v3::{ShellCommand, Step},
     };
 
     use super::JobRunner;
@@ -290,7 +323,7 @@ mod tests {
         let regex_cache = RegexCache::mock().into_arc();
         let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
         let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
-        let expr_wctx = CommonWritableRuntimeExprContext::default();
+        let state = JobState::default();
         let pipeline = Pipeline::default().into_arc();
 
         let mut job = JobRunner {
@@ -304,7 +337,7 @@ mod tests {
             regex_cache,
             expr_regex,
             expr_rctx,
-            expr_wctx,
+            state,
         };
 
         assert!(matches!(job.condition(None), Ok(true)));
@@ -322,5 +355,79 @@ mod tests {
             job.condition(Some("hello world ${{ true == \"James\" }}"))
                 .is_err()
         );
+    }
+
+    #[tokio::test]
+    pub async fn run_state_management_success() {
+        // Arrange
+        let data: Vec<String> = (0..10).map(|x| format!("step-{x}")).collect();
+        let job_name = "test".to_string();
+        let logger = Logger::mock().into_arc();
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let mut pipeline = Pipeline::default();
+        let platform = Platform::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let mut state = MockRootState::new();
+
+        let mut steps = vec![];
+
+        state
+            .expect_update_state()
+            .withf(|state| matches!(state, State::Running))
+            .return_once(|_| ());
+
+        for node_id in &data {
+            let node_id_arg = node_id.clone();
+            state
+                .expect_update_node_state()
+                .withf(move |node_id, state| {
+                    node_id == node_id_arg && matches!(state, State::Running)
+                })
+                .return_once(|_, _| ());
+
+            state.expect_set_outputs().returning_st(|_, _| Ok(()));
+
+            let node_id_arg = node_id.clone();
+            state
+                .expect_update_node_state()
+                .withf(move |node_id, state| {
+                    node_id == node_id_arg && matches!(state, State::Completed)
+                })
+                .return_once(|_, _| ());
+
+            steps.push(Step::ComplexSh(Box::new(ShellCommand {
+                id: node_id.to_string(),
+                run: "echo hello".to_string(),
+                ..Default::default()
+            })));
+        }
+
+        state
+            .expect_update_state()
+            .withf(|state| matches!(state, State::Completed))
+            .return_once(|_| ());
+
+        pipeline.jobs.insert(job_name.clone(), steps);
+
+        let runner = JobRunner {
+            job_name,
+            run_ctx,
+            pipeline: pipeline.into_arc(),
+            logger,
+            config,
+            fs,
+            platform,
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            state,
+        };
+
+        // Act
+        runner.run().await.unwrap();
     }
 }

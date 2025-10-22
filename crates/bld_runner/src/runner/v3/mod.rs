@@ -2,14 +2,17 @@ mod action;
 mod common;
 mod job;
 mod pipeline;
+mod state;
 
 pub use action::*;
-use anyhow::Result;
 pub use pipeline::*;
+pub use state::*;
+
+use anyhow::Result;
 
 pub enum FileRunner {
-    Action(ActionRunner),
-    Pipeline(PipelineRunner),
+    Action(Box<ActionRunner<ActionState>>),
+    Pipeline(Box<PipelineRunner>),
 }
 
 impl FileRunner {

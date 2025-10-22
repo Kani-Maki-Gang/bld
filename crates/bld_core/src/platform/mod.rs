@@ -6,7 +6,7 @@ mod image;
 mod machine;
 mod ssh;
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 pub use container::*;
 pub use context::*;
@@ -40,7 +40,7 @@ pub enum PlatformMessage {
         logger: Arc<Logger>,
         working_dir: Option<String>,
         command: String,
-        resp_tx: oneshot::Sender<Result<()>>,
+        resp_tx: oneshot::Sender<Result<HashMap<String, String>>>,
     },
     Dispose {
         resp_tx: oneshot::Sender<Result<()>>,
@@ -120,7 +120,7 @@ impl PlatformBackend {
         logger: Arc<Logger>,
         working_dir: Option<String>,
         command: String,
-    ) -> Result<()> {
+    ) -> Result<HashMap<String, String>> {
         self.ssh.sh(logger, &working_dir, &command).await
     }
 
@@ -230,7 +230,7 @@ impl Platform {
         logger: Arc<Logger>,
         working_dir: &Option<String>,
         command: &str,
-    ) -> Result<()> {
+    ) -> Result<HashMap<String, String>> {
         match &self.inner {
             PlatformType::Machine(machine) => machine.sh(logger, working_dir, command).await,
             PlatformType::Container(container) => container.sh(logger, working_dir, command).await,
@@ -247,7 +247,7 @@ impl Platform {
 
                 resp_rx.await?
             }
-            PlatformType::Mock => Ok(()),
+            PlatformType::Mock => Ok(HashMap::new()),
         }
     }
 

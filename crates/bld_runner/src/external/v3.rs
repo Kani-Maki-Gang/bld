@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use uuid::Uuid;
 
 #[cfg(feature = "all")]
 use crate::{
@@ -15,6 +16,8 @@ use tracing::debug;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct External {
+    #[serde(default = "External::default_id")]
+    pub id: String,
     pub name: Option<String>,
     pub server: Option<String>,
     pub uses: String,
@@ -27,6 +30,10 @@ pub struct External {
 }
 
 impl External {
+    fn default_id() -> String {
+        Uuid::new_v4().to_string()
+    }
+
     pub fn is(&self, value: &str) -> bool {
         self.name.as_ref().map(|n| n == value).unwrap_or_default() || self.uses == value
     }

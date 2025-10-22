@@ -1,5 +1,6 @@
 use crate::external::v3::External;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[cfg(feature = "all")]
 use std::iter::Peekable;
@@ -33,7 +34,8 @@ use crate::{
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShellCommand {
-    pub id: Option<String>,
+    #[serde(default = "ShellCommand::default_id")]
+    pub id: String,
     pub name: Option<String>,
     pub working_dir: Option<String>,
     pub run: String,
@@ -41,10 +43,27 @@ pub struct ShellCommand {
     pub condition: Option<String>,
 }
 
+impl ShellCommand {
+    fn default_id() -> String {
+        Uuid::new_v4().to_string()
+    }
+}
+
+impl Default for ShellCommand {
+    fn default() -> Self {
+        Self {
+            id: Self::default_id(),
+            name: None,
+            working_dir: None,
+            run: String::new(),
+            condition: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Step {
-    SingleSh(String),
     ComplexSh(Box<ShellCommand>),
     ExternalFile(Box<External>),
 }
@@ -54,7 +73,14 @@ impl Step {
         let Self::ComplexSh(complex) = self else {
             return false;
         };
-        complex.id.as_ref().map(|x| x == id).unwrap_or_default()
+        complex.id == id
+    }
+
+    pub fn id(&self) -> &str {
+        match self {
+            Self::ComplexSh(cmd) => &cmd.id,
+            Self::ExternalFile(ext) => &ext.id,
+        }
     }
 }
 
@@ -65,7 +91,7 @@ impl Dependencies for Step {
             Self::ExternalFile(external) if config.full_path(&external.uses).is_yaml() => {
                 vec![external.uses.to_owned()]
             }
-            Self::SingleSh(_) | Self::ComplexSh { .. } | Self::ExternalFile { .. } => vec![],
+            Self::ComplexSh { .. } | Self::ExternalFile { .. } => vec![],
         }
     }
 }
@@ -76,28 +102,34 @@ impl<'a> EvalObject<'a> for Step {
         &'a self,
         path: &mut Peekable<Pairs<'_, Rule>>,
         _rctx: &'a RCtx,
-        _wctx: &'a WCtx,
+        wctx: &'a WCtx,
     ) -> Result<ExprValue<'a>> {
         let Some(object) = path.next() else {
             bail!("no object path present");
         };
-        let value = match self {
-            Self::SingleSh(_) => {
-                bail!("invalid expression for step");
-            }
 
+        let key = object.as_span().as_str();
+
+        let value = match self {
+            Self::ComplexSh(command) => match key {
+                "name" => command.name.as_deref().unwrap_or(""),
+                "working_dir" => command.working_dir.as_deref().unwrap_or(""),
+                "run" => &command.run,
+                "outputs" => {
+                    let Some(object) = path.next() else {
+                        bail!("no output variable name provided");
+                    };
+                    let name = object.as_span().as_str();
+                    wctx.get_output(&command.id, name)?
+                }
+                value => bail!("invalid steps field: {value}"),
+            },
             Self::ExternalFile(_) => {
                 // TODO: Remove once external section is removed.
                 bail!("invalid expression for step");
             }
-
-            Self::ComplexSh(command) => match object.as_span().as_str() {
-                "name" => command.name.as_deref().unwrap_or(""),
-                "working_dir" => command.working_dir.as_deref().unwrap_or(""),
-                "run" => &command.run,
-                value => bail!("invalid steps field: {value}"),
-            },
         };
+
         Ok(ExprValue::Text(ExprText::Ref(value)))
     }
 }
@@ -106,16 +138,9 @@ impl<'a> EvalObject<'a> for Step {
 impl<'a> Validate<'a> for Step {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         match self {
-            Step::SingleSh(sh) => {
-                debug!("Step is a single shell command");
-                ctx.validate_symbols(sh);
-            }
-
             Step::ComplexSh(complex) => {
                 debug!("Step is a complex shell command");
-                if let Some(id) = complex.id.as_ref() {
-                    ctx.push_section(id);
-                }
+                ctx.push_section(&complex.id);
 
                 if let Some(name) = complex.name.as_ref() {
                     ctx.push_section(name);
@@ -146,12 +171,14 @@ impl<'a> Validate<'a> for Step {
 
 #[cfg(test)]
 mod tests {
+    use mockall::predicate;
+
     use crate::{
         action::v3::Action,
         expr::v3::{
-            context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+            context::CommonReadonlyRuntimeExprContext,
             exec::CommonExprExecutor,
-            traits::{EvalExpr, ExprText, ExprValue},
+            traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext},
         },
         external::v3::External,
         pipeline::v3::Pipeline,
@@ -160,21 +187,21 @@ mod tests {
 
     #[test]
     pub fn jobs_complex_step_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.jobs.insert(
             "main".to_string(),
             vec![
                 Step::ComplexSh(Box::new(ShellCommand {
-                    id: Some("second".to_string()),
+                    id: "second".to_string(),
                     name: Some("second_name".to_string()),
                     working_dir: Some("some_second_working_directory".to_string()),
                     run: "second_run_command".to_string(),
                     condition: Some("second_condition".to_string()),
                 })),
                 Step::ComplexSh(Box::new(ShellCommand {
-                    id: Some("third".to_string()),
+                    id: "third".to_string(),
                     name: Some("third_name".to_string()),
                     working_dir: Some("some_third_working_directory".to_string()),
                     run: "third_run_command".to_string(),
@@ -185,34 +212,30 @@ mod tests {
         pipeline.jobs.insert(
             "backup".to_string(),
             vec![Step::ComplexSh(Box::new(ShellCommand {
-                id: Some("first".to_string()),
+                id: "first".to_string(),
                 name: Some("first_name".to_string()),
                 working_dir: Some("some_first_working_directory".to_string()),
                 run: "first_run_command".to_string(),
                 condition: Some("first_condition".to_string()),
             }))],
         );
+
+        wctx.expect_get_exec_id().returning_st(|| Some("main"));
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
 
-        let actual = exec.eval("${{ jobs.main.second.name }}").unwrap();
+        let actual = exec.eval("${{ steps.second.name }}").unwrap();
         assert!(matches!(
             actual.try_eq(&ExprValue::Text(ExprText::Ref("second_name"))),
             Ok(ExprValue::Boolean(true))
         ));
 
-        let actual = exec.eval("${{ jobs.main.third.name }}").unwrap();
+        let actual = exec.eval("${{ steps.third.name }}").unwrap();
         assert!(matches!(
             actual.try_eq(&ExprValue::Text(ExprText::Ref("third_name"))),
             Ok(ExprValue::Boolean(true))
         ));
 
-        let actual = exec.eval("${{ jobs.backup.first.name }}").unwrap();
-        assert!(matches!(
-            actual.try_eq(&ExprValue::Text(ExprText::Ref("first_name"))),
-            Ok(ExprValue::Boolean(true))
-        ));
-
-        let actual = exec.eval("${{ jobs.main.second.working_dir }}").unwrap();
+        let actual = exec.eval("${{ steps.second.working_dir }}").unwrap();
         assert!(matches!(
             actual.try_eq(&ExprValue::Text(ExprText::Ref(
                 "some_second_working_directory"
@@ -220,7 +243,7 @@ mod tests {
             Ok(ExprValue::Boolean(true))
         ));
 
-        let actual = exec.eval("${{ jobs.main.third.working_dir }}").unwrap();
+        let actual = exec.eval("${{ steps.third.working_dir }}").unwrap();
         assert!(matches!(
             actual.try_eq(&ExprValue::Text(ExprText::Ref(
                 "some_third_working_directory"
@@ -228,7 +251,35 @@ mod tests {
             Ok(ExprValue::Boolean(true))
         ));
 
-        let actual = exec.eval("${{ jobs.backup.first.working_dir }}").unwrap();
+        let actual = exec.eval("${{ steps.second.run }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("second_run_command"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ steps.third.run }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("third_run_command"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ steps.second.condition }}");
+        assert!(actual.is_err());
+
+        let actual = exec.eval("${{ steps.third.condition }}");
+        assert!(actual.is_err());
+
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        wctx.expect_get_exec_id().returning_st(|| Some("backup"));
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+
+        let actual = exec.eval("${{ steps.first.name }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("first_name"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let actual = exec.eval("${{ steps.first.working_dir }}").unwrap();
         assert!(matches!(
             actual.try_eq(&ExprValue::Text(ExprText::Ref(
                 "some_first_working_directory"
@@ -236,55 +287,37 @@ mod tests {
             Ok(ExprValue::Boolean(true))
         ));
 
-        let actual = exec.eval("${{ jobs.main.second.run }}").unwrap();
-        assert!(matches!(
-            actual.try_eq(&ExprValue::Text(ExprText::Ref("second_run_command"))),
-            Ok(ExprValue::Boolean(true))
-        ));
-
-        let actual = exec.eval("${{ jobs.main.third.run }}").unwrap();
-        assert!(matches!(
-            actual.try_eq(&ExprValue::Text(ExprText::Ref("third_run_command"))),
-            Ok(ExprValue::Boolean(true))
-        ));
-
-        let actual = exec.eval("${{ jobs.backup.first.run }}").unwrap();
+        let actual = exec.eval("${{ steps.first.run }}").unwrap();
         assert!(matches!(
             actual.try_eq(&ExprValue::Text(ExprText::Ref("first_run_command"))),
             Ok(ExprValue::Boolean(true))
         ));
 
-        let actual = exec.eval("${{ jobs.main.second.condition }}");
-        assert!(actual.is_err());
-
-        let actual = exec.eval("${{ jobs.main.third.condition }}");
-        assert!(actual.is_err());
-
-        let actual = exec.eval("${{ jobs.backup.first.condition }}");
+        let actual = exec.eval("${{ steps.first.condition }}");
         assert!(actual.is_err());
     }
 
     #[test]
     pub fn steps_complex_step_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut action = Action::default();
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
-            id: Some("second".to_string()),
+            id: "second".to_string(),
             name: Some("second_name".to_string()),
             working_dir: Some("some_second_working_directory".to_string()),
             run: "second_run_command".to_string(),
             condition: Some("second_condition".to_string()),
         })));
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
-            id: Some("third".to_string()),
+            id: "third".to_string(),
             name: Some("third_name".to_string()),
             working_dir: Some("some_third_working_directory".to_string()),
             run: "third_run_command".to_string(),
             condition: Some("third_condition".to_string()),
         })));
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
-            id: Some("first".to_string()),
+            id: "first".to_string(),
             name: Some("first_name".to_string()),
             working_dir: Some("some_first_working_directory".to_string()),
             run: "first_run_command".to_string(),
@@ -364,62 +397,8 @@ mod tests {
     }
 
     #[test]
-    pub fn jobs_simple_step_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut pipeline = Pipeline::default();
-        pipeline.jobs.insert(
-            "main".to_string(),
-            vec![
-                Step::SingleSh("first_run_command".to_string()),
-                Step::SingleSh("second_run_command".to_string()),
-            ],
-        );
-        pipeline.jobs.insert(
-            "backup".to_string(),
-            vec![Step::SingleSh("third_run_command".to_string())],
-        );
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
-
-        let actual = exec.eval("${{ jobs.main.first }}");
-        assert!(actual.is_err());
-
-        let actual = exec.eval("${{ jobs.main.second }}");
-        assert!(actual.is_err());
-
-        let actual = exec.eval("${{ jobs.backup.third }}");
-        assert!(actual.is_err());
-    }
-
-    #[test]
-    pub fn steps_simple_step_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut action = Action::default();
-        action
-            .steps
-            .push(Step::SingleSh("first_run_command".to_string()));
-        action
-            .steps
-            .push(Step::SingleSh("second_run_command".to_string()));
-        action
-            .steps
-            .push(Step::SingleSh("third_run_command".to_string()));
-        let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
-
-        let actual = exec.eval("${{ steps.first }}");
-        assert!(actual.is_err());
-
-        let actual = exec.eval("${{ steps.second }}");
-        assert!(actual.is_err());
-
-        let actual = exec.eval("${{ steps.third }}");
-        assert!(actual.is_err());
-    }
-
-    #[test]
     pub fn jobs_external_step_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::default();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.jobs.insert(
@@ -447,7 +426,7 @@ mod tests {
 
     #[test]
     pub fn steps_external_step_expr_eval_success() {
-        let mut wctx = CommonWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut action = Action::default();
         action
@@ -469,5 +448,155 @@ mod tests {
 
         let actual = exec.eval("${{ steps.backup.third }}");
         assert!(actual.is_err());
+    }
+
+    #[test]
+    pub fn jobs_outputs_expr_eval_success() {
+        // Arrange
+        let data = vec![
+            (
+                "main",
+                vec![
+                    (
+                        "build",
+                        vec![
+                            ("name", "john"),
+                            ("surname", "doe"),
+                            ("address", "some address"),
+                        ],
+                    ),
+                    (
+                        "test",
+                        vec![
+                            ("test_result", "success"),
+                            ("tests_run", "3000"),
+                            ("tests_skipped", "200"),
+                        ],
+                    ),
+                ],
+            ),
+            (
+                "second",
+                vec![
+                    ("format", vec![("lines", "30K")]),
+                    ("lint", vec![("errors", "true")]),
+                ],
+            ),
+        ];
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+
+        for (job, steps) in data.iter() {
+            if pipeline.jobs.get(*job).is_none() {
+                pipeline.jobs.insert(job.to_string(), vec![]);
+            }
+
+            for (step, outputs) in steps.iter() {
+                let job_steps = pipeline.jobs.get_mut(*job).unwrap();
+                if job_steps.iter().find(|x| x.is(step)).is_none() {
+                    job_steps.push(Step::ComplexSh(Box::new(ShellCommand {
+                        id: step.to_string(),
+                        name: None,
+                        run: String::new(),
+                        condition: None,
+                        working_dir: None,
+                    })));
+                }
+
+                wctx.expect_get_exec_id()
+                    .times(outputs.len())
+                    .returning(|| Some(job));
+
+                for (name, value) in outputs.iter() {
+                    wctx.expect_get_output()
+                        .with(predicate::eq(*step), predicate::eq(*name))
+                        .times(1)
+                        .returning(|_, _| Ok(value));
+                }
+            }
+        }
+
+        for (_, steps) in data.iter() {
+            for (step, outputs) in steps.iter() {
+                for (name, value) in outputs.iter() {
+                    let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+                    let expr = format!("{} steps.{step}.outputs.{name} {}", "${{", "}}");
+
+                    // Act
+                    let actual = exec.eval(&expr);
+
+                    // Assert
+                    assert!(matches!(
+                        actual
+                            .unwrap()
+                            .try_eq(&ExprValue::Text(ExprText::Ref(value))),
+                        Ok(ExprValue::Boolean(true))
+                    ));
+                }
+            }
+        }
+    }
+
+    #[test]
+    pub fn action_outputs_expr_eval_success() {
+        // Arrange
+        let data = vec![
+            (
+                "build",
+                vec![
+                    ("name", "john"),
+                    ("surname", "doe"),
+                    ("address", "some address"),
+                ],
+            ),
+            (
+                "test",
+                vec![
+                    ("test_result", "success"),
+                    ("tests_run", "3000"),
+                    ("tests_skipped", "200"),
+                ],
+            ),
+        ];
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut action = Action::default();
+
+        for (step, outputs) in data.iter() {
+            if action.steps.iter().find(|x| x.is(step)).is_none() {
+                action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+                    id: step.to_string(),
+                    name: None,
+                    run: String::new(),
+                    condition: None,
+                    working_dir: None,
+                })));
+            }
+            for (name, value) in outputs.iter() {
+                wctx.expect_get_output()
+                    .with(predicate::eq(*step), predicate::eq(*name))
+                    .times(1)
+                    .returning(|_, _| Ok(value));
+            }
+        }
+
+        for (step, outputs) in data.iter() {
+            for (name, value) in outputs.iter() {
+                let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+                let expr = format!("{} steps.{step}.outputs.{name} {}", "${{", "}}");
+
+                // Act
+                let actual = exec.eval(&expr);
+
+                // Assert
+                assert!(matches!(
+                    actual
+                        .unwrap()
+                        .try_eq(&ExprValue::Text(ExprText::Ref(value))),
+                    Ok(ExprValue::Boolean(true))
+                ));
+            }
+        }
     }
 }

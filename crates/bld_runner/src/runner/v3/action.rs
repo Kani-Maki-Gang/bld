@@ -8,42 +8,26 @@ use tracing::debug;
 use crate::{
     action::v3::Action,
     expr::v3::{
-        context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+        context::CommonReadonlyRuntimeExprContext,
         exec::CommonExprExecutor,
         traits::{EvalExpr, ExprValue},
     },
+    runner::v3::state::{ActionState, RootState, State},
     step::v3::{ShellCommand, Step},
 };
 
 use super::common::RecursiveFuture;
 
-pub struct ActionRunner {
+pub struct ActionRunner<S: RootState> {
     pub logger: Arc<Logger>,
     pub action: Action,
     pub platform: Arc<Platform>,
     pub expr_regex: Regex,
     pub expr_rctx: CommonReadonlyRuntimeExprContext,
-    pub expr_wctx: CommonWritableRuntimeExprContext,
+    pub state: S,
 }
 
-impl ActionRunner {
-    pub fn new(
-        logger: Arc<Logger>,
-        action: Action,
-        platform: Arc<Platform>,
-        expr_regex: Regex,
-        expr_rctx: CommonReadonlyRuntimeExprContext,
-    ) -> Self {
-        Self {
-            logger,
-            action,
-            platform,
-            expr_regex,
-            expr_rctx,
-            expr_wctx: CommonWritableRuntimeExprContext::default(),
-        }
-    }
-
+impl<S: RootState> ActionRunner<S> {
     async fn info(&self) -> Result<()> {
         debug!("printing action informantion");
 
@@ -68,17 +52,22 @@ impl ActionRunner {
             bail!("more than one condition found for step");
         };
 
-        let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &mut self.expr_wctx);
+        let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &mut self.state);
         let value = expr_exec.eval(condition)?;
         Ok(matches!(value, ExprValue::Boolean(true)))
     }
 
-    async fn shell(&mut self, working_dir: &Option<String>, command: &str) -> Result<()> {
+    async fn shell(
+        &mut self,
+        step_id: &str,
+        working_dir: &Option<String>,
+        command: &str,
+    ) -> Result<()> {
         debug!("start execution of exec section for step");
         debug!("executing shell command {}", command);
 
         let mut cmd = command.to_string();
-        let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &mut self.expr_wctx);
+        let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &mut self.state);
 
         for entry in self.expr_regex.find_iter(command) {
             let entry = entry.as_str();
@@ -86,9 +75,12 @@ impl ActionRunner {
             cmd = cmd.replace(entry, &value);
         }
 
-        self.platform
+        let outputs = self
+            .platform
             .shell(self.logger.clone(), working_dir, &cmd)
             .await?;
+
+        self.state.set_outputs(step_id, outputs)?;
 
         Ok(())
     }
@@ -97,17 +89,23 @@ impl ActionRunner {
         debug!("starting execution of action steps");
         let action = self.action.clone();
         for step in &action.steps {
+            self.state.update_node_state(step.id(), State::Running);
             match step {
-                Step::SingleSh(sh) => self.shell(&None, sh).await?,
-
-                Step::ComplexSh(complex) => self.complex_shell(complex).await?,
-
+                Step::ComplexSh(complex) => self.complex_shell(complex).await,
                 Step::ExternalFile(_external) => {
                     unimplemented!()
                 }
             }
+            .inspect(|_| self.state.update_node_state(step.id(), State::Completed))
+            .inspect_err(|e| {
+                self.state.update_node_state(
+                    step.id(),
+                    State::Failed {
+                        error: e.to_string(),
+                    },
+                )
+            })?;
         }
-
         Ok(())
     }
 
@@ -124,17 +122,163 @@ impl ActionRunner {
             writeln!(message, "{:<15}: {name}", "Step")?;
             self.logger.write_line(message).await?;
         }
-        self.shell(&complex.working_dir, &complex.run).await?;
+        self.shell(&complex.id, &complex.working_dir, &complex.run)
+            .await?;
         Ok(())
     }
 
     async fn execute(mut self) -> Result<()> {
-        self.info().await?;
-        self.steps().await?;
+        self.state.update_state(State::Running);
+        self.info().await.inspect_err(|e| {
+            self.state.update_state(State::Failed {
+                error: e.to_string(),
+            })
+        })?;
+        self.steps().await.inspect_err(|e| {
+            self.state.update_state(State::Failed {
+                error: e.to_string(),
+            })
+        })?;
+        self.state.update_state(State::Completed);
         Ok(())
+    }
+}
+
+impl ActionRunner<ActionState> {
+    pub fn new(
+        logger: Arc<Logger>,
+        action: Action,
+        platform: Arc<Platform>,
+        expr_regex: Regex,
+        expr_rctx: CommonReadonlyRuntimeExprContext,
+    ) -> Self {
+        let mut state = ActionState::default();
+        for step in &action.steps {
+            state.add_node(step.id());
+        }
+        Self {
+            logger,
+            action,
+            platform,
+            expr_regex,
+            expr_rctx,
+            state,
+        }
     }
 
     pub fn run(self) -> RecursiveFuture {
         Box::pin(async move { self.execute().await })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bld_core::{logger::Logger, platform::Platform};
+    use bld_utils::sync::IntoArc;
+    use regex::Regex;
+
+    use crate::{
+        action::v3::Action,
+        expr::v3::{context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX},
+        runner::v3::{ActionRunner, State, state::MockRootState},
+        step::v3::{ShellCommand, Step},
+    };
+
+    #[test]
+    pub fn condition_eval_success() {
+        let logger = Logger::mock().into_arc();
+        let action = Action::default();
+        let platform = Platform::mock().into_arc();
+        let regex = Regex::new(EXPR_REGEX).unwrap();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let state = MockRootState::new();
+
+        let mut runner = ActionRunner {
+            logger,
+            action,
+            platform,
+            expr_regex: regex,
+            expr_rctx: rctx,
+            state,
+        };
+
+        assert!(matches!(runner.condition(None), Ok(true)));
+
+        assert!(matches!(runner.condition(Some("${{ true }}")), Ok(true)));
+
+        assert!(matches!(
+            runner.condition(Some("${{ \"John\" == \"James\" }}")),
+            Ok(false)
+        ));
+
+        assert!(runner.condition(Some("${{ true == \"James\" }}")).is_err());
+
+        assert!(
+            runner
+                .condition(Some("hello world ${{ true == \"James\" }}"))
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    pub async fn run_state_management_success() {
+        // Arrange
+        let data: Vec<String> = (0..10).map(|x| format!("id-{x}")).collect();
+        let logger = Logger::mock().into_arc();
+        let mut action = Action::default();
+        let platform = Platform::mock().into_arc();
+        let regex = Regex::new(EXPR_REGEX).unwrap();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut state = MockRootState::new();
+
+        for node_id in data {
+            state
+                .expect_update_state()
+                .withf(|state| matches!(state, State::Running))
+                .return_once(|_| ());
+
+            let node_id_arg = node_id.clone();
+            state
+                .expect_update_node_state()
+                .withf(move |node_id, state| {
+                    node_id == node_id_arg && matches!(state, State::Running)
+                })
+                .return_once(|_, _| ());
+
+            state.expect_set_outputs().returning_st(|_, _| Ok(()));
+
+            let node_id_arg = node_id.clone();
+            state
+                .expect_update_node_state()
+                .withf(move |node_id, state| {
+                    node_id == node_id_arg && matches!(state, State::Completed)
+                })
+                .return_once(|_, _| ());
+
+            action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+                id: node_id.clone(),
+                name: None,
+                run: "echo hello".to_string(),
+                condition: None,
+                working_dir: None,
+            })));
+
+            state
+                .expect_update_state()
+                .withf(|state| matches!(state, State::Completed))
+                .return_once(|_| ());
+        }
+
+        let runner = ActionRunner {
+            logger,
+            action,
+            platform,
+            expr_regex: regex,
+            expr_rctx: rctx,
+            state,
+        };
+
+        // Act
+        runner.execute().await.unwrap();
     }
 }

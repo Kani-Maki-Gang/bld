@@ -21,9 +21,10 @@ use tokio::sync::mpsc::Sender;
 use tracing::debug;
 
 use crate::{
-    expr::v3::context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+    expr::v3::context::CommonReadonlyRuntimeExprContext,
     pipeline::v3::Pipeline,
     registry::v3::Registry,
+    runner::v3::state::{JobState, RootState},
     runs_on::v3::RunsOn,
 };
 
@@ -125,7 +126,7 @@ impl PipelineRunner {
         Ok(())
     }
 
-    fn create_job(&self, name: &str, logger: Arc<Logger>) -> JobRunner {
+    fn create_job(&self, name: &str, logger: Arc<Logger>, state: JobState) -> JobRunner<JobState> {
         JobRunner {
             job_name: name.to_string(),
             logger: logger.clone(),
@@ -137,8 +138,19 @@ impl PipelineRunner {
             regex_cache: self.regex_cache.clone(),
             expr_regex: self.expr_regex.clone(),
             expr_rctx: self.expr_rctx.clone(),
-            expr_wctx: CommonWritableRuntimeExprContext::default(),
+            state,
         }
+    }
+
+    fn create_job_state(&self, name: &str) -> Result<JobState> {
+        let mut state = JobState::new(name);
+        let Some(steps) = self.pipeline.jobs.get(name) else {
+            bail!("job with name {name} not found");
+        };
+        for step in steps {
+            state.add_node(step.id());
+        }
+        Ok(state)
     }
 
     async fn prepare_jobs(&self) -> Result<Vec<Option<RunningJob>>> {
@@ -148,7 +160,8 @@ impl PipelineRunner {
                 .write_line(format!("{:<15}: {}", "Running job", name))
                 .await?;
             let logger = Logger::in_memory().into_arc();
-            let job = self.create_job(name, logger.clone());
+            let state = self.create_job_state(name)?;
+            let job = self.create_job(name, logger.clone(), state);
             let handle = spawn(job.run());
             jobs.push(Some(RunningJob::new(name, handle, logger)));
         }
@@ -160,7 +173,8 @@ impl PipelineRunner {
             bail!("unable to retrieve job");
         };
         debug!("found only one job so running it in the current context");
-        self.create_job(name, self.logger.clone())
+        let state = self.create_job_state(name)?;
+        self.create_job(name, self.logger.clone(), state)
             .run()
             .await
             .map(|_| ())
