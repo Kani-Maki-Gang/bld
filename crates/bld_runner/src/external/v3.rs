@@ -3,13 +3,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 #[cfg(feature = "all")]
-use crate::{
-    Load, Yaml,
-    validator::v3::{Validate, ValidatorContext},
-};
-
-#[cfg(feature = "all")]
-use bld_utils::fs::IsYaml;
+use crate::validator::v3::{Validate, ValidatorContext};
 
 #[cfg(feature = "all")]
 use tracing::debug;
@@ -123,7 +117,7 @@ fn validate_external_server<'a, C: ValidatorContext<'a>>(ctx: &mut C, server: Op
 #[cfg(feature = "all")]
 async fn validate_external_with<'a, C: ValidatorContext<'a>>(
     ctx: &mut C,
-    uses: &'a str,
+    _uses: &'a str,
     server: Option<&'a str>,
     with: &'a HashMap<String, String>,
 ) {

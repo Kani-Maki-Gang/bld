@@ -5,7 +5,7 @@ use bld_utils::{fs::IsYaml, shell::get_shell, sync::IntoArc};
 use sea_orm::DatabaseConnection;
 use std::{fmt::Write as FmtWrite, path::PathBuf, process::ExitStatus, sync::Arc};
 use tokio::{
-    fs::{File, copy, create_dir_all, read_to_string, remove_file, remove_dir_all, rename},
+    fs::{File, copy, create_dir_all, read_to_string, remove_file, rename},
     io::AsyncWriteExt,
 };
 use uuid::Uuid;
@@ -58,6 +58,13 @@ impl FileSystem {
             bail!("pipeline path isn't supported for a local fs");
         };
         Ok(path![config.server_pipelines(), format!("{}.yaml", pip.id)])
+    }
+
+    pub async fn is_file(&self, name: &str) -> Result<bool> {
+        match self {
+            Self::Local { config } => Ok(config.full_path(name).is_file()),
+            Self::Server { .. } => self.server_path(name).await.map(|x| x.is_file())
+        }
     }
 
     pub async fn path(&self, name: &str) -> Result<PathBuf> {

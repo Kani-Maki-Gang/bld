@@ -823,6 +823,7 @@ dependencies = [
  "bld_core",
  "bld_http",
  "bld_models",
+ "bld_pkg",
  "bld_runner",
  "bld_server",
  "bld_sock",
@@ -931,6 +932,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "bld_pkg"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "bld_config",
+ "git2",
+ "tokio",
+]
+
+[[package]]
 name = "bld_runner"
 version = "0.4.0"
 dependencies = [
@@ -943,6 +955,7 @@ dependencies = [
  "bld_core",
  "bld_http",
  "bld_models",
+ "bld_pkg",
  "bld_sock",
  "bld_utils",
  "bollard",
@@ -950,7 +963,6 @@ dependencies = [
  "cron",
  "futures",
  "futures-util",
- "git2",
  "mockall",
  "pest",
  "pest_derive",
@@ -980,6 +992,7 @@ dependencies = [
  "bld_core",
  "bld_http",
  "bld_models",
+ "bld_pkg",
  "bld_runner",
  "bld_sock",
  "bld_supervisor",

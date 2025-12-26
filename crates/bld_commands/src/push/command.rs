@@ -4,6 +4,7 @@ use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::fs::FileSystem;
 use bld_http::HttpClient;
+use bld_pkg::PackageManager;
 use bld_runner::VersionedFile;
 use bld_utils::sync::IntoArc;
 use clap::Args;
@@ -42,6 +43,7 @@ impl PushCommand {
         let config = BldConfig::load().await?.into_arc();
         let client = HttpClient::new(config.clone(), &self.server)?;
         let fs = FileSystem::local(config.clone()).into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
 
         debug!(
             "running push subcommand with --server: {} and --pipeline: {}",
@@ -54,7 +56,7 @@ impl PushCommand {
             print!("Resolving dependecies...");
 
             let mut deps =
-                VersionedFile::dependencies(config.clone(), fs.clone(), self.pipeline.to_owned())
+                VersionedFile::dependencies(config.clone(), fs.clone(), package_manager.clone(), self.pipeline.to_owned())
                     .await
                     .inspect(|_| {
                         println!("Done.");

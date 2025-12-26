@@ -15,6 +15,7 @@ use bld_core::{
     signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend},
 };
 use bld_models::dtos::WorkerMessages;
+use bld_pkg::PackageManager;
 use bld_utils::sync::IntoArc;
 use regex::Regex;
 use tokio::sync::mpsc::Sender;
@@ -44,6 +45,7 @@ pub struct PipelineRunner {
     pub pipeline: Arc<Pipeline>,
     pub platform: Arc<Platform>,
     pub signals: Option<UnixSignalsBackend>,
+    pub package_manager: Arc<PackageManager>,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
     pub is_child: bool,
     pub has_faulted: bool,
@@ -138,6 +140,7 @@ impl PipelineRunner {
             regex_cache: self.regex_cache.clone(),
             expr_regex: self.expr_regex.clone(),
             expr_rctx: self.expr_rctx.clone(),
+            package_manager: self.package_manager.clone(),
             state,
         }
     }

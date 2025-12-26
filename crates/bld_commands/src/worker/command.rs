@@ -6,6 +6,7 @@ use bld_config::BldConfig;
 use bld_core::{context::Context, fs::FileSystem, logger::Logger};
 use bld_http::WebSocket;
 use bld_models::{dtos::WorkerMessages, new_connection_pool, pipeline_runs};
+use bld_pkg::PackageManager;
 use bld_runner::RunnerBuilder;
 use bld_sock::WorkerClient;
 use bld_utils::{sync::IntoArc, variables::parse_variables};
@@ -80,6 +81,8 @@ impl BldCommand for WorkerCommand {
             }
             .into_arc();
 
+            let package_manager = PackageManager::new(config.clone()).into_arc();
+
             let (worker_tx, worker_rx) = channel(4096);
             let worker_tx = Some(worker_tx).into_arc();
             let logger = Logger::file(config.clone(), &run_id).await?.into_arc();
@@ -105,6 +108,7 @@ impl BldCommand for WorkerCommand {
                     .context(context)
                     .ipc(worker_tx)
                     .signals(signals_rx)
+                    .package_manager(package_manager)
                     .build()
                     .await
                 {

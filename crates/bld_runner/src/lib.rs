@@ -21,11 +21,8 @@ mod validator;
 #[cfg(feature = "all")]
 mod expr;
 
-pub use files::versioned::VersionedFile;
+pub use files::versioned::{VersionedFile, VersionedFileLoader};
 pub use traits::Load;
-
-#[cfg(feature = "all")]
-pub use files::versioned::Yaml;
 
 #[cfg(feature = "all")]
 pub use runner::builder::RunnerBuilder;

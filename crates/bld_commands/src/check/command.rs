@@ -5,7 +5,8 @@ use bld_config::BldConfig;
 use bld_config::definitions::TOOL_DEFAULT_PIPELINE_FILE;
 use bld_core::fs::FileSystem;
 use bld_http::HttpClient;
-use bld_runner::{Load, Yaml};
+use bld_pkg::PackageManager;
+use bld_runner::VersionedFileLoader;
 use bld_utils::sync::IntoArc;
 use clap::Args;
 
@@ -30,9 +31,10 @@ impl CheckCommand {
     async fn local_check(&self) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
         let fs = FileSystem::local(config.clone()).into_arc();
+        let package_manager = PackageManager::new(config.clone());
         let content = fs.read(&self.pipeline).await?;
-        let yaml = Yaml::new(fs.as_ref());
-        let pipeline = yaml.load_with_verbose_errors(&content)?;
+        let loader = VersionedFileLoader::new(&package_manager, fs.as_ref(), true);
+        let pipeline = loader.load_local(&content).await?;
         pipeline.validate_with_verbose_errors(config, fs).await
     }
 
@@ -56,5 +58,3 @@ impl BldCommand for CheckCommand {
         })
     }
 }
-
-

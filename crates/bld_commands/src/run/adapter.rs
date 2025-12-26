@@ -4,6 +4,7 @@ use bld_config::BldConfig;
 use bld_core::{context::Context, fs::FileSystem, logger::Logger};
 use bld_http::{HttpClient, WebSocket};
 use bld_models::dtos::ExecClientMessage;
+use bld_pkg::PackageManager;
 use bld_runner::RunnerBuilder;
 use bld_sock::ExecClient;
 use bld_utils::sync::IntoArc;
@@ -204,6 +205,7 @@ impl RunAdapter {
             .signals(signals_rx)
             .env(mode.env.into_arc())
             .inputs(mode.inputs.into_arc())
+            .package_manager(PackageManager::new(mode.config.clone()).into_arc())
             .build()
             .await?;
 

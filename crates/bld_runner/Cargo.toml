@@ -17,6 +17,7 @@ all = [
     "dep:bld_models",
     "dep:bld_sock",
     "dep:bld_utils",
+    "dep:bld_pkg",
     "dep:chrono",
     "dep:futures",
     "dep:futures-util",
@@ -29,7 +30,6 @@ all = [
     "dep:cron",
     "dep:pest",
     "dep:pest_derive",
-    "dep:git2",
 ]
 
 [dependencies]
@@ -45,6 +45,7 @@ bld_http = { path = "../bld_http", optional = true }
 bld_models = { path = "../bld_models", features = ["all"], optional = true }
 bld_sock = { path = "../bld_sock", optional = true }
 bld_utils = { path = "../bld_utils", optional = true }
+bld_pkg = { path = "../bld_pkg", optional = true }
 chrono = { version = "0.4.38", default-features = false, features = ["std"], optional = true }
 futures =  { version = "0.3.31", optional = true }
 futures-util = { version = "0.3.31", optional = true }
@@ -60,4 +61,3 @@ cron = { version = "0.13.0", optional = true }
 pest = { version = "2.7.15", optional = true }
 pest_derive = { version = "2.7.15", optional = true }
 mockall = "0.13.1"
-git2 = { version = "0.20.2", features = ["https", "ssh"], optional = true }

@@ -20,6 +20,7 @@ bld_runner = { path = "../bld_runner", features = ["all"] }
 bld_sock = { path = "../bld_sock" }
 bld_server = { path = "../bld_server" }
 bld_supervisor = { path = "../bld_supervisor" }
+bld_pkg = { path = "../bld_pkg" }
 chrono = { version = "0.4.38", default-features = false, features = ["std"] }
 clap = { version = "4.5.20", features = ["derive"] }
 futures = "0.3.31"

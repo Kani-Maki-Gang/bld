@@ -14,6 +14,7 @@ use bld_core::{
 };
 use bld_http::WebSocket;
 use bld_models::dtos::{ExecClientMessage, WorkerMessages};
+use bld_pkg::PackageManager;
 use bld_sock::ExecClient;
 use bld_utils::sync::IntoArc;
 use futures::stream::StreamExt;
@@ -43,6 +44,7 @@ pub struct Runner {
     pub vars: Arc<HashMap<String, String>>,
     pub context: Arc<Context>,
     pub platform: Arc<Platform>,
+    pub package_manager: Arc<PackageManager>,
     pub is_child: bool,
     pub has_faulted: bool,
 }
@@ -265,6 +267,7 @@ impl Runner {
             .ipc(self.ipc.clone())
             .context(self.context.clone())
             .platform(self.platform.clone())
+            .package_manager(self.package_manager.clone())
             .is_child(true)
             .build()
             .await?;

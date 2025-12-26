@@ -8,6 +8,7 @@ use bld_core::{
 };
 use bld_http::WebSocket;
 use bld_models::dtos::ExecClientMessage;
+use bld_pkg::PackageManager;
 use bld_sock::ExecClient;
 use bld_utils::sync::IntoArc;
 use futures::StreamExt;
@@ -39,6 +40,7 @@ pub struct JobRunner<S: RootState> {
     pub regex_cache: Arc<RegexCache>,
     pub expr_regex: Arc<Regex>,
     pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
+    pub package_manager: Arc<PackageManager>,
     pub state: S,
 }
 
@@ -141,6 +143,7 @@ impl<S: RootState> JobRunner<S> {
             .context(self.run_ctx.clone())
             .platform(self.platform.clone())
             .regex_cache(self.regex_cache.clone())
+            .package_manager(self.package_manager.clone())
             .is_child(true)
             .build()
             .await?;
@@ -300,6 +303,7 @@ mod tests {
     use bld_core::{
         context::Context, fs::FileSystem, logger::Logger, platform::Platform, regex::RegexCache,
     };
+    use bld_pkg::PackageManager;
     use bld_utils::sync::IntoArc;
     use regex::Regex;
 
@@ -324,6 +328,7 @@ mod tests {
         let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
         let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
         let state = JobState::default();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
         let pipeline = Pipeline::default().into_arc();
 
         let mut job = JobRunner {
@@ -337,6 +342,7 @@ mod tests {
             regex_cache,
             expr_regex,
             expr_rctx,
+            package_manager,
             state,
         };
 
@@ -371,6 +377,7 @@ mod tests {
         let regex_cache = RegexCache::mock().into_arc();
         let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
         let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
         let mut state = MockRootState::new();
 
         let mut steps = vec![];
@@ -424,6 +431,7 @@ mod tests {
             regex_cache,
             expr_regex,
             expr_rctx,
+            package_manager,
             state,
         };
 

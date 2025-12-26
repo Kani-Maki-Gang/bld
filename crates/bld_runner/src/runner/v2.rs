@@ -19,6 +19,7 @@ use bld_core::{
 };
 use bld_http::WebSocket;
 use bld_models::dtos::{ExecClientMessage, WorkerMessages};
+use bld_pkg::PackageManager;
 use bld_sock::ExecClient;
 use bld_utils::sync::IntoArc;
 use futures::{Future, StreamExt};
@@ -46,6 +47,7 @@ struct Job {
     pub pipeline: Arc<Pipeline>,
     pub context: Arc<Context>,
     pub platform: Option<Arc<Platform>>,
+    pub package_manager: Arc<PackageManager>,
 }
 
 impl Job {
@@ -179,6 +181,7 @@ impl Job {
             .inputs(variables.into_arc())
             .context(self.context.clone())
             .platform(platform.clone())
+            .package_manager(self.package_manager.clone())
             .is_child(true)
             .build()
             .await?;
@@ -283,6 +286,7 @@ pub struct Runner {
     pub env: Arc<HashMap<String, String>>,
     pub context: Arc<Context>,
     pub platform: Option<Arc<Platform>>,
+    pub package_manager: Arc<PackageManager>,
     pub is_child: bool,
     pub has_faulted: bool,
 }
@@ -482,6 +486,7 @@ impl Runner {
             logger,
             context: self.context.clone(),
             platform: self.platform.clone(),
+            package_manager: self.package_manager.clone(),
         }
     }
 
