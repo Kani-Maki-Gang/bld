@@ -30,6 +30,7 @@ async fn do_check(
     params: &PipelineQueryParams,
 ) -> Result<()> {
     let content = fs.read(&params.pipeline).await?;
-    let pipeline = Yaml::load_with_verbose_errors(&content)?;
+    let yaml = Yaml::new(fs.as_ref());
+    let pipeline = yaml.load_with_verbose_errors(&content)?;
     pipeline.validate_with_verbose_errors(config, fs).await
 }

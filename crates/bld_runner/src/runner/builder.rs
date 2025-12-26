@@ -147,9 +147,10 @@ impl<'a> RunnerBuilder<'a> {
             .config
             .ok_or_else(|| anyhow!("no bld config instance provided"))?;
 
-        let pipeline = self.file.ok_or_else(|| anyhow!("no pipeline provided"))?;
+        let file = self.file.ok_or_else(|| anyhow!("no pipeline provided"))?;
 
-        let pipeline = Yaml::load(&self.fs.read(pipeline).await?)?;
+        let yaml = Yaml::new(self.fs.as_ref());
+        let pipeline = yaml.load(file).await?;
         pipeline.validate(config.clone(), self.fs.clone()).await?;
 
         let env = self

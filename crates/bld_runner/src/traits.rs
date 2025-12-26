@@ -4,8 +4,8 @@ use anyhow::Result;
 use bld_config::BldConfig;
 
 pub trait Load<T> {
-    fn load(input: &str) -> Result<T>;
-    fn load_with_verbose_errors(input: &str) -> Result<T>;
+    async fn load(&self, path: &str) -> Result<T>;
+    fn load_with_verbose_errors(&self, path: &str) -> Result<T>;
 }
 
 pub trait Dependencies {

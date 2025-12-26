@@ -31,7 +31,8 @@ impl CheckCommand {
         let config = BldConfig::load().await?.into_arc();
         let fs = FileSystem::local(config.clone()).into_arc();
         let content = fs.read(&self.pipeline).await?;
-        let pipeline = Yaml::load_with_verbose_errors(&content)?;
+        let yaml = Yaml::new(fs.as_ref());
+        let pipeline = yaml.load_with_verbose_errors(&content)?;
         pipeline.validate_with_verbose_errors(config, fs).await
     }
 
@@ -55,3 +56,5 @@ impl BldCommand for CheckCommand {
         })
     }
 }
+
+

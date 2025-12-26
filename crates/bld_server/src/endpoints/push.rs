@@ -24,7 +24,8 @@ pub async fn post(
 
 async fn do_push(fs: &FileSystem, cron: &CronScheduler, info: &PushInfo) -> Result<()> {
     fs.create(&info.name, &info.content, true).await?;
-    let pipeline: VersionedFile = Yaml::load(&info.content)?;
+    let yaml = Yaml::new(fs);
+    let pipeline: VersionedFile = yaml.load(&info.content).await?;
     let remove_res = match pipeline.cron() {
         Some(schedule) => cron.upsert_default(schedule, &info.name).await,
         None => cron.remove_by_pipeline(&info.name).await,

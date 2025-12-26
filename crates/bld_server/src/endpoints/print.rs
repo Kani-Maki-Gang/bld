@@ -29,7 +29,7 @@ pub async fn get(
     debug!("Accept: {accept}");
 
     if accept == "application/json" {
-        return get_as_json(content);
+        return get_as_json(fs.as_ref(), content).await;
     }
 
     if accept == "text/plain" || accept == "*/*" || accept.is_empty() {
@@ -39,9 +39,12 @@ pub async fn get(
     HttpResponse::NotAcceptable().body("unsupported media type")
 }
 
-fn get_as_json(pipeline: String) -> HttpResponse {
-    match Yaml::load(&pipeline) {
+async fn get_as_json(fs: &FileSystem, pipeline: String) -> HttpResponse {
+    let yaml = Yaml::new(fs);
+    match yaml.load(&pipeline).await {
         Ok(pipeline) => HttpResponse::Ok().json(pipeline),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
+
+

@@ -9,19 +9,15 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 #[cfg(feature = "all")]
-use crate::traits::{Dependencies, Load};
+use crate::{
+    traits::{Dependencies, Load},
+    validator::v1 as validator_v1,
+    validator::v2 as validator_v2,
+    validator::v3::{self as validator_v3, ConsumeValidator},
+};
 
 #[cfg(feature = "all")]
-use crate::validator::v1 as validator_v1;
-
-#[cfg(feature = "all")]
-use crate::validator::v2 as validator_v2;
-
-#[cfg(feature = "all")]
-use crate::validator::v3::{self as validator_v3, ConsumeValidator};
-
-#[cfg(feature = "all")]
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 
 #[cfg(feature = "all")]
 use bld_config::BldConfig;
@@ -39,18 +35,150 @@ use std::{fmt::Write, pin::Pin, sync::Arc};
 use tracing::debug;
 
 #[cfg(feature = "all")]
+use git2::Repository;
+
+#[cfg(feature = "all")]
 type DependenciesRecursiveFuture = Pin<Box<dyn Future<Output = Result<HashMap<String, String>>>>>;
 
 #[cfg(feature = "all")]
-pub struct Yaml;
+pub struct YamlLoader<'a> {
+    fs: &'a FileSystem,
+}
 
 #[cfg(feature = "all")]
-impl Load<VersionedFile> for Yaml {
-    fn load(input: &str) -> Result<VersionedFile> {
-        serde_yaml_ng::from_str(input).map_err(|_| anyhow!("File has syntax errors"))
+impl<'a> YamlLoader<'a> {
+    pub fn new(fs: &'a FileSystem) -> Self {
+        Self { fs }
+    }
+}
+
+#[cfg(feature = "all")]
+impl<'a> Load<VersionedFile> for YamlLoader<'a> {
+    async fn load(&self, input: &str) -> Result<VersionedFile> {
+        match self.fs.read(input).await {
+            Ok(content) => {
+                return serde_yaml_ng::from_str(content.as_str())
+                    .map_err(|_| anyhow!("File has syntax errors"));
+            }
+            Err(e) => {
+                debug!(
+                    "failed to read file {input} due to {} trying to resolve remote repository",
+                    e.to_string()
+                );
+            }
+        }
+
+        let id = uuid::Uuid::new_v4().to_string();
+        let repo = self.fs.get_tmp_dir(&id).await;
+        debug!("cloning repository to {}", repo.display().to_string());
+        match Repository::clone(input, &repo) {
+            Ok(_) => {
+                let mut file = repo.clone();
+                file.push(".bld");
+                file.push("bld_action.yaml");
+                debug!("loaded repository now parsing bld_action.yaml");
+                let content = self.fs.read(file.display().to_string().as_str()).await?;
+                let load_res = serde_yaml_ng::from_str(&content)
+                    .map_err(|_| anyhow!("File has syntax errors"));
+                let _ = self
+                    .fs
+                    .remove_tmp_dir(&repo)
+                    .await
+                    .inspect_err(|e| debug!("unable to clean up repository due to {e}"));
+                return load_res;
+            }
+            Err(e) => {
+                debug!(
+                    "failed to clone repository {input} due to {}",
+                    e.to_string()
+                )
+            }
+        }
+
+        bail!("unable to find either local file or remote repository")
     }
 
-    fn load_with_verbose_errors(input: &str) -> Result<VersionedFile> {
+    fn load_with_verbose_errors(&self, input: &str) -> Result<VersionedFile> {
+        serde_yaml_ng::from_str(input).map_err(|e| {
+            let mut message = "Syntax errors".to_string();
+
+            let _ = write!(message, "\r\n\r\n");
+
+            if let Some(location) = e.location() {
+                let _ = write!(
+                    message,
+                    "line: {}, column: {} ",
+                    location.line(),
+                    location.column()
+                );
+            }
+
+            let _ = write!(message, "{e}");
+
+            anyhow!(message)
+        })
+    }
+}
+
+#[cfg(feature = "all")]
+pub struct Yaml<'a> {
+    fs: &'a FileSystem,
+}
+
+#[cfg(feature = "all")]
+impl<'a> Yaml<'a> {
+    pub fn new(fs: &'a FileSystem) -> Self {
+        Self { fs }
+    }
+}
+
+#[cfg(feature = "all")]
+impl<'a> Load<VersionedFile> for Yaml<'a> {
+    async fn load(&self, input: &str) -> Result<VersionedFile> {
+        match self.fs.read(input).await {
+            Ok(content) => {
+                return serde_yaml_ng::from_str(content.as_str())
+                    .map_err(|_| anyhow!("File has syntax errors"));
+            }
+            Err(e) => {
+                debug!(
+                    "failed to read file {input} due to {} trying to resolve remote repository",
+                    e.to_string()
+                );
+            }
+        }
+
+        let id = uuid::Uuid::new_v4().to_string();
+        let repo = self.fs.get_tmp_dir(&id).await;
+        debug!("cloning repository to {}", repo.display().to_string());
+        match Repository::clone(input, &repo) {
+            Ok(_) => {
+                let mut file = repo.clone();
+                file.push(".bld");
+                file.push("bld_action.yaml");
+                debug!("loaded repository now parsing bld_action.yaml");
+                let content = self.fs.read(file.display().to_string().as_str()).await?;
+                let load_res = serde_yaml_ng::from_str(&content)
+                    .map_err(|_| anyhow!("File has syntax errors"));
+                let _ = self
+                    .fs
+                    .remove_tmp_dir(&repo)
+                    .await
+                    .inspect_err(|e| debug!("unable to clean up repository due to {e}"));
+                return load_res;
+            }
+            Err(e) => {
+                debug!(
+                    "failed to clone repository {input} due to {}",
+                    e.to_string()
+                )
+            }
+        }
+
+        bail!("unable to find either local file or remote repository")
+    }
+
+    fn load_with_verbose_errors(&self, input: &str) -> Result<VersionedFile> {
         serde_yaml_ng::from_str(input).map_err(|e| {
             let mut message = "Syntax errors".to_string();
 
@@ -113,7 +241,8 @@ impl VersionedFile {
                 .await
                 .map_err(|_| anyhow!("Pipeline {name} not found"))?;
 
-            let file = Yaml::load(&src).map_err(|e| anyhow!("{e} ({name})"))?;
+            let yaml = Yaml::new(fs.as_ref());
+            let file = yaml.load(&src).await.map_err(|e| anyhow!("{e} ({name})"))?;
             let mut set = HashMap::new();
             set.insert(name.to_string(), src);
             let local_deps = file.local_deps(&config);

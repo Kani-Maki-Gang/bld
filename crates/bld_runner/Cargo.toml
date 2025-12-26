@@ -28,7 +28,8 @@ all = [
     "dep:regex",
     "dep:cron",
     "dep:pest",
-    "dep:pest_derive"
+    "dep:pest_derive",
+    "dep:git2",
 ]
 
 [dependencies]
@@ -59,3 +60,4 @@ cron = { version = "0.13.0", optional = true }
 pest = { version = "2.7.15", optional = true }
 pest_derive = { version = "2.7.15", optional = true }
 mockall = "0.13.1"
+git2 = { version = "0.20.2", features = ["https", "ssh"], optional = true }

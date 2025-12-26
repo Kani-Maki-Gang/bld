@@ -5,7 +5,7 @@ use bld_utils::{fs::IsYaml, shell::get_shell, sync::IntoArc};
 use sea_orm::DatabaseConnection;
 use std::{fmt::Write as FmtWrite, path::PathBuf, process::ExitStatus, sync::Arc};
 use tokio::{
-    fs::{File, copy, create_dir_all, read_to_string, remove_file, rename},
+    fs::{File, copy, create_dir_all, read_to_string, remove_file, remove_dir_all, rename},
     io::AsyncWriteExt,
 };
 use uuid::Uuid;
@@ -142,6 +142,10 @@ impl FileSystem {
         Ok(path.display().to_string())
     }
 
+    pub async fn get_tmp_dir(&self, name: &str) -> PathBuf {
+        self.config().tmp_full_path(name)
+    }
+
     pub async fn remove(&self, name: &str) -> Result<()> {
         let path = self.path(name).await?;
         match self {
@@ -176,6 +180,10 @@ impl FileSystem {
 
         remove_file(path).await?;
         Ok(())
+    }
+
+    pub async fn remove_tmp_dir(&self, path: &PathBuf) -> Result<()> {
+        tokio::fs::remove_dir_all(path).await.map_err(|e| anyhow!(e))
     }
 
     pub async fn copy(&self, source: &str, target: &str) -> Result<()> {
