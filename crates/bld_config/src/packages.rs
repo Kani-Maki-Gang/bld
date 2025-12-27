@@ -1,3 +1,5 @@
+use std::env::{home_dir, temp_dir};
+
 use serde::{Deserialize, Serialize};
 
 use crate::definitions::LOCAL_PACKAGES_CACHE;
@@ -10,7 +12,8 @@ pub struct BldPackages {
 
 impl BldPackages {
     fn default_cache() -> String {
-        format!("~/{}", LOCAL_PACKAGES_CACHE)
+        let base_dir = home_dir().unwrap_or_else(temp_dir);
+        format!("{}/{}", base_dir.to_string_lossy(), LOCAL_PACKAGES_CACHE)
     }
 }
 

@@ -8,4 +8,4 @@ anyhow = "1.0.93"
 bld_config = { path = "../bld_config" }
 tokio = { version = "1.43.1", features = ["full"] }
 git2 = { version = "0.20.2", features = ["https", "ssh"] }
-base64 = { version = "0.22.1" }
+regex = { version = "1.11.1" }

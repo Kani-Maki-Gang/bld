@@ -936,9 +936,9 @@ name = "bld_pkg"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "base64 0.22.1",
  "bld_config",
  "git2",
+ "regex",
  "tokio",
 ]
 
