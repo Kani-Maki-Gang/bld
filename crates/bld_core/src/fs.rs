@@ -63,7 +63,7 @@ impl FileSystem {
     pub async fn is_file(&self, name: &str) -> Result<bool> {
         match self {
             Self::Local { config } => Ok(config.full_path(name).is_file()),
-            Self::Server { .. } => self.server_path(name).await.map(|x| x.is_file())
+            Self::Server { .. } => self.server_path(name).await.map(|x| x.is_file()),
         }
     }
 
@@ -190,7 +190,9 @@ impl FileSystem {
     }
 
     pub async fn remove_tmp_dir(&self, path: &PathBuf) -> Result<()> {
-        tokio::fs::remove_dir_all(path).await.map_err(|e| anyhow!(e))
+        tokio::fs::remove_dir_all(path)
+            .await
+            .map_err(|e| anyhow!(e))
     }
 
     pub async fn copy(&self, source: &str, target: &str) -> Result<()> {

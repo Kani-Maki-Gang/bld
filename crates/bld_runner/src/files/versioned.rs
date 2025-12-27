@@ -81,12 +81,16 @@ impl<'a> VersionedFileLoader<'a> {
         })
     }
 
+    pub async fn load_local_content(&self, name: &str) -> Result<String> {
+        self.fs.read(name).await.map_err(|e| anyhow!(e))
+    }
+
     pub async fn load_local(&self, name: &str) -> Result<VersionedFile> {
-        let content = self.fs.read(name).await?;
+        let content = self.load_local_content(name).await?;
         self.parse_content(content)
     }
 
-    pub async fn load_package(&self, name: &str) -> Result<VersionedFile> {
+    pub async fn load_package_content(&self, name: &str) -> Result<String> {
         if self.package_manager.exists(name).await {
             if !self.package_manager.is_synced(name).await {
                 self.package_manager.sync(name).await?
@@ -94,15 +98,29 @@ impl<'a> VersionedFileLoader<'a> {
         } else {
             self.package_manager.get(name).await?;
         }
-        let content = self.package_manager.read(name).await?;
+        self.package_manager
+            .read(name)
+            .await
+            .map_err(|e| anyhow!(e))
+    }
+
+    pub async fn local_package(&self, name: &str) -> Result<VersionedFile> {
+        let content = self.load_package_content(name).await?;
         self.parse_content(content)
     }
 
-    pub async fn load(&self, name: &str) -> Result<VersionedFile> {
-        if matches!(self.fs.is_file(name).await, Ok(true)) {
-            return self.load_local(name).await;
+    pub async fn load_content(&self, name: &str) -> Result<String> {
+        use bld_utils::fs::IsYaml;
+
+        if matches!(self.fs.path(name).await.map(|x| x.is_yaml()), Ok(true)) {
+            return self.load_local_content(name).await;
         }
-        self.load_package(name).await
+        self.load_package_content(name).await
+    }
+
+    pub async fn load(&self, name: &str) -> Result<VersionedFile> {
+        let content = self.load_content(name).await?;
+        self.parse_content(content)
     }
 }
 
@@ -143,19 +161,17 @@ impl VersionedFile {
 
         Box::pin(async move {
             debug!("Parsing pipeline {name}");
-
-            let src = fs
-                .read(&name)
+            let loader = VersionedFileLoader::new(&package_manager, &fs, false);
+            let content = loader
+                .load_content(&name)
                 .await
-                .map_err(|_| anyhow!("Pipeline {name} not found"))?;
-
-            let loader = VersionedFileLoader::new(&package_manager.as_ref(), fs.as_ref(), false);
+                .map_err(|e| anyhow!("{e} ({name})"))?;
             let file = loader
-                .load(&src)
+                .load(&name)
                 .await
                 .map_err(|e| anyhow!("{e} ({name})"))?;
             let mut set = HashMap::new();
-            set.insert(name.to_string(), src);
+            set.insert(name.to_string(), content);
             let local_deps = file.local_deps(&config);
 
             for pipeline in local_deps.into_iter() {

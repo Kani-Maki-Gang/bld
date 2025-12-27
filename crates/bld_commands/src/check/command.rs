@@ -32,9 +32,8 @@ impl CheckCommand {
         let config = BldConfig::load().await?.into_arc();
         let fs = FileSystem::local(config.clone()).into_arc();
         let package_manager = PackageManager::new(config.clone());
-        let content = fs.read(&self.pipeline).await?;
         let loader = VersionedFileLoader::new(&package_manager, fs.as_ref(), true);
-        let pipeline = loader.load_local(&content).await?;
+        let pipeline = loader.load_local(&self.pipeline).await?;
         pipeline.validate_with_verbose_errors(config, fs).await
     }
 

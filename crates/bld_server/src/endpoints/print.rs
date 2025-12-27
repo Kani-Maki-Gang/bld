@@ -41,12 +41,14 @@ pub async fn get(
     HttpResponse::NotAcceptable().body("unsupported media type")
 }
 
-async fn get_as_json(fs: &FileSystem, package_manager: &PackageManager, pipeline: String) -> HttpResponse {
+async fn get_as_json(
+    fs: &FileSystem,
+    package_manager: &PackageManager,
+    pipeline: String,
+) -> HttpResponse {
     let loader = VersionedFileLoader::new(package_manager, fs, false);
     match loader.load(&pipeline).await {
         Ok(pipeline) => HttpResponse::Ok().json(pipeline),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
-
-

@@ -32,7 +32,7 @@ async fn do_push(
 ) -> Result<()> {
     fs.create(&info.name, &info.content, true).await?;
     let loader = VersionedFileLoader::new(package_manager, fs, false);
-    let pipeline = loader.load(&info.content).await?;
+    let pipeline = loader.load(&info.name).await?;
     let remove_res = match pipeline.cron() {
         Some(schedule) => cron.upsert_default(schedule, &info.name).await,
         None => cron.remove_by_pipeline(&info.name).await,
