@@ -1,3 +1,6 @@
+[watch]
+ignore = ["node_modules", "package-lock.json", "dist"]
+
 [[hooks]]
 stage = "pre_build"
 command = "bash"
