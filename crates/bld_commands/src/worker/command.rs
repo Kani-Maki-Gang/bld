@@ -5,7 +5,11 @@ use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
 use bld_core::{context::Context, fs::FileSystem, logger::Logger};
 use bld_http::WebSocket;
-use bld_models::{dtos::WorkerMessages, new_connection_pool, pipeline_runs};
+use bld_models::{
+    dtos::WorkerMessages,
+    new_connection_pool,
+    pipeline_runs::{self, PR_STATE_FAULTED},
+};
 use bld_pkg::PackageManager;
 use bld_runner::RunnerBuilder;
 use bld_sock::WorkerClient;
@@ -86,7 +90,7 @@ impl BldCommand for WorkerCommand {
             let (worker_tx, worker_rx) = channel(4096);
             let worker_tx = Some(worker_tx).into_arc();
             let logger = Logger::file(config.clone(), &run_id).await?.into_arc();
-            let context = Context::server(config.clone(), conn, &run_id).into_arc();
+            let context = Context::server(config.clone(), conn.clone(), &run_id).into_arc();
             let (cmd_signals, signals_rx) = CommandSignals::new()?;
 
             let socket_handle = spawn(async move {
@@ -117,7 +121,18 @@ impl BldCommand for WorkerCommand {
                             error!("error with runner, {e}");
                         }
                     }
-                    Err(e) => error!("failed on building the runner, {e}"),
+                    Err(e) => {
+                        let _ =
+                            pipeline_runs::update_state(conn.as_ref(), &run_id, PR_STATE_FAULTED)
+                                .await
+                                .inspect_err(|e| {
+                                    error!(
+                                        "unable set pipeline as faulted due to {}",
+                                        e.to_string()
+                                    )
+                                });
+                        error!("failed on building the runner, {e}")
+                    }
                 }
 
                 let _ = cmd_signals.stop().await;
