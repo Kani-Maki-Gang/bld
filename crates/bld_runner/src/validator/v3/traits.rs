@@ -2,11 +2,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::fs::FileSystem;
 
 pub trait ValidatorContext<'a> {
     fn get_config(&self) -> Arc<BldConfig>;
-    fn get_fs(&self) -> Arc<FileSystem>;
     fn push_section(&mut self, section: &'a str);
     fn pop_section(&mut self);
     #[allow(dead_code)]

@@ -288,7 +288,7 @@ impl<'a> RunnerBuilder<'a> {
                     regex_cache: self.regex_cache.clone(),
                     signals: self.signals,
                     logger: self.logger,
-                    package_manager: package_manager,
+                    package_manager,
                     ipc: self.ipc,
                     is_child: self.is_child,
                     has_faulted: false,

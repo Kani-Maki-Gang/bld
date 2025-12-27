@@ -12,19 +12,15 @@ use crate::{
 
 use super::{ContainerOptions, context::PlatformContext};
 
+#[derive(Default)]
 pub enum PlatformOptions<'a> {
     Container {
         image: Image<'a>,
         docker_url: Option<&'a str>,
     },
     Ssh(SshConnectOptions<'a>),
+    #[default]
     Machine,
-}
-
-impl Default for PlatformOptions<'_> {
-    fn default() -> Self {
-        Self::Machine
-    }
 }
 
 #[derive(Default)]

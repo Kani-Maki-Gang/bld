@@ -14,7 +14,6 @@ use bld_config::{
     },
     path,
 };
-use bld_core::fs::FileSystem;
 use regex::Regex;
 use tracing::debug;
 
@@ -36,7 +35,6 @@ pub fn create_keywords() -> HashSet<&'static str> {
 pub struct CommonValidator<'a, V: Validate<'a>> {
     validatable: &'a V,
     config: Arc<BldConfig>,
-    fs: Arc<FileSystem>,
     regex: Regex,
     keywords: HashSet<&'a str>,
     section: Vec<&'a str>,
@@ -44,11 +42,10 @@ pub struct CommonValidator<'a, V: Validate<'a>> {
 }
 
 impl<'a, V: Validate<'a>> CommonValidator<'a, V> {
-    pub fn new(validatable: &'a V, config: Arc<BldConfig>, fs: Arc<FileSystem>) -> Result<Self> {
+    pub fn new(validatable: &'a V, config: Arc<BldConfig>) -> Result<Self> {
         Ok(Self {
             validatable,
             config,
-            fs,
             regex: create_expression_regex()?,
             keywords: create_keywords(),
             section: Vec::new(),
@@ -60,10 +57,6 @@ impl<'a, V: Validate<'a>> CommonValidator<'a, V> {
 impl<'a, V: Validate<'a>> ValidatorContext<'a> for CommonValidator<'a, V> {
     fn get_config(&self) -> Arc<BldConfig> {
         self.config.clone()
-    }
-
-    fn get_fs(&self) -> Arc<FileSystem> {
-        self.fs.clone()
     }
 
     fn push_section(&mut self, section: &'a str) {

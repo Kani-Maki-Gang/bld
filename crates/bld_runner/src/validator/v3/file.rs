@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::fs::FileSystem;
 
 use crate::{action::v3::Action, files::v3::RunnerFile, pipeline::v3::Pipeline};
 
@@ -14,15 +13,15 @@ pub enum RunnerFileValidator<'a> {
 }
 
 impl<'a> RunnerFileValidator<'a> {
-    pub fn new(file: &'a RunnerFile, config: Arc<BldConfig>, fs: Arc<FileSystem>) -> Result<Self> {
+    pub fn new(file: &'a RunnerFile, config: Arc<BldConfig>) -> Result<Self> {
         match file {
             RunnerFile::PipelineFileType(pip) => {
-                let validator = CommonValidator::new(pip.as_ref(), config, fs)?;
+                let validator = CommonValidator::new(pip.as_ref(), config)?;
                 Ok(Self::Pipeline(validator))
             }
 
             RunnerFile::ActionFileType(action) => {
-                let validator = CommonValidator::new(action.as_ref(), config, fs)?;
+                let validator = CommonValidator::new(action.as_ref(), config)?;
                 Ok(Self::Action(validator))
             }
         }
