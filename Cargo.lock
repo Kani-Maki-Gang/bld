@@ -940,6 +940,7 @@ dependencies = [
  "git2",
  "regex",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
