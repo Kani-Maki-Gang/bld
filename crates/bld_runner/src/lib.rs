@@ -21,7 +21,11 @@ mod validator;
 #[cfg(feature = "all")]
 mod expr;
 
-pub use files::versioned::{VersionedFile, VersionedFileLoader};
+pub use files::versioned::VersionedFile;
+
+#[cfg(feature = "all")]
+pub use files::versioned::VersionedFileLoader;
+
 pub use traits::Load;
 
 #[cfg(feature = "all")]

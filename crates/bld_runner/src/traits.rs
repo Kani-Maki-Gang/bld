@@ -1,7 +1,10 @@
+use anyhow::Result;
 use std::collections::HashMap;
 
-use anyhow::Result;
+#[cfg(feature = "all")]
 use bld_config::BldConfig;
+
+#[cfg(feature = "all")]
 use bld_core::fs::FileSystem;
 
 #[allow(async_fn_in_trait)]
@@ -11,6 +14,7 @@ pub trait Load<T> {
 }
 
 #[allow(async_fn_in_trait)]
+#[cfg(feature = "all")]
 pub trait Dependencies {
     async fn local_deps(&self, config: &BldConfig, fs: &FileSystem) -> Vec<String>;
 }
