@@ -1,4 +1,6 @@
 use crate::external::v3::External;
+#[cfg(feature = "all")]
+use bld_core::fs::FileSystem;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -86,9 +88,11 @@ impl Step {
 
 #[cfg(feature = "all")]
 impl Dependencies for Step {
-    fn local_deps(&self, config: &BldConfig) -> Vec<String> {
+    async fn local_deps(&self, _config: &BldConfig, fs: &FileSystem) -> Vec<String> {
         match self {
-            Self::ExternalFile(external) if config.full_path(&external.uses).is_yaml() => {
+            Self::ExternalFile(external)
+                if matches!(fs.path(&external.uses).await.map(|x| x.is_yaml()), Ok(true)) =>
+            {
                 vec![external.uses.to_owned()]
             }
             Self::ComplexSh { .. } | Self::ExternalFile { .. } => vec![],

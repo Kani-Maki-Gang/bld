@@ -1,5 +1,11 @@
 use std::collections::HashSet;
 
+#[cfg(feature = "all")]
+use bld_config::BldConfig;
+
+#[cfg(feature = "all")]
+use bld_core::fs::FileSystem;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -10,9 +16,6 @@ use crate::{
 
 #[cfg(feature = "all")]
 use crate::traits::Dependencies;
-
-#[cfg(feature = "all")]
-use bld_config::BldConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -43,25 +46,25 @@ impl IntoVariables for RunnerFile {
 
 #[cfg(feature = "all")]
 impl Dependencies for RunnerFile {
-    fn local_deps(&self, config: &BldConfig) -> Vec<String> {
+    async fn local_deps(&self, config: &BldConfig, fs: &FileSystem) -> Vec<String> {
         match self {
             Self::PipelineFileType(pipeline) => {
-                let from_steps = pipeline
-                    .jobs
-                    .iter()
-                    .flat_map(|(_, steps)| steps)
-                    .flat_map(|s| s.local_deps(config));
-
-                let from_external = pipeline
-                    .external
-                    .iter()
-                    .filter(|e| e.server.is_none())
-                    .map(|e| e.uses.to_owned());
-
-                from_steps.chain(from_external).collect()
+                let mut dependecies = vec![];
+                for steps in pipeline.jobs.values() {
+                    for step in steps {
+                        let mut local_deps = step.local_deps(config, fs).await;
+                        dependecies.append(&mut local_deps);
+                    }
+                }
+                for external in &pipeline.external {
+                    if external.server.is_none() {
+                        dependecies.push(external.uses.to_owned());
+                    }
+                }
+                dependecies
             }
 
-            Self::ActionFileType(action) => action.local_deps(config),
+            Self::ActionFileType(action) => action.local_deps(config, fs).await,
         }
     }
 }

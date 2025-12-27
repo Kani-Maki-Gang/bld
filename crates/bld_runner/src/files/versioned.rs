@@ -172,8 +172,7 @@ impl VersionedFile {
                 .map_err(|e| anyhow!("{e} ({name})"))?;
             let mut set = HashMap::new();
             set.insert(name.to_string(), content);
-            let local_deps = file.local_deps(&config);
-
+            let local_deps = file.local_deps(&config, &fs).await;
             for pipeline in local_deps.into_iter() {
                 for (k, v) in Self::dependencies_recursive(
                     config.clone(),
@@ -247,11 +246,11 @@ impl VersionedFile {
 
 #[cfg(feature = "all")]
 impl Dependencies for VersionedFile {
-    fn local_deps(&self, config: &BldConfig) -> Vec<String> {
+    async fn local_deps(&self, config: &BldConfig, fs: &FileSystem) -> Vec<String> {
         match self {
-            Self::Version1(pip) => pip.local_deps(config),
-            Self::Version2(pip) => pip.local_deps(config),
-            Self::Version3(file) => file.local_deps(config),
+            Self::Version1(pip) => pip.local_deps(config, fs).await,
+            Self::Version2(pip) => pip.local_deps(config, fs).await,
+            Self::Version3(file) => file.local_deps(config, fs).await,
         }
     }
 }

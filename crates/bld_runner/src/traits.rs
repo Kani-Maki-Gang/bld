@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use bld_config::BldConfig;
+use bld_core::fs::FileSystem;
 
 #[allow(async_fn_in_trait)]
 pub trait Load<T> {
@@ -9,8 +10,9 @@ pub trait Load<T> {
     fn load_with_verbose_errors(&self, path: &str) -> Result<T>;
 }
 
+#[allow(async_fn_in_trait)]
 pub trait Dependencies {
-    fn local_deps(&self, config: &BldConfig) -> Vec<String>;
+    async fn local_deps(&self, config: &BldConfig, fs: &FileSystem) -> Vec<String>;
 }
 
 #[allow(async_fn_in_trait)]
