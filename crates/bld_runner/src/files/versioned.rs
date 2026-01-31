@@ -56,8 +56,8 @@ impl<'a> VersionedFileLoader<'a> {
         }
     }
 
-    pub fn parse_content(&self, content: String) -> Result<VersionedFile> {
-        serde_yaml_ng::from_str(content.as_str()).map_err(|e| {
+    fn parse_content(&self, content: &str) -> Result<VersionedFile> {
+        serde_yaml_ng::from_str(content).map_err(|e| {
             if self.verbose {
                 let mut message = "Syntax errors".to_string();
 
@@ -85,16 +85,15 @@ impl<'a> VersionedFileLoader<'a> {
         self.fs.read(name).await.map_err(|e| anyhow!(e))
     }
 
-    pub async fn load_local(&self, name: &str) -> Result<VersionedFile> {
-        let content = self.load_local_content(name).await?;
-        self.parse_content(content)
-    }
-
     pub async fn load_package_content(&self, name: &str) -> Result<String> {
         if self.package_manager.exists(name).await {
-            if !self.package_manager.is_synced(name).await {
-                self.package_manager.sync(name).await?
-            }
+            use tracing::warn;
+
+            let _ = self
+                .package_manager
+                .try_sync(name)
+                .await
+                .inspect_err(|e| warn!("repository is found locally but unable to sync"));
         } else {
             self.package_manager.get(name).await?;
         }
@@ -102,11 +101,6 @@ impl<'a> VersionedFileLoader<'a> {
             .read(name)
             .await
             .map_err(|e| anyhow!(e))
-    }
-
-    pub async fn local_package(&self, name: &str) -> Result<VersionedFile> {
-        let content = self.load_package_content(name).await?;
-        self.parse_content(content)
     }
 
     pub async fn load_content(&self, name: &str) -> Result<String> {
@@ -118,9 +112,35 @@ impl<'a> VersionedFileLoader<'a> {
         self.load_package_content(name).await
     }
 
-    pub async fn load(&self, name: &str) -> Result<VersionedFile> {
-        let content = self.load_content(name).await?;
-        self.parse_content(content)
+    pub async fn load(&self, name: &str) -> Result<VersionedFileMetadata> {
+        use bld_utils::fs::IsYaml;
+
+        let raw = if self
+            .fs
+            .path(name)
+            .await
+            .map(|x| x.is_yaml())
+            .unwrap_or(false)
+        {
+            self.load_local_content(name).await
+        } else {
+            self.load_package_content(name).await
+        }?;
+
+        let file = self.parse_content(&raw)?;
+
+        Ok(VersionedFileMetadata::new(raw, file))
+    }
+}
+
+pub struct VersionedFileMetadata {
+    pub raw: String,
+    pub file: VersionedFile,
+}
+
+impl VersionedFileMetadata {
+    pub fn new(raw: String, file: VersionedFile) -> Self {
+        Self { raw, file }
     }
 }
 
@@ -162,17 +182,13 @@ impl VersionedFile {
         Box::pin(async move {
             debug!("Parsing pipeline {name}");
             let loader = VersionedFileLoader::new(&package_manager, &fs, false);
-            let content = loader
-                .load_content(&name)
-                .await
-                .map_err(|e| anyhow!("{e} ({name})"))?;
-            let file = loader
+            let metadata = loader
                 .load(&name)
                 .await
                 .map_err(|e| anyhow!("{e} ({name})"))?;
             let mut set = HashMap::new();
-            set.insert(name.to_string(), content);
-            let local_deps = file.local_deps(&config, &fs).await;
+            set.insert(name.to_string(), metadata.raw.clone());
+            let local_deps = metadata.file.local_deps(&config, &fs).await;
             for pipeline in local_deps.into_iter() {
                 for (k, v) in Self::dependencies_recursive(
                     config.clone(),
@@ -192,10 +208,10 @@ impl VersionedFile {
     }
 
     pub fn cron(&self) -> Option<&str> {
-        if let Self::Version2(pip) = self {
-            pip.cron.as_deref()
-        } else {
-            None
+        match self {
+            Self::Version1(_) => None,
+            Self::Version2(pip) => pip.cron.as_deref(),
+            Self::Version3(file) => file.cron(),
         }
     }
 

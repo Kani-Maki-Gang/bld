@@ -33,6 +33,13 @@ impl RunnerFile {
             Self::ActionFileType(action) => action.required_inputs(),
         }
     }
+
+    pub fn cron(&self) -> Option<&str> {
+        match self {
+            Self::PipelineFileType(pip) => pip.cron.as_deref(),
+            Self::ActionFileType(_) => None,
+        }
+    }
 }
 
 impl IntoVariables for RunnerFile {

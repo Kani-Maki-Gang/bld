@@ -99,17 +99,16 @@ impl PackageManager {
             // Try remote branch first, then tag
             let tag_ref = format!("refs/tags/{}", branch.name);
 
-            let (commit, is_branch) =
-                if let Ok(obj) = repository.revparse_single(&branch.refname) {
-                    (obj.peel_to_commit()?, true)
-                } else if let Ok(obj) = repository.revparse_single(&tag_ref) {
-                    (obj.peel_to_commit()?, false)
-                } else {
-                    bail!(
-                        "Unable to find branch or tag '{}' in repository",
-                        branch.name
-                    );
-                };
+            let (commit, is_branch) = if let Ok(obj) = repository.revparse_single(&branch.refname) {
+                (obj.peel_to_commit()?, true)
+            } else if let Ok(obj) = repository.revparse_single(&tag_ref) {
+                (obj.peel_to_commit()?, false)
+            } else {
+                bail!(
+                    "Unable to find branch or tag '{}' in repository",
+                    branch.name
+                );
+            };
 
             repository.checkout_tree(commit.as_object(), None)?;
 
@@ -183,7 +182,10 @@ impl PackageManager {
         };
 
         // Resolve remote ref using revparse (handles both branches and tags)
-        let remote_spec = if repository.find_reference(&format!("refs/remotes/origin/{}", ref_name)).is_ok() {
+        let remote_spec = if repository
+            .find_reference(&format!("refs/remotes/origin/{}", ref_name))
+            .is_ok()
+        {
             format!("refs/remotes/origin/{}", ref_name)
         } else {
             format!("refs/tags/{}", ref_name)
@@ -222,7 +224,10 @@ impl PackageManager {
         remote.fetch::<&str>(&[], None, None)?;
 
         // Resolve remote ref using revparse (handles both branches and tags)
-        let remote_spec = if repository.find_reference(&format!("refs/remotes/origin/{}", ref_name)).is_ok() {
+        let remote_spec = if repository
+            .find_reference(&format!("refs/remotes/origin/{}", ref_name))
+            .is_ok()
+        {
             format!("refs/remotes/origin/{}", ref_name)
         } else {
             format!("refs/tags/{}", ref_name)
@@ -235,7 +240,9 @@ impl PackageManager {
         repository.checkout_tree(remote_commit.as_object(), None)?;
 
         // Check if this is a branch or tag
-        let is_branch = repository.find_reference(&format!("refs/remotes/origin/{}", ref_name)).is_ok();
+        let is_branch = repository
+            .find_reference(&format!("refs/remotes/origin/{}", ref_name))
+            .is_ok();
 
         if is_branch {
             repository.reset(remote_commit.as_object(), git2::ResetType::Hard, None)?;
@@ -244,6 +251,13 @@ impl PackageManager {
             repository.set_head_detached(remote_commit.id())?;
         }
 
+        Ok(())
+    }
+
+    pub async fn try_sync(&self, source: &str) -> Result<()> {
+        if !self.is_synced(source).await {
+            self.sync(source).await?
+        }
         Ok(())
     }
 

@@ -48,7 +48,7 @@ async fn get_as_json(
 ) -> HttpResponse {
     let loader = VersionedFileLoader::new(package_manager, fs, false);
     match loader.load(&pipeline).await {
-        Ok(pipeline) => HttpResponse::Ok().json(pipeline),
+        Ok(metadata) => HttpResponse::Ok().json(metadata.file),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }

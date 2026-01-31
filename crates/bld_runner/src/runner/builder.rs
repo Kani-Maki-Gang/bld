@@ -157,14 +157,17 @@ impl<'a> RunnerBuilder<'a> {
 
         let package_manager = self
             .package_manager
-            .ok_or_else(|| anyhow!("no bld package manager provider"))?;
+            .ok_or_else(|| anyhow!("no bld package manager provided"))?;
 
         let file = self.file.ok_or_else(|| anyhow!("no pipeline provided"))?;
 
         debug!("loading file");
         let loader = VersionedFileLoader::new(package_manager.as_ref(), self.fs.as_ref(), false);
-        let file = loader.load(file).await?;
-        file.validate(config.clone(), self.fs.clone()).await?;
+        let metadata = loader.load(file).await?;
+        metadata
+            .file
+            .validate(config.clone(), self.fs.clone())
+            .await?;
 
         let env = self
             .env
@@ -178,7 +181,7 @@ impl<'a> RunnerBuilder<'a> {
             .context
             .ok_or_else(|| anyhow!("no context instance provided"))?;
 
-        let runner = match file {
+        let runner = match metadata.file {
             VersionedFile::Version1(pipeline) => {
                 let options = match pipeline.runs_on.as_str() {
                     "machine" => PlatformOptions::Machine,
