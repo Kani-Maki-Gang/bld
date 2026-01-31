@@ -8,6 +8,9 @@ use crate::definitions::LOCAL_PACKAGES_CACHE;
 pub struct BldPackages {
     #[serde(default = "BldPackages::default_cache")]
     pub cache: String,
+
+    #[serde(default)]
+    pub strict_sync: bool,
 }
 
 impl BldPackages {
@@ -21,6 +24,7 @@ impl Default for BldPackages {
     fn default() -> Self {
         Self {
             cache: Self::default_cache(),
+            strict_sync: false,
         }
     }
 }

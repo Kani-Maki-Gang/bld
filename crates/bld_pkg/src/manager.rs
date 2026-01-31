@@ -6,7 +6,7 @@ use git2::Repository;
 use regex::Regex;
 use std::path::PathBuf;
 use tokio::{fs::File, io::AsyncReadExt};
-use tracing::error;
+use tracing::{error, warn};
 
 pub struct RepositoryBranch {
     name: String,
@@ -125,7 +125,7 @@ impl PackageManager {
         Ok(())
     }
 
-    pub async fn is_synced(&self, source: &str) -> bool {
+    async fn is_synced(&self, source: &str) -> bool {
         let Ok(info) = self.resolve_info(source).inspect_err(|e| {
             error!(
                 "unable to resolve repository information due to {}",
@@ -203,7 +203,7 @@ impl PackageManager {
         local_oid == remote_oid
     }
 
-    pub async fn sync(&self, source: &str) -> Result<()> {
+    async fn sync(&self, source: &str) -> Result<()> {
         let info = self.resolve_info(source)?;
         let repository_path = self.repository_path(&info);
         let repository = Repository::open(&repository_path)?;
@@ -255,9 +255,19 @@ impl PackageManager {
     }
 
     pub async fn try_sync(&self, source: &str) -> Result<()> {
-        if !self.is_synced(source).await {
-            self.sync(source).await?
+        if self.is_synced(source).await {
+            return Ok(());
         }
+
+        let sync_res = self.sync(source).await;
+        if self.config.local.packages.strict_sync {
+            return sync_res;
+        }
+
+        if let Err(e) = sync_res {
+            warn!("unable to sync package due to {}", e.to_string());
+        }
+
         Ok(())
     }
 

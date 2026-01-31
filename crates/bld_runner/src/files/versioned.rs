@@ -87,13 +87,7 @@ impl<'a> VersionedFileLoader<'a> {
 
     pub async fn load_package_content(&self, name: &str) -> Result<String> {
         if self.package_manager.exists(name).await {
-            use tracing::warn;
-
-            let _ = self
-                .package_manager
-                .try_sync(name)
-                .await
-                .inspect_err(|e| warn!("repository is found locally but unable to sync"));
+            self.package_manager.try_sync(name).await?;
         } else {
             self.package_manager.get(name).await?;
         }
