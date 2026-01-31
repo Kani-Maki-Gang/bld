@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 use bld_config::{BldConfig, definitions::PACKAGE_ACTION_FILE_NAME, path};
 use git2::Repository;
-use regex::Regex;
 use std::path::PathBuf;
 use tokio::{fs::File, io::AsyncReadExt};
 use tracing::{error, warn};
@@ -22,52 +21,33 @@ pub struct RepositoryInfo {
 
 pub struct PackageManager {
     config: Arc<BldConfig>,
-    regex: Regex,
 }
 
 impl PackageManager {
     pub fn new(config: Arc<BldConfig>) -> Self {
-        // Regex to parse git URLs (HTTPS and SSH) with optional @branch/tag
-        // Examples:
-        //   https://github.com/user/repo.git@branch
-        //   git@github.com:user/repo.git@tag
-        // Captures:
-        //   1: Full URL without @branch (e.g., https://github.com/user/repo.git)
-        //   2: Repository name (e.g., repo)
-        //   3: Branch/tag (e.g., main)
-        let regex = Regex::new(
-            r"^((?:https?://[^/]+/|git@[^:]+:)(?:[^/]+/)*([^@/]+?)(?:\.git)?)(?:@(.+))?$",
-        )
-        .expect("Invalid regex pattern");
-
-        Self { config, regex }
+        Self { config }
     }
 
     fn resolve_info(&self, source: &str) -> Result<RepositoryInfo> {
-        let Some(captures) = self.regex.captures(source) else {
-            bail!("Failed to parse git repository URL: {}", source);
-        };
+        let mut branch: Option<RepositoryBranch> = None;
+        let mut url = source.to_string();
 
-        let url = captures
-            .get(1)
-            .map(|m| m.as_str().to_string())
-            .ok_or_else(|| anyhow::anyhow!("Failed to extract repository URL"))?;
-
-        let name = captures
-            .get(2)
-            .map(|m| m.as_str().to_string())
-            .ok_or_else(|| anyhow::anyhow!("Failed to extract repository name"))?;
-
-        let branch = captures.get(3).map(|m| {
-            let name = m.as_str().to_string();
+        if let Some((left, right)) = source.rsplit_once(".git@") {
+            let name = right.to_string();
             let refname = format!("refs/remotes/origin/{name}");
             let head = format!("refs/heads/{name}");
-            RepositoryBranch {
+            branch = Some(RepositoryBranch {
                 name,
                 refname,
                 head,
-            }
-        });
+            });
+            url = format!("{left}.git");
+        }
+
+        let (_, name) = url
+            .rsplit_once("/")
+            .ok_or_else(|| anyhow!("Unable to deduce repository name for package {source}"))?;
+        let name = name.to_string();
 
         Ok(RepositoryInfo { url, name, branch })
     }
