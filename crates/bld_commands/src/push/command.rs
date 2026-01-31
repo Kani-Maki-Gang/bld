@@ -51,8 +51,8 @@ impl PushCommand {
         );
 
         let loader = VersionedFileLoader::new(&package_manager, &fs, false);
-        let content = loader.load_content(&self.pipeline).await?;
-        let mut pipelines = vec![(self.pipeline.to_owned(), content)];
+        let metadata = loader.load(&self.pipeline).await?;
+        let mut pipelines = vec![(self.pipeline.to_owned(), metadata.raw)];
 
         if !self.ignore_deps {
             print!("Resolving dependecies...");

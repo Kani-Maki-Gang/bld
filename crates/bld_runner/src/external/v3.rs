@@ -75,25 +75,21 @@ impl<'a> Validate<'a> for External {
 
 #[cfg(feature = "all")]
 async fn validate_external_file<'a, C: ValidatorContext<'a>>(ctx: &mut C, uses: &'a str) {
+    use crate::VersionedFileLoader;
+
     if ctx.contains_symbols(uses) {
         ctx.validate_symbols(uses);
+        return;
     }
-    // else {
-    //     let fs = ctx.get_fs();
-    //     match fs.path(uses).await {
-    //         Ok(path) if !path.is_yaml() => {
-    //             ctx.push_section(uses);
-    //             ctx.append_error("Pipeline or action not found");
-    //             ctx.pop_section();
-    //         }
-    //         Err(e) => {
-    //             ctx.push_section(uses);
-    //             ctx.append_error(&e.to_string());
-    //             ctx.pop_section();
-    //         }
-    //         _ => {}
-    //     }
-    // }
+
+    let file_system = ctx.get_fs();
+    let package_manager = ctx.get_package_manager();
+    let loader = VersionedFileLoader::new(&package_manager, &file_system, true);
+    if loader.get_source(uses).await.is_none() {
+        ctx.push_section(uses);
+        ctx.append_error("Pipeline or action not found");
+        ctx.pop_section();
+    }
 }
 
 #[cfg(feature = "all")]
@@ -117,35 +113,33 @@ fn validate_external_server<'a, C: ValidatorContext<'a>>(ctx: &mut C, server: Op
 #[cfg(feature = "all")]
 async fn validate_external_with<'a, C: ValidatorContext<'a>>(
     ctx: &mut C,
-    _uses: &'a str,
+    uses: &'a str,
     server: Option<&'a str>,
     with: &'a HashMap<String, String>,
 ) {
-    if server.is_none() {
-        // let fs = ctx.get_fs();
-        // let yaml = Yaml::new(fs.as_ref());
-        // let file = fs
-        //     .read(uses)
-        //     .await
-        //     .and_then(|c| yaml.load_with_verbose_errors(&c));
+    use crate::VersionedFileLoader;
 
-        // match file {
-        //     Ok(file) => {
-        //         let required = file.required_inputs();
-        //         if let Some(required) = required {
-        //             for name in required {
-        //                 if !with.contains_key(name) {
-        //                     let message = format!("Missing required input: {name}");
-        //                     ctx.append_error(&message);
-        //                 }
-        //             }
-        //         }
-        //     }
-        //     Err(e) => {
-        //         let message = format!("Unable to check required inputs due to {e}");
-        //         ctx.append_error(&message);
-        //     }
-        // }
+    if server.is_none() {
+        let file_system = ctx.get_fs();
+        let package_manager = ctx.get_package_manager();
+        let loader = VersionedFileLoader::new(&package_manager, &file_system, true);
+        match loader.load(uses).await {
+            Ok(metadata) => {
+                let required = metadata.file.required_inputs();
+                if let Some(required) = required {
+                    for name in required {
+                        if !with.contains_key(name) {
+                            let message = format!("Missing required input: {name}");
+                            ctx.append_error(&message);
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                let message = format!("Unable to check required inputs due to {e}");
+                ctx.append_error(&message);
+            }
+        }
     }
 
     for (name, input) in with.iter() {

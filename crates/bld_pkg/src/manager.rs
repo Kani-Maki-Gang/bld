@@ -81,6 +81,10 @@ impl PackageManager {
         path![&self.config.local.packages.cache, dir]
     }
 
+    pub fn is_package(&self, source: &str) -> bool {
+        self.resolve_info(source).is_ok()
+    }
+
     pub async fn exists(&self, source: &str) -> bool {
         let Ok(info) = self.resolve_info(source) else {
             return false;

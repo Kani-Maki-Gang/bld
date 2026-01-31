@@ -166,7 +166,7 @@ impl<'a> RunnerBuilder<'a> {
         let metadata = loader.load(file).await?;
         metadata
             .file
-            .validate(config.clone(), self.fs.clone())
+            .validate(config.clone(), self.fs.clone(), package_manager.clone())
             .await?;
 
         let env = self

@@ -1,7 +1,5 @@
 use crate::pipeline::{v1, v2};
 use crate::traits::{IntoVariables, Variables};
-#[cfg(feature = "all")]
-use bld_pkg::PackageManager;
 use serde::{Deserialize, Serialize};
 
 use super::v3 as files_v3;
@@ -28,6 +26,9 @@ use bld_config::BldConfig;
 use bld_core::fs::FileSystem;
 
 #[cfg(feature = "all")]
+use bld_pkg::PackageManager;
+
+#[cfg(feature = "all")]
 use futures::Future;
 
 #[cfg(feature = "all")]
@@ -38,6 +39,12 @@ use tracing::debug;
 
 #[cfg(feature = "all")]
 type DependenciesRecursiveFuture = Pin<Box<dyn Future<Output = Result<HashMap<String, String>>>>>;
+
+#[cfg(feature = "all")]
+pub enum VersionedFileSource {
+    LocalFile,
+    Package,
+}
 
 #[cfg(feature = "all")]
 pub struct VersionedFileLoader<'a> {
@@ -81,11 +88,11 @@ impl<'a> VersionedFileLoader<'a> {
         })
     }
 
-    pub async fn load_local_content(&self, name: &str) -> Result<String> {
+    async fn load_local(&self, name: &str) -> Result<String> {
         self.fs.read(name).await.map_err(|e| anyhow!(e))
     }
 
-    pub async fn load_package_content(&self, name: &str) -> Result<String> {
+    async fn load_package(&self, name: &str) -> Result<String> {
         if self.package_manager.exists(name).await {
             self.package_manager.try_sync(name).await?;
         } else {
@@ -97,28 +104,35 @@ impl<'a> VersionedFileLoader<'a> {
             .map_err(|e| anyhow!(e))
     }
 
-    pub async fn load_content(&self, name: &str) -> Result<String> {
+    pub async fn get_source(&self, name: &str) -> Option<VersionedFileSource> {
         use bld_utils::fs::IsYaml;
 
-        if matches!(self.fs.path(name).await.map(|x| x.is_yaml()), Ok(true)) {
-            return self.load_local_content(name).await;
-        }
-        self.load_package_content(name).await
-    }
-
-    pub async fn load(&self, name: &str) -> Result<VersionedFileMetadata> {
-        use bld_utils::fs::IsYaml;
-
-        let raw = if self
+        if self
             .fs
             .path(name)
             .await
             .map(|x| x.is_yaml())
-            .unwrap_or(false)
+            .unwrap_or_default()
         {
-            self.load_local_content(name).await
-        } else {
-            self.load_package_content(name).await
+            return Some(VersionedFileSource::LocalFile);
+        }
+
+        if self.package_manager.is_package(name) {
+            return Some(VersionedFileSource::Package);
+        }
+
+        None
+    }
+
+    pub async fn load(&self, name: &str) -> Result<VersionedFileMetadata> {
+        let source = self
+            .get_source(name)
+            .await
+            .ok_or_else(|| anyhow!("Unable to deduce file source (local file or package)"))?;
+
+        let raw = match source {
+            VersionedFileSource::LocalFile => self.load_local(name).await,
+            VersionedFileSource::Package => self.load_package(name).await,
         }?;
 
         let file = self.parse_content(&raw)?;
@@ -221,6 +235,7 @@ impl VersionedFile {
         &self,
         config: Arc<BldConfig>,
         fs: Arc<FileSystem>,
+        package_manager: Arc<PackageManager>,
     ) -> Result<()> {
         use crate::traits::Validate;
 
@@ -238,7 +253,7 @@ impl VersionedFile {
             }
 
             Self::Version3(file) => {
-                validator_v3::RunnerFileValidator::new(file, config)?
+                validator_v3::RunnerFileValidator::new(file, config, fs, package_manager)?
                     .validate()
                     .await
             }
@@ -247,8 +262,13 @@ impl VersionedFile {
     }
 
     #[cfg(feature = "all")]
-    pub async fn validate(&self, config: Arc<BldConfig>, fs: Arc<FileSystem>) -> Result<()> {
-        self.validate_with_verbose_errors(config, fs)
+    pub async fn validate(
+        &self,
+        config: Arc<BldConfig>,
+        fs: Arc<FileSystem>,
+        package_manager: Arc<PackageManager>,
+    ) -> Result<()> {
+        self.validate_with_verbose_errors(config, fs, package_manager)
             .await
             .map_err(|_| anyhow!("Pipeline has expression errors"))
     }

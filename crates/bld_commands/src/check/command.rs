@@ -31,10 +31,13 @@ impl CheckCommand {
     async fn local_check(&self) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
         let fs = FileSystem::local(config.clone()).into_arc();
-        let package_manager = PackageManager::new(config.clone());
-        let loader = VersionedFileLoader::new(&package_manager, fs.as_ref(), true);
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        let loader = VersionedFileLoader::new(&package_manager, &fs, true);
         let metadata = loader.load(&self.pipeline).await?;
-        metadata.file.validate_with_verbose_errors(config, fs).await
+        metadata
+            .file
+            .validate_with_verbose_errors(config, fs, package_manager)
+            .await
     }
 
     async fn remote_check(&self, server: &str) -> Result<()> {
