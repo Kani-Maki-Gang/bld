@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-bullseye
+    image: docker.io/library/postgres:16-bullseye
     restart: always
     environment:
       POSTGRES_USER: dev
