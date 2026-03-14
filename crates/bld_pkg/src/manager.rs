@@ -4,7 +4,7 @@ use anyhow::{Result, anyhow, bail};
 use bld_config::{BldConfig, definitions::PACKAGE_ACTION_FILE_NAME, path};
 use git2::Repository;
 use std::path::PathBuf;
-use tokio::{fs::File, io::AsyncReadExt};
+use tokio::{fs::File, io::AsyncReadExt, task::spawn_blocking};
 use tracing::{error, warn};
 
 pub struct RepositoryBranch {
@@ -65,7 +65,7 @@ impl PackageManager {
         self.resolve_info(source).is_ok()
     }
 
-    pub async fn exists(&self, source: &str) -> bool {
+    pub fn exists(&self, source: &str) -> bool {
         let Ok(info) = self.resolve_info(source) else {
             return false;
         };
@@ -76,11 +76,10 @@ impl PackageManager {
     pub async fn get(&self, source: &str) -> Result<()> {
         let info = self.resolve_info(source)?;
         let repository_path = self.repository_path(&info);
-        let repository = Repository::clone(&info.url, &repository_path)?;
+        let repository =
+            spawn_blocking(move || Repository::clone(&info.url, &repository_path)).await??;
 
-        // Checkout the specified branch/tag if provided
         if let Some(branch) = &info.branch {
-            // Try remote branch first, then tag
             let tag_ref = format!("refs/tags/{}", branch.name);
 
             let (commit, is_branch) = if let Ok(obj) = repository.revparse_single(&branch.refname) {
@@ -97,11 +96,9 @@ impl PackageManager {
             repository.checkout_tree(commit.as_object(), None)?;
 
             if is_branch {
-                // For branches, create local branch and set HEAD
                 repository.branch(&branch.name, &commit, false)?;
                 repository.set_head(&branch.head)?;
             } else {
-                // For tags, set HEAD to detached state
                 repository.set_head_detached(commit.id())?;
             }
         }
@@ -120,31 +117,36 @@ impl PackageManager {
         };
 
         let repository_path = self.repository_path(&info);
-        let Ok(repository) = Repository::open(&repository_path)
-            .inspect_err(|e| error!("unable to open git repository due to {}", e.to_string()))
+
+        let Ok(repository_task) = spawn_blocking(move || Repository::open(&repository_path))
+            .await
+            .inspect_err(|e| error!("unable to spawn repository open task due to {e}"))
         else {
             return false;
         };
 
-        // Get the ref name (from info or default to HEAD)
-        let ref_name = match &info.branch {
-            Some(branch) => branch.name.clone(),
-            None => {
-                let Ok(head) = repository.head() else {
-                    error!("unable to get HEAD reference");
-                    return false;
-                };
-                match head.shorthand() {
-                    Some(name) => name.to_string(),
-                    None => {
-                        error!("unable to get branch name from HEAD");
-                        return false;
-                    }
-                }
-            }
+        let Ok(repository) =
+            repository_task.inspect_err(|e| error!("unable to open git repository due to {e}"))
+        else {
+            return false;
         };
 
-        // Fetch from remote (fetch all to get both branches and tags)
+        let ref_name = if let Some(branch) = info.branch {
+            branch.name.clone()
+        } else {
+            let Ok(head) = repository.head() else {
+                error!("unable to get HEAD reference");
+                return false;
+            };
+
+            let Some(head) = head.shorthand() else {
+                error!("unable to get branch name from HEAD");
+                return false;
+            };
+
+            head.to_string()
+        };
+
         let Ok(mut remote) = repository.find_remote("origin") else {
             error!("unable to find remote 'origin'");
             return false;
@@ -155,7 +157,6 @@ impl PackageManager {
             return false;
         }
 
-        // Get local HEAD commit
         let Ok(head) = repository.head() else {
             error!("unable to get HEAD");
             return false;
@@ -165,7 +166,6 @@ impl PackageManager {
             return false;
         };
 
-        // Resolve remote ref using revparse (handles both branches and tags)
         let remote_spec = if repository
             .find_reference(&format!("refs/remotes/origin/{}", ref_name))
             .is_ok()
@@ -190,24 +190,26 @@ impl PackageManager {
     async fn sync(&self, source: &str) -> Result<()> {
         let info = self.resolve_info(source)?;
         let repository_path = self.repository_path(&info);
-        let repository = Repository::open(&repository_path)?;
 
-        // Get the ref name (from info or default to HEAD)
-        let ref_name = match &info.branch {
-            Some(branch) => branch.name.clone(),
-            None => {
-                let head = repository.head()?;
-                head.shorthand()
-                    .ok_or_else(|| anyhow::anyhow!("unable to get branch name from HEAD"))?
-                    .to_string()
+        let repository = spawn_blocking(move || -> Result<Repository> {
+            let repo = Repository::open(&repository_path)?;
+            {
+                let mut remote = repo.find_remote("origin")?;
+                remote.fetch::<&str>(&[], None, None)?;
             }
+            Ok(repo)
+        })
+        .await??;
+
+        let ref_name = if let Some(branch) = info.branch {
+            branch.name.clone()
+        } else {
+            let head = repository.head()?;
+            head.shorthand()
+                .ok_or_else(|| anyhow::anyhow!("unable to get branch name from HEAD"))?
+                .to_string()
         };
 
-        // Fetch from remote (fetch all to get both branches and tags)
-        let mut remote = repository.find_remote("origin")?;
-        remote.fetch::<&str>(&[], None, None)?;
-
-        // Resolve remote ref using revparse (handles both branches and tags)
         let remote_spec = if repository
             .find_reference(&format!("refs/remotes/origin/{}", ref_name))
             .is_ok()
@@ -220,10 +222,8 @@ impl PackageManager {
         let remote_obj = repository.revparse_single(&remote_spec)?;
         let remote_commit = remote_obj.peel_to_commit()?;
 
-        // Reset to the remote commit
         repository.checkout_tree(remote_commit.as_object(), None)?;
 
-        // Check if this is a branch or tag
         let is_branch = repository
             .find_reference(&format!("refs/remotes/origin/{}", ref_name))
             .is_ok();
@@ -231,7 +231,6 @@ impl PackageManager {
         if is_branch {
             repository.reset(remote_commit.as_object(), git2::ResetType::Hard, None)?;
         } else {
-            // For tags, set HEAD to detached state
             repository.set_head_detached(remote_commit.id())?;
         }
 
