@@ -1,20 +1,35 @@
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use anyhow::{Result, anyhow, bail};
 use bld_config::{BldConfig, definitions::PACKAGE_ACTION_FILE_NAME, path};
-use git2::Repository;
+use git2::{Cred, FetchOptions, RemoteCallbacks, Repository, build::RepoBuilder};
 use std::path::PathBuf;
 use tokio::{fs::File, io::AsyncReadExt, task::spawn_blocking};
 use tracing::{error, warn};
 
-pub struct RepositoryBranch {
+#[derive(Clone)]
+struct RepositoryBranch {
     name: String,
     refname: String,
     head: String,
 }
 
-pub struct RepositoryInfo {
-    pub url: String,
+#[derive(Clone)]
+enum RepositoryUrlType {
+    Http,
+    Ssh,
+}
+
+#[derive(Clone)]
+struct RepositoryUrl {
+    pub raw: String,
+    pub host: String,
+    pub url_type: RepositoryUrlType,
+}
+
+#[derive(Clone)]
+struct RepositoryInfo {
+    pub url: RepositoryUrl,
     pub name: String,
     pub branch: Option<RepositoryBranch>,
 }
@@ -28,7 +43,7 @@ impl PackageManager {
         Self { config }
     }
 
-    fn resolve_info(&self, source: &str) -> Result<RepositoryInfo> {
+    fn repo_info(&self, source: &str) -> Result<RepositoryInfo> {
         let mut branch: Option<RepositoryBranch> = None;
         let mut url = source.to_string();
 
@@ -49,10 +64,41 @@ impl PackageManager {
             .ok_or_else(|| anyhow!("Unable to deduce repository name for package {source}"))?;
         let name = name.to_string();
 
-        Ok(RepositoryInfo { url, name, branch })
+        let repo_url = if url.starts_with("git@") {
+            let host = url
+                .replace("git@", "")
+                .rsplit_once(":")
+                .ok_or_else(|| anyhow!("unable to deduce host"))?
+                .0
+                .to_string();
+            RepositoryUrl {
+                raw: url,
+                host,
+                url_type: RepositoryUrlType::Ssh,
+            }
+        } else {
+            let host = url
+                .replace("http://", "")
+                .replace("https://", "")
+                .rsplit_once("/")
+                .ok_or_else(|| anyhow!("unable to deduce host"))?
+                .0
+                .to_string();
+            RepositoryUrl {
+                raw: url,
+                host,
+                url_type: RepositoryUrlType::Http,
+            }
+        };
+
+        Ok(RepositoryInfo {
+            url: repo_url,
+            name,
+            branch,
+        })
     }
 
-    fn repository_path(&self, info: &RepositoryInfo) -> PathBuf {
+    fn repo_path(&self, info: &RepositoryInfo) -> PathBuf {
         let dir = info
             .branch
             .as_ref()
@@ -61,23 +107,62 @@ impl PackageManager {
         path![&self.config.local.packages.cache, dir]
     }
 
+    fn repo_fetch_options<'a>(info: &RepositoryInfo) -> FetchOptions<'a> {
+        let mut callbacks = RemoteCallbacks::new();
+
+        callbacks.credentials(|url, username_from_url, _allowed_types| {
+            let user = username_from_url.unwrap_or("git");
+            if url.starts_with("git@") {
+                Cred::ssh_key(user, None, Path::new("/home/user/.ssh/id_rsa"), None)
+            } else {
+                Cred::default()
+            }
+        });
+
+        let mut fetch_options = FetchOptions::new();
+        fetch_options.remote_callbacks(callbacks);
+
+        fetch_options
+    }
+
+    fn repo_builder<'a>(info: &RepositoryInfo) -> RepoBuilder<'a> {
+        let mut builder = RepoBuilder::new();
+        builder.fetch_options(Self::repo_fetch_options(info));
+        builder
+    }
+
+    fn repo_clone(info: RepositoryInfo, path: &Path) -> Result<Repository> {
+        let mut builder = Self::repo_builder(&info);
+        builder.clone(&info.url.raw, path).map_err(|e| anyhow!(e))
+    }
+
+    fn repo_open(info: RepositoryInfo, path: &Path) -> Result<Repository> {
+        let repo = Repository::open(path)?;
+        {
+            let mut remote = repo.find_remote("origin")?;
+            let mut fetch_options = Self::repo_fetch_options(&info);
+            remote.fetch::<&str>(&[], Some(&mut fetch_options), None)?;
+        }
+        Ok(repo)
+    }
+
     pub fn is_package(&self, source: &str) -> bool {
-        self.resolve_info(source).is_ok()
+        self.repo_info(source).is_ok()
     }
 
     pub fn exists(&self, source: &str) -> bool {
-        let Ok(info) = self.resolve_info(source) else {
+        let Ok(info) = self.repo_info(source) else {
             return false;
         };
-        let repository_path = self.repository_path(&info);
+        let repository_path = self.repo_path(&info);
         repository_path.exists()
     }
 
     pub async fn get(&self, source: &str) -> Result<()> {
-        let info = self.resolve_info(source)?;
-        let repository_path = self.repository_path(&info);
-        let repository =
-            spawn_blocking(move || Repository::clone(&info.url, &repository_path)).await??;
+        let info = self.repo_info(source)?;
+        let path = self.repo_path(&info);
+        let info_clone = info.clone();
+        let repository = spawn_blocking(move || Self::repo_clone(info_clone, &path)).await??;
 
         if let Some(branch) = &info.branch {
             let tag_ref = format!("refs/tags/{}", branch.name);
@@ -107,7 +192,7 @@ impl PackageManager {
     }
 
     async fn is_synced(&self, source: &str) -> bool {
-        let Ok(info) = self.resolve_info(source).inspect_err(|e| {
+        let Ok(info) = self.repo_info(source).inspect_err(|e| {
             error!(
                 "unable to resolve repository information due to {}",
                 e.to_string()
@@ -116,9 +201,10 @@ impl PackageManager {
             return false;
         };
 
-        let repository_path = self.repository_path(&info);
+        let path = self.repo_path(&info);
+        let info_clone = info.clone();
 
-        let Ok(repository_task) = spawn_blocking(move || Repository::open(&repository_path))
+        let Ok(repository_task) = spawn_blocking(move || Self::repo_open(info_clone, &path))
             .await
             .inspect_err(|e| error!("unable to spawn repository open task due to {e}"))
         else {
@@ -146,16 +232,6 @@ impl PackageManager {
 
             head.to_string()
         };
-
-        let Ok(mut remote) = repository.find_remote("origin") else {
-            error!("unable to find remote 'origin'");
-            return false;
-        };
-
-        if let Err(e) = remote.fetch::<&str>(&[], None, None) {
-            error!("unable to fetch from remote: {}", e);
-            return false;
-        }
 
         let Ok(head) = repository.head() else {
             error!("unable to get HEAD");
@@ -188,18 +264,10 @@ impl PackageManager {
     }
 
     async fn sync(&self, source: &str) -> Result<()> {
-        let info = self.resolve_info(source)?;
-        let repository_path = self.repository_path(&info);
-
-        let repository = spawn_blocking(move || -> Result<Repository> {
-            let repo = Repository::open(&repository_path)?;
-            {
-                let mut remote = repo.find_remote("origin")?;
-                remote.fetch::<&str>(&[], None, None)?;
-            }
-            Ok(repo)
-        })
-        .await??;
+        let info = self.repo_info(source)?;
+        let path = self.repo_path(&info);
+        let info_clone = info.clone();
+        let repository = spawn_blocking(move || Self::repo_open(info_clone, &path)).await??;
 
         let ref_name = if let Some(branch) = info.branch {
             branch.name.clone()
@@ -255,8 +323,8 @@ impl PackageManager {
     }
 
     pub async fn read(&self, source: &str) -> Result<String> {
-        let info = self.resolve_info(source)?;
-        let repository_path = self.repository_path(&info);
+        let info = self.repo_info(source)?;
+        let repository_path = self.repo_path(&info);
         let file_path = path![&repository_path, PACKAGE_ACTION_FILE_NAME];
         let mut handle = File::open(file_path).await?;
         let mut content = String::new();
