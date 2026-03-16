@@ -146,10 +146,6 @@ impl<'a> Validate<'a> for Step {
                 debug!("Step is a complex shell command");
                 ctx.push_section(&complex.id);
 
-                if let Some(name) = complex.name.as_ref() {
-                    ctx.push_section(name);
-                }
-
                 if let Some(wd) = complex.working_dir.as_ref() {
                     debug!("Validating step's working directory");
                     ctx.push_section("working_dir");
@@ -160,14 +156,14 @@ impl<'a> Validate<'a> for Step {
                 debug!("Validating step's run command");
                 ctx.validate_symbols(&complex.run);
 
-                if complex.name.is_some() {
-                    ctx.pop_section();
-                }
+                ctx.pop_section();
             }
 
             Step::ExternalFile(external) => {
                 debug!("Step is an external file");
+                ctx.push_section(&external.id);
                 external.validate(ctx).await;
+                ctx.pop_section();
             }
         }
     }

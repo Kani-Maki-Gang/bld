@@ -1,7 +1,7 @@
 use std::{path::Path, sync::Arc};
 
 use anyhow::{Result, anyhow, bail};
-use bld_config::{BldConfig, definitions::PACKAGE_ACTION_FILE_NAME, path};
+use bld_config::{BldConfig, SshUserAuth, definitions::PACKAGE_ACTION_FILE_NAME, path};
 use git2::{Cred, FetchOptions, RemoteCallbacks, Repository, build::RepoBuilder};
 use std::path::PathBuf;
 use tokio::{fs::File, io::AsyncReadExt, task::spawn_blocking};
@@ -15,16 +15,17 @@ struct RepositoryBranch {
 }
 
 #[derive(Clone)]
-enum RepositoryUrlType {
-    Http,
-    Ssh,
+enum RepositoryUrl {
+    Ssh { raw: String, host: String },
+    Http { raw: String },
 }
 
-#[derive(Clone)]
-struct RepositoryUrl {
-    pub raw: String,
-    pub host: String,
-    pub url_type: RepositoryUrlType,
+impl RepositoryUrl {
+    fn raw(&self) -> &str {
+        match self {
+            Self::Ssh { raw, .. } | Self::Http { raw } => raw,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -71,24 +72,9 @@ impl PackageManager {
                 .ok_or_else(|| anyhow!("unable to deduce host"))?
                 .0
                 .to_string();
-            RepositoryUrl {
-                raw: url,
-                host,
-                url_type: RepositoryUrlType::Ssh,
-            }
+            RepositoryUrl::Ssh { raw: url, host }
         } else {
-            let host = url
-                .replace("http://", "")
-                .replace("https://", "")
-                .rsplit_once("/")
-                .ok_or_else(|| anyhow!("unable to deduce host"))?
-                .0
-                .to_string();
-            RepositoryUrl {
-                raw: url,
-                host,
-                url_type: RepositoryUrlType::Http,
-            }
+            RepositoryUrl::Http { raw: url }
         };
 
         Ok(RepositoryInfo {
@@ -107,15 +93,39 @@ impl PackageManager {
         path![&self.config.local.packages.cache, dir]
     }
 
-    fn repo_fetch_options<'a>(info: &RepositoryInfo) -> FetchOptions<'a> {
+    fn repo_fetch_options<'a>(
+        config: Arc<BldConfig>,
+        info: &'a RepositoryInfo,
+    ) -> FetchOptions<'a> {
         let mut callbacks = RemoteCallbacks::new();
 
-        callbacks.credentials(|url, username_from_url, _allowed_types| {
+        callbacks.credentials(move |_url, username_from_url, _allowed_types| {
             let user = username_from_url.unwrap_or("git");
-            if url.starts_with("git@") {
-                Cred::ssh_key(user, None, Path::new("/home/user/.ssh/id_rsa"), None)
+
+            if let RepositoryUrl::Ssh { host: ssh_host, .. } = &info.url {
+                let ssh = &config.local.ssh;
+
+                let Some(ssh_config) = ssh.iter().find(|x| &x.1.host == ssh_host).map(|x| x.1)
+                else {
+                    return Cred::default();
+                };
+
+                let SshUserAuth::Keys {
+                    private_key,
+                    public_key,
+                } = &ssh_config.userauth
+                else {
+                    return Cred::default();
+                };
+
+                Cred::ssh_key(
+                    user,
+                    public_key.as_deref().map(Path::new),
+                    Path::new(&private_key),
+                    None,
+                )
             } else {
-                Cred::default()
+                Cred::username(user)
             }
         });
 
@@ -125,22 +135,22 @@ impl PackageManager {
         fetch_options
     }
 
-    fn repo_builder<'a>(info: &RepositoryInfo) -> RepoBuilder<'a> {
+    fn repo_builder<'a>(config: Arc<BldConfig>, info: &'a RepositoryInfo) -> RepoBuilder<'a> {
         let mut builder = RepoBuilder::new();
-        builder.fetch_options(Self::repo_fetch_options(info));
+        builder.fetch_options(Self::repo_fetch_options(config, info));
         builder
     }
 
-    fn repo_clone(info: RepositoryInfo, path: &Path) -> Result<Repository> {
-        let mut builder = Self::repo_builder(&info);
-        builder.clone(&info.url.raw, path).map_err(|e| anyhow!(e))
+    fn repo_clone(config: Arc<BldConfig>, info: RepositoryInfo, path: &Path) -> Result<Repository> {
+        let mut builder = Self::repo_builder(config, &info);
+        builder.clone(&info.url.raw(), path).map_err(|e| anyhow!(e))
     }
 
-    fn repo_open(info: RepositoryInfo, path: &Path) -> Result<Repository> {
+    fn repo_open(config: Arc<BldConfig>, info: RepositoryInfo, path: &Path) -> Result<Repository> {
         let repo = Repository::open(path)?;
         {
             let mut remote = repo.find_remote("origin")?;
-            let mut fetch_options = Self::repo_fetch_options(&info);
+            let mut fetch_options = Self::repo_fetch_options(config, &info);
             remote.fetch::<&str>(&[], Some(&mut fetch_options), None)?;
         }
         Ok(repo)
@@ -162,7 +172,9 @@ impl PackageManager {
         let info = self.repo_info(source)?;
         let path = self.repo_path(&info);
         let info_clone = info.clone();
-        let repository = spawn_blocking(move || Self::repo_clone(info_clone, &path)).await??;
+        let config = self.config.clone();
+        let repository =
+            spawn_blocking(move || Self::repo_clone(config, info_clone, &path)).await??;
 
         if let Some(branch) = &info.branch {
             let tag_ref = format!("refs/tags/{}", branch.name);
@@ -202,9 +214,13 @@ impl PackageManager {
         };
 
         let path = self.repo_path(&info);
-        let info_clone = info.clone();
-
-        let Ok(repository_task) = spawn_blocking(move || Self::repo_open(info_clone, &path))
+        let mut ref_name = info
+            .branch
+            .as_ref()
+            .map(|x| x.name.clone())
+            .unwrap_or_default();
+        let config = self.config.clone();
+        let Ok(repository_task) = spawn_blocking(move || Self::repo_open(config, info, &path))
             .await
             .inspect_err(|e| error!("unable to spawn repository open task due to {e}"))
         else {
@@ -217,9 +233,7 @@ impl PackageManager {
             return false;
         };
 
-        let ref_name = if let Some(branch) = info.branch {
-            branch.name.clone()
-        } else {
+        if ref_name.is_empty() {
             let Ok(head) = repository.head() else {
                 error!("unable to get HEAD reference");
                 return false;
@@ -230,8 +244,8 @@ impl PackageManager {
                 return false;
             };
 
-            head.to_string()
-        };
+            ref_name = head.to_string()
+        }
 
         let Ok(head) = repository.head() else {
             error!("unable to get HEAD");
@@ -266,16 +280,20 @@ impl PackageManager {
     async fn sync(&self, source: &str) -> Result<()> {
         let info = self.repo_info(source)?;
         let path = self.repo_path(&info);
-        let info_clone = info.clone();
-        let repository = spawn_blocking(move || Self::repo_open(info_clone, &path)).await??;
+        let mut ref_name = info
+            .branch
+            .as_ref()
+            .map(|x| x.name.clone())
+            .unwrap_or_default();
+        let config = self.config.clone();
+        let repository = spawn_blocking(move || Self::repo_open(config, info, &path)).await??;
 
-        let ref_name = if let Some(branch) = info.branch {
-            branch.name.clone()
-        } else {
+        if ref_name.is_empty() {
             let head = repository.head()?;
-            head.shorthand()
+            ref_name = head
+                .shorthand()
                 .ok_or_else(|| anyhow::anyhow!("unable to get branch name from HEAD"))?
-                .to_string()
+                .to_string();
         };
 
         let remote_spec = if repository

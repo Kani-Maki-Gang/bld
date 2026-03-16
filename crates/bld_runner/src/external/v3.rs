@@ -65,6 +65,7 @@ impl<'a> Validate<'a> for External {
         ctx.push_section("inputs");
         validate_external_with(ctx, &self.uses, self.server.as_deref(), &self.with).await;
         ctx.pop_section();
+        ctx.pop_section();
 
         debug!("Validating external's env section");
         ctx.push_section("env");
