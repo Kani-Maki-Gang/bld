@@ -143,7 +143,7 @@ impl PackageManager {
 
     fn repo_clone(config: Arc<BldConfig>, info: RepositoryInfo, path: &Path) -> Result<Repository> {
         let mut builder = Self::repo_builder(config, &info);
-        builder.clone(&info.url.raw(), path).map_err(|e| anyhow!(e))
+        builder.clone(info.url.raw(), path).map_err(|e| anyhow!(e))
     }
 
     fn repo_open(config: Arc<BldConfig>, info: RepositoryInfo, path: &Path) -> Result<Repository> {
