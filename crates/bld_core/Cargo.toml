@@ -24,7 +24,7 @@ sea-orm = { version = "1.1.1", features = ["sqlx-sqlite", "sqlx-postgres", "sqlx
 serde = "1.0.215"
 serde_json = "1.0.132"
 async-ssh2-lite = { version = "0.5.0", features = ["tokio"] }
-tar = "0.4.43"
+tar = "0.4.45"
 termcolor = "1.4.1"
 tokio = { version = "1.43.1", features = ["full"] }
 tracing = "0.1.40"
