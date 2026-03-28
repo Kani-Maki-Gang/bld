@@ -12,7 +12,7 @@ use uuid::Uuid;
 use crate::command::BldCommand;
 
 #[derive(Args)]
-#[command(about = "Creates a new pipeline")]
+#[command(about = "Creates a new file")]
 pub struct AddCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
@@ -20,21 +20,21 @@ pub struct AddCommand {
     #[arg(
         short = 'p',
         long = "pipeline",
-        help = "The path to the new pipeline file"
+        help = "The path to the new file"
     )]
     pipeline: String,
 
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server to add the pipeline to"
+        help = "The name of the server to add the file to"
     )]
     server: Option<String>,
 
     #[arg(
         short = 'e',
         long = "edit",
-        help = "Edit the pipeline file immediatelly after creation"
+        help = "Edit the file immediately after creation"
     )]
     edit: bool,
 }
@@ -60,13 +60,13 @@ impl AddCommand {
         let client = HttpClient::new(config, server)?;
         let tmp_name = format!("{}.yaml", Uuid::new_v4());
 
-        println!("Creating temporary local pipeline {tmp_name}");
+        println!("Creating temporary local file {tmp_name}");
         debug!("creating temporary pipeline file: {tmp_name}");
         fs.create_tmp(&tmp_name, DEFAULT_V3_PIPELINE_CONTENT, true)
             .await?;
 
         if self.edit {
-            println!("Editing temporary local pipeline {tmp_name}");
+            println!("Editing temporary local file {tmp_name}");
             debug!("starting editor for temporary pipeline file: {tmp_name}");
             fs.edit_tmp(&tmp_name).await?;
         }

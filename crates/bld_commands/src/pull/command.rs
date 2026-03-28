@@ -9,30 +9,22 @@ use clap::Args;
 use tracing::debug;
 
 #[derive(Args)]
-#[command(about = "Pull a pipeline from a bld server and stores it localy")]
+#[command(about = "Pull a file from a bld server and stores it locally")]
 pub struct PullCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
-    #[arg(
-        short = 'p',
-        long = "pipeline",
-        required = true,
-        help = "The name of the bld server"
-    )]
-    pipeline: String,
+    #[arg(required = true, help = "The name of the bld server")]
+    file: String,
 
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server to pull the pipeline from"
+        help = "The name of the server to pull the file from"
     )]
     server: String,
 
-    #[arg(
-        long = "ignore-deps",
-        help = "Do not include other pipeline dependencies"
-    )]
+    #[arg(long = "ignore-deps", help = "Do not include other file dependencies")]
     ignore_deps: bool,
 }
 
@@ -43,17 +35,17 @@ impl PullCommand {
         let fs = FileSystem::local(config);
 
         debug!(
-            "running pull subcommand with --server: {}, --pipeline: {} and --ignore-deps: {}",
-            self.server, self.pipeline, self.ignore_deps
+            "running pull subcommand with --server: {}, file: {} and --ignore-deps: {}",
+            self.server, self.file, self.ignore_deps
         );
 
-        let mut pipelines = vec![self.pipeline.to_string()];
+        let mut pipelines = vec![self.file.to_string()];
 
         if !self.ignore_deps {
             print!("Fetching metadata for dependecies...");
 
             let mut deps = client
-                .deps(&self.pipeline)
+                .deps(&self.file)
                 .await
                 .inspect(|_| {
                     println!("Done.");
@@ -67,7 +59,7 @@ impl PullCommand {
         }
 
         for pipeline in pipelines.iter() {
-            print!("Pulling pipeline {pipeline}...");
+            print!("Pulling file {pipeline}...");
 
             let data = client
                 .pull(pipeline)

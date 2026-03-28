@@ -41,7 +41,7 @@ impl From<HistoryEntry> for HistoryEntryRow {
 }
 
 #[derive(Args)]
-#[command(about = "Fetches execution history of pipelines on a bld server")]
+#[command(about = "Fetches execution history of files on a bld server")]
 pub struct HistCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
@@ -62,11 +62,11 @@ pub struct HistCommand {
     state: String,
 
     #[arg(
-        short = 'p',
-        long = "pipeline",
-        help = "Filter the history with state. Possible values are all, initial, queued, running, finished"
+        short = 'f',
+        long = "file",
+        help = "Filter the history by file name"
     )]
-    pipeline: Option<String>,
+    file: Option<String>,
 
     #[arg(
         short = 'l',
@@ -98,7 +98,7 @@ impl BldCommand for HistCommand {
             );
 
             let history: Vec<HistoryEntryRow> = HttpClient::new(config, &self.server)?
-                .hist(state, self.pipeline, self.limit)
+                .hist(state, self.file, self.limit)
                 .await?
                 .into_iter()
                 .map(From::from)

@@ -10,18 +10,18 @@ use bld_utils::sync::IntoArc;
 use clap::Args;
 
 #[derive(Args)]
-#[command(about = "Checks a pipeline file for errors")]
+#[command(about = "Checks a file for errors")]
 pub struct CheckCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
-    #[arg(short = 'p', long = "pipeline", default_value = TOOL_DEFAULT_PIPELINE_FILE, help = "Path to pipeline script")]
+    #[arg(short = 'p', long = "pipeline", default_value = TOOL_DEFAULT_PIPELINE_FILE, help = "Path to the file")]
     pipeline: String,
 
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server to check the pipeline from"
+        help = "The name of the server to check the file from"
     )]
     server: Option<String>,
 }

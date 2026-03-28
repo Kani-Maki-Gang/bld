@@ -9,12 +9,12 @@ use clap::Args;
 use crate::command::BldCommand;
 
 #[derive(Args)]
-#[command(about = "Copy a source pipeline to a target location")]
+#[command(about = "Copy a source file to a target location")]
 pub struct CopyCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     pub verbose: bool,
 
-    #[arg(short = 'p', long = "pipeline", help = "The pipeline to copy")]
+    #[arg(short = 'p', long = "pipeline", help = "The file to copy")]
     pub pipeline: String,
 
     #[arg(short = 't', long = "target", help = "The target path")]

@@ -9,13 +9,13 @@ use clap::Args;
 use crate::command::BldCommand;
 
 #[derive(Args)]
-#[command(about = "Move a source pipeline to a target location")]
+#[command(about = "Move a source file to a target location")]
 pub struct MoveCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     pub verbose: bool,
 
-    #[arg(short = 'p', long = "pipeline", help = "The pipeline to move")]
-    pub pipeline: String,
+    #[arg(required = true, help = "The file to move")]
+    pub file: String,
 
     #[arg(short = 't', long = "target", help = "The target path")]
     pub target: String,
@@ -32,13 +32,13 @@ impl MoveCommand {
     async fn local_move(&self) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
         let fs = FileSystem::local(config);
-        fs.mv(&self.pipeline, &self.target).await
+        fs.mv(&self.file, &self.target).await
     }
 
     async fn remote_move(&self, server: &str) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
         HttpClient::new(config, server)?
-            .mv(&self.pipeline, &self.target)
+            .mv(&self.file, &self.target)
             .await
     }
 }

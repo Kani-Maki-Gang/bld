@@ -11,18 +11,18 @@ use uuid::Uuid;
 use crate::command::BldCommand;
 
 #[derive(Args)]
-#[command(about = "Edit a pipeline file")]
+#[command(about = "Edit a file")]
 pub struct EditCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
-    #[arg(short = 'p', long = "pipline", help = "The name of the pipeline file")]
-    pipeline: String,
+    #[arg(default_value = TOOL_DEFAULT_PIPELINE_FILE, help = "The name of the file")]
+    file: String,
 
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server to edit the pipeline from"
+        help = "The name of the server to edit the file from"
     )]
     server: Option<String>,
 }
@@ -31,20 +31,20 @@ impl EditCommand {
     async fn local_edit(&self) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
         let fs = FileSystem::local(config);
-        fs.edit(&self.pipeline).await
+        fs.edit(&self.file).await
     }
 
     async fn remote_edit(&self, server: &str) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
         let client = HttpClient::new(config.clone(), server)?;
         let fs = FileSystem::local(config);
-        println!("Pulling pipline {}", self.pipeline);
+        println!("Pulling file {}", self.file);
 
-        let data = client.pull(&self.pipeline).await?;
+        let data = client.pull(&self.file).await?;
 
         let tmp_name = format!("{}.yaml", Uuid::new_v4());
 
-        println!("Editing temporary local pipeline {tmp_name}");
+        println!("Editing temporary local file {tmp_name}");
 
         debug!("creating temporary pipeline file: {tmp_name}");
         fs.create_tmp(&tmp_name, &data.content, true).await?;
@@ -55,9 +55,9 @@ impl EditCommand {
         debug!("reading content of temporary pipeline file: {tmp_name}");
         let tmp_content = fs.read_tmp(&tmp_name).await?;
 
-        println!("Pushing updated content for {}", self.pipeline);
+        println!("Pushing updated content for {}", self.file);
 
-        client.push(&self.pipeline, &tmp_content).await?;
+        client.push(&self.file, &tmp_content).await?;
 
         debug!("deleting temporary pipeline file: {tmp_name}");
         fs.remove_tmp(&tmp_name).await?;
@@ -74,7 +74,7 @@ impl BldCommand for EditCommand {
     fn exec(self) -> Result<()> {
         debug!(
             "running edit subcommand with --server: {:?} and --pipeline: {}",
-            self.server, self.pipeline
+            self.server, self.file
         );
 
         System::new().block_on(async move {

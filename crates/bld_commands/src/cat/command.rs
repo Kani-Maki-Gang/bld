@@ -8,7 +8,7 @@ use bld_utils::sync::IntoArc;
 use clap::Args;
 
 #[derive(Args)]
-#[command(about = "Print the contents of a pipeline")]
+#[command(about = "Print the contents of a file")]
 pub struct CatCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
@@ -17,14 +17,14 @@ pub struct CatCommand {
         short = 'p',
         long = "pipeline",
         required = true,
-        help = "The name of the pipeline to print"
+        help = "The name of the file to print"
     )]
     pipeline: String,
 
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server to print the pipeline from"
+        help = "The name of the server to print the file from"
     )]
     server: Option<String>,
 }

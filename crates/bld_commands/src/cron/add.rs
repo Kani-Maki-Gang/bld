@@ -23,7 +23,7 @@ pub struct CronAddCommand {
     #[arg(
         short = 'p',
         long = "pipeline",
-        help = "The name of the target pipeline"
+        help = "The name of the target file"
     )]
     pipeline: String,
 

@@ -34,7 +34,7 @@ pub struct CronListCommand {
     #[arg(
         short = 'p',
         long = "pipeline",
-        help = "The pipeline name for the target cron jobs"
+        help = "The file name for the target cron jobs"
     )]
     pipeline: Option<String>,
 
