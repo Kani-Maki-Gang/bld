@@ -20,12 +20,8 @@ pub struct CronAddCommand {
     )]
     server: String,
 
-    #[arg(
-        short = 'p',
-        long = "pipeline",
-        help = "The name of the target file"
-    )]
-    pipeline: String,
+    #[arg(required = true, help = "The name of the target file")]
+    file: String,
 
     #[arg(
         short = 'S',
@@ -60,7 +56,7 @@ impl BldCommand for CronAddCommand {
             let client = HttpClient::new(config, &self.server)?;
             let inputs = Some(parse_variables(&self.inputs));
             let env = Some(parse_variables(&self.env));
-            let request = AddJobRequest::new(self.schedule, self.pipeline, inputs, env, false);
+            let request = AddJobRequest::new(self.schedule, self.file, inputs, env, false);
             client.cron_add(&request).await
         })
     }

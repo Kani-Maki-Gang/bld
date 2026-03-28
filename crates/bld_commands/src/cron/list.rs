@@ -12,7 +12,7 @@ use tabled::{Table, Tabled, settings::Style};
 struct JobInfoRow<'a> {
     pub id: &'a str,
     pub schedule: &'a str,
-    pub pipeline: &'a str,
+    pub file: &'a str,
     pub is_default: bool,
     pub date_created: &'a str,
     pub date_updated: &'a str,
@@ -32,11 +32,11 @@ pub struct CronListCommand {
     server: String,
 
     #[arg(
-        short = 'p',
-        long = "pipeline",
+        short = 'f',
+        long = "file",
         help = "The file name for the target cron jobs"
     )]
-    pipeline: Option<String>,
+    file: Option<String>,
 
     #[arg(
         short = 'S',
@@ -67,7 +67,7 @@ impl BldCommand for CronListCommand {
             let client = HttpClient::new(config, &self.server)?;
             let filters = JobFiltersParams::new(
                 None,
-                self.pipeline,
+                self.file,
                 self.schedule,
                 self.is_default,
                 self.limit.map(|x| x as u64),
@@ -80,7 +80,7 @@ impl BldCommand for CronListCommand {
                     .map(|j| JobInfoRow {
                         id: &j.id,
                         schedule: &j.schedule,
-                        pipeline: &j.pipeline,
+                        file: &j.pipeline,
                         is_default: j.is_default,
                         date_created: &j.date_created,
                         date_updated: j.date_updated.as_deref().unwrap_or(""),

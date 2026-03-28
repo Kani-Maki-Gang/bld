@@ -14,8 +14,8 @@ pub struct CopyCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     pub verbose: bool,
 
-    #[arg(short = 'p', long = "pipeline", help = "The file to copy")]
-    pub pipeline: String,
+    #[arg(short = 'f', long = "file", help = "The file to copy")]
+    pub file: String,
 
     #[arg(short = 't', long = "target", help = "The target path")]
     pub target: String,
@@ -32,13 +32,13 @@ impl CopyCommand {
     async fn local_copy(&self) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
         let fs = FileSystem::local(config);
-        fs.copy(&self.pipeline, &self.target).await
+        fs.copy(&self.file, &self.target).await
     }
 
     async fn remote_copy(&self, server: &str) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
         let client = HttpClient::new(config, server)?;
-        client.copy(&self.pipeline, &self.target).await
+        client.copy(&self.file, &self.target).await
     }
 }
 

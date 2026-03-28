@@ -20,7 +20,7 @@ pub struct CronUpdateCommand {
     )]
     server: String,
 
-    #[arg(short = 'c', long = "cron-id", help = "The id of the target cron job")]
+    #[arg(required = true, help = "The id of the target cron job")]
     id: String,
 
     #[arg(

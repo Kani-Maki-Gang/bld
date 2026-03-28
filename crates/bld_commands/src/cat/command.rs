@@ -14,12 +14,10 @@ pub struct CatCommand {
     verbose: bool,
 
     #[arg(
-        short = 'p',
-        long = "pipeline",
         required = true,
         help = "The name of the file to print"
     )]
-    pipeline: String,
+    file: String,
 
     #[arg(
         short = 's',
@@ -33,7 +31,7 @@ impl CatCommand {
     async fn local_print(&self) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
         let fs = FileSystem::local(config);
-        let pipeline = fs.read(&self.pipeline).await?;
+        let pipeline = fs.read(&self.file).await?;
         println!("{pipeline}");
         Ok(())
     }
@@ -41,7 +39,7 @@ impl CatCommand {
     async fn remote_print(&self, server: &str) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
         HttpClient::new(config, server)?
-            .print(&self.pipeline)
+            .print(&self.file)
             .await
             .map(|r| println!("{r}"))
     }
