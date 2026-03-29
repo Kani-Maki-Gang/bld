@@ -27,7 +27,9 @@ pub enum State {
     Default,
     Running,
     Completed,
-    Failed { error: String },
+    Failed {
+        error: String,
+    },
 }
 
 #[derive(Debug, Default, PartialEq)]
