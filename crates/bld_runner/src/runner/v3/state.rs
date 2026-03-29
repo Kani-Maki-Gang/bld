@@ -21,18 +21,13 @@ pub trait RootState: WritableRuntimeExprContext {
     fn get_node_state<'a>(&'a self, node_id: &str) -> Option<&'a State>;
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub enum State {
+    #[default]
     Default,
     Running,
     Completed,
     Failed { error: String },
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self::Default
-    }
 }
 
 #[derive(Debug, Default, PartialEq)]

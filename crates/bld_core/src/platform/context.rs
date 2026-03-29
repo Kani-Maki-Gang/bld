@@ -9,19 +9,15 @@ use sea_orm::DatabaseConnection;
 use tracing::error;
 use uuid::Uuid;
 
+#[derive(Default)]
 pub enum PlatformContext {
+    #[default]
     Local,
     Server {
         conn: Arc<DatabaseConnection>,
         entity_id: Option<String>,
         run_id: String,
     },
-}
-
-impl Default for PlatformContext {
-    fn default() -> Self {
-        Self::Local
-    }
 }
 
 impl PlatformContext {
