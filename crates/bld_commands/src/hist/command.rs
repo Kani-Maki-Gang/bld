@@ -61,11 +61,7 @@ pub struct HistCommand {
     )]
     state: String,
 
-    #[arg(
-        short = 'f',
-        long = "file",
-        help = "Filter the history by file name"
-    )]
+    #[arg(short = 'f', long = "file", help = "Filter the history by file name")]
     file: Option<String>,
 
     #[arg(

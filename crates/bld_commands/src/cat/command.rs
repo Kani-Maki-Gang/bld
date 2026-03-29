@@ -13,10 +13,7 @@ pub struct CatCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
-    #[arg(
-        required = true,
-        help = "The name of the file to print"
-    )]
+    #[arg(required = true, help = "The name of the file to print")]
     file: String,
 
     #[arg(

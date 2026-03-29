@@ -15,10 +15,7 @@ pub struct PushCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
-    #[arg(
-        required = true,
-        help = "The name of the file to push"
-    )]
+    #[arg(required = true, help = "The name of the file to push")]
     file: String,
 
     #[arg(
@@ -28,10 +25,7 @@ pub struct PushCommand {
     )]
     server: String,
 
-    #[arg(
-        long = "ignore-deps",
-        help = "Don't include other file dependencies"
-    )]
+    #[arg(long = "ignore-deps", help = "Don't include other file dependencies")]
     ignore_deps: bool,
 }
 
