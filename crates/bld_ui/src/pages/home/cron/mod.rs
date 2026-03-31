@@ -7,7 +7,7 @@ mod new;
 mod table;
 mod update;
 
-use crate::{components::card::Card, context::RefreshCronJobs};
+use crate::context::RefreshCronJobs;
 use bld_models::dtos::JobFiltersParams;
 use filters::CronJobsFilters;
 use leptos::*;
@@ -39,21 +39,21 @@ pub fn CronJobs() -> impl IntoView {
     provide_context(RefreshCronJobs(create_rw_signal(())));
 
     view! {
-        <Card class="min-h-full">
-            <div class="flex flex-col px-8 py-12">
-                <div class="grid grid-cols-4">
-                    <div class="grow flex flex-col">
-                        <div class="text-2xl">"Cron jobs"</div>
-                        <div class="text-gray-400 mb-8">
-                            "A list of cron jobs for the current pipelines on the server"
-                        </div>
-                    </div>
-                    <div class="col-span-3">
-                        <CronJobsFilters limit=limit pipeline=pipeline/>
+        <div class="flex flex-col min-h-full">
+            <div class="px-6 py-5 border-b border-zinc-800 flex items-center gap-4">
+                <div class="grow">
+                    <div class="text-lg font-semibold text-white">"Cron jobs"</div>
+                    <div class="text-xs text-zinc-500 mt-0.5">
+                        "Scheduled pipeline runs on the server"
                     </div>
                 </div>
+            </div>
+            <div class="px-6 py-3 border-b border-zinc-800/60">
+                <CronJobsFilters limit=limit pipeline=pipeline/>
+            </div>
+            <div class="px-6 py-5">
                 <CronJobsTable params=params/>
             </div>
-        </Card>
+        </div>
     }
 }

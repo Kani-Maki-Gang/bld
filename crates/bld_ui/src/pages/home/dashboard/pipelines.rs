@@ -20,9 +20,9 @@ pub fn DashboardPipelines() -> impl IntoView {
     );
     view! {
         <Card>
-            <div class="flex flex-col px-8 py-12">
-                <div class="text-2xl">"Pipelines success/failure rate"</div>
-                <div class="text-gray-400 mb-8">
+            <div class="flex flex-col px-6 py-6">
+                <div class="text-base font-semibold text-white">"Pipelines success/failure rate"</div>
+                <div class="text-xs text-zinc-500 mt-0.5 mb-5">
                     "Pipeline runs for the last month with a success/failure rate"
                 </div>
                 <div class="max-h-[600px] overflow-y-auto">

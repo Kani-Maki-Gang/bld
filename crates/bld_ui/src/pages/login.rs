@@ -5,27 +5,27 @@ use leptos_dom::logging;
 #[component]
 pub fn Login() -> impl IntoView {
     view! {
-        <div class="w-full flex justify-center self-center">
-            <div class="flex rounded-xl bg-slate-700 min-w-[1000px] p-[100px]">
-                <img class="max-w-[400px] max-h-[400px]" src="logo.png"/>
-                <div class="rounded-xl w-96 p-8 ml-24 bg-slate-800 flex flex-col">
-                    <div class="flex-none text-3xl text-white">
-                        "Simple and blazingly fast CI/CD"
+        <div class="w-full flex items-center justify-center min-h-screen bg-zinc-950">
+            <div class="flex flex-col items-center gap-8 w-full max-w-sm px-6">
+                <div class="flex flex-col items-center gap-3">
+                    <img class="size-16" src="logo.png"/>
+                    <div class="text-lg font-semibold text-white tracking-tight">"bld"</div>
+                </div>
+                <div class="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-8 flex flex-col gap-6 shadow-2xl shadow-black/40">
+                    <div class="flex flex-col gap-1">
+                        <div class="text-xl font-semibold text-white">"Sign in"</div>
+                        <div class="text-sm text-zinc-500">
+                            "Authenticate via your OIDC provider to continue"
+                        </div>
                     </div>
-                    <div class="grow mt-4 text-lg text-gray-500">
-                        "Use the below button to redirect to your OIDC provider"
-                    </div>
-                    // <a
-                    // class="h-[40px] w-full text-center rounded-lg p-2 focus:outline-none bg-indigo-600 hover:bg-indigo-700 focus:bg-indigo-700"
-                    // href="/v1/auth/web-client/start"
-                    // >
-                    // "Login"
-                    // </a>
                     <Button on:click=move |_| {
                         if let Err(e) = api::auth_start() {
                             logging::console_error(&e.to_string());
                         }
-                    }>"Login"</Button>
+                    }>"Continue with OIDC"</Button>
+                </div>
+                <div class="text-xs text-zinc-600">
+                    "Simple and blazingly fast CI/CD"
                 </div>
             </div>
         </div>

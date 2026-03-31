@@ -1,6 +1,6 @@
 use crate::{
     api::{self, build_ws_url, get_access_token},
-    components::{button::Button, card::Card, colors::Colors},
+    components::{button::Button, colors::Colors},
     context::{AppDialog, AppDialogContent},
     error::ErrorDialog,
 };
@@ -86,41 +86,39 @@ pub fn Monit() -> impl IntoView {
     });
 
     view! {
-        <Card>
-            <div class="flex flex-col px-8 py-12 gap-4">
-                <div class="flex mb-8 gap-x-4 items-start">
-                    <div class="grow flex flex-col">
-                        <div class="text-2xl">"Monitoring pipeline run"</div>
-                        <div class="text-gray-400">
-                            "Currently monitoring pipeline run with id: " {move || id()}
-                            ", socket: " {move || socket_state()}
-                        </div>
-                    </div>
-                    <div class="w-32">
-                        <Button
-                            color=Colors::Red
-                            on:click=move |_| {
-                                let Some(id) = id() else {
-                                    logging::console_error("Pipeline run id not provided in url");
-                                    return;
-                                };
-                                let Some(AppDialog(dialog)) = app_dialog else {
-                                    logging::console_error("App dialog context not found");
-                                    return;
-                                };
-                                let Some(AppDialogContent(content)) = app_dialog_content else {
-                                    logging::console_error("App dialog context not found");
-                                    return;
-                                };
-                                stop_action.dispatch((id, dialog, content));
-                            }
-                        >
-
-                            "Stop"
-                        </Button>
+        <div class="flex flex-col min-h-full">
+            <div class="px-6 py-5 border-b border-zinc-800 flex items-center gap-4">
+                <div class="grow">
+                    <div class="text-lg font-semibold text-white">"Monitoring pipeline run"</div>
+                    <div class="text-xs text-zinc-500 mt-0.5">
+                        "Run id: " {move || id()} " · Socket: " {move || socket_state()}
                     </div>
                 </div>
-                <div class="border border-slate-600 rounded-lg p-8 text-sm text-gray-200">
+                <div class="w-24 shrink-0">
+                    <Button
+                        color=Colors::Red
+                        on:click=move |_| {
+                            let Some(id) = id() else {
+                                logging::console_error("Pipeline run id not provided in url");
+                                return;
+                            };
+                            let Some(AppDialog(dialog)) = app_dialog else {
+                                logging::console_error("App dialog context not found");
+                                return;
+                            };
+                            let Some(AppDialogContent(content)) = app_dialog_content else {
+                                logging::console_error("App dialog context not found");
+                                return;
+                            };
+                            stop_action.dispatch((id, dialog, content));
+                        }
+                    >
+                        "Stop"
+                    </Button>
+                </div>
+            </div>
+            <div class="px-6 py-5 grow">
+                <div class="bg-zinc-950 border border-zinc-800 rounded-xl p-5 font-mono text-xs text-emerald-400 leading-relaxed min-h-[300px] overflow-auto">
                     <For
                         each=move || history.get().into_iter().enumerate()
                         key=|(index, _)| *index
@@ -130,6 +128,7 @@ pub fn Monit() -> impl IntoView {
                     </For>
                 </div>
             </div>
-        </Card>
+        </div>
     }
+    .into_view()
 }

@@ -8,6 +8,7 @@ pub mod kpi;
 pub mod link;
 pub mod list;
 pub mod sidebar;
+pub mod topbar;
 pub mod table;
 pub mod tabs;
 pub mod user_pill;

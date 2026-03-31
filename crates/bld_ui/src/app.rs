@@ -26,7 +26,7 @@ pub fn App() -> impl IntoView {
             <div class="h-full grid place-items-center">{move || app_dialog_content.get()}</div>
         </dialog>
         <Router>
-            <div class="h-screen bg-slate-800">
+            <div class="h-screen bg-zinc-950">
                 <div class="h-screen flex">
                     <Routes>
                         <Route path="/" view=Home>

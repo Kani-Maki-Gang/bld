@@ -48,23 +48,23 @@ pub fn PipelinesTable(#[prop(into)] filter: Signal<String>) -> impl IntoView {
         </Show>
         <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=move || view! {}>
             <List>
-                <div class="divide-y divide-slate-600">
+                <div class="divide-y divide-zinc-800">
                     <For
                         each=move || filtered_data()
                         key=move |r| r.get().pipeline.clone()
                         let:child
                     >
-                        <div class="flex items-center gap-4 py-4">
-                            <div class="rounded-full w-16 h-16 bg-slate-800 grid place-items-center text-xl">
+                        <div class="flex items-center gap-4 py-3.5 px-2 -mx-2 hover:bg-zinc-800/30 transition-colors duration-100 rounded-lg">
+                            <div class="rounded-xl w-10 h-10 bg-zinc-800 border border-zinc-700/50 grid place-items-center text-base text-violet-400 shrink-0">
                                 <i class="iconoir-ease-curve-control-points"></i>
                             </div>
-                            <div class="grow flex flex-col gap-2">
-                                <div>{move || child.get().pipeline}</div>
-                                <div class="flex text-sm text-gray-400">
-                                    "Id: " {move || child.get().id}
+                            <div class="grow flex flex-col gap-0.5 min-w-0">
+                                <div class="text-sm font-medium text-zinc-100 truncate">{move || child.get().pipeline}</div>
+                                <div class="text-xs text-zinc-500">
+                                    {move || child.get().id}
                                 </div>
                             </div>
-                            <div class="flex gap-2">
+                            <div class="flex gap-1.5 shrink-0">
                                 <PipelineEditButton
                                     id=move || child.get().id
                                     name=move || child.get().pipeline

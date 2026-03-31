@@ -16,9 +16,9 @@ pub fn DashboardMostRunsPerUser() -> impl IntoView {
     );
     view! {
         <Card>
-            <div class="flex flex-col px-8 py-12">
-                <div class="text-2xl">"Most runs"</div>
-                <div class="text-gray-400 mb-8">"Users with most runs in the last month"</div>
+            <div class="flex flex-col px-6 py-6">
+                <div class="text-base font-semibold text-white">"Most runs"</div>
+                <div class="text-xs text-zinc-500 mt-0.5 mb-5">"Users with most runs in the last month"</div>
                 <div class="h-96 overflow-y-auto">
                     <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
                         <Error error=move || data.get().unwrap().unwrap_err()/>

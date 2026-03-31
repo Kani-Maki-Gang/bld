@@ -3,8 +3,8 @@ use leptos::*;
 #[component]
 pub fn Table(children: Children) -> impl IntoView {
     view! {
-        <div class="overflow-auto overscroll-auto">
-            <table class="min-w-full bg-slate-700 text-sm">{children()}</table>
+        <div class="overflow-auto overscroll-auto rounded-lg border border-zinc-800">
+            <table class="min-w-full bg-zinc-900 text-sm">{children()}</table>
         </div>
     }
 }
@@ -12,7 +12,7 @@ pub fn Table(children: Children) -> impl IntoView {
 #[component]
 pub fn Headers(children: Children) -> impl IntoView {
     view! {
-        <thead>
+        <thead class="bg-zinc-950/60">
             <tr>{children()}</tr>
         </thead>
     }
@@ -21,7 +21,7 @@ pub fn Headers(children: Children) -> impl IntoView {
 #[component]
 pub fn Header(children: Children) -> impl IntoView {
     view! {
-        <th class="border border-b-4 border-slate-600 whitespace-nowrap p-4 font-bold text-left">
+        <th class="border-b border-zinc-800 whitespace-nowrap px-4 py-3 text-xs font-semibold text-zinc-400 uppercase tracking-wider text-left">
             {children()}
         </th>
     }
@@ -29,15 +29,17 @@ pub fn Header(children: Children) -> impl IntoView {
 
 #[component]
 pub fn Body(children: Children) -> impl IntoView {
-    view! { <tbody>{children()}</tbody> }
+    view! { <tbody class="divide-y divide-zinc-800/60">{children()}</tbody> }
 }
 
 #[component]
 pub fn Row(children: Children) -> impl IntoView {
-    view! { <tr>{children()}</tr> }
+    view! { <tr class="hover:bg-zinc-800/40 transition-colors duration-100">{children()}</tr> }
 }
 
 #[component]
 pub fn Cell(children: Children) -> impl IntoView {
-    view! { <td class="border border-slate-600 whitespace-nowrap p-4 text-left">{children()}</td> }
+    view! {
+        <td class="whitespace-nowrap px-4 py-3 text-left text-zinc-200">{children()}</td>
+    }
 }

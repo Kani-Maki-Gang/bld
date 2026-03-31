@@ -5,12 +5,10 @@ use leptos::*;
 pub fn UserPill(#[prop(into)] name: Signal<String>) -> impl IntoView {
     view! {
         <Show when=move || !name.get().is_empty() fallback=|| view! {}>
-            <Badge class="bg-slate-800">
-                <div class="flex items-center">
-                    <div class="flex items-center justify-center">
-                        <i class="iconoir-user text-white"></i>
-                    </div>
-                    <span class="ml-2">{name}</span>
+            <Badge class="bg-zinc-800 border-zinc-700 text-zinc-300">
+                <div class="flex items-center gap-1.5">
+                    <i class="iconoir-user text-zinc-400 text-xs"></i>
+                    <span>{name}</span>
                 </div>
             </Badge>
         </Show>

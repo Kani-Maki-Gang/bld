@@ -14,7 +14,8 @@ use crate::{
     api,
     components::{
         button::Button,
-        sidebar::{Sidebar, SidebarBottom, SidebarItem, SidebarTop},
+        colors::Colors,
+        topbar::Topbar,
     },
 };
 use leptos::{leptos_dom::logging, *};
@@ -29,36 +30,33 @@ pub fn Home() -> impl IntoView {
     view! {
         <Show
             when=move || !auth_resource.loading().get()
-            fallback=move || view! { <div class="text-xl text-gray-400">"Loading..."</div> }
+            fallback=move || {
+                view! {
+                    <div class="flex items-center justify-center w-full h-full text-sm text-zinc-500">
+                        "Loading..."
+                    </div>
+                }
+            }
         >
-            <div class="size-full flex">
-                <div class="grow-0 flex self-stretch">
-                    <Sidebar>
-                        <SidebarTop/>
-                        <div class="grow flex flex-col divide-y divide-slate-600">
-                            <SidebarItem icon="iconoir-presentation" text="Dashboard" url="/"/>
-                            <SidebarItem icon="iconoir-book" text="History" url="/history"/>
-                            <SidebarItem icon="iconoir-wrench" text="Pipelines" url="/pipelines"/>
-                            <SidebarItem
-                                icon="iconoir-clock-rotate-right"
-                                text="Cron jobs"
-                                url="/cron"
-                            />
-                        </div>
-                        <SidebarBottom>
-                            <Button on:click=move |_| {
-                                if let Err(e) = api::remove_auth_tokens() {
-                                    logging::console_error(&e.to_string());
-                                }
-                                let nav = use_navigate();
-                                nav("/login", NavigateOptions::default());
-                            }>"Logout"</Button>
-                        </SidebarBottom>
-                    </Sidebar>
-                </div>
-                <div class="grow overflow-auto p-4">
+            <div class="flex flex-col size-full">
+                <Topbar>
+                    <Button
+                        color=Colors::Zinc
+                        class="w-20"
+                        on:click=move |_| {
+                            if let Err(e) = api::remove_auth_tokens() {
+                                logging::console_error(&e.to_string());
+                            }
+                            let nav = use_navigate();
+                            nav("/login", NavigateOptions::default());
+                        }
+                    >
+                        "Logout"
+                    </Button>
+                </Topbar>
+                <main class="grow overflow-auto">
                     <Outlet/>
-                </div>
+                </main>
             </div>
         </Show>
     }
