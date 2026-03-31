@@ -58,31 +58,28 @@ pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> 
                 </Headers>
                 <Body>
                     <For
-                        each=move || {
-                            data.get()
-                                .unwrap()
-                                .unwrap()
-                                .into_iter()
-                                .enumerate()
-                                .map(|x| (x.0, x.1.id.clone(), x.1))
-                        }
-
-                        key=|(i, _, _)| *i
+                        each=move || data.get().unwrap().unwrap().into_iter()
+                        key=move |e| e.id.clone()
                         let:child
                     >
-                        <Row>
-                            <Cell>
-                                <Link href=format!("/cron/update?id={}", child.1)>{child.1}</Link>
-                            </Cell>
-                            <Cell>{child.2.pipeline}</Cell>
-                            <Cell>{child.2.schedule}</Cell>
-                            <Cell>{child.2.is_default}</Cell>
-                            <Cell>{child.2.date_created}</Cell>
-                            <Cell>{child.2.date_updated.unwrap_or_default()}</Cell>
-                            <Cell>
-                                <CronJobDeleteButton id=child.2.id/>
-                            </Cell>
-                        </Row>
+                        {
+                            let id = child.id.clone();
+                            view! {
+                                <Row>
+                                    <Cell>
+                                        <Link href=format!("/cron/update?id={id}")>{id.clone()}</Link>
+                                    </Cell>
+                                    <Cell>{child.pipeline}</Cell>
+                                    <Cell>{child.schedule}</Cell>
+                                    <Cell>{child.is_default}</Cell>
+                                    <Cell>{child.date_created}</Cell>
+                                    <Cell>{child.date_updated.unwrap_or_default()}</Cell>
+                                    <Cell>
+                                        <CronJobDeleteButton id=child.id/>
+                                    </Cell>
+                                </Row>
+                            }
+                        }
                     </For>
                 </Body>
             </Table>
