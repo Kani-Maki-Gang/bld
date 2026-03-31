@@ -10,18 +10,13 @@ use clap::Args;
 use tracing::debug;
 
 #[derive(Args)]
-#[command(about = "Pushes the contents of a pipeline to a bld server")]
+#[command(about = "Pushes the contents of a file to a bld server")]
 pub struct PushCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
-    #[arg(
-        short = 'p',
-        long = "pipeline",
-        required = true,
-        help = "The name of the pipeline to push"
-    )]
-    pipeline: String,
+    #[arg(required = true, help = "The name of the file to push")]
+    file: String,
 
     #[arg(
         short = 's',
@@ -30,10 +25,7 @@ pub struct PushCommand {
     )]
     server: String,
 
-    #[arg(
-        long = "ignore-deps",
-        help = "Don't include other pipeline dependencies"
-    )]
+    #[arg(long = "ignore-deps", help = "Don't include other file dependencies")]
     ignore_deps: bool,
 }
 
@@ -44,17 +36,17 @@ impl PushCommand {
         let fs = FileSystem::local(config.clone()).into_arc();
 
         debug!(
-            "running push subcommand with --server: {} and --pipeline: {}",
-            self.server, self.pipeline
+            "running push subcommand with --server: {} and file: {}",
+            self.server, self.file
         );
 
-        let mut pipelines = vec![(self.pipeline.to_owned(), fs.read(&self.pipeline).await?)];
+        let mut pipelines = vec![(self.file.to_owned(), fs.read(&self.file).await?)];
 
         if !self.ignore_deps {
             print!("Resolving dependecies...");
 
             let mut deps =
-                VersionedFile::dependencies(config.clone(), fs.clone(), self.pipeline.to_owned())
+                VersionedFile::dependencies(config.clone(), fs.clone(), self.file.to_owned())
                     .await
                     .inspect(|_| {
                         println!("Done.");

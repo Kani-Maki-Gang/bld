@@ -259,7 +259,7 @@ impl RunAdapter {
         HttpClient::new(mode.config, &mode.server)?
             .run(&mode.pipeline, Some(mode.env), Some(mode.inputs))
             .await
-            .map(|_| println!("pipeline has been scheduled to run"))
+            .map(|_| println!("file has been scheduled to run"))
     }
 
     pub async fn run(self) -> Result<()> {

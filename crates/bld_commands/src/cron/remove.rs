@@ -12,11 +12,7 @@ pub struct CronRemoveCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
-    #[arg(
-        short = 'c',
-        long = "cron-id",
-        help = "The id of the cron job to remove"
-    )]
+    #[arg(required = true, help = "The id of the cron job to remove")]
     id: String,
 
     #[arg(

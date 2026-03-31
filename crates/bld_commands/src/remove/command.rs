@@ -9,7 +9,7 @@ use clap::Args;
 use tracing::debug;
 
 #[derive(Args)]
-#[command(about = "Removes a pipeline")]
+#[command(about = "Removes a file")]
 pub struct RemoveCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
@@ -21,15 +21,15 @@ pub struct RemoveCommand {
     )]
     server: Option<String>,
 
-    #[arg(short = 'p', long = "pipeline", help = "The name of the pipeline")]
-    pipeline: String,
+    #[arg(required = true, help = "The name of the file")]
+    file: String,
 }
 
 impl RemoveCommand {
     async fn local_remove(&self) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
         let fs = FileSystem::local(config);
-        fs.remove(&self.pipeline).await
+        fs.remove(&self.file).await
     }
 
     async fn remote_remove(&self, server: &str) -> Result<()> {
@@ -37,11 +37,11 @@ impl RemoveCommand {
         let client = HttpClient::new(config, server)?;
 
         debug!(
-            "running remove subcommand with --server: {:?} and --pipeline: {}",
-            self.server, self.pipeline
+            "running remove subcommand with --server: {:?} and file: {}",
+            self.server, self.file
         );
 
-        client.remove(&self.pipeline).await
+        client.remove(&self.file).await
     }
 }
 

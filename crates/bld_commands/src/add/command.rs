@@ -12,29 +12,25 @@ use uuid::Uuid;
 use crate::command::BldCommand;
 
 #[derive(Args)]
-#[command(about = "Creates a new pipeline")]
+#[command(about = "Creates a new file")]
 pub struct AddCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
-    #[arg(
-        short = 'p',
-        long = "pipeline",
-        help = "The path to the new pipeline file"
-    )]
-    pipeline: String,
+    #[arg(required = true, help = "The path to the new file")]
+    file: String,
 
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server to add the pipeline to"
+        help = "The name of the server to add the file to"
     )]
     server: Option<String>,
 
     #[arg(
         short = 'e',
         long = "edit",
-        help = "Edit the pipeline file immediatelly after creation"
+        help = "Edit the file immediately after creation"
     )]
     edit: bool,
 }
@@ -44,11 +40,11 @@ impl AddCommand {
         let config = BldConfig::load().await?.into_arc();
         let fs = FileSystem::local(config);
 
-        fs.create(&self.pipeline, DEFAULT_V3_PIPELINE_CONTENT, false)
+        fs.create(&self.file, DEFAULT_V3_PIPELINE_CONTENT, false)
             .await?;
 
         if self.edit {
-            fs.edit(&self.pipeline).await?;
+            fs.edit(&self.file).await?;
         }
 
         Ok(())
@@ -60,13 +56,13 @@ impl AddCommand {
         let client = HttpClient::new(config, server)?;
         let tmp_name = format!("{}.yaml", Uuid::new_v4());
 
-        println!("Creating temporary local pipeline {tmp_name}");
+        println!("Creating temporary local file {tmp_name}");
         debug!("creating temporary pipeline file: {tmp_name}");
         fs.create_tmp(&tmp_name, DEFAULT_V3_PIPELINE_CONTENT, true)
             .await?;
 
         if self.edit {
-            println!("Editing temporary local pipeline {tmp_name}");
+            println!("Editing temporary local file {tmp_name}");
             debug!("starting editor for temporary pipeline file: {tmp_name}");
             fs.edit_tmp(&tmp_name).await?;
         }
@@ -74,9 +70,9 @@ impl AddCommand {
         debug!("reading content of temporary pipeline file: {tmp_name}");
         let tmp_content = fs.read_tmp(&tmp_name).await?;
 
-        println!("Pushing updated content for {}", self.pipeline);
+        println!("Pushing updated content for {}", self.file);
 
-        client.push(&self.pipeline, &tmp_content).await?;
+        client.push(&self.file, &tmp_content).await?;
 
         debug!("deleting temporary pipeline file: {tmp_name}");
         fs.remove_tmp(&tmp_name).await?;
@@ -93,7 +89,7 @@ impl BldCommand for AddCommand {
     fn exec(self) -> Result<()> {
         debug!(
             "running add subcommand with --server: {:?}, --pipeline: {} and --edit: {}",
-            self.server, self.pipeline, self.edit
+            self.server, self.file, self.edit
         );
 
         System::new().block_on(async move {
