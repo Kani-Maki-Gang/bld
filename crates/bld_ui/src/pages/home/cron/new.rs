@@ -39,8 +39,8 @@ fn CronJobsNewDialog(#[prop(into)] app_dialog: NodeRef<Dialog>) -> impl IntoView
 
     view! {
         <Card>
-            <div class="flex flex-col px-8 py-12 gap-y-4 min-w-[600px] min-h-[600px]">
-                <div class="text-xl">"Add new cron job"</div>
+            <div class="flex flex-col px-8 py-8 gap-y-4 min-w-[560px] min-h-[540px]">
+                <div class="text-base font-semibold text-white">"Add new cron job"</div>
                 <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
                     <div class="grow">
                         <Error error=move || data.get().unwrap().unwrap_err()/>
@@ -62,7 +62,7 @@ fn CronJobsNewDialog(#[prop(into)] app_dialog: NodeRef<Dialog>) -> impl IntoView
                                 let:child
                             >
                                 <button
-                                    class="w-full py-4 px-8 hover:bg-slate-600 hover:cursor-pointer flex items-center"
+                                    class="w-full py-3 px-4 rounded-lg hover:bg-zinc-800 cursor-pointer flex items-center text-sm text-zinc-200 transition-colors duration-150"
                                     on:click=move |_| {
                                         let _ = app_dialog.get().map(|x| x.close());
                                         let nav = use_navigate();
@@ -79,7 +79,7 @@ fn CronJobsNewDialog(#[prop(into)] app_dialog: NodeRef<Dialog>) -> impl IntoView
                         </List>
                     </div>
                 </Show>
-                <Button on:click=move |_| {
+                <Button ghost=true on:click=move |_| {
                     let _ = app_dialog.get().map(|x| x.close());
                 }>"Close"</Button>
             </div>
@@ -93,7 +93,7 @@ pub fn CronJobsNewButton() -> impl IntoView {
     let app_dialog_content = use_context::<AppDialogContent>();
 
     view! {
-        <IconButton icon="iconoir-plus" on:click=move |_| {
+        <IconButton icon="iconoir-plus" ghost=true on:click=move |_| {
             let Some(AppDialogContent(content)) = app_dialog_content else {
                 logging::console_error("App dialog content is not set");
                 return;

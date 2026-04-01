@@ -135,27 +135,26 @@ pub fn RunPipeline() -> impl IntoView {
         </Show>
         <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
             <div class="flex flex-col gap-4">
-                <Card class="px-8 py-12">
-                    <div class="flex">
-                        <div class="grow flex flex-col">
-                            <div class="text-2xl">"Start a new run"</div>
-                            <div class="text-gray-400">{name}</div>
-                            <div class="flex gap-4">
+                <Card class="px-6 py-5">
+                    <div class="flex items-center gap-4">
+                        <div class="grow flex flex-col gap-2">
+                            <div class="text-base font-semibold text-white">{name}</div>
+                            <div class="flex gap-2 flex-wrap">
                                 <Show
                                     when=move || variables.get().is_empty()
                                     fallback=move || view! {}
                                 >
-                                    <Badge>"Pipeline has no variables"</Badge>
+                                    <Badge>"No variables"</Badge>
                                 </Show>
                                 <Show
                                     when=move || environment.get().is_empty()
                                     fallback=move || view! {}
                                 >
-                                    <Badge>"Pipeline has no environment variables"</Badge>
+                                    <Badge>"No environment variables"</Badge>
                                 </Show>
                             </div>
                         </div>
-                        <div class="min-w-40">
+                        <div class="w-28 shrink-0">
                             <Button on:click=move |_| {
                                 let Some(AppDialog(dialog)) = app_dialog else {
                                     return;
@@ -171,7 +170,7 @@ pub fn RunPipeline() -> impl IntoView {
                                         dialog,
                                         content,
                                     ))
-                            }>"Start"</Button>
+                            }>"Start run"</Button>
                         </div>
                     </div>
                 </Card>

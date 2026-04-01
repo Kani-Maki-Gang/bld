@@ -29,29 +29,62 @@ pub fn get_button_color_classes(color: Option<Colors>) -> &'static str {
     }
 }
 
+pub fn get_ghost_icon_button_color_classes(color: Option<Colors>) -> &'static str {
+    match color.unwrap_or(Colors::Zinc) {
+        Colors::Red | Colors::Rose => {
+            "text-zinc-500 hover:text-red-400 hover:bg-red-500/10"
+        }
+        Colors::Green | Colors::Emerald | Colors::Teal => {
+            "text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/10"
+        }
+        Colors::Violet | Colors::Purple | Colors::Indigo => {
+            "text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10"
+        }
+        Colors::Blue | Colors::Sky | Colors::Cyan => {
+            "text-zinc-500 hover:text-sky-400 hover:bg-sky-500/10"
+        }
+        _ => "text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800",
+    }
+}
+
 #[component]
 pub fn Button(
     #[prop(into, optional)] color: Option<Colors>,
+    #[prop(into, optional)] ghost: bool,
     #[prop(into, optional)] class: String,
     children: Children,
 ) -> impl IntoView {
-    let color = get_button_color_classes(color);
-    let class = format!(
-        "h-[38px] w-full rounded-lg px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-violet-500/40 transition-colors duration-150 {color} {class}"
-    );
+    let class = if ghost {
+        format!(
+            "h-[38px] w-full rounded-lg px-4 py-2 text-sm font-medium bg-transparent border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500/40 transition-colors duration-150 {class}"
+        )
+    } else {
+        let color = get_button_color_classes(color);
+        format!(
+            "h-[38px] w-full rounded-lg px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-violet-500/40 transition-colors duration-150 {color} {class}"
+        )
+    };
     view! { <button class=class>{children()}</button> }
 }
 
 #[component]
 pub fn IconButton(
     #[prop(into, optional)] color: Option<Colors>,
+    #[prop(into, optional)] ghost: bool,
     #[prop(into, optional)] class: String,
     #[prop(into)] icon: String,
 ) -> impl IntoView {
-    let color = get_button_color_classes(color);
-    let class = format!(
-        "h-[38px] w-[38px] text-base rounded-lg flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-violet-500/40 transition-colors duration-150 {color} {class}"
-    );
+    let class = if ghost {
+        let color = get_ghost_icon_button_color_classes(color);
+        format!(
+            "h-[34px] w-[34px] text-base rounded-lg flex items-center justify-center focus:outline-none transition-colors duration-150 {color} {class}"
+        )
+    } else {
+        let color = get_button_color_classes(color);
+        format!(
+            "h-[38px] w-[38px] text-base rounded-lg flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-violet-500/40 transition-colors duration-150 {color} {class}"
+        )
+    };
     view! {
         <button class=class>
             <i class=icon></i>

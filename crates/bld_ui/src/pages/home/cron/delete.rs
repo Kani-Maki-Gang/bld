@@ -59,18 +59,20 @@ fn CronJobDeleteDialog(
 
     view! {
         <Card>
-            <div class="flex flex-col px-8 py-12 gap-4 w-[500px] h-[300px]">
-                <div class="grow">
-                    "Are you sure you want to delete the cron job with id: " {move || id.get()} "?"
+            <div class="flex flex-col px-8 py-10 gap-6 w-[480px]">
+                <div class="text-sm text-zinc-300">
+                    "Are you sure you want to delete cron job "
+                    <span class="font-medium text-white">{move || id.get()}</span>
+                    "? This action cannot be undone."
                 </div>
                 <Show when=move || error.get().is_some() fallback=|| view! {}>
                     <SmallError error=move || error.get().unwrap()/>
                 </Show>
-                <div class="flex items-stretch gap-x-4">
-                    <Button on:click=move |_| {
+                <div class="flex gap-3">
+                    <Button color=Colors::Red on:click=move |_| {
                         delete_action.dispatch((id.get(), error, app_dialog, refresh));
                     }>"Delete"</Button>
-                    <Button on:click=move |_| {
+                    <Button ghost=true on:click=move |_| {
                         let _ = app_dialog.get().map(|x| x.close());
                     }>"Cancel"</Button>
                 </div>
@@ -90,6 +92,7 @@ pub fn CronJobDeleteButton(#[prop(into)] id: String) -> impl IntoView {
         <IconButton
             icon="iconoir-bin-full"
             color=Colors::Red
+            ghost=true
             on:click=move |_| {
                 let Some(AppDialogContent(content)) = app_dialog_content else {
                     logging::console_error("App dialog content not found");
