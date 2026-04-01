@@ -23,7 +23,7 @@ pub fn Topbar(children: Children) -> impl IntoView {
     view! {
         <header class="h-14 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 gap-2 shrink-0">
             <div class="flex items-center gap-2.5 mr-6">
-                <img class="size-6" src="logo.png"/>
+                <img class="size-8" src="logo_no_bg.png"/>
                 <span class="text-sm font-semibold text-white tracking-tight">"bld"</span>
             </div>
             <nav class="flex items-center gap-1 grow">

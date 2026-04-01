@@ -11,7 +11,7 @@ command_arguments = ["-c", "npx tailwindcss -i ./input.css -o $TRUNK_STAGING_DIR
 [[hooks]]
 stage = "post_build"
 command = "sh"
-command_arguments = ["-c", "cp ../../assets/logo.png $TRUNK_STAGING_DIR"]
+command_arguments = ["-c", "cp ../../assets/logo_no_bg.png $TRUNK_STAGING_DIR"]
 
 [[hooks]]
 stage = "post_build"
