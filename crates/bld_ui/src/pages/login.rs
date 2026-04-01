@@ -8,7 +8,7 @@ pub fn Login() -> impl IntoView {
         <div class="w-full flex items-center justify-center min-h-screen bg-zinc-950">
             <div class="flex flex-col items-center gap-8 w-full max-w-sm px-6">
                 <div class="flex flex-col items-center gap-3">
-                    <img class="size-16" src="logo.png"/>
+                    <img class="size-24" src="logo_no_bg.png"/>
                     <div class="text-lg font-semibold text-white tracking-tight">"bld"</div>
                 </div>
                 <div class="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-8 flex flex-col gap-6 shadow-2xl shadow-black/40">

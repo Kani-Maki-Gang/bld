@@ -7,7 +7,10 @@ use crate::{
 use codee::string::FromToStringCodec;
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
-use leptos_use::{UseWebSocketReturn, core::ConnectionReadyState, use_websocket};
+use leptos_use::{
+    ReconnectLimit, UseWebSocketOptions, UseWebSocketReturn, core::ConnectionReadyState,
+    use_websocket, use_websocket_with_options,
+};
 use serde::{Deserialize, Serialize};
 
 type StopActionArgs = (String, NodeRef<Dialog>, RwSignal<Option<View>>);
@@ -50,7 +53,23 @@ pub fn Monit() -> impl IntoView {
         send,
         ready_state,
         ..
-    } = use_websocket::<String, FromToStringCodec>(&url);
+    } = use_websocket_with_options::<String, FromToStringCodec>(
+        &url,
+        UseWebSocketOptions::default()
+            .reconnect_limit(ReconnectLimit::Limited(0))
+            .on_error(move |e| {
+                let Some(AppDialog(app_dialog)) = app_dialog else {
+                    return;
+                };
+                let Some(AppDialogContent(app_dialog_content)) = app_dialog_content else {
+                    return;
+                };
+                app_dialog_content.set(Some(
+                    view! { <ErrorDialog dialog=app_dialog error=move || e.to_string() /> },
+                ));
+                let _ = app_dialog.get().map(|x| x.show_modal());
+            }),
+    );
 
     let socket_state = move || match ready_state.get() {
         ConnectionReadyState::Connecting => "Connecting",
