@@ -1,7 +1,11 @@
 use crate::{
     api,
     components::{
-        button::{Button, IconButton}, card::Card, colors::Colors, input::Input, list::List
+        button::{Button, IconButton},
+        card::Card,
+        colors::Colors,
+        input::Input,
+        list::List,
     },
     context::{AppDialog, AppDialogContent},
     error::Error,
@@ -40,11 +44,11 @@ fn CronJobsNewDialog(#[prop(into)] app_dialog: NodeRef<Dialog>) -> impl IntoView
                 <div class="text-base font-semibold text-white">"Add new cron job"</div>
                 <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
                     <div class="grow">
-                        <Error error=move || data.get().unwrap().unwrap_err()/>
+                        <Error error=move || data.get().unwrap().unwrap_err() />
                     </div>
                 </Show>
                 <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
-                    <Input placeholder="Pipeline name" value=search/>
+                    <Input placeholder="Pipeline name" value=search />
                     <div class="grow">
                         <List>
                             <For
@@ -76,9 +80,14 @@ fn CronJobsNewDialog(#[prop(into)] app_dialog: NodeRef<Dialog>) -> impl IntoView
                         </List>
                     </div>
                 </Show>
-                <Button ghost=true on:click=move |_| {
-                    let _ = app_dialog.get().map(|x| x.close());
-                }>"Close"</Button>
+                <Button
+                    ghost=true
+                    on:click=move |_| {
+                        let _ = app_dialog.get().map(|x| x.close());
+                    }
+                >
+                    "Close"
+                </Button>
             </div>
         </Card>
     }
@@ -90,17 +99,22 @@ pub fn CronJobsNewButton() -> impl IntoView {
     let app_dialog_content = use_context::<AppDialogContent>();
 
     view! {
-        <IconButton icon="iconoir-plus" ghost=true color=Colors::Violet on:click=move |_| {
-            let Some(AppDialogContent(content)) = app_dialog_content else {
-                logging::console_error("App dialog content is not set");
-                return;
-            };
-            let Some(AppDialog(dialog)) = app_dialog else {
-                logging::console_error("App dialog node ref is not set");
-                return;
-            };
-            let _ = dialog.get().map(|x| x.show_modal());
-            content.set(Some(view! { <CronJobsNewDialog app_dialog=dialog/> }));
-        } />
+        <IconButton
+            icon="iconoir-plus"
+            ghost=true
+            color=Colors::Violet
+            on:click=move |_| {
+                let Some(AppDialogContent(content)) = app_dialog_content else {
+                    logging::console_error("App dialog content is not set");
+                    return;
+                };
+                let Some(AppDialog(dialog)) = app_dialog else {
+                    logging::console_error("App dialog node ref is not set");
+                    return;
+                };
+                let _ = dialog.get().map(|x| x.show_modal());
+                content.set(Some(view! { <CronJobsNewDialog app_dialog=dialog /> }));
+            }
+        />
     }
 }

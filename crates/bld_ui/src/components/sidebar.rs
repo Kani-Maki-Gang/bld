@@ -5,7 +5,7 @@ use leptos_router::A;
 pub fn SidebarTop() -> impl IntoView {
     view! {
         <div class="flex items-center gap-3 px-4 py-5 border-b border-zinc-800">
-            <img class="size-8" src="logo.png"/>
+            <img class="size-8" src="logo.png" />
             <span class="text-sm font-semibold text-white tracking-tight">"bld"</span>
         </div>
     }
@@ -40,8 +40,7 @@ pub fn SidebarBottom(children: Children) -> impl IntoView {
                     href="https://github.com/Kani-Maki-Gang/bld"
                 >
                     "GitHub"
-                </a>
-                " · "
+                </a> " · "
                 <a
                     class="text-zinc-500 hover:text-violet-400 transition-colors"
                     target="_blank"

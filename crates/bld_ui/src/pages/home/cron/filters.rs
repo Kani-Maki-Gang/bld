@@ -10,13 +10,13 @@ pub fn CronJobsFilters(
     view! {
         <div class="grid grid-cols-3">
             <div class="col-span-2">
-                <Input placeholder="Search..." value=pipeline/>
+                <Input placeholder="Search..." value=pipeline />
             </div>
             <div class="flex justify-end gap-4">
                 <div class="min-w-[100px]">
-                    <Input input_type="number" placeholder="Limit" value=limit/>
+                    <Input input_type="number" placeholder="Limit" value=limit />
                 </div>
-                <CronJobsNewButton/>
+                <CronJobsNewButton />
             </div>
         </div>
     }

@@ -29,11 +29,16 @@ pub fn CronJobsEditDetails<F: Fn() -> () + 'static>(
             </div>
             <Show when=move || delete.is_some() fallback=|| view! {}>
                 <div class="w-28 shrink-0">
-                    <Button color=Colors::Red on:click=move |_| {
-                        if let Some(delete) = delete {
-                            delete.set(true);
+                    <Button
+                        color=Colors::Red
+                        on:click=move |_| {
+                            if let Some(delete) = delete {
+                                delete.set(true);
+                            }
                         }
-                    }>"Delete"</Button>
+                    >
+                        "Delete"
+                    </Button>
                 </div>
             </Show>
         </div>

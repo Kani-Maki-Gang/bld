@@ -40,10 +40,10 @@ pub fn History() -> impl IntoView {
                 </div>
             </div>
             <div class="px-6 py-3 border-b border-zinc-800/60">
-                <HistoryFilters state=state limit=limit pipeline=pipeline/>
+                <HistoryFilters state=state limit=limit pipeline=pipeline />
             </div>
             <div class="px-6 py-5">
-                <HistoryTable params=params/>
+                <HistoryTable params=params />
             </div>
         </div>
     }

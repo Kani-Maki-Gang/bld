@@ -66,15 +66,25 @@ fn CronJobDeleteDialog(
                     "? This action cannot be undone."
                 </div>
                 <Show when=move || error.get().is_some() fallback=|| view! {}>
-                    <SmallError error=move || error.get().unwrap()/>
+                    <SmallError error=move || error.get().unwrap() />
                 </Show>
                 <div class="flex gap-3">
-                    <Button color=Colors::Red on:click=move |_| {
-                        delete_action.dispatch((id.get(), error, app_dialog, refresh));
-                    }>"Delete"</Button>
-                    <Button ghost=true on:click=move |_| {
-                        let _ = app_dialog.get().map(|x| x.close());
-                    }>"Cancel"</Button>
+                    <Button
+                        color=Colors::Red
+                        on:click=move |_| {
+                            delete_action.dispatch((id.get(), error, app_dialog, refresh));
+                        }
+                    >
+                        "Delete"
+                    </Button>
+                    <Button
+                        ghost=true
+                        on:click=move |_| {
+                            let _ = app_dialog.get().map(|x| x.close());
+                        }
+                    >
+                        "Cancel"
+                    </Button>
                 </div>
             </div>
         </Card>
@@ -106,7 +116,9 @@ pub fn CronJobDeleteButton(#[prop(into)] id: String) -> impl IntoView {
                 content
                     .set(
                         Some(
-                            view! { <CronJobDeleteDialog id=id app_dialog=dialog refresh=refresh/> }
+                            view! {
+                                <CronJobDeleteDialog id=id app_dialog=dialog refresh=refresh />
+                            }
                                 .into_view(),
                         ),
                     );

@@ -21,13 +21,15 @@ pub fn DashboardPipelines() -> impl IntoView {
     view! {
         <Card>
             <div class="flex flex-col px-6 py-6">
-                <div class="text-base font-semibold text-white">"Pipelines success/failure rate"</div>
+                <div class="text-base font-semibold text-white">
+                    "Pipelines success/failure rate"
+                </div>
                 <div class="text-xs text-zinc-500 mt-0.5 mb-5">
                     "Pipeline runs for the last month with a success/failure rate"
                 </div>
                 <div class="max-h-[600px] overflow-y-auto">
                     <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
-                        <Error error=move || data.get().unwrap().unwrap_err()/>
+                        <Error error=move || data.get().unwrap().unwrap_err() />
                     </Show>
                     <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
                         <List>

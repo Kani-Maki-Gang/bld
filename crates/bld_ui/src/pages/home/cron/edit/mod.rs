@@ -57,7 +57,7 @@ pub fn CronJobsEdit(
                     delete=delete
                 />
                 <div class="px-6 py-5 flex flex-col gap-4">
-                    <CronJobsEditSchedule schedule=schedule/>
+                    <CronJobsEditSchedule schedule=schedule />
                     <Show when=move || !variables.get().is_empty() fallback=|| view! {}>
                         <RunPipelineVariables
                             title="Variables"

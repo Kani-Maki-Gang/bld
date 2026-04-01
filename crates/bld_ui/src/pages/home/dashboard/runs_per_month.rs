@@ -61,7 +61,7 @@ pub fn DashboardRunsPerMonth() -> impl IntoView {
                     </div>
                 </div>
                 <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
-                    <SmallError error=move || data.get().unwrap().unwrap_err()/>
+                    <SmallError error=move || data.get().unwrap().unwrap_err() />
                 </Show>
                 <div class="grow">
                     <Chart

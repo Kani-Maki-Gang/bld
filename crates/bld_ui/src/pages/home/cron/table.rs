@@ -43,7 +43,7 @@ pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> 
 
     view! {
         <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
-            <Error error=move || data.get().unwrap().unwrap_err()/>
+            <Error error=move || data.get().unwrap().unwrap_err() />
         </Show>
         <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
             <Table>
@@ -67,7 +67,9 @@ pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> 
                             view! {
                                 <Row>
                                     <Cell>
-                                        <Link href=format!("/cron/update?id={id}")>{id.clone()}</Link>
+                                        <Link href=format!(
+                                            "/cron/update?id={id}",
+                                        )>{id.clone()}</Link>
                                     </Cell>
                                     <Cell>{child.pipeline}</Cell>
                                     <Cell>{child.schedule}</Cell>
@@ -75,7 +77,7 @@ pub fn CronJobsTable(#[prop(into)] params: Signal<Option<JobFiltersParams>>) -> 
                                     <Cell>{child.date_created}</Cell>
                                     <Cell>{child.date_updated.unwrap_or_default()}</Cell>
                                     <Cell>
-                                        <CronJobDeleteButton id=child.id/>
+                                        <CronJobDeleteButton id=child.id />
                                     </Cell>
                                 </Row>
                             }

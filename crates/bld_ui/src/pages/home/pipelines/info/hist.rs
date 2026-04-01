@@ -1,5 +1,6 @@
 use crate::{
-    components::{button::IconButton, colors::Colors}, context::RefreshHistory,
+    components::{button::IconButton, colors::Colors},
+    context::RefreshHistory,
     pages::home::history::table::HistoryTable,
 };
 use bld_models::dtos::HistQueryParams;
@@ -22,7 +23,9 @@ pub fn PipelineHist(#[prop(into)] name: Signal<Option<String>>) -> impl IntoView
             <div class="flex gap-4 items-start p-4">
                 <div class="grow">
                     <div class="text-lg font-semibold text-white">"History"</div>
-                    <div class="text-xs text-zinc-500 mt-0.5">"The last runs for the pipeline (with a 10k limit)"</div>
+                    <div class="text-xs text-zinc-500 mt-0.5">
+                        "The last runs for the pipeline (with a 10k limit)"
+                    </div>
                 </div>
                 <IconButton
                     class="justify-end"

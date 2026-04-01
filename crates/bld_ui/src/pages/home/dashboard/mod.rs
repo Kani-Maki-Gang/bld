@@ -15,21 +15,23 @@ pub fn dashboard() -> impl IntoView {
         <div class="flex flex-col min-h-full">
             <div class="px-6 py-5 border-b border-zinc-800">
                 <div class="text-lg font-semibold text-white">"Dashboard"</div>
-                <div class="text-xs text-zinc-500 mt-0.5">"Server overview and pipeline analytics"</div>
+                <div class="text-xs text-zinc-500 mt-0.5">
+                    "Server overview and pipeline analytics"
+                </div>
             </div>
             <div class="px-6 py-5 flex flex-col gap-5">
                 <div class="grid grid-cols-4 gap-4">
-                    <DashboardKpis/>
+                    <DashboardKpis />
                 </div>
                 <div class="grid grid-cols-5 gap-4">
                     <div class="col-span-3">
-                        <DashboardRunsPerMonth/>
+                        <DashboardRunsPerMonth />
                     </div>
                     <div class="col-span-2">
-                        <DashboardMostRunsPerUser/>
+                        <DashboardMostRunsPerUser />
                     </div>
                 </div>
-                <DashboardPipelines/>
+                <DashboardPipelines />
             </div>
         </div>
     }

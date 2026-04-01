@@ -65,15 +65,15 @@ fn PipelineCopyButtonDialog(
                 <div class="grow flex flex-col gap-4">
                     <div>
                         <label for="pipeline">Pipeline:</label>
-                        <Input id="pipeline" disabled=true value=name_rw/>
+                        <Input id="pipeline" disabled=true value=name_rw />
                     </div>
                     <div>
                         <label for="target">Copy:</label>
-                        <Input id="target" value=target/>
+                        <Input id="target" value=target />
                     </div>
                 </div>
                 <Show when=move || error.get().is_some() fallback=|| view! {}>
-                    <SmallError error=move || error.get().unwrap()/>
+                    <SmallError error=move || error.get().unwrap() />
                 </Show>
                 <div class="flex gap-3">
                     <Button on:click=move |_| {
@@ -87,9 +87,14 @@ fn PipelineCopyButtonDialog(
                                 app_dialog,
                             ));
                     }>"Copy"</Button>
-                    <Button ghost=true on:click=move |_| {
-                        let _ = app_dialog.get().map(|x| x.close());
-                    }>"Cancel"</Button>
+                    <Button
+                        ghost=true
+                        on:click=move |_| {
+                            let _ = app_dialog.get().map(|x| x.close());
+                        }
+                    >
+                        "Cancel"
+                    </Button>
                 </div>
             </div>
         </Card>

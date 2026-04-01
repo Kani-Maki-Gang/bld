@@ -44,7 +44,7 @@ pub fn PipelinesTable(#[prop(into)] filter: Signal<String>) -> impl IntoView {
 
     view! {
         <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
-            <Error error=move || data.get().unwrap().unwrap_err()/>
+            <Error error=move || data.get().unwrap().unwrap_err() />
         </Show>
         <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=move || view! {}>
             <List>
@@ -59,10 +59,10 @@ pub fn PipelinesTable(#[prop(into)] filter: Signal<String>) -> impl IntoView {
                                 <i class="iconoir-ease-curve-control-points"></i>
                             </div>
                             <div class="grow flex flex-col gap-0.5 min-w-0">
-                                <div class="text-sm font-medium text-zinc-100 truncate">{move || child.get().pipeline}</div>
-                                <div class="text-xs text-zinc-500">
-                                    {move || child.get().id}
+                                <div class="text-sm font-medium text-zinc-100 truncate">
+                                    {move || child.get().pipeline}
                                 </div>
+                                <div class="text-xs text-zinc-500">{move || child.get().id}</div>
                             </div>
                             <div class="flex gap-1.5 shrink-0">
                                 <PipelineEditButton
@@ -77,8 +77,8 @@ pub fn PipelinesTable(#[prop(into)] filter: Signal<String>) -> impl IntoView {
                                     id=move || child.get().id
                                     name=move || child.get().pipeline
                                 />
-                                <PipelineCopyButton name=move || child.get().pipeline/>
-                                <PipelineDeleteButton name=move || child.get().pipeline/>
+                                <PipelineCopyButton name=move || child.get().pipeline />
+                                <PipelineDeleteButton name=move || child.get().pipeline />
                             </div>
                         </div>
                     </For>

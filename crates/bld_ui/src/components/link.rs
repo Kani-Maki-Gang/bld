@@ -8,7 +8,10 @@ use leptos_router::A;
 #[component]
 pub fn Link(#[prop(into)] href: String, children: Children) -> impl IntoView {
     view! {
-        <A class="text-violet-400 hover:text-violet-300 underline underline-offset-2 transition-colors duration-150" href=href>
+        <A
+            class="text-violet-400 hover:text-violet-300 underline underline-offset-2 transition-colors duration-150"
+            href=href
+        >
             {children()}
         </A>
     }

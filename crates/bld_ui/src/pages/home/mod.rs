@@ -12,11 +12,7 @@ pub use pipelines::*;
 
 use crate::{
     api,
-    components::{
-        button::Button,
-        colors::Colors,
-        topbar::Topbar,
-    },
+    components::{button::Button, colors::Colors, topbar::Topbar},
 };
 use leptos::{leptos_dom::logging, *};
 use leptos_router::*;
@@ -55,7 +51,7 @@ pub fn Home() -> impl IntoView {
                     </Button>
                 </Topbar>
                 <main class="grow overflow-auto">
-                    <Outlet/>
+                    <Outlet />
                 </main>
             </div>
         </Show>

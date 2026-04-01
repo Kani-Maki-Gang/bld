@@ -66,15 +66,15 @@ fn PipelineMoveButtonDialog(
                 <div class="grow flex flex-col gap-4">
                     <div>
                         <label for="pipeline">Current:</label>
-                        <Input id="pipeline" disabled=true value=name_rw/>
+                        <Input id="pipeline" disabled=true value=name_rw />
                     </div>
                     <div>
                         <label for="target">New:</label>
-                        <Input id="target" value=target/>
+                        <Input id="target" value=target />
                     </div>
                 </div>
                 <Show when=move || error.get().is_some() fallback=|| view! {}>
-                    <SmallError error=move || error.get().unwrap()/>
+                    <SmallError error=move || error.get().unwrap() />
                 </Show>
                 <div class="flex gap-3">
                     <Button on:click=move |_| {
@@ -89,9 +89,14 @@ fn PipelineMoveButtonDialog(
                                 app_dialog,
                             ));
                     }>"Rename"</Button>
-                    <Button ghost=true on:click=move |_| {
-                        let _ = app_dialog.get().map(|x| x.close());
-                    }>"Cancel"</Button>
+                    <Button
+                        ghost=true
+                        on:click=move |_| {
+                            let _ = app_dialog.get().map(|x| x.close());
+                        }
+                    >
+                        "Cancel"
+                    </Button>
                 </div>
             </div>
         </Card>

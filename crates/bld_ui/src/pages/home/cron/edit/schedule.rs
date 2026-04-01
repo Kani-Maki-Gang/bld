@@ -10,15 +10,14 @@ pub fn CronJobsEditSchedule(#[prop(into)] schedule: RwSignal<String>) -> impl In
                     <div class="text-base font-semibold text-white">"Schedule"</div>
                     <div class="text-xs text-zinc-500 mt-0.5">
                         "Cron expression format — "
-                        <Link href="https://en.wikipedia.org/wiki/Cron#Cron_expression".to_string()>
-                            "learn more"
-                        </Link>
+                        <Link href="https://en.wikipedia.org/wiki/Cron#Cron_expression"
+                            .to_string()>"learn more"</Link>
                     </div>
                 </div>
                 <div class="grid grid-cols-3 items-center gap-4">
                     <div class="text-sm text-zinc-400">"Expression"</div>
                     <div class="col-span-2">
-                        <Input value=schedule/>
+                        <Input value=schedule />
                     </div>
                 </div>
             </div>

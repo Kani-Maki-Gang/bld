@@ -39,7 +39,5 @@ pub fn Row(children: Children) -> impl IntoView {
 
 #[component]
 pub fn Cell(children: Children) -> impl IntoView {
-    view! {
-        <td class="whitespace-nowrap px-4 py-3 text-left text-zinc-200">{children()}</td>
-    }
+    view! { <td class="whitespace-nowrap px-4 py-3 text-left text-zinc-200">{children()}</td> }
 }

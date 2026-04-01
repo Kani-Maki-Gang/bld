@@ -19,7 +19,7 @@ pub fn RunPipelineVariables(
                     <For each=move || items.get().into_iter().enumerate() key=|(i, _)| *i let:item>
                         <div class="text-sm text-zinc-400">{item.1.0}</div>
                         <div class="col-span-2">
-                            <Input value=item.1.1/>
+                            <Input value=item.1.1 />
                         </div>
                     </For>
                 </div>

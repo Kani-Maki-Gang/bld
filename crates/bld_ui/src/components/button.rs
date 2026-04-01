@@ -31,9 +31,7 @@ pub fn get_button_color_classes(color: Option<Colors>) -> &'static str {
 
 pub fn get_ghost_icon_button_color_classes(color: Option<Colors>) -> &'static str {
     match color.unwrap_or(Colors::Zinc) {
-        Colors::Red | Colors::Rose => {
-            "text-zinc-500 hover:text-red-400 hover:bg-red-500/10"
-        }
+        Colors::Red | Colors::Rose => "text-zinc-500 hover:text-red-400 hover:bg-red-500/10",
         Colors::Green | Colors::Emerald | Colors::Teal => {
             "text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/10"
         }

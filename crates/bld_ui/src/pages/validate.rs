@@ -21,7 +21,7 @@ pub fn Validate() -> impl IntoView {
 
     view! {
         <Show when=move || matches!(resource.get(), Some(Err(_))) fallback=|| view! {}>
-            <ErrorCard error=move || resource.get().unwrap().unwrap_err()/>
+            <ErrorCard error=move || resource.get().unwrap().unwrap_err() />
         </Show>
     }
 }

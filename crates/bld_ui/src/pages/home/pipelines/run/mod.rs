@@ -92,7 +92,7 @@ pub fn RunPipeline() -> impl IntoView {
                 }
                 Err(e) => {
                     dialog_content.set(Some(
-                        view! { <ErrorDialog error=move || e.to_string() dialog=dialog/> },
+                        view! { <ErrorDialog error=move || e.to_string() dialog=dialog /> },
                     ));
                     let _ = dialog.get().map(|x| x.show_modal());
                 }
@@ -131,7 +131,7 @@ pub fn RunPipeline() -> impl IntoView {
 
     view! {
         <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
-            <ErrorCard error=move || data.get().unwrap().unwrap_err()/>
+            <ErrorCard error=move || data.get().unwrap().unwrap_err() />
         </Show>
         <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
             <div class="flex flex-col min-h-full">

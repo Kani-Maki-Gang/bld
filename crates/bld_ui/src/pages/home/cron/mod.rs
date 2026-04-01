@@ -49,10 +49,10 @@ pub fn CronJobs() -> impl IntoView {
                 </div>
             </div>
             <div class="px-6 py-3 border-b border-zinc-800/60">
-                <CronJobsFilters limit=limit pipeline=pipeline/>
+                <CronJobsFilters limit=limit pipeline=pipeline />
             </div>
             <div class="px-6 py-5">
-                <CronJobsTable params=params/>
+                <CronJobsTable params=params />
             </div>
         </div>
     }
