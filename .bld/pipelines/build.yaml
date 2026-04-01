@@ -18,6 +18,7 @@ jobs:
     - name: Trunk build
       working_dir: ./bld/crates/bld_ui
       exec:
+        - npm ci --prefer-offline
         - trunk build --release
 
     - name: Move ui dist to bld_server
