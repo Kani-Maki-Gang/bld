@@ -1,10 +1,7 @@
 use crate::{
     api,
     components::{
-        button::{Button, IconButton},
-        card::Card,
-        input::Input,
-        list::List,
+        button::{Button, IconButton}, card::Card, colors::Colors, input::Input, list::List
     },
     context::{AppDialog, AppDialogContent},
     error::Error,
@@ -93,7 +90,7 @@ pub fn CronJobsNewButton() -> impl IntoView {
     let app_dialog_content = use_context::<AppDialogContent>();
 
     view! {
-        <IconButton icon="iconoir-plus" ghost=true on:click=move |_| {
+        <IconButton icon="iconoir-plus" ghost=true color=Colors::Violet on:click=move |_| {
             let Some(AppDialogContent(content)) = app_dialog_content else {
                 logging::console_error("App dialog content is not set");
                 return;

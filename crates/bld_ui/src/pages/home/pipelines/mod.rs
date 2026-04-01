@@ -4,7 +4,7 @@ mod run;
 mod table;
 
 use crate::{
-    components::{button::IconButton, input::Input},
+    components::{button::IconButton, colors::Colors, input::Input},
     context::RefreshPipelines,
 };
 use leptos::*;
@@ -34,7 +34,7 @@ pub fn Pipelines() -> impl IntoView {
                         <Input placeholder="Search..." value=filter/>
                     </div>
                     <div class="flex justify-end">
-                        <IconButton icon="iconoir-refresh-double" on:click=move |_| refresh.set()/>
+                        <IconButton ghost=true color=Colors::Violet icon="iconoir-refresh-double" on:click=move |_| refresh.set()/>
                     </div>
                 </div>
             </div>
