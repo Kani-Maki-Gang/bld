@@ -9,7 +9,7 @@ use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
 use leptos_use::{
     ReconnectLimit, UseWebSocketOptions, UseWebSocketReturn, core::ConnectionReadyState,
-    use_websocket, use_websocket_with_options,
+    use_websocket_with_options,
 };
 use serde::{Deserialize, Serialize};
 
