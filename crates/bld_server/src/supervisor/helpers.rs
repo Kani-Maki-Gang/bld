@@ -26,7 +26,7 @@ pub async fn enqueue_worker(
 
     let path = fs.path(&name).await?;
     if !path.is_yaml() {
-        bail!("pipeline file not found");
+        bail!("file not found");
     }
 
     let run_id = Uuid::new_v4().to_string();

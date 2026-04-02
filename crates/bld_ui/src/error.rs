@@ -32,7 +32,7 @@ pub fn ErrorCard(#[prop(into)] error: Signal<String>) -> impl IntoView {
     view! {
         <div class="flex flex-col items-center">
             <Card class="container px-8 py-12">
-                <Error error=move || error.get()/>
+                <Error error=move || error.get() />
             </Card>
         </div>
     }
@@ -46,7 +46,7 @@ pub fn ErrorDialog(
     view! {
         <Card class="flex flex-col gap-4 px-8 py-12 h-[600px] w-[500px]">
             <div class="grow">
-                <Error error=move || error.get()/>
+                <Error error=move || error.get() />
             </div>
             <Button on:click=move |_| {
                 let _ = dialog.get().map(|x| x.close());

@@ -3,7 +3,7 @@ use leptos::*;
 #[component]
 pub fn ButtonGroup(children: Children) -> impl IntoView {
     view! {
-        <div class="inline-flex rounded-lg border border-gray-800 p-1 bg-slate-900">
+        <div class="inline-flex rounded-lg border border-zinc-700 p-0.5 bg-zinc-900">
             {children()}
         </div>
     }
@@ -16,9 +16,9 @@ pub fn ButtonGroupItem(
 ) -> impl IntoView {
     let class = move || {
         if is_selected.get() {
-            "inline-block rounded-md px-4 py-2 text-sm text-gray-200 shadow-sm focus:relative bg-slate-800"
+            "inline-block rounded-md px-4 py-1.5 text-sm font-medium text-white shadow-sm bg-zinc-700 transition-colors duration-150"
         } else {
-            "inline-block rounded-md px-4 py-2 text-sm text-gray-400 hover:text-gray-200 focus:relative"
+            "inline-block rounded-md px-4 py-1.5 text-sm font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors duration-150"
         }
     };
     view! { <button class=class>{children()}</button> }

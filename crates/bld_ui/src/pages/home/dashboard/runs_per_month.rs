@@ -53,15 +53,15 @@ pub fn DashboardRunsPerMonth() -> impl IntoView {
 
     view! {
         <Card>
-            <div node_ref=card class="flex flex-col px-8 py-12 gap-4">
+            <div node_ref=card class="flex flex-col px-6 py-6 gap-4">
                 <div class="flex flex-col">
-                    <div class="text-2xl">"Total runs per month"</div>
-                    <div class="text-gray-400 mb-8">
+                    <div class="text-base font-semibold text-white">"Total runs per month"</div>
+                    <div class="text-xs text-zinc-500 mt-0.5">
                         "Aggregated data for all pipelines on the server"
                     </div>
                 </div>
                 <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
-                    <SmallError error=move || data.get().unwrap().unwrap_err()/>
+                    <SmallError error=move || data.get().unwrap().unwrap_err() />
                 </Show>
                 <div class="grow">
                     <Chart

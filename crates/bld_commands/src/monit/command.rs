@@ -11,7 +11,7 @@ use futures::stream::StreamExt;
 use tracing::debug;
 
 #[derive(Args)]
-#[command(about = "Connects to a bld server to monitor the execution of a pipeline")]
+#[command(about = "Connects to a bld server to monitor the execution of a file")]
 pub struct MonitCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
@@ -19,27 +19,27 @@ pub struct MonitCommand {
     #[arg(
         short = 'i',
         long = "pipeline-id",
-        help = "The id of the pipeline to monitor. Takes precedence over pipeline"
+        help = "The id of the run to monitor. Takes precedence over the file name"
     )]
     pipeline_id: Option<String>,
 
     #[arg(
-        short = 'p',
-        long = "pipeline",
-        help = "The name of the pipeline of which to monitor the last run"
+        short = 'f',
+        long = "file",
+        help = "The name of the file of which to monitor the last run"
     )]
-    pipeline: Option<String>,
+    file: Option<String>,
 
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server to monitor the pipeline from"
+        help = "The name of the server to monitor the file from"
     )]
     server: String,
 
     #[arg(
         long = "last",
-        help = "Monitor the execution of the last invoked pipeline. Takes precedence over pipeline-id and pipeline"
+        help = "Monitor the execution of the last invoked file. Takes precedence over pipeline-id and file"
     )]
     last: bool,
 }
@@ -69,10 +69,10 @@ impl MonitCommand {
 
         debug!(
             "sending data over: {:?} {:?} {}",
-            self.pipeline_id, self.pipeline, self.last
+            self.pipeline_id, self.file, self.last
         );
 
-        addr.send(MonitInfo::new(self.pipeline_id, self.pipeline, self.last))
+        addr.send(MonitInfo::new(self.pipeline_id, self.file, self.last))
             .await
             .map_err(|e| anyhow!(e))
     }

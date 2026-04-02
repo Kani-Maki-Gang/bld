@@ -11,18 +11,18 @@ use bld_utils::sync::IntoArc;
 use clap::Args;
 
 #[derive(Args)]
-#[command(about = "Checks a pipeline file for errors")]
+#[command(about = "Checks a file for errors")]
 pub struct CheckCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
-    #[arg(short = 'p', long = "pipeline", default_value = TOOL_DEFAULT_PIPELINE_FILE, help = "Path to pipeline script")]
-    pipeline: String,
+    #[arg(default_value = TOOL_DEFAULT_PIPELINE_FILE, help = "Path to the file")]
+    file: String,
 
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server to check the pipeline from"
+        help = "The name of the server to check the file from"
     )]
     server: Option<String>,
 }
@@ -33,7 +33,7 @@ impl CheckCommand {
         let fs = FileSystem::local(config.clone()).into_arc();
         let package_manager = PackageManager::new(config.clone()).into_arc();
         let loader = VersionedFileLoader::new(&package_manager, &fs, true);
-        let metadata = loader.load(&self.pipeline).await?;
+        let metadata = loader.load(&self.file).await?;
         metadata
             .file
             .validate_with_verbose_errors(config, fs, package_manager)
@@ -42,7 +42,7 @@ impl CheckCommand {
 
     async fn remote_check(&self, server: &str) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
-        HttpClient::new(config, server)?.check(&self.pipeline).await
+        HttpClient::new(config, server)?.check(&self.file).await
     }
 }
 

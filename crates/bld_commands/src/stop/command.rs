@@ -7,7 +7,7 @@ use bld_utils::sync::IntoArc;
 use clap::Args;
 
 #[derive(Args)]
-#[command(about = "Stops a running pipeline on a server")]
+#[command(about = "Stops a running file on a server")]
 pub struct StopCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
@@ -16,14 +16,14 @@ pub struct StopCommand {
         short = 'i',
         long = "id",
         required = true,
-        help = "The id of a pipeline running on a server"
+        help = "The id of a run on a server"
     )]
     pipeline_id: String,
 
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server that the pipeline is running"
+        help = "The name of the server that the file is running on"
     )]
     server: String,
 }

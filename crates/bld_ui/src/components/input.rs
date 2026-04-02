@@ -16,7 +16,7 @@ pub fn Input(
             type=input_type
             min=min
             max=max
-            class="h-[40px] w-full rounded-lg text-sm bg-slate-600 text-white px-4 py-2 focus:ring focus:ring-slate-500 focus:outline-none"
+            class="h-[38px] w-full rounded-lg text-sm bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-500 px-4 py-2 focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500/40 focus:outline-none transition-colors duration-150"
             placeholder=placeholder
             prop:disabled=disabled
             prop:value=move || value.get()
@@ -38,7 +38,7 @@ pub fn Select(
 ) -> impl IntoView {
     view! {
         <select
-            class="px-4 py-2 h-[40px] w-full rounded-lg bg-slate-600 text-sm focus:ring focus:ring-slate-500 focus:outline-none"
+            class="px-4 py-2 h-[38px] w-full rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-white focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500/40 focus:outline-none transition-colors duration-150"
             prop:value=move || value.get().unwrap_or("".to_string())
             on:change=move |ev| value.set(Some(event_target_value(&ev)))
         >

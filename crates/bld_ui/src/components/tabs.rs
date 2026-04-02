@@ -15,8 +15,8 @@ pub fn Tabs(
 ) -> impl IntoView {
     let nav_class = move || {
         direction.with(|d| match d {
-            TabsDirection::Horizontal => "flex gap-6",
-            TabsDirection::Vertical => "flex flex-col gap-6",
+            TabsDirection::Horizontal => "flex gap-1 p-1 bg-zinc-800/50 rounded-lg w-fit",
+            TabsDirection::Vertical => "flex flex-col gap-1 p-1 bg-zinc-800/50 rounded-lg",
         })
     };
     view! {
@@ -34,9 +34,9 @@ pub fn Tabs(
 pub fn Tab(#[prop(into)] is_selected: Signal<bool>, children: Children) -> impl IntoView {
     let class = move || {
         if is_selected.get() {
-            "shrink-0 rounded-lg px-4 py-2 text-sm font-medium text-gray-200 bg-slate-800"
+            "shrink-0 rounded-md px-4 py-1.5 text-sm font-medium text-white bg-zinc-700 shadow-sm transition-colors duration-150"
         } else {
-            "shrink-0 rounded-lg px-4 py-2 text-sm font-medium text-gray-400 hover:text-gray-200"
+            "shrink-0 rounded-md px-4 py-1.5 text-sm font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/50 transition-colors duration-150"
         }
     };
     view! { <button class=class>{children()}</button> }

@@ -23,7 +23,7 @@ use tracing::{debug, error};
 
 #[derive(Args)]
 #[command(
-    about = "A sub command that creates a worker process for a bld server in order to run a pipeline."
+    about = "A sub command that creates a worker process for a bld server in order to run a file."
 )]
 pub struct WorkerCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
@@ -33,7 +33,7 @@ pub struct WorkerCommand {
         short = 'p',
         long = "pipeline",
         required = true,
-        help = "The pipeline id in the current bld server instance"
+        help = "The file id in the current bld server instance"
     )]
     pipeline: String,
 
@@ -41,7 +41,7 @@ pub struct WorkerCommand {
         short = 'r',
         long = "run-id",
         required = true,
-        help = "The target pipeline run id"
+        help = "The target run id"
     )]
     run_id: String,
 

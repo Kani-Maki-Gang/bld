@@ -11,18 +11,13 @@ use clap::Args;
 use tracing::debug;
 
 #[derive(Args)]
-#[command(about = "Pushes the contents of a pipeline to a bld server")]
+#[command(about = "Pushes the contents of a file to a bld server")]
 pub struct PushCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
-    #[arg(
-        short = 'p',
-        long = "pipeline",
-        required = true,
-        help = "The name of the pipeline to push"
-    )]
-    pipeline: String,
+    #[arg(required = true, help = "The name of the file to push")]
+    file: String,
 
     #[arg(
         short = 's',
@@ -31,10 +26,7 @@ pub struct PushCommand {
     )]
     server: String,
 
-    #[arg(
-        long = "ignore-deps",
-        help = "Don't include other pipeline dependencies"
-    )]
+    #[arg(long = "ignore-deps", help = "Don't include other file dependencies")]
     ignore_deps: bool,
 }
 
@@ -46,13 +38,13 @@ impl PushCommand {
         let package_manager = PackageManager::new(config.clone()).into_arc();
 
         debug!(
-            "running push subcommand with --server: {} and --pipeline: {}",
-            self.server, self.pipeline
+            "running push subcommand with --server: {} and file: {}",
+            self.server, self.file
         );
 
         let loader = VersionedFileLoader::new(&package_manager, &fs, false);
-        let metadata = loader.load(&self.pipeline).await?;
-        let mut pipelines = vec![(self.pipeline.to_owned(), metadata.raw)];
+        let metadata = loader.load(&self.file).await?;
+        let mut pipelines = vec![(self.file.to_owned(), metadata.raw)];
 
         if !self.ignore_deps {
             print!("Resolving dependecies...");
@@ -61,7 +53,7 @@ impl PushCommand {
                 config.clone(),
                 fs.clone(),
                 package_manager.clone(),
-                self.pipeline.to_owned(),
+                self.file.to_owned(),
             )
             .await
             .inspect(|_| {

@@ -48,29 +48,31 @@ pub fn CronJobsEdit(
     view! {
         <Show
             when=move || cron.get().is_some()
-            fallback=|| view! { <div class="text-2xl">"Loading..."</div> }
+            fallback=|| view! { <div class="text-sm text-zinc-500 px-6 py-5">"Loading..."</div> }
         >
-            <div class="flex flex-col gap-4">
+            <div class="flex flex-col min-h-full">
                 <CronJobsEditDetails
                     job=move || cron.get().unwrap()
                     save=move || save.set(Some(save_data()))
                     delete=delete
                 />
-                <CronJobsEditSchedule schedule=schedule/>
-                <Show when=move || !variables.get().is_empty() fallback=|| view! {}>
-                    <RunPipelineVariables
-                        title="Variables"
-                        subtitle="The variables provided in the cron job run"
-                        items=variables
-                    />
-                </Show>
-                <Show when=move || !environment.get().is_empty() fallback=|| view! {}>
-                    <RunPipelineVariables
-                        title="Environment"
-                        subtitle="The environment variables provided in the cron job run"
-                        items=environment
-                    />
-                </Show>
+                <div class="px-6 py-5 flex flex-col gap-4">
+                    <CronJobsEditSchedule schedule=schedule />
+                    <Show when=move || !variables.get().is_empty() fallback=|| view! {}>
+                        <RunPipelineVariables
+                            title="Variables"
+                            subtitle="The variables provided in the cron job run"
+                            items=variables
+                        />
+                    </Show>
+                    <Show when=move || !environment.get().is_empty() fallback=|| view! {}>
+                        <RunPipelineVariables
+                            title="Environment"
+                            subtitle="The environment variables provided in the cron job run"
+                            items=environment
+                        />
+                    </Show>
+                </div>
             </div>
         </Show>
     }

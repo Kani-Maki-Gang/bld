@@ -13,15 +13,17 @@ pub struct Info {
 pub fn KpiInfo(#[prop(into)] info: Signal<Info>) -> impl IntoView {
     view! {
         <Card>
-            <div class="px-8 py-12 flex flex-col">
-                <div class="text-xl grid grid-cols-2 items-center">
-                    <div class="grow">{move || info.get().title}</div>
-                    <div class="justify-self-end text-5xl text-indigo-500">
+            <div class="px-6 py-6 flex flex-col gap-4">
+                <div class="flex items-start justify-between">
+                    <div class="text-sm font-medium text-zinc-400">{move || info.get().title}</div>
+                    <div class="text-2xl text-violet-500 opacity-80">
                         <i class=move || info.get().icon></i>
                     </div>
                 </div>
-                <div class="my-4 text-6xl">{move || info.get().count}</div>
-                <div class="text-gray-400">{move || info.get().footnote}</div>
+                <div class="text-4xl font-bold text-white tracking-tight">
+                    {move || info.get().count}
+                </div>
+                <div class="text-xs text-zinc-500">{move || info.get().footnote}</div>
             </div>
         </Card>
     }

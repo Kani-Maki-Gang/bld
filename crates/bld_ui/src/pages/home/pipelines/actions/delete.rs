@@ -50,20 +50,32 @@ fn PipelineDeleteButtonDialog(
     });
 
     view! {
-        <Card class="px-8 py-12 gap-4 w-[500px] h-[300px]">
-            <div class="grow">
-                "Are you sure you want to delete this pipeline?" <p>{move || name.get()}</p>
+        <Card class="px-8 py-10 gap-6 w-[480px]">
+            <div class="grow text-sm text-zinc-300">
+                "Are you sure you want to delete "
+                <span class="font-medium text-white">{move || name.get()}</span>
+                "? This action cannot be undone."
             </div>
             <Show when=move || error.get().is_some() fallback=|| view! {}>
-                <SmallError error=move || error.get().unwrap()/>
+                <SmallError error=move || error.get().unwrap() />
             </Show>
-            <div class="flex gap-x-4">
-                <Button on:click=move |_| {
-                    delete_action.dispatch((name.get(), error, refresh, redirect, app_dialog));
-                }>"Delete"</Button>
-                <Button on:click=move |_| {
-                    let _ = app_dialog.get().map(|x| x.close());
-                }>"Cancel"</Button>
+            <div class="flex gap-3">
+                <Button
+                    color=Colors::Red
+                    on:click=move |_| {
+                        delete_action.dispatch((name.get(), error, refresh, redirect, app_dialog));
+                    }
+                >
+                    "Delete"
+                </Button>
+                <Button
+                    ghost=true
+                    on:click=move |_| {
+                        let _ = app_dialog.get().map(|x| x.close());
+                    }
+                >
+                    "Cancel"
+                </Button>
             </div>
         </Card>
     }
@@ -81,6 +93,7 @@ pub fn PipelineDeleteButton(
         <IconButton
             icon="iconoir-bin-full"
             color=Colors::Red
+            ghost=true
             on:click=move |_| {
                 let Some(AppDialog(dialog)) = app_dialog else {
                     logging::console_error("App dialog context not found");

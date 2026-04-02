@@ -61,22 +61,22 @@ fn PipelineMoveButtonDialog(
 
     view! {
         <Card>
-            <div class="flex flex-col px-8 py-12 gap-4 w-[500px] h-[400px]">
-                <div>"Move(Rename) pipeline"</div>
+            <div class="flex flex-col px-8 py-10 gap-5 w-[480px]">
+                <div class="text-base font-semibold text-white">"Rename pipeline"</div>
                 <div class="grow flex flex-col gap-4">
                     <div>
                         <label for="pipeline">Current:</label>
-                        <Input id="pipeline" disabled=true value=name_rw/>
+                        <Input id="pipeline" disabled=true value=name_rw />
                     </div>
                     <div>
                         <label for="target">New:</label>
-                        <Input id="target" value=target/>
+                        <Input id="target" value=target />
                     </div>
                 </div>
                 <Show when=move || error.get().is_some() fallback=|| view! {}>
-                    <SmallError error=move || error.get().unwrap()/>
+                    <SmallError error=move || error.get().unwrap() />
                 </Show>
-                <div class="flex gap-x-4">
+                <div class="flex gap-3">
                     <Button on:click=move |_| {
                         delete_action
                             .dispatch((
@@ -88,10 +88,15 @@ fn PipelineMoveButtonDialog(
                                 redirect,
                                 app_dialog,
                             ));
-                    }>"Ok"</Button>
-                    <Button on:click=move |_| {
-                        let _ = app_dialog.get().map(|x| x.close());
-                    }>"Cancel"</Button>
+                    }>"Rename"</Button>
+                    <Button
+                        ghost=true
+                        on:click=move |_| {
+                            let _ = app_dialog.get().map(|x| x.close());
+                        }
+                    >
+                        "Cancel"
+                    </Button>
                 </div>
             </div>
         </Card>
@@ -111,6 +116,7 @@ pub fn PipelineMoveButton(
         <IconButton
             icon="iconoir-scissor"
             color=Colors::Zinc
+            ghost=true
             on:click=move |_| {
                 let Some(AppDialog(dialog)) = app_dialog else {
                     logging::console_error("App dialog context not found");

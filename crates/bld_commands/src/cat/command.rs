@@ -8,23 +8,18 @@ use bld_utils::sync::IntoArc;
 use clap::Args;
 
 #[derive(Args)]
-#[command(about = "Print the contents of a pipeline")]
+#[command(about = "Print the contents of a file")]
 pub struct CatCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]
     verbose: bool,
 
-    #[arg(
-        short = 'p',
-        long = "pipeline",
-        required = true,
-        help = "The name of the pipeline to print"
-    )]
-    pipeline: String,
+    #[arg(required = true, help = "The name of the file to print")]
+    file: String,
 
     #[arg(
         short = 's',
         long = "server",
-        help = "The name of the server to print the pipeline from"
+        help = "The name of the server to print the file from"
     )]
     server: Option<String>,
 }
@@ -33,7 +28,7 @@ impl CatCommand {
     async fn local_print(&self) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
         let fs = FileSystem::local(config);
-        let pipeline = fs.read(&self.pipeline).await?;
+        let pipeline = fs.read(&self.file).await?;
         println!("{pipeline}");
         Ok(())
     }
@@ -41,7 +36,7 @@ impl CatCommand {
     async fn remote_print(&self, server: &str) -> Result<()> {
         let config = BldConfig::load().await?.into_arc();
         HttpClient::new(config, server)?
-            .print(&self.pipeline)
+            .print(&self.file)
             .await
             .map(|r| println!("{r}"))
     }

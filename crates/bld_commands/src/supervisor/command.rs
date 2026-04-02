@@ -8,7 +8,7 @@ use tracing::{debug, error};
 
 #[derive(Args)]
 #[command(
-    about = "Starts a bld supervisor that manages the pipeline worker queue. should be only invoked by the server"
+    about = "Starts a bld supervisor that manages the worker queue. Should be only invoked by the server"
 )]
 pub struct SupervisorCommand {
     #[arg(long = "verbose", help = "Sets the level of verbosity")]

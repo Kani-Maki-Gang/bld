@@ -11,8 +11,11 @@ pub fn PipelineDetails(
     #[prop(into)] selected: RwSignal<MenuItem>,
 ) -> impl IntoView {
     view! {
-        <div class="grid grid-cols-4">
-            <div class="grow text-2xl truncate">{name}</div>
+        <div class="px-6 py-5 border-b border-zinc-800 grid grid-cols-4 items-center gap-4">
+            <div class="grow">
+                <div class="text-lg font-semibold text-white">{name}</div>
+                <div class="text-xs text-zinc-500 mt-0.5">{id}</div>
+            </div>
             <div class="col-span-2 flex justify-center">
                 <PipelinesMenu selected=selected />
             </div>
