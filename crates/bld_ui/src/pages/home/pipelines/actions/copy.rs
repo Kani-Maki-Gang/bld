@@ -60,22 +60,22 @@ fn PipelineCopyButtonDialog(
 
     view! {
         <Card>
-            <div class="flex flex-col px-8 py-12 gap-4 w-[500px] h-[400px]">
-                <div>"Create a new copy"</div>
+            <div class="flex flex-col px-8 py-10 gap-5 w-[480px]">
+                <div class="text-base font-semibold text-white">"Copy pipeline"</div>
                 <div class="grow flex flex-col gap-4">
                     <div>
                         <label for="pipeline">Pipeline:</label>
-                        <Input id="pipeline" disabled=true value=name_rw/>
+                        <Input id="pipeline" disabled=true value=name_rw />
                     </div>
                     <div>
                         <label for="target">Copy:</label>
-                        <Input id="target" value=target/>
+                        <Input id="target" value=target />
                     </div>
                 </div>
                 <Show when=move || error.get().is_some() fallback=|| view! {}>
-                    <SmallError error=move || error.get().unwrap()/>
+                    <SmallError error=move || error.get().unwrap() />
                 </Show>
-                <div class="flex gap-x-4">
+                <div class="flex gap-3">
                     <Button on:click=move |_| {
                         copy_action
                             .dispatch((
@@ -86,10 +86,15 @@ fn PipelineCopyButtonDialog(
                                 redirect,
                                 app_dialog,
                             ));
-                    }>"Ok"</Button>
-                    <Button on:click=move |_| {
-                        let _ = app_dialog.get().map(|x| x.close());
-                    }>"Cancel"</Button>
+                    }>"Copy"</Button>
+                    <Button
+                        ghost=true
+                        on:click=move |_| {
+                            let _ = app_dialog.get().map(|x| x.close());
+                        }
+                    >
+                        "Cancel"
+                    </Button>
                 </div>
             </div>
         </Card>
@@ -108,6 +113,7 @@ pub fn PipelineCopyButton(
         <IconButton
             icon="iconoir-copy"
             color=Colors::Zinc
+            ghost=true
             on:click=move |_| {
                 let Some(AppDialog(dialog)) = app_dialog else {
                     logging::console_error("App dialog context not found");

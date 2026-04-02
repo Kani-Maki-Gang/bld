@@ -24,7 +24,7 @@ pub fn DashboardKpis() -> impl IntoView {
 
     view! {
         <Show when=move || matches!(queued_resource.get(), Some(Err(_))) fallback=|| view! {}>
-            <ErrorCard error=move || queued_resource.get().unwrap().unwrap_err()/>
+            <ErrorCard error=move || queued_resource.get().unwrap().unwrap_err() />
         </Show>
         <Show when=move || matches!(queued_resource.get(), Some(Ok(_))) fallback=|| view! {}>
             <KpiInfo info=move || {
@@ -35,11 +35,11 @@ pub fn DashboardKpis() -> impl IntoView {
                     title: "Queued pipelines".to_string(),
                     footnote: String::new(),
                 }
-            }/>
+            } />
         </Show>
 
         <Show when=move || matches!(running_resource.get(), Some(Err(_))) fallback=|| view! {}>
-            <ErrorCard error=move || running_resource.get().unwrap().unwrap_err()/>
+            <ErrorCard error=move || running_resource.get().unwrap().unwrap_err() />
         </Show>
         <Show when=move || matches!(running_resource.get(), Some(Ok(_))) fallback=|| view! {}>
             <KpiInfo info=move || {
@@ -54,11 +54,11 @@ pub fn DashboardKpis() -> impl IntoView {
                         format!("{} worker available in the server", data.available_workers)
                     },
                 }
-            }/>
+            } />
         </Show>
 
         <Show when=move || matches!(completed_resource.get(), Some(Err(_))) fallback=|| view! {}>
-            <ErrorCard error=move || completed_resource.get().unwrap().unwrap_err()/>
+            <ErrorCard error=move || completed_resource.get().unwrap().unwrap_err() />
         </Show>
         <Show when=move || matches!(completed_resource.get(), Some(Ok(_))) fallback=|| view! {}>
             <KpiInfo info=move || {
@@ -72,11 +72,11 @@ pub fn DashboardKpis() -> impl IntoView {
                         data.finished_percentage,
                     ),
                 }
-            }/>
+            } />
         </Show>
 
         <Show when=move || matches!(completed_resource.get(), Some(Err(_))) fallback=|| view! {}>
-            <ErrorCard error=move || completed_resource.get().unwrap().unwrap_err()/>
+            <ErrorCard error=move || completed_resource.get().unwrap().unwrap_err() />
         </Show>
         <Show when=move || matches!(completed_resource.get(), Some(Ok(_))) fallback=|| view! {}>
             <KpiInfo info=move || {
@@ -90,7 +90,7 @@ pub fn DashboardKpis() -> impl IntoView {
                         data.faulted_percentage,
                     ),
                 }
-            }/>
+            } />
         </Show>
     }
 }

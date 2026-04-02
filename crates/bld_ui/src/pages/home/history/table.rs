@@ -66,7 +66,7 @@ pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> im
 
     view! {
         <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
-            <Error error=move || data.get().unwrap().unwrap_err()/>
+            <Error error=move || data.get().unwrap().unwrap_err() />
         </Show>
         <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
             <Table>
@@ -89,11 +89,13 @@ pub fn HistoryTable(#[prop(into)] params: Signal<Option<HistQueryParams>>) -> im
                                 <Link href=format!("/monit?id={}", child.id)>{child.id}</Link>
                             </Cell>
                             <Cell>{child.name}</Cell>
-                            <Cell><UserPill name=move || child.user.clone() /></Cell>
+                            <Cell>
+                                <UserPill name=move || child.user.clone() />
+                            </Cell>
                             <Cell>{child.start_date_time.unwrap_or_default()}</Cell>
                             <Cell>{child.end_date_time.unwrap_or_default()}</Cell>
                             <Cell>
-                                <HistoryEntryState state=child.state/>
+                                <HistoryEntryState state=child.state />
                             </Cell>
                         </Row>
                     </For>

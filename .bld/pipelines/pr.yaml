@@ -34,6 +34,7 @@ jobs:
     - name: Trunk build
       working_dir: frontend/crates/bld_ui
       exec:
+        - npm ci --prefer-offline
         - trunk build --release
 
   build_backend:

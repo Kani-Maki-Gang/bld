@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::{
     api::{self, RunParams},
-    components::{badge::Badge, button::Button, card::Card},
+    components::button::Button,
     context::{AppDialog, AppDialogContent},
     error::{ErrorCard, ErrorDialog},
 };
@@ -92,7 +92,7 @@ pub fn RunPipeline() -> impl IntoView {
                 }
                 Err(e) => {
                     dialog_content.set(Some(
-                        view! { <ErrorDialog error=move || e.to_string() dialog=dialog/> },
+                        view! { <ErrorDialog error=move || e.to_string() dialog=dialog /> },
                     ));
                     let _ = dialog.get().map(|x| x.show_modal());
                 }
@@ -131,64 +131,50 @@ pub fn RunPipeline() -> impl IntoView {
 
     view! {
         <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
-            <ErrorCard error=move || data.get().unwrap().unwrap_err()/>
+            <ErrorCard error=move || data.get().unwrap().unwrap_err() />
         </Show>
         <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
-            <div class="flex flex-col gap-4">
-                <Card class="px-8 py-12">
-                    <div class="flex">
-                        <div class="grow flex flex-col">
-                            <div class="text-2xl">"Start a new run"</div>
-                            <div class="text-gray-400">{name}</div>
-                            <div class="flex gap-4">
-                                <Show
-                                    when=move || variables.get().is_empty()
-                                    fallback=move || view! {}
-                                >
-                                    <Badge>"Pipeline has no variables"</Badge>
-                                </Show>
-                                <Show
-                                    when=move || environment.get().is_empty()
-                                    fallback=move || view! {}
-                                >
-                                    <Badge>"Pipeline has no environment variables"</Badge>
-                                </Show>
-                            </div>
-                        </div>
-                        <div class="min-w-40">
-                            <Button on:click=move |_| {
-                                let Some(AppDialog(dialog)) = app_dialog else {
-                                    return;
-                                };
-                                let Some(AppDialogContent(content)) = app_dialog_content else {
-                                    return;
-                                };
-                                start_run
-                                    .dispatch((
-                                        name().unwrap(),
-                                        variables.get(),
-                                        environment.get(),
-                                        dialog,
-                                        content,
-                                    ))
-                            }>"Start"</Button>
-                        </div>
+            <div class="flex flex-col min-h-full">
+                <div class="px-6 py-5 border-b border-zinc-800 flex items-center gap-4">
+                    <div class="grow">
+                        <div class="text-lg font-semibold text-white">"Run pipeline"</div>
+                        <div class="text-xs text-zinc-500 mt-0.5">{name}</div>
                     </div>
-                </Card>
-                <Show when=move || !variables.get().is_empty() fallback=move || view! {}>
-                    <RunPipelineVariables
-                        title="Variables"
-                        subtitle="The inputs that are provided based on bld expressions for each step."
-                        items=variables
-                    />
-                </Show>
-                <Show when=move || !variables.get().is_empty() fallback=move || view! {}>
-                    <RunPipelineVariables
-                        title="Environment"
-                        subtitle="The environment variables that are provided based on bld expressions or bash expressions for each step."
-                        items=environment
-                    />
-                </Show>
+                    <div class="w-28 shrink-0">
+                        <Button on:click=move |_| {
+                            let Some(AppDialog(dialog)) = app_dialog else {
+                                return;
+                            };
+                            let Some(AppDialogContent(content)) = app_dialog_content else {
+                                return;
+                            };
+                            start_run
+                                .dispatch((
+                                    name().unwrap(),
+                                    variables.get(),
+                                    environment.get(),
+                                    dialog,
+                                    content,
+                                ))
+                        }>"Start run"</Button>
+                    </div>
+                </div>
+                <div class="px-6 py-5 flex flex-col gap-4">
+                    <Show when=move || !variables.get().is_empty() fallback=move || view! {}>
+                        <RunPipelineVariables
+                            title="Variables"
+                            subtitle="The inputs that are provided based on bld expressions for each step."
+                            items=variables
+                        />
+                    </Show>
+                    <Show when=move || !environment.get().is_empty() fallback=move || view! {}>
+                        <RunPipelineVariables
+                            title="Environment"
+                            subtitle="The environment variables that are provided based on bld expressions or bash expressions for each step."
+                            items=environment
+                        />
+                    </Show>
+                </div>
             </div>
         </Show>
     }

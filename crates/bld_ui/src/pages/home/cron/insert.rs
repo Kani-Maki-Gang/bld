@@ -60,7 +60,7 @@ pub fn CronJobInsert() -> impl IntoView {
                 }
                 Err(e) => {
                     dialog_content.set(Some(
-                        view! { <ErrorDialog dialog=dialog error=move || e.to_string()/> },
+                        view! { <ErrorDialog dialog=dialog error=move || e.to_string() /> },
                     ));
                     let _ = dialog.get().map(|x| x.show_modal());
                 }
@@ -82,7 +82,7 @@ pub fn CronJobInsert() -> impl IntoView {
 
     view! {
         <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
-            <ErrorCard error=move || data.get().unwrap().unwrap_err()/>
+            <ErrorCard error=move || data.get().unwrap().unwrap_err() />
         </Show>
         <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
             <CronJobsEdit

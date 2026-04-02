@@ -6,7 +6,6 @@ mod raw_file;
 
 use crate::{
     api,
-    components::card::Card,
     context::{RefreshCronJobs, RefreshHistory},
     error::ErrorCard,
 };
@@ -40,9 +39,9 @@ pub fn PipelineInfo() -> impl IntoView {
 
     view! {
         <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
-            <Card class="min-h-full flex flex-col px-8 py-12">
+            <div class="min-h-full flex flex-col">
                 <PipelineDetails id=id name=name selected=selected_menu_item />
-                <div class="grow">
+                <div class="grow px-6 py-5">
                     <Show
                         when=move || matches!(selected_menu_item.get(), menu::MenuItem::RawFile)
                         fallback=|| view! {}
@@ -62,7 +61,7 @@ pub fn PipelineInfo() -> impl IntoView {
                         <PipelineCron name=move || name() />
                     </Show>
                 </div>
-            </Card>
+            </div>
         </Show>
         <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
             <ErrorCard error=move || data.get().unwrap().unwrap_err() />
