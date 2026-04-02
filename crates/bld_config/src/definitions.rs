@@ -38,11 +38,14 @@ pub const LOCAL_DEFAULT_DB_DIR: &str = "db";
 pub const LOCAL_DEFAULT_DB_NAME: &str = "bld-server.db";
 pub const LOCAL_DOCKER_URL: &str = "tcp://127.0.0.1:2376";
 pub const LOCAL_MACHINE_TMP_DIR: &str = "tmp";
+pub const LOCAL_PACKAGES_CACHE: &str = ".bld_packages";
 
 pub const REMOTE_SERVER_NAME: &str = "demo_server";
 pub const REMOTE_SERVER_HOST: &str = "127.0.0.1";
 pub const REMOTE_SERVER_PORT: i64 = 6080;
 pub const REMOTE_SERVER_AUTH: &str = "auth";
+
+pub const PACKAGE_ACTION_FILE_NAME: &str = "bld_action.yaml";
 
 pub const WEB_CLIENT_DEBUG_ORIGIN: &str = "http://127.0.0.1:8080";
 

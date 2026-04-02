@@ -12,23 +12,24 @@ use bld_core::{
     signals::UnixSignalsBackend,
 };
 use bld_models::dtos::WorkerMessages;
+use bld_pkg::PackageManager;
 use bld_utils::sync::IntoArc;
 use chrono::Utc;
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
     expr,
     files::{
         v3::RunnerFile,
-        versioned::{VersionedFile, Yaml},
+        versioned::{VersionedFile, VersionedFileLoader},
     },
     runner::{self, v3::FileRunner, versioned::VersionedRunner},
     token_context,
-    traits::Load,
 };
 
 use super::v3::build_platform;
@@ -47,6 +48,7 @@ pub struct RunnerBuilder<'a> {
     inputs: Option<Arc<HashMap<String, String>>>,
     context: Option<Arc<Context>>,
     platform: Option<Arc<Platform>>,
+    package_manager: Option<Arc<PackageManager>>,
     is_child: bool,
 }
 
@@ -66,6 +68,7 @@ impl Default for RunnerBuilder<'_> {
             inputs: None,
             context: None,
             platform: None,
+            package_manager: None,
             is_child: false,
         }
     }
@@ -137,6 +140,11 @@ impl<'a> RunnerBuilder<'a> {
         self
     }
 
+    pub fn package_manager(mut self, package_manager: Arc<PackageManager>) -> Self {
+        self.package_manager = Some(package_manager);
+        self
+    }
+
     pub fn is_child(mut self, is_child: bool) -> Self {
         self.is_child = is_child;
         self
@@ -147,10 +155,19 @@ impl<'a> RunnerBuilder<'a> {
             .config
             .ok_or_else(|| anyhow!("no bld config instance provided"))?;
 
-        let pipeline = self.file.ok_or_else(|| anyhow!("no pipeline provided"))?;
+        let package_manager = self
+            .package_manager
+            .ok_or_else(|| anyhow!("no bld package manager provided"))?;
 
-        let pipeline = Yaml::load(&self.fs.read(pipeline).await?)?;
-        pipeline.validate(config.clone(), self.fs.clone()).await?;
+        let file = self.file.ok_or_else(|| anyhow!("no pipeline provided"))?;
+
+        debug!("loading file");
+        let loader = VersionedFileLoader::new(package_manager.as_ref(), self.fs.as_ref(), false);
+        let metadata = loader.load(file).await?;
+        metadata
+            .file
+            .validate(config.clone(), self.fs.clone(), package_manager.clone())
+            .await?;
 
         let env = self
             .env
@@ -164,7 +181,7 @@ impl<'a> RunnerBuilder<'a> {
             .context
             .ok_or_else(|| anyhow!("no context instance provided"))?;
 
-        let runner = match pipeline {
+        let runner = match metadata.file {
             VersionedFile::Version1(pipeline) => {
                 let options = match pipeline.runs_on.as_str() {
                     "machine" => PlatformOptions::Machine,
@@ -201,6 +218,7 @@ impl<'a> RunnerBuilder<'a> {
                     vars: inputs,
                     context,
                     platform,
+                    package_manager,
                     is_child: self.is_child,
                     has_faulted: false,
                 }))
@@ -234,6 +252,7 @@ impl<'a> RunnerBuilder<'a> {
                     env,
                     context,
                     platform: None,
+                    package_manager,
                     is_child: self.is_child,
                     has_faulted: false,
                 }))
@@ -272,6 +291,7 @@ impl<'a> RunnerBuilder<'a> {
                     regex_cache: self.regex_cache.clone(),
                     signals: self.signals,
                     logger: self.logger,
+                    package_manager,
                     ipc: self.ipc,
                     is_child: self.is_child,
                     has_faulted: false,

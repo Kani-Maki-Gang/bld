@@ -659,7 +659,6 @@ mod tests {
                 let Ok(value) = value else {
                     panic!("invalid result after eval");
                 };
-                dbg!(expr);
                 assert!(matches!(
                     value.try_eq(&expected),
                     Ok(ExprValue::Boolean(true))
@@ -716,7 +715,6 @@ mod tests {
 
             if let Ok(expected) = expected {
                 let Ok(value) = value else {
-                    dbg!(&value);
                     panic!("invalid result after eval");
                 };
                 dbg!(expr);

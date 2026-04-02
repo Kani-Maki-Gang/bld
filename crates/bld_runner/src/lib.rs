@@ -22,10 +22,11 @@ mod validator;
 mod expr;
 
 pub use files::versioned::VersionedFile;
-pub use traits::Load;
 
 #[cfg(feature = "all")]
-pub use files::versioned::Yaml;
+pub use files::versioned::VersionedFileLoader;
+
+pub use traits::Load;
 
 #[cfg(feature = "all")]
 pub use runner::builder::RunnerBuilder;

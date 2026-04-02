@@ -4,7 +4,8 @@ use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::fs::FileSystem;
 use bld_http::HttpClient;
-use bld_runner::VersionedFile;
+use bld_pkg::PackageManager;
+use bld_runner::{VersionedFile, VersionedFileLoader};
 use bld_utils::sync::IntoArc;
 use clap::Args;
 use tracing::debug;
@@ -34,28 +35,35 @@ impl PushCommand {
         let config = BldConfig::load().await?.into_arc();
         let client = HttpClient::new(config.clone(), &self.server)?;
         let fs = FileSystem::local(config.clone()).into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
 
         debug!(
             "running push subcommand with --server: {} and file: {}",
             self.server, self.file
         );
 
-        let mut pipelines = vec![(self.file.to_owned(), fs.read(&self.file).await?)];
+        let loader = VersionedFileLoader::new(&package_manager, &fs, false);
+        let metadata = loader.load(&self.file).await?;
+        let mut pipelines = vec![(self.file.to_owned(), metadata.raw)];
 
         if !self.ignore_deps {
             print!("Resolving dependecies...");
 
-            let mut deps =
-                VersionedFile::dependencies(config.clone(), fs.clone(), self.file.to_owned())
-                    .await
-                    .inspect(|_| {
-                        println!("Done.");
-                    })
-                    .inspect_err(|e| {
-                        println!("Error. {e}");
-                    })?
-                    .into_iter()
-                    .collect();
+            let mut deps = VersionedFile::dependencies(
+                config.clone(),
+                fs.clone(),
+                package_manager.clone(),
+                self.file.to_owned(),
+            )
+            .await
+            .inspect(|_| {
+                println!("Done.");
+            })
+            .inspect_err(|e| {
+                println!("Error. {e}");
+            })?
+            .into_iter()
+            .collect();
 
             pipelines.append(&mut deps);
         }

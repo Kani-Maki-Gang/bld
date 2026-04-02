@@ -3,13 +3,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 #[cfg(feature = "all")]
-use crate::{
-    Load, Yaml,
-    validator::v3::{Validate, ValidatorContext},
-};
-
-#[cfg(feature = "all")]
-use bld_utils::fs::IsYaml;
+use crate::validator::v3::{Validate, ValidatorContext};
 
 #[cfg(feature = "all")]
 use tracing::debug;
@@ -71,6 +65,7 @@ impl<'a> Validate<'a> for External {
         ctx.push_section("inputs");
         validate_external_with(ctx, &self.uses, self.server.as_deref(), &self.with).await;
         ctx.pop_section();
+        ctx.pop_section();
 
         debug!("Validating external's env section");
         ctx.push_section("env");
@@ -81,23 +76,20 @@ impl<'a> Validate<'a> for External {
 
 #[cfg(feature = "all")]
 async fn validate_external_file<'a, C: ValidatorContext<'a>>(ctx: &mut C, uses: &'a str) {
+    use crate::VersionedFileLoader;
+
     if ctx.contains_symbols(uses) {
         ctx.validate_symbols(uses);
-    } else {
-        let fs = ctx.get_fs();
-        match fs.path(uses).await {
-            Ok(path) if !path.is_yaml() => {
-                ctx.push_section(uses);
-                ctx.append_error("Pipeline or action not found");
-                ctx.pop_section();
-            }
-            Err(e) => {
-                ctx.push_section(uses);
-                ctx.append_error(&e.to_string());
-                ctx.pop_section();
-            }
-            _ => {}
-        }
+        return;
+    }
+
+    let file_system = ctx.get_fs();
+    let package_manager = ctx.get_package_manager();
+    let loader = VersionedFileLoader::new(&package_manager, &file_system, true);
+    if loader.get_source(uses).await.is_none() {
+        ctx.push_section(uses);
+        ctx.append_error("Pipeline or action not found");
+        ctx.pop_section();
     }
 }
 
@@ -126,16 +118,15 @@ async fn validate_external_with<'a, C: ValidatorContext<'a>>(
     server: Option<&'a str>,
     with: &'a HashMap<String, String>,
 ) {
-    if server.is_none() {
-        let fs = ctx.get_fs();
-        let file = fs
-            .read(uses)
-            .await
-            .and_then(|c| Yaml::load_with_verbose_errors(&c));
+    use crate::VersionedFileLoader;
 
-        match file {
-            Ok(file) => {
-                let required = file.required_inputs();
+    if server.is_none() {
+        let file_system = ctx.get_fs();
+        let package_manager = ctx.get_package_manager();
+        let loader = VersionedFileLoader::new(&package_manager, &file_system, true);
+        match loader.load(uses).await {
+            Ok(metadata) => {
+                let required = metadata.file.required_inputs();
                 if let Some(required) = required {
                     for name in required {
                         if !with.contains_key(name) {

@@ -9,6 +9,9 @@ use std::collections::HashMap;
 use bld_config::BldConfig;
 
 #[cfg(feature = "all")]
+use bld_core::fs::FileSystem;
+
+#[cfg(feature = "all")]
 use crate::traits::Dependencies;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -49,7 +52,7 @@ impl IntoVariables for Pipeline {
 
 #[cfg(feature = "all")]
 impl Dependencies for Pipeline {
-    fn local_deps(&self, config: &BldConfig) -> Vec<String> {
+    async fn local_deps(&self, config: &BldConfig, _fs: &FileSystem) -> Vec<String> {
         let from_steps = self.steps.iter().flat_map(|s| s.local_dependencies(config));
 
         let from_external = self

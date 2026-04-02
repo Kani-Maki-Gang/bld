@@ -1,0 +1,12 @@
+[package]
+name = "bld_pkg"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.93"
+bld_config = { path = "../bld_config" }
+tokio = { version = "1.43.1", features = ["full"] }
+git2 = { version = "0.20.2", features = ["https", "ssh"] }
+regex = { version = "1.11.1" }
+tracing = { version = "0.1.40" }

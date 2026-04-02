@@ -14,6 +14,9 @@ use std::iter::Peekable;
 use anyhow::{Result, anyhow, bail};
 
 #[cfg(feature = "all")]
+use bld_core::fs::FileSystem;
+
+#[cfg(feature = "all")]
 use bld_config::BldConfig;
 
 #[cfg(feature = "all")]
@@ -95,11 +98,13 @@ impl IntoVariables for Action {
 
 #[cfg(feature = "all")]
 impl Dependencies for Action {
-    fn local_deps(&self, config: &BldConfig) -> Vec<String> {
-        self.steps
-            .iter()
-            .flat_map(|s| s.local_deps(config))
-            .collect()
+    async fn local_deps(&self, config: &BldConfig, fs: &FileSystem) -> Vec<String> {
+        let mut dependecies = vec![];
+        for step in &self.steps {
+            let mut local_deps = step.local_deps(config, fs).await;
+            dependecies.append(&mut local_deps);
+        }
+        dependecies
     }
 }
 

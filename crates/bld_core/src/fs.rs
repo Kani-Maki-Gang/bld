@@ -60,6 +60,13 @@ impl FileSystem {
         Ok(path![config.server_pipelines(), format!("{}.yaml", pip.id)])
     }
 
+    pub async fn is_file(&self, name: &str) -> Result<bool> {
+        match self {
+            Self::Local { config } => Ok(config.full_path(name).is_file()),
+            Self::Server { .. } => self.server_path(name).await.map(|x| x.is_file()),
+        }
+    }
+
     pub async fn path(&self, name: &str) -> Result<PathBuf> {
         match self {
             Self::Local { config } => Ok(config.full_path(name)),
@@ -142,6 +149,10 @@ impl FileSystem {
         Ok(path.display().to_string())
     }
 
+    pub async fn get_tmp_dir(&self, name: &str) -> PathBuf {
+        self.config().tmp_full_path(name)
+    }
+
     pub async fn remove(&self, name: &str) -> Result<()> {
         let path = self.path(name).await?;
         match self {
@@ -176,6 +187,12 @@ impl FileSystem {
 
         remove_file(path).await?;
         Ok(())
+    }
+
+    pub async fn remove_tmp_dir(&self, path: &PathBuf) -> Result<()> {
+        tokio::fs::remove_dir_all(path)
+            .await
+            .map_err(|e| anyhow!(e))
     }
 
     pub async fn copy(&self, source: &str, target: &str) -> Result<()> {

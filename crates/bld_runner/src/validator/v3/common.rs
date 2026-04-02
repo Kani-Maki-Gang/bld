@@ -15,6 +15,7 @@ use bld_config::{
     path,
 };
 use bld_core::fs::FileSystem;
+use bld_pkg::PackageManager;
 use regex::Regex;
 use tracing::debug;
 
@@ -36,7 +37,8 @@ pub fn create_keywords() -> HashSet<&'static str> {
 pub struct CommonValidator<'a, V: Validate<'a>> {
     validatable: &'a V,
     config: Arc<BldConfig>,
-    fs: Arc<FileSystem>,
+    file_system: Arc<FileSystem>,
+    package_manager: Arc<PackageManager>,
     regex: Regex,
     keywords: HashSet<&'a str>,
     section: Vec<&'a str>,
@@ -44,11 +46,17 @@ pub struct CommonValidator<'a, V: Validate<'a>> {
 }
 
 impl<'a, V: Validate<'a>> CommonValidator<'a, V> {
-    pub fn new(validatable: &'a V, config: Arc<BldConfig>, fs: Arc<FileSystem>) -> Result<Self> {
+    pub fn new(
+        validatable: &'a V,
+        config: Arc<BldConfig>,
+        file_system: Arc<FileSystem>,
+        package_manager: Arc<PackageManager>,
+    ) -> Result<Self> {
         Ok(Self {
             validatable,
             config,
-            fs,
+            file_system,
+            package_manager,
             regex: create_expression_regex()?,
             keywords: create_keywords(),
             section: Vec::new(),
@@ -63,7 +71,11 @@ impl<'a, V: Validate<'a>> ValidatorContext<'a> for CommonValidator<'a, V> {
     }
 
     fn get_fs(&self) -> Arc<FileSystem> {
-        self.fs.clone()
+        self.file_system.clone()
+    }
+
+    fn get_package_manager(&self) -> Arc<PackageManager> {
+        self.package_manager.clone()
     }
 
     fn push_section(&mut self, section: &'a str) {

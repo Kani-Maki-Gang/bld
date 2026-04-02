@@ -15,6 +15,7 @@ use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::fs::FileSystem;
 use bld_models::new_connection_pool;
+use bld_pkg::PackageManager;
 use bld_utils::{
     sync::IntoData,
     tls::{load_server_certificate, load_server_private_key},
@@ -34,6 +35,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
     let supervisor_sender = SupervisorMessageSender::new(Arc::clone(&config)).into_data();
     let pool = conn.into_data();
     let fs = FileSystem::server(Arc::clone(&config), Arc::clone(&pool)).into_data();
+    let package_manager = PackageManager::new(Arc::clone(&config)).into_data();
     let cron = CronScheduler::new(
         Arc::clone(&fs),
         Arc::clone(&pool),
@@ -58,6 +60,7 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             .app_data(supervisor_sender.clone())
             .app_data(pool.clone())
             .app_data(fs.clone())
+            .app_data(package_manager.clone())
             .app_data(cron.clone())
             .wrap(middleware::Logger::default())
             .wrap(cors)

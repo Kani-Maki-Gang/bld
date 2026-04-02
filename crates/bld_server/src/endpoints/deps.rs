@@ -9,6 +9,7 @@ use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::fs::FileSystem;
 use bld_models::dtos::PipelineQueryParams;
+use bld_pkg::PackageManager;
 use bld_runner::VersionedFile;
 use tracing::info;
 
@@ -17,10 +18,11 @@ pub async fn get(
     _user: User,
     config: Data<BldConfig>,
     fs: Data<FileSystem>,
+    package_manager: Data<PackageManager>,
     params: Query<PipelineQueryParams>,
 ) -> impl Responder {
     info!("Reached handler for /deps route");
-    match do_deps(config, fs, params.into_inner()).await {
+    match do_deps(config, fs, package_manager, params.into_inner()).await {
         Ok(r) => HttpResponse::Ok().json(r),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
@@ -29,10 +31,13 @@ pub async fn get(
 async fn do_deps(
     config: Data<BldConfig>,
     fs: Data<FileSystem>,
+    package_manager: Data<PackageManager>,
     params: PipelineQueryParams,
 ) -> Result<Vec<String>> {
     let config = Arc::clone(&config);
     let fs = Arc::clone(&fs);
-    let dependencies = VersionedFile::dependencies(config, fs, params.pipeline).await?;
+    let package_manager = Arc::clone(&package_manager);
+    let dependencies =
+        VersionedFile::dependencies(config, fs, package_manager, params.pipeline).await?;
     Ok(dependencies.into_keys().collect())
 }

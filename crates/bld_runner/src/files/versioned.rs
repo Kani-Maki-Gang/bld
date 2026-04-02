@@ -9,16 +9,12 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 #[cfg(feature = "all")]
-use crate::traits::{Dependencies, Load};
-
-#[cfg(feature = "all")]
-use crate::validator::v1 as validator_v1;
-
-#[cfg(feature = "all")]
-use crate::validator::v2 as validator_v2;
-
-#[cfg(feature = "all")]
-use crate::validator::v3::{self as validator_v3, ConsumeValidator};
+use crate::{
+    traits::Dependencies,
+    validator::v1 as validator_v1,
+    validator::v2 as validator_v2,
+    validator::v3::{self as validator_v3, ConsumeValidator},
+};
 
 #[cfg(feature = "all")]
 use anyhow::{Result, anyhow};
@@ -28,6 +24,9 @@ use bld_config::BldConfig;
 
 #[cfg(feature = "all")]
 use bld_core::fs::FileSystem;
+
+#[cfg(feature = "all")]
+use bld_pkg::PackageManager;
 
 #[cfg(feature = "all")]
 use futures::Future;
@@ -42,33 +41,114 @@ use tracing::debug;
 type DependenciesRecursiveFuture = Pin<Box<dyn Future<Output = Result<HashMap<String, String>>>>>;
 
 #[cfg(feature = "all")]
-pub struct Yaml;
+pub enum VersionedFileSource {
+    LocalFile,
+    Package,
+}
 
 #[cfg(feature = "all")]
-impl Load<VersionedFile> for Yaml {
-    fn load(input: &str) -> Result<VersionedFile> {
-        serde_yaml_ng::from_str(input).map_err(|_| anyhow!("File has syntax errors"))
+pub struct VersionedFileLoader<'a> {
+    package_manager: &'a PackageManager,
+    fs: &'a FileSystem,
+    verbose: bool,
+}
+
+#[cfg(feature = "all")]
+impl<'a> VersionedFileLoader<'a> {
+    pub fn new(package_manager: &'a PackageManager, fs: &'a FileSystem, verbose: bool) -> Self {
+        Self {
+            package_manager,
+            fs,
+            verbose,
+        }
     }
 
-    fn load_with_verbose_errors(input: &str) -> Result<VersionedFile> {
-        serde_yaml_ng::from_str(input).map_err(|e| {
-            let mut message = "Syntax errors".to_string();
+    fn parse_content(&self, content: &str) -> Result<VersionedFile> {
+        serde_yaml_ng::from_str(content).map_err(|e| {
+            if self.verbose {
+                let mut message = "Syntax errors".to_string();
 
-            let _ = write!(message, "\r\n\r\n");
+                let _ = write!(message, "\r\n\r\n");
 
-            if let Some(location) = e.location() {
-                let _ = write!(
-                    message,
-                    "line: {}, column: {} ",
-                    location.line(),
-                    location.column()
-                );
+                if let Some(location) = e.location() {
+                    let _ = write!(
+                        message,
+                        "line: {}, column: {} ",
+                        location.line(),
+                        location.column()
+                    );
+                }
+
+                let _ = write!(message, "{e}");
+
+                anyhow!(message)
+            } else {
+                anyhow!("File has syntax errors")
             }
-
-            let _ = write!(message, "{e}");
-
-            anyhow!(message)
         })
+    }
+
+    async fn load_local(&self, name: &str) -> Result<String> {
+        self.fs.read(name).await.map_err(|e| anyhow!(e))
+    }
+
+    async fn load_package(&self, name: &str) -> Result<String> {
+        if self.package_manager.exists(name) {
+            self.package_manager.try_sync(name).await?;
+        } else {
+            self.package_manager.get(name).await?;
+        }
+        self.package_manager
+            .read(name)
+            .await
+            .map_err(|e| anyhow!(e))
+    }
+
+    pub async fn get_source(&self, name: &str) -> Option<VersionedFileSource> {
+        use bld_utils::fs::IsYaml;
+
+        if self
+            .fs
+            .path(name)
+            .await
+            .map(|x| x.is_yaml())
+            .unwrap_or_default()
+        {
+            return Some(VersionedFileSource::LocalFile);
+        }
+
+        if self.package_manager.is_package(name) {
+            return Some(VersionedFileSource::Package);
+        }
+
+        None
+    }
+
+    pub async fn load(&self, name: &str) -> Result<VersionedFileMetadata> {
+        let source = self
+            .get_source(name)
+            .await
+            .ok_or_else(|| anyhow!("Unable to deduce file source (local file or package)"))?;
+
+        let raw = match source {
+            VersionedFileSource::LocalFile => self.load_local(name).await,
+            VersionedFileSource::Package => self.load_package(name).await,
+        }?;
+
+        let file = self.parse_content(&raw)?;
+
+        Ok(VersionedFileMetadata::new(raw, file))
+    }
+}
+
+pub struct VersionedFileMetadata {
+    pub raw: String,
+    pub file: VersionedFile,
+}
+
+impl VersionedFileMetadata {
+    pub fn new(raw: String, file: VersionedFile) -> Self {
+        Self { raw, file }
     }
 }
 
@@ -88,9 +168,10 @@ impl VersionedFile {
     pub async fn dependencies(
         config: Arc<BldConfig>,
         fs: Arc<FileSystem>,
+        package_manager: Arc<PackageManager>,
         name: String,
     ) -> Result<HashMap<String, String>> {
-        let mut hs = Self::dependencies_recursive(config, fs, name.clone())
+        let mut hs = Self::dependencies_recursive(config, fs, package_manager, name.clone())
             .await
             .await?;
         hs.remove(&name);
@@ -101,27 +182,30 @@ impl VersionedFile {
     async fn dependencies_recursive(
         config: Arc<BldConfig>,
         fs: Arc<FileSystem>,
+        package_manager: Arc<PackageManager>,
         name: String,
     ) -> DependenciesRecursiveFuture {
         use crate::traits::Dependencies;
 
         Box::pin(async move {
             debug!("Parsing pipeline {name}");
-
-            let src = fs
-                .read(&name)
+            let loader = VersionedFileLoader::new(&package_manager, &fs, false);
+            let metadata = loader
+                .load(&name)
                 .await
-                .map_err(|_| anyhow!("Pipeline {name} not found"))?;
-
-            let file = Yaml::load(&src).map_err(|e| anyhow!("{e} ({name})"))?;
+                .map_err(|e| anyhow!("{e} ({name})"))?;
             let mut set = HashMap::new();
-            set.insert(name.to_string(), src);
-            let local_deps = file.local_deps(&config);
-
+            set.insert(name.to_string(), metadata.raw.clone());
+            let local_deps = metadata.file.local_deps(&config, &fs).await;
             for pipeline in local_deps.into_iter() {
-                for (k, v) in Self::dependencies_recursive(config.clone(), fs.clone(), pipeline)
-                    .await
-                    .await?
+                for (k, v) in Self::dependencies_recursive(
+                    config.clone(),
+                    fs.clone(),
+                    package_manager.clone(),
+                    pipeline,
+                )
+                .await
+                .await?
                 {
                     set.insert(k, v);
                 }
@@ -132,10 +216,10 @@ impl VersionedFile {
     }
 
     pub fn cron(&self) -> Option<&str> {
-        if let Self::Version2(pip) = self {
-            pip.cron.as_deref()
-        } else {
-            None
+        match self {
+            Self::Version1(_) => None,
+            Self::Version2(pip) => pip.cron.as_deref(),
+            Self::Version3(file) => file.cron(),
         }
     }
 
@@ -151,6 +235,7 @@ impl VersionedFile {
         &self,
         config: Arc<BldConfig>,
         fs: Arc<FileSystem>,
+        package_manager: Arc<PackageManager>,
     ) -> Result<()> {
         use crate::traits::Validate;
 
@@ -168,7 +253,7 @@ impl VersionedFile {
             }
 
             Self::Version3(file) => {
-                validator_v3::RunnerFileValidator::new(file, config, fs)?
+                validator_v3::RunnerFileValidator::new(file, config, fs, package_manager)?
                     .validate()
                     .await
             }
@@ -177,8 +262,13 @@ impl VersionedFile {
     }
 
     #[cfg(feature = "all")]
-    pub async fn validate(&self, config: Arc<BldConfig>, fs: Arc<FileSystem>) -> Result<()> {
-        self.validate_with_verbose_errors(config, fs)
+    pub async fn validate(
+        &self,
+        config: Arc<BldConfig>,
+        fs: Arc<FileSystem>,
+        package_manager: Arc<PackageManager>,
+    ) -> Result<()> {
+        self.validate_with_verbose_errors(config, fs, package_manager)
             .await
             .map_err(|_| anyhow!("Pipeline has expression errors"))
     }
@@ -186,11 +276,11 @@ impl VersionedFile {
 
 #[cfg(feature = "all")]
 impl Dependencies for VersionedFile {
-    fn local_deps(&self, config: &BldConfig) -> Vec<String> {
+    async fn local_deps(&self, config: &BldConfig, fs: &FileSystem) -> Vec<String> {
         match self {
-            Self::Version1(pip) => pip.local_deps(config),
-            Self::Version2(pip) => pip.local_deps(config),
-            Self::Version3(file) => file.local_deps(config),
+            Self::Version1(pip) => pip.local_deps(config, fs).await,
+            Self::Version2(pip) => pip.local_deps(config, fs).await,
+            Self::Version3(file) => file.local_deps(config, fs).await,
         }
     }
 }

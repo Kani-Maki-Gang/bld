@@ -17,6 +17,7 @@ all = [
     "dep:bld_models",
     "dep:bld_sock",
     "dep:bld_utils",
+    "dep:bld_pkg",
     "dep:chrono",
     "dep:futures",
     "dep:futures-util",
@@ -28,7 +29,7 @@ all = [
     "dep:regex",
     "dep:cron",
     "dep:pest",
-    "dep:pest_derive"
+    "dep:pest_derive",
 ]
 
 [dependencies]
@@ -44,6 +45,7 @@ bld_http = { path = "../bld_http", optional = true }
 bld_models = { path = "../bld_models", features = ["all"], optional = true }
 bld_sock = { path = "../bld_sock", optional = true }
 bld_utils = { path = "../bld_utils", optional = true }
+bld_pkg = { path = "../bld_pkg", optional = true }
 chrono = { version = "0.4.38", default-features = false, features = ["std"], optional = true }
 futures =  { version = "0.3.31", optional = true }
 futures-util = { version = "0.3.31", optional = true }

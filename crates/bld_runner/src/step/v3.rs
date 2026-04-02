@@ -1,4 +1,6 @@
 use crate::external::v3::External;
+#[cfg(feature = "all")]
+use bld_core::fs::FileSystem;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -86,9 +88,11 @@ impl Step {
 
 #[cfg(feature = "all")]
 impl Dependencies for Step {
-    fn local_deps(&self, config: &BldConfig) -> Vec<String> {
+    async fn local_deps(&self, _config: &BldConfig, fs: &FileSystem) -> Vec<String> {
         match self {
-            Self::ExternalFile(external) if config.full_path(&external.uses).is_yaml() => {
+            Self::ExternalFile(external)
+                if matches!(fs.path(&external.uses).await.map(|x| x.is_yaml()), Ok(true)) =>
+            {
                 vec![external.uses.to_owned()]
             }
             Self::ComplexSh { .. } | Self::ExternalFile { .. } => vec![],
@@ -142,10 +146,6 @@ impl<'a> Validate<'a> for Step {
                 debug!("Step is a complex shell command");
                 ctx.push_section(&complex.id);
 
-                if let Some(name) = complex.name.as_ref() {
-                    ctx.push_section(name);
-                }
-
                 if let Some(wd) = complex.working_dir.as_ref() {
                     debug!("Validating step's working directory");
                     ctx.push_section("working_dir");
@@ -156,14 +156,14 @@ impl<'a> Validate<'a> for Step {
                 debug!("Validating step's run command");
                 ctx.validate_symbols(&complex.run);
 
-                if complex.name.is_some() {
-                    ctx.pop_section();
-                }
+                ctx.pop_section();
             }
 
             Step::ExternalFile(external) => {
                 debug!("Step is an external file");
+                ctx.push_section(&external.id);
                 external.validate(ctx).await;
+                ctx.pop_section();
             }
         }
     }
