@@ -4,6 +4,7 @@ use super::traits::ReadonlyRuntimeExprContext;
 use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
 use std::{collections::HashMap, sync::Arc};
+use uuid::Uuid;
 
 #[derive(Debug, Default)]
 pub struct CommonReadonlyRuntimeExprContext {
@@ -64,14 +65,23 @@ impl<'a> ReadonlyRuntimeExprContext<'a> for CommonReadonlyRuntimeExprContext {
     }
 }
 
-#[derive(Default)]
 pub struct CommonWritableRuntimeExprContext {
+    exec_id: String,
     outputs: HashMap<String, String>,
+}
+
+impl CommonWritableRuntimeExprContext {
+    pub fn new() -> Self {
+        Self {
+            exec_id: Uuid::new_v4().to_string(),
+            outputs: HashMap::new(),
+        }
+    }
 }
 
 impl WritableRuntimeExprContext for CommonWritableRuntimeExprContext {
     fn get_exec_id(&self) -> Option<&str> {
-        None
+        Some(&self.exec_id)
     }
 
     fn get_output<'a>(&'a self, _id: &str, name: &str) -> Result<&'a str> {

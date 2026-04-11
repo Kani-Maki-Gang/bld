@@ -77,11 +77,6 @@ impl Dependencies for RunnerFile {
                         dependecies.append(&mut local_deps);
                     }
                 }
-                for external in &pipeline.external {
-                    if external.server.is_none() {
-                        dependecies.push(external.uses.to_owned());
-                    }
-                }
                 dependecies
             }
 

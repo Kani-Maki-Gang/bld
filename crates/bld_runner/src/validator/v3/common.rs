@@ -1,19 +1,7 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Write,
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{collections::HashMap, fmt::Write, path::PathBuf, sync::Arc};
 
 use anyhow::{Result, bail};
-use bld_config::{
-    BldConfig,
-    definitions::{
-        KEYWORD_BLD_DIR_V3, KEYWORD_PROJECT_DIR_V3, KEYWORD_RUN_PROPS_ID_V3,
-        KEYWORD_RUN_PROPS_START_TIME_V3,
-    },
-    path,
-};
+use bld_config::{BldConfig, path};
 use bld_core::fs::FileSystem;
 use bld_pkg::PackageManager;
 use regex::Regex;
@@ -32,15 +20,6 @@ pub fn create_expression_regex() -> Result<Regex> {
     Ok(Regex::new(EXPR_REGEX)?)
 }
 
-pub fn create_keywords() -> HashSet<&'static str> {
-    let mut keywords = HashSet::new();
-    keywords.insert(KEYWORD_BLD_DIR_V3);
-    keywords.insert(KEYWORD_PROJECT_DIR_V3);
-    keywords.insert(KEYWORD_RUN_PROPS_ID_V3);
-    keywords.insert(KEYWORD_RUN_PROPS_START_TIME_V3);
-    keywords
-}
-
 pub struct CommonValidator<'a, V: Validate<'a> + EvalObject<'a>> {
     validatable: &'a V,
     config: Arc<BldConfig>,
@@ -49,7 +28,6 @@ pub struct CommonValidator<'a, V: Validate<'a> + EvalObject<'a>> {
     expr_regex: Regex,
     expr_rctx: &'a CommonReadonlyRuntimeExprContext,
     expr_wctx: &'a CommonWritableRuntimeExprContext,
-    keywords: HashSet<&'a str>,
     section: Vec<&'a str>,
     errors: String,
 }
@@ -71,7 +49,6 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> CommonValidator<'a, V> {
             expr_regex: create_expression_regex()?,
             expr_rctx,
             expr_wctx,
-            keywords: create_keywords(),
             section: Vec::new(),
             errors: String::new(),
         })
@@ -119,14 +96,7 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValida
                 continue;
             };
             let section = self.section.join(" > ");
-            let _ = writeln!(self.errors, "[{section}] Invalid expression, {}", e);
-        }
-    }
-
-    fn validate_keywords(&mut self, name: &'a str) {
-        if self.keywords.contains(name) {
-            let section = self.section.join(" > ");
-            let _ = writeln!(self.errors, "[{section}] Invalid name, reserved as keyword",);
+            let _ = writeln!(self.errors, "[{section}] {}", e);
         }
     }
 
@@ -145,7 +115,6 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValida
         for (k, v) in env.iter() {
             debug!("Validating env: {}", k);
             self.section.push(k);
-            self.validate_keywords(k);
             self.validate_symbols(v);
             self.section.pop();
         }

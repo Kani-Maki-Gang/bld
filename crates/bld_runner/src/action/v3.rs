@@ -172,7 +172,6 @@ impl<'a> Validate<'a> for Action {
         for (name, input) in self.inputs.iter() {
             debug!("Validating input: {}", name);
             ctx.push_section(name);
-            ctx.validate_keywords(name);
             input.validate(ctx).await;
             ctx.pop_section();
         }

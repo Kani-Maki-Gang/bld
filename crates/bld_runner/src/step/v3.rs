@@ -90,12 +90,14 @@ impl Step {
 impl Dependencies for Step {
     async fn local_deps(&self, _config: &BldConfig, fs: &FileSystem) -> Vec<String> {
         match self {
-            Self::ExternalFile(external)
-                if matches!(fs.path(&external.uses).await.map(|x| x.is_yaml()), Ok(true)) =>
-            {
-                vec![external.uses.to_owned()]
+            Self::ExternalFile(external) => {
+                if matches!(fs.path(&external.uses).await.map(|x| x.is_yaml()), Ok(true)) {
+                    vec![external.uses.to_owned()]
+                } else {
+                    vec![]
+                }
             }
-            Self::ComplexSh { .. } | Self::ExternalFile { .. } => vec![],
+            Self::ComplexSh { .. } => vec![],
         }
     }
 }
@@ -153,8 +155,17 @@ impl<'a> Validate<'a> for Step {
                     ctx.pop_section();
                 }
 
+                if let Some(condition) = complex.condition.as_ref() {
+                    debug!("Validating step's if condition");
+                    ctx.push_section("if");
+                    ctx.validate_symbols(condition);
+                    ctx.pop_section();
+                }
+
                 debug!("Validating step's run command");
+                ctx.push_section("run");
                 ctx.validate_symbols(&complex.run);
+                ctx.pop_section();
 
                 ctx.pop_section();
             }

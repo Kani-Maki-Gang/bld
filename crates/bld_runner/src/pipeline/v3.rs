@@ -1,9 +1,13 @@
 use crate::{
-    external::v3::External,
     inputs::v3::Input,
     runs_on::v3::RunsOn,
     step::v3::Step,
     traits::{IntoVariables, Variables},
+};
+#[cfg(feature = "all")]
+use bld_config::definitions::{
+    KEYWORD_BLD_DIR_V3, KEYWORD_PROJECT_DIR_V3, KEYWORD_RUN_PROPS_ID_V3,
+    KEYWORD_RUN_PROPS_START_TIME_V3,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -44,9 +48,6 @@ pub struct Pipeline {
 
     #[serde(default)]
     pub inputs: HashMap<String, Input>,
-
-    #[serde(default)]
-    pub external: Vec<External>,
 
     #[serde(default)]
     pub jobs: HashMap<String, Vec<Step>>,
@@ -203,7 +204,24 @@ impl<'a> EvalObject<'a> for Pipeline {
                 step.eval_object(&mut object_parts.peekable(), rctx, wctx)
             }
 
-            value => bail!("invalid expression identifier {value}"),
+            // Keywords section
+            value if value == KEYWORD_BLD_DIR_V3 => {
+                Ok(ExprValue::Text(ExprText::Ref(rctx.get_root_dir())))
+            }
+
+            value if value == KEYWORD_PROJECT_DIR_V3 => {
+                Ok(ExprValue::Text(ExprText::Ref(rctx.get_project_dir())))
+            }
+
+            value if value == KEYWORD_RUN_PROPS_ID_V3 => {
+                Ok(ExprValue::Text(ExprText::Ref(rctx.get_run_id())))
+            }
+
+            value if value == KEYWORD_RUN_PROPS_START_TIME_V3 => {
+                Ok(ExprValue::Text(ExprText::Ref(rctx.get_run_start_time())))
+            }
+
+            value => bail!("invalid expression identifier '{value}'"),
         }
     }
 }
@@ -226,7 +244,6 @@ impl<'a> Validate<'a> for Pipeline {
         for (name, input) in self.inputs.iter() {
             debug!("Validating input: {}", name);
             ctx.push_section(name);
-            ctx.validate_keywords(name);
             input.validate(ctx).await;
             ctx.pop_section();
         }
@@ -235,13 +252,6 @@ impl<'a> Validate<'a> for Pipeline {
         debug!("Validating pipeline's env section");
         ctx.push_section("env");
         ctx.validate_env(&self.env);
-        ctx.pop_section();
-
-        debug!("Validating pipeline external section");
-        ctx.push_section("external");
-        for external in &self.external {
-            external.validate(ctx).await;
-        }
         ctx.pop_section();
 
         debug!("Validating pipeline's jobs section");

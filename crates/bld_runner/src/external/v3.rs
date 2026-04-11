@@ -62,9 +62,7 @@ impl<'a> Validate<'a> for External {
 
         debug!("Validating external's with section");
         ctx.push_section("with");
-        ctx.push_section("inputs");
         validate_external_with(ctx, &self.uses, self.server.as_deref(), &self.with).await;
-        ctx.pop_section();
         ctx.pop_section();
 
         debug!("Validating external's env section");
@@ -146,7 +144,6 @@ async fn validate_external_with<'a, C: ValidatorContext<'a>>(
     for (name, input) in with.iter() {
         debug!("Validating input: {}", name);
         ctx.push_section(name);
-        ctx.validate_keywords(name);
         ctx.validate_symbols(input);
         ctx.pop_section();
     }

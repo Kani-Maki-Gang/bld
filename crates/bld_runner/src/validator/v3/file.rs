@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Result;
 use bld_config::BldConfig;
@@ -36,8 +36,7 @@ impl<'a> RunnerFileValidator<'a> {
             String::new(),
             String::new(),
         );
-        let expr_wctx = CommonWritableRuntimeExprContext::default();
-
+        let expr_wctx = CommonWritableRuntimeExprContext::new();
         Ok(Self {
             file,
             config,
