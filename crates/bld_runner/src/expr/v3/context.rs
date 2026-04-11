@@ -70,7 +70,7 @@ pub struct CommonWritableRuntimeExprContext {
 }
 
 impl WritableRuntimeExprContext for CommonWritableRuntimeExprContext {
-    fn get_exec_id<'a>(&'a self) -> Option<&'a str> {
+    fn get_exec_id(&self) -> Option<&str> {
         None
     }
 

@@ -207,7 +207,7 @@ mod tests {
 
     #[test]
     pub fn name_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut action = Action::default();
         let data = vec!["test", "hello world", ""];
@@ -215,7 +215,7 @@ mod tests {
         for entry in data {
             action.name = entry.to_string();
 
-            let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+            let exec = CommonExprExecutor::new(&action, &rctx, &wctx);
             let Ok(value) = exec.eval("${{ name }}") else {
                 panic!("result is an error during expression evaluation");
             };
@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     pub fn inputs_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut action = Action::default();
         action
@@ -260,7 +260,7 @@ mod tests {
             },
         );
 
-        let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&action, &rctx, &wctx);
 
         for (k, v) in &action.inputs {
             let expr = format!("{} inputs.{k} {}", "${{", "}}");
@@ -295,14 +295,14 @@ mod tests {
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
 
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext {
             inputs: data.clone().into_arc(),
             ..Default::default()
         };
         let action = Action::default();
 
-        let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&action, &rctx, &wctx);
 
         for (name, expected) in data {
             let expr = format!("{} inputs.{name} {}", "${{", "}}");

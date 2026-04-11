@@ -277,7 +277,7 @@ mod tests {
 
     #[test]
     pub fn name_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         let data = vec![Some("test"), Some("hello world"), Some(""), None];
@@ -285,7 +285,7 @@ mod tests {
         for entry in data {
             pipeline.name = entry.map(|x| x.to_string());
 
-            let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+            let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
             let Ok(value) = exec.eval("${{ name }}") else {
                 panic!("result is an error during expression evaluation");
             };
@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     pub fn cron_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         let data = vec![
@@ -316,7 +316,7 @@ mod tests {
         for entry in data {
             pipeline.cron = entry.map(|x| x.to_string());
 
-            let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+            let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
             let Ok(value) = exec.eval("${{ cron }}") else {
                 panic!("result is an error during expression evaluation");
             };
@@ -334,7 +334,7 @@ mod tests {
 
     #[test]
     pub fn dispose_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         let data = vec![true, false];
@@ -342,7 +342,7 @@ mod tests {
         for entry in data {
             pipeline.dispose = entry;
 
-            let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+            let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
             let Ok(value) = exec.eval("${{ dispose }}") else {
                 panic!("result is an error during expression evaluation");
             };
@@ -356,7 +356,7 @@ mod tests {
 
     #[test]
     pub fn env_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.env.insert("NODE".to_string(), "22.10".to_string());
@@ -365,14 +365,14 @@ mod tests {
             .env
             .insert("HOME".to_string(), "/home/user".to_string());
 
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         for (k, v) in &pipeline.env {
             let expr = format!("{} env.{k} {}", "${{", "}}");
             let Ok(value) = exec.eval(&expr) else {
                 panic!("result is an error during expression evaluation");
             };
-            let expected = ExprValue::Text(ExprText::Ref(&v));
+            let expected = ExprValue::Text(ExprText::Ref(v));
             assert!(matches!(
                 value.try_eq(&expected),
                 Ok(ExprValue::Boolean(true))
@@ -382,7 +382,7 @@ mod tests {
 
     #[test]
     pub fn inputs_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline
@@ -411,7 +411,7 @@ mod tests {
             },
         );
 
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         for (k, v) in &pipeline.inputs {
             let expr = format!("{} inputs.{k} {}", "${{", "}}");
@@ -446,13 +446,13 @@ mod tests {
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
 
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext {
             inputs: data.clone().into_arc(),
             ..Default::default()
         };
         let pipeline = Pipeline::default();
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         for (name, expected) in data {
             let expr = format!("{} inputs.{name} {}", "${{", "}}");
@@ -480,13 +480,13 @@ mod tests {
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
 
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext {
             env: data.clone().into_arc(),
             ..Default::default()
         };
         let pipeline = Pipeline::default();
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         for (name, expected) in data {
             let expr = format!("{} env.{name} {}", "${{", "}}");

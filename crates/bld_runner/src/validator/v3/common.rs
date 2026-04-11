@@ -16,7 +16,6 @@ use bld_config::{
 };
 use bld_core::fs::FileSystem;
 use bld_pkg::PackageManager;
-use bld_utils::sync::IntoArc;
 use regex::Regex;
 use tracing::debug;
 
@@ -24,7 +23,7 @@ use crate::expr::v3::{
     context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
     exec::CommonExprExecutor,
     parser::EXPR_REGEX,
-    traits::EvalObject,
+    traits::{EvalExpr, EvalObject},
 };
 
 use super::{ConsumeValidator, Validate, ValidatorContext};
@@ -48,8 +47,8 @@ pub struct CommonValidator<'a, V: Validate<'a> + EvalObject<'a>> {
     file_system: Arc<FileSystem>,
     package_manager: Arc<PackageManager>,
     expr_regex: Regex,
-    expr_rctx: CommonReadonlyRuntimeExprContext,
-    expr_wctx: CommonWritableRuntimeExprContext,
+    expr_rctx: &'a CommonReadonlyRuntimeExprContext,
+    expr_wctx: &'a CommonWritableRuntimeExprContext,
     keywords: HashSet<&'a str>,
     section: Vec<&'a str>,
     errors: String,
@@ -61,15 +60,9 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> CommonValidator<'a, V> {
         config: Arc<BldConfig>,
         file_system: Arc<FileSystem>,
         package_manager: Arc<PackageManager>,
+        expr_rctx: &'a CommonReadonlyRuntimeExprContext,
+        expr_wctx: &'a CommonWritableRuntimeExprContext,
     ) -> Result<Self> {
-        let expr_rctx = CommonReadonlyRuntimeExprContext::new(
-            config.clone(),
-            HashMap::<String, String>::new().into_arc(),
-            HashMap::<String, String>::new().into_arc(),
-            String::new(),
-            String::new(),
-        );
-        let expr_wctx = CommonWritableRuntimeExprContext::default();
         Ok(Self {
             validatable,
             config,
@@ -119,9 +112,15 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValida
         self.expr_regex.find(value).is_some()
     }
 
-    fn validate_symbols<'b: 'a>(&'b mut self, value: &str) {
-        let expr_exec = CommonExprExecutor::new(self.validatable, &self.expr_rctx, &self.expr_wctx);
-        for entry in self.expr_regex.find_iter(value) {}
+    fn validate_symbols(&mut self, value: &'a str) {
+        let expr_exec = CommonExprExecutor::new(self.validatable, self.expr_rctx, self.expr_wctx);
+        for entry in self.expr_regex.find_iter(value) {
+            let Err(e) = expr_exec.eval(entry.as_str()) else {
+                continue;
+            };
+            let section = self.section.join(" > ");
+            let _ = writeln!(self.errors, "[{section}] Invalid expression, {}", e);
+        }
     }
 
     fn validate_keywords(&mut self, name: &'a str) {

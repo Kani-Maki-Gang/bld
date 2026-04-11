@@ -1,17 +1,25 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::fs::FileSystem;
 use bld_pkg::PackageManager;
+use bld_utils::sync::IntoArc;
 
-use crate::{action::v3::Action, files::v3::RunnerFile, pipeline::v3::Pipeline};
+use crate::{
+    expr::v3::context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+    files::v3::RunnerFile,
+};
 
 use super::{CommonValidator, ConsumeValidator};
 
-pub enum RunnerFileValidator<'a> {
-    Pipeline(CommonValidator<'a, Pipeline>),
-    Action(CommonValidator<'a, Action>),
+pub struct RunnerFileValidator<'a> {
+    file: &'a RunnerFile,
+    config: Arc<BldConfig>,
+    file_system: Arc<FileSystem>,
+    package_manager: Arc<PackageManager>,
+    expr_rctx: CommonReadonlyRuntimeExprContext,
+    expr_wctx: CommonWritableRuntimeExprContext,
 }
 
 impl<'a> RunnerFileValidator<'a> {
@@ -21,26 +29,53 @@ impl<'a> RunnerFileValidator<'a> {
         file_system: Arc<FileSystem>,
         package_manager: Arc<PackageManager>,
     ) -> Result<Self> {
-        match file {
-            RunnerFile::PipelineFileType(pip) => {
-                let validator =
-                    CommonValidator::new(pip.as_ref(), config, file_system, package_manager)?;
-                Ok(Self::Pipeline(validator))
-            }
-            RunnerFile::ActionFileType(action) => {
-                let validator =
-                    CommonValidator::new(action.as_ref(), config, file_system, package_manager)?;
-                Ok(Self::Action(validator))
-            }
-        }
+        let expr_rctx = CommonReadonlyRuntimeExprContext::new(
+            config.clone(),
+            HashMap::<String, String>::new().into_arc(),
+            HashMap::<String, String>::new().into_arc(),
+            String::new(),
+            String::new(),
+        );
+        let expr_wctx = CommonWritableRuntimeExprContext::default();
+
+        Ok(Self {
+            file,
+            config,
+            file_system,
+            package_manager,
+            expr_rctx,
+            expr_wctx,
+        })
     }
 }
 
 impl ConsumeValidator for RunnerFileValidator<'_> {
     async fn validate(self) -> Result<()> {
-        match self {
-            Self::Pipeline(validator) => validator.validate().await,
-            Self::Action(validator) => validator.validate().await,
+        match self.file {
+            RunnerFile::PipelineFileType(pip) => {
+                CommonValidator::new(
+                    pip.as_ref(),
+                    self.config,
+                    self.file_system,
+                    self.package_manager,
+                    &self.expr_rctx,
+                    &self.expr_wctx,
+                )?
+                .validate()
+                .await
+            }
+            RunnerFile::ActionFileType(action) => {
+                CommonValidator::new(
+                    action.as_ref(),
+                    self.config,
+                    self.file_system,
+                    self.package_manager,
+                    &self.expr_rctx,
+                    &self.expr_wctx,
+                )?
+                .validate()
+                .await
+            }
         }
     }
 }

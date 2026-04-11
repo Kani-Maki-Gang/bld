@@ -52,7 +52,7 @@ impl<S: RootState> ActionRunner<S> {
             bail!("more than one condition found for step");
         };
 
-        let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &mut self.state);
+        let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &self.state);
         let value = expr_exec.eval(condition)?;
         Ok(matches!(value, ExprValue::Boolean(true)))
     }
@@ -67,7 +67,7 @@ impl<S: RootState> ActionRunner<S> {
         debug!("executing shell command {}", command);
 
         let mut cmd = command.to_string();
-        let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &mut self.state);
+        let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &self.state);
 
         for entry in self.expr_regex.find_iter(command) {
             let entry = entry.as_str();
