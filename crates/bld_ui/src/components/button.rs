@@ -2,7 +2,7 @@ use super::colors::Colors;
 use leptos::*;
 
 pub fn get_button_color_classes(color: Option<Colors>) -> &'static str {
-    let color = color.unwrap_or_else(|| Colors::Violet);
+    let color = color.unwrap_or(Colors::Violet);
     match color {
         Colors::Slate => "bg-slate-700 hover:bg-slate-600 focus:bg-slate-600",
         Colors::Gray => "bg-gray-700 hover:bg-gray-600 focus:bg-gray-600",

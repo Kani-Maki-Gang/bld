@@ -250,11 +250,8 @@ impl<S: RootState> JobRunner<S> {
             bail!("more than one condition found for step");
         };
 
-        let expr_exec = CommonExprExecutor::new(
-            self.pipeline.as_ref(),
-            self.expr_rctx.as_ref(),
-            &self.state,
-        );
+        let expr_exec =
+            CommonExprExecutor::new(self.pipeline.as_ref(), self.expr_rctx.as_ref(), &self.state);
         let value = expr_exec.eval(condition)?;
         Ok(matches!(value, ExprValue::Boolean(true)))
     }

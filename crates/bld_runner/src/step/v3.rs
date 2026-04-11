@@ -428,15 +428,9 @@ mod tests {
         let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut action = Action::default();
-        action
-            .steps
-            .push(Step::ExternalFile(Box::default()));
-        action
-            .steps
-            .push(Step::ExternalFile(Box::default()));
-        action
-            .steps
-            .push(Step::ExternalFile(Box::default()));
+        action.steps.push(Step::ExternalFile(Box::default()));
+        action.steps.push(Step::ExternalFile(Box::default()));
+        action.steps.push(Step::ExternalFile(Box::default()));
         let exec = CommonExprExecutor::new(&action, &rctx, &wctx);
 
         let actual = exec.eval("${{ steps.main.first }}");

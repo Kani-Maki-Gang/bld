@@ -26,7 +26,7 @@ fn get_params(limit: String, pipeline: String) -> Option<JobFiltersParams> {
         },
         None,
         None,
-        limit.parse::<u64>().map(|x| Some(x)).unwrap_or_default(),
+        limit.parse::<u64>().map(Some).unwrap_or_default(),
     ))
 }
 

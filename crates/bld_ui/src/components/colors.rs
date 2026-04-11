@@ -1,5 +1,4 @@
 #[allow(dead_code)]
-
 pub enum Colors {
     Slate,
     Gray,

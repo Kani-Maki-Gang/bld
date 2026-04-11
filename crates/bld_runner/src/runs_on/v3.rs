@@ -752,11 +752,10 @@ mod tests {
         let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let pipeline = Pipeline {
-
-        runs_on: RunsOn::SshFromGlobalConfig {
-            ssh_config: "some_global_ssh_config".to_string(),
-        },
-        ..Default::default()
+            runs_on: RunsOn::SshFromGlobalConfig {
+                ssh_config: "some_global_ssh_config".to_string(),
+            },
+            ..Default::default()
         };
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 

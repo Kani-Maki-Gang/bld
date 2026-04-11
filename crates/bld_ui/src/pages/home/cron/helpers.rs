@@ -13,10 +13,7 @@ pub fn hash_map_rw_signals(
     pipeline_items
         .into_iter()
         .map(|(k, v)| {
-            let value = cron_items
-                .as_mut()
-                .and_then(|c| c.remove(&k))
-                .unwrap_or_else(|| v);
+            let value = cron_items.as_mut().and_then(|c| c.remove(&k)).unwrap_or(v);
 
             (k, create_rw_signal(value))
         })

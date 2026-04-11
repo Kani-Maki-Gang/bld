@@ -22,7 +22,7 @@ pub fn Tabs(
     view! {
         <div class="flex flex-col">
             <div class="hidden sm:block">
-                <nav class=move || nav_class() aria-label="Tabs">
+                <nav class=nav_class aria-label="Tabs">
                     {children()}
                 </nav>
             </div>
