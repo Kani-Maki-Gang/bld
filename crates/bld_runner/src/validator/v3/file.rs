@@ -31,8 +31,8 @@ impl<'a> RunnerFileValidator<'a> {
     ) -> Result<Self> {
         let expr_rctx = CommonReadonlyRuntimeExprContext::new(
             config.clone(),
-            HashMap::<String, String>::new().into_arc(),
-            HashMap::<String, String>::new().into_arc(),
+            file.inputs_map().into_arc(),
+            file.env_map().into_arc(),
             String::new(),
             String::new(),
         );
