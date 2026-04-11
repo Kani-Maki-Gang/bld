@@ -17,7 +17,7 @@ use anyhow::{Result, anyhow, bail};
 use bld_core::fs::FileSystem;
 
 #[cfg(feature = "all")]
-use bld_config::BldConfig;
+use bld_config::{BldConfig, definitions::{KEYWORD_BLD_DIR_V3, KEYWORD_PROJECT_DIR_V3, KEYWORD_RUN_PROPS_ID_V3, KEYWORD_RUN_PROPS_START_TIME_V3}};
 
 #[cfg(feature = "all")]
 use crate::{
@@ -155,6 +155,23 @@ impl<'a> EvalObject<'a> for Action {
                 };
 
                 step.eval_object(&mut object_parts.peekable(), rctx, wctx)
+            }
+
+            // Keywords section
+            value if value == KEYWORD_BLD_DIR_V3 => {
+                Ok(ExprValue::Text(ExprText::Ref(rctx.get_root_dir())))
+            }
+
+            value if value == KEYWORD_PROJECT_DIR_V3 => {
+                Ok(ExprValue::Text(ExprText::Ref(rctx.get_project_dir())))
+            }
+
+            value if value == KEYWORD_RUN_PROPS_ID_V3 => {
+                Ok(ExprValue::Text(ExprText::Ref(rctx.get_run_id())))
+            }
+
+            value if value == KEYWORD_RUN_PROPS_START_TIME_V3 => {
+                Ok(ExprValue::Text(ExprText::Ref(rctx.get_run_start_time())))
             }
 
             value => bail!("invalid expression identifier {value}"),
