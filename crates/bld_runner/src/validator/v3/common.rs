@@ -16,13 +16,21 @@ use bld_config::{
 };
 use bld_core::fs::FileSystem;
 use bld_pkg::PackageManager;
+use bld_utils::sync::IntoArc;
 use regex::Regex;
 use tracing::debug;
+
+use crate::expr::v3::{
+    context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+    exec::CommonExprExecutor,
+    parser::EXPR_REGEX,
+    traits::EvalObject,
+};
 
 use super::{ConsumeValidator, Validate, ValidatorContext};
 
 pub fn create_expression_regex() -> Result<Regex> {
-    Ok(Regex::new(r"\$\{\{\s*(\b\w+\b)\s*\}\}")?)
+    Ok(Regex::new(EXPR_REGEX)?)
 }
 
 pub fn create_keywords() -> HashSet<&'static str> {
@@ -34,30 +42,42 @@ pub fn create_keywords() -> HashSet<&'static str> {
     keywords
 }
 
-pub struct CommonValidator<'a, V: Validate<'a>> {
+pub struct CommonValidator<'a, V: Validate<'a> + EvalObject<'a>> {
     validatable: &'a V,
     config: Arc<BldConfig>,
     file_system: Arc<FileSystem>,
     package_manager: Arc<PackageManager>,
-    regex: Regex,
+    expr_regex: Regex,
+    expr_rctx: CommonReadonlyRuntimeExprContext,
+    expr_wctx: CommonWritableRuntimeExprContext,
     keywords: HashSet<&'a str>,
     section: Vec<&'a str>,
     errors: String,
 }
 
-impl<'a, V: Validate<'a>> CommonValidator<'a, V> {
+impl<'a, V: Validate<'a> + EvalObject<'a>> CommonValidator<'a, V> {
     pub fn new(
         validatable: &'a V,
         config: Arc<BldConfig>,
         file_system: Arc<FileSystem>,
         package_manager: Arc<PackageManager>,
     ) -> Result<Self> {
+        let expr_rctx = CommonReadonlyRuntimeExprContext::new(
+            config.clone(),
+            HashMap::<String, String>::new().into_arc(),
+            HashMap::<String, String>::new().into_arc(),
+            String::new(),
+            String::new(),
+        );
+        let expr_wctx = CommonWritableRuntimeExprContext::default();
         Ok(Self {
             validatable,
             config,
             file_system,
             package_manager,
-            regex: create_expression_regex()?,
+            expr_regex: create_expression_regex()?,
+            expr_rctx,
+            expr_wctx,
             keywords: create_keywords(),
             section: Vec::new(),
             errors: String::new(),
@@ -65,7 +85,7 @@ impl<'a, V: Validate<'a>> CommonValidator<'a, V> {
     }
 }
 
-impl<'a, V: Validate<'a>> ValidatorContext<'a> for CommonValidator<'a, V> {
+impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValidator<'a, V> {
     fn get_config(&self) -> Arc<BldConfig> {
         self.config.clone()
     }
@@ -96,10 +116,13 @@ impl<'a, V: Validate<'a>> ValidatorContext<'a> for CommonValidator<'a, V> {
     }
 
     fn contains_symbols(&mut self, value: &str) -> bool {
-        self.regex.find(value).is_some()
+        self.expr_regex.find(value).is_some()
     }
 
-    fn validate_symbols(&mut self, _value: &'a str) {}
+    fn validate_symbols<'b: 'a>(&'b mut self, value: &str) {
+        let expr_exec = CommonExprExecutor::new(self.validatable, &self.expr_rctx, &self.expr_wctx);
+        for entry in self.expr_regex.find_iter(value) {}
+    }
 
     fn validate_keywords(&mut self, name: &'a str) {
         if self.keywords.contains(name) {
@@ -130,7 +153,7 @@ impl<'a, V: Validate<'a>> ValidatorContext<'a> for CommonValidator<'a, V> {
     }
 }
 
-impl<'a, V: Validate<'a>> ConsumeValidator for CommonValidator<'a, V> {
+impl<'a, V: Validate<'a> + EvalObject<'a>> ConsumeValidator for CommonValidator<'a, V> {
     async fn validate(mut self) -> Result<()> {
         self.validatable.validate(&mut self).await;
 

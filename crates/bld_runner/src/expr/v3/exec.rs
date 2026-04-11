@@ -20,7 +20,7 @@ pub struct CommonExprExecutor<
 impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>
     CommonExprExecutor<'a, T, RCtx, WCtx>
 {
-    pub fn new(obj_executor: &'a T, rctx: &'a RCtx, wctx: &'a mut WCtx) -> Self {
+    pub fn new(obj_executor: &'a T, rctx: &'a RCtx, wctx: &'a WCtx) -> Self {
         Self {
             obj_executor,
             rctx,
