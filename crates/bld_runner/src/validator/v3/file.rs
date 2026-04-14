@@ -19,7 +19,7 @@ pub struct RunnerFileValidator<'a> {
     file_system: Arc<FileSystem>,
     package_manager: Arc<PackageManager>,
     expr_rctx: CommonReadonlyRuntimeExprContext,
-    expr_wctx: CommonWritableRuntimeExprContext,
+    expr_wctx: Vec<CommonWritableRuntimeExprContext<'a>>,
 }
 
 impl<'a> RunnerFileValidator<'a> {
@@ -36,7 +36,16 @@ impl<'a> RunnerFileValidator<'a> {
             String::new(),
             String::new(),
         );
-        let expr_wctx = CommonWritableRuntimeExprContext::new();
+        let expr_wctx = match &file {
+            RunnerFile::PipelineFileType(pipeline) => pipeline
+                .jobs
+                .keys()
+                .map(|k| CommonWritableRuntimeExprContext::new(k))
+                .collect(),
+            RunnerFile::ActionFileType(_) => {
+                vec![CommonWritableRuntimeExprContext::new("action")]
+            }
+        };
         Ok(Self {
             file,
             config,

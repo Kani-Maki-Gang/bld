@@ -4,7 +4,6 @@ use super::traits::ReadonlyRuntimeExprContext;
 use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
 use std::{collections::HashMap, sync::Arc};
-use uuid::Uuid;
 
 #[derive(Debug, Default)]
 pub struct CommonReadonlyRuntimeExprContext {
@@ -65,30 +64,27 @@ impl<'a> ReadonlyRuntimeExprContext<'a> for CommonReadonlyRuntimeExprContext {
     }
 }
 
-pub struct CommonWritableRuntimeExprContext {
-    exec_id: String,
+pub struct CommonWritableRuntimeExprContext<'a> {
+    exec_id: &'a str,
     outputs: HashMap<String, String>,
 }
 
-impl CommonWritableRuntimeExprContext {
-    pub fn new() -> Self {
+impl<'a> CommonWritableRuntimeExprContext<'a> {
+    pub fn new(exec_id: &'a str) -> Self {
         Self {
-            exec_id: Uuid::new_v4().to_string(),
+            exec_id,
             outputs: HashMap::new(),
         }
     }
 }
 
-impl WritableRuntimeExprContext for CommonWritableRuntimeExprContext {
+impl<'a> WritableRuntimeExprContext for CommonWritableRuntimeExprContext<'a> {
     fn get_exec_id(&self) -> Option<&str> {
-        Some(&self.exec_id)
+        Some(self.exec_id)
     }
 
-    fn get_output<'a>(&'a self, _id: &str, name: &str) -> Result<&'a str> {
-        self.outputs
-            .get(name)
-            .map(|x| x.as_str())
-            .ok_or_else(|| anyhow!("output value not found"))
+    fn get_output<'b>(&'b self, _id: &str, _name: &str) -> Result<&'b str> {
+        Ok("")
     }
 
     fn set_output(&mut self, _id: &str, name: String, value: String) -> Result<()> {

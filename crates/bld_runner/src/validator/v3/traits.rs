@@ -10,6 +10,7 @@ pub trait ValidatorContext<'a> {
     fn get_fs(&self) -> Arc<FileSystem>;
     fn get_package_manager(&self) -> Arc<PackageManager>;
     fn push_section(&mut self, section: &'a str);
+    fn push_job_section(&mut self, section: &'a str);
     fn pop_section(&mut self);
     #[allow(dead_code)]
     fn clear_section(&mut self);

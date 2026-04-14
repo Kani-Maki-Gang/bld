@@ -11,13 +11,26 @@ use crate::expr::v3::{
     context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
     exec::CommonExprExecutor,
     parser::EXPR_REGEX,
-    traits::{EvalExpr, EvalObject},
+    traits::{EvalExpr, EvalObject, WritableRuntimeExprContext},
 };
 
 use super::{ConsumeValidator, Validate, ValidatorContext};
 
 pub fn create_expression_regex() -> Result<Regex> {
     Ok(Regex::new(EXPR_REGEX)?)
+}
+
+enum Section<'a> {
+    Job(&'a str),
+    Other(&'a str),
+}
+
+impl<'a> Section<'a> {
+    pub fn inner(&self) -> &'a str {
+        match self {
+            Section::Other(s) | Section::Job(s) => s,
+        }
+    }
 }
 
 pub struct CommonValidator<'a, V: Validate<'a> + EvalObject<'a>> {
@@ -27,8 +40,9 @@ pub struct CommonValidator<'a, V: Validate<'a> + EvalObject<'a>> {
     package_manager: Arc<PackageManager>,
     expr_regex: Regex,
     expr_rctx: &'a CommonReadonlyRuntimeExprContext,
-    expr_wctx: &'a CommonWritableRuntimeExprContext,
-    section: Vec<&'a str>,
+    expr_wctx: &'a [CommonWritableRuntimeExprContext<'a>],
+    section: Vec<Section<'a>>,
+    current_job: Option<Section<'a>>,
     errors: String,
 }
 
@@ -39,7 +53,7 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> CommonValidator<'a, V> {
         file_system: Arc<FileSystem>,
         package_manager: Arc<PackageManager>,
         expr_rctx: &'a CommonReadonlyRuntimeExprContext,
-        expr_wctx: &'a CommonWritableRuntimeExprContext,
+        expr_wctx: &'a [CommonWritableRuntimeExprContext],
     ) -> Result<Self> {
         Ok(Self {
             validatable,
@@ -50,8 +64,17 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> CommonValidator<'a, V> {
             expr_rctx,
             expr_wctx,
             section: Vec::new(),
+            current_job: None,
             errors: String::new(),
         })
+    }
+
+    fn section_txt(&self) -> String {
+        self.section
+            .iter()
+            .map(|x| x.inner())
+            .collect::<Vec<&'a str>>()
+            .join(" > ")
     }
 }
 
@@ -69,11 +92,19 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValida
     }
 
     fn push_section(&mut self, section: &'a str) {
-        self.section.push(section);
+        self.section.push(Section::Other(section));
+    }
+
+    fn push_job_section(&mut self, section: &'a str) {
+        self.section.push(Section::Job(section));
+        self.current_job = Some(Section::Job(section));
     }
 
     fn pop_section(&mut self) {
-        self.section.pop();
+        let section = self.section.pop();
+        if matches!(section, Some(Section::Job(_))) {
+            self.current_job = None;
+        }
     }
 
     fn clear_section(&mut self) {
@@ -81,7 +112,7 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValida
     }
 
     fn append_error(&mut self, error: &str) {
-        let section = self.section.join(" > ");
+        let section = self.section_txt();
         let _ = writeln!(self.errors, "[{section}] {error}");
     }
 
@@ -90,12 +121,20 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValida
     }
 
     fn validate_symbols(&mut self, value: &'a str) {
-        let expr_exec = CommonExprExecutor::new(self.validatable, self.expr_rctx, self.expr_wctx);
+        let expr_wctx = self
+            .expr_wctx
+            .iter()
+            .find(|x| x.get_exec_id() == self.current_job.as_ref().map(|x| x.inner()))
+            .or_else(|| self.expr_wctx.iter().next());
+
+        let Some(expr_wctx) = expr_wctx else { return };
+
+        let expr_exec = CommonExprExecutor::new(self.validatable, self.expr_rctx, expr_wctx);
         for entry in self.expr_regex.find_iter(value) {
             let Err(e) = expr_exec.eval(entry.as_str()) else {
                 continue;
             };
-            let section = self.section.join(" > ");
+            let section = self.section_txt();
             let _ = writeln!(self.errors, "[{section}] {}", e);
         }
     }
@@ -106,7 +145,7 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValida
         }
         let path = path![value];
         if !path.is_file() {
-            let section = self.section.join(" > ");
+            let section = self.section_txt();
             let _ = writeln!(self.errors, "[{section} > {value}] File not found");
         }
     }
@@ -114,7 +153,7 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValida
     fn validate_env(&mut self, env: &'a HashMap<String, String>) {
         for (k, v) in env.iter() {
             debug!("Validating env: {}", k);
-            self.section.push(k);
+            self.section.push(Section::Other(k));
             self.validate_symbols(v);
             self.section.pop();
         }

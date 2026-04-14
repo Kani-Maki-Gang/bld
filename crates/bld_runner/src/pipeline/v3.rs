@@ -257,7 +257,7 @@ impl<'a> Validate<'a> for Pipeline {
         debug!("Validating pipeline's jobs section");
         ctx.push_section("jobs");
         for (job, steps) in &self.jobs {
-            ctx.push_section(job);
+            ctx.push_job_section(job);
             debug!("Validating {job} job's steps");
             for step in steps {
                 step.validate(ctx).await;

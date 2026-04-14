@@ -17,7 +17,13 @@ use anyhow::{Result, anyhow, bail};
 use bld_core::fs::FileSystem;
 
 #[cfg(feature = "all")]
-use bld_config::{BldConfig, definitions::{KEYWORD_BLD_DIR_V3, KEYWORD_PROJECT_DIR_V3, KEYWORD_RUN_PROPS_ID_V3, KEYWORD_RUN_PROPS_START_TIME_V3}};
+use bld_config::{
+    BldConfig,
+    definitions::{
+        KEYWORD_BLD_DIR_V3, KEYWORD_PROJECT_DIR_V3, KEYWORD_RUN_PROPS_ID_V3,
+        KEYWORD_RUN_PROPS_START_TIME_V3,
+    },
+};
 
 #[cfg(feature = "all")]
 use crate::{
