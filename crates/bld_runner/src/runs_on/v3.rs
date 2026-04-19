@@ -290,15 +290,15 @@ impl<'a> Validate<'a> for RunsOn {
                 docker_url,
             } => {
                 ctx.push_section("name");
-                ctx.validate_symbols(name);
+                ctx.validate_expressions(name);
                 ctx.pop_section();
 
                 ctx.push_section("tag");
-                ctx.validate_symbols(tag);
+                ctx.validate_expressions(tag);
                 ctx.pop_section();
 
                 ctx.push_section("dockerfile");
-                ctx.validate_symbols(dockerfile);
+                ctx.validate_expressions(dockerfile);
                 ctx.validate_file_path(dockerfile);
                 ctx.pop_section();
 
@@ -314,7 +314,7 @@ impl<'a> Validate<'a> for RunsOn {
                 registry,
             } => {
                 ctx.push_section("image");
-                ctx.validate_symbols(image);
+                ctx.validate_expressions(image);
                 ctx.pop_section();
 
                 if let Some(docker_url) = docker_url {
@@ -325,7 +325,7 @@ impl<'a> Validate<'a> for RunsOn {
                 }
             }
 
-            RunsOn::ContainerOrMachine(value) => ctx.validate_symbols(value),
+            RunsOn::ContainerOrMachine(value) => ctx.validate_expressions(value),
 
             RunsOn::SshFromGlobalConfig { ssh_config } => {
                 validate_global_ssh_config(ctx, ssh_config);
@@ -333,15 +333,15 @@ impl<'a> Validate<'a> for RunsOn {
 
             RunsOn::Ssh(config) => {
                 ctx.push_section("host");
-                ctx.validate_symbols(&config.host);
+                ctx.validate_expressions(&config.host);
                 ctx.pop_section();
 
                 ctx.push_section("port");
-                ctx.validate_symbols(&config.port);
+                ctx.validate_expressions(&config.port);
                 ctx.pop_section();
 
                 ctx.push_section("user");
-                ctx.validate_symbols(&config.user);
+                ctx.validate_expressions(&config.user);
                 ctx.pop_section();
 
                 ctx.push_section("auth");
@@ -354,20 +354,20 @@ impl<'a> Validate<'a> for RunsOn {
                     } => {
                         if let Some(pubkey) = public_key {
                             ctx.push_section("public_key");
-                            ctx.validate_symbols(pubkey);
+                            ctx.validate_expressions(pubkey);
                             ctx.validate_file_path(pubkey);
                             ctx.pop_section();
                         }
 
                         ctx.push_section("private_key");
-                        ctx.validate_symbols(private_key);
+                        ctx.validate_expressions(private_key);
                         ctx.validate_file_path(private_key);
                         ctx.pop_section();
                     }
 
                     SshUserAuth::Password { password } => {
                         ctx.push_section("password");
-                        ctx.validate_symbols(password);
+                        ctx.validate_expressions(password);
                         ctx.pop_section();
                     }
                 }
@@ -381,8 +381,8 @@ impl<'a> Validate<'a> for RunsOn {
 fn validate_docker_url<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &'a str) {
     ctx.push_section("docker_url");
 
-    if ctx.contains_symbols(value) {
-        ctx.validate_symbols(value);
+    if ctx.contains_expressions(value) {
+        ctx.validate_expressions(value);
     } else {
         let config = ctx.get_config();
         match &config.local.docker_url {
@@ -411,18 +411,18 @@ fn validate_registry<'a, C: ValidatorContext<'a>>(ctx: &mut C, registry: &'a Reg
         }
         Registry::Full(config) => {
             ctx.push_section("url");
-            ctx.validate_symbols(&config.url);
+            ctx.validate_expressions(&config.url);
             ctx.pop_section();
 
             if let Some(username) = &config.username {
                 ctx.push_section("username");
-                ctx.validate_symbols(username);
+                ctx.validate_expressions(username);
                 ctx.pop_section();
             }
 
             if let Some(password) = &config.password {
                 ctx.push_section("password");
-                ctx.validate_symbols(password);
+                ctx.validate_expressions(password);
                 ctx.pop_section();
             }
         }
@@ -433,8 +433,8 @@ fn validate_registry<'a, C: ValidatorContext<'a>>(ctx: &mut C, registry: &'a Reg
 
 #[cfg(feature = "all")]
 fn validate_global_registry_config<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &'a str) {
-    if ctx.contains_symbols(value) {
-        ctx.validate_symbols(value);
+    if ctx.contains_expressions(value) {
+        ctx.validate_expressions(value);
     } else {
         let config = ctx.get_config();
         if config.registry(value).is_none() {
@@ -447,8 +447,8 @@ fn validate_global_registry_config<'a, C: ValidatorContext<'a>>(ctx: &mut C, val
 fn validate_global_ssh_config<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &'a str) {
     ctx.push_section("ssh_config");
 
-    if ctx.contains_symbols(value) {
-        ctx.validate_symbols(value);
+    if ctx.contains_expressions(value) {
+        ctx.validate_expressions(value);
     } else {
         let config = ctx.get_config();
         if let Err(e) = config.ssh(value) {

@@ -151,20 +151,20 @@ impl<'a> Validate<'a> for Step {
                 if let Some(wd) = complex.working_dir.as_ref() {
                     debug!("Validating step's working directory");
                     ctx.push_section("working_dir");
-                    ctx.validate_symbols(wd);
+                    ctx.validate_expressions(wd);
                     ctx.pop_section();
                 }
 
                 if let Some(condition) = complex.condition.as_ref() {
                     debug!("Validating step's if condition");
                     ctx.push_section("if");
-                    ctx.validate_symbols(condition);
+                    ctx.validate_expressions(condition);
                     ctx.pop_section();
                 }
 
                 debug!("Validating step's run command");
                 ctx.push_section("run");
-                ctx.validate_symbols(&complex.run);
+                ctx.validate_expressions(&complex.run);
                 ctx.pop_section();
 
                 ctx.pop_section();

@@ -15,8 +15,8 @@ pub trait ValidatorContext<'a> {
     #[allow(dead_code)]
     fn clear_section(&mut self);
     fn append_error(&mut self, error: &str);
-    fn contains_symbols(&mut self, value: &str) -> bool;
-    fn validate_symbols(&mut self, symbol: &'a str);
+    fn contains_expressions(&mut self, value: &str) -> bool;
+    fn validate_expressions(&mut self, symbol: &'a str);
     fn validate_file_path(&mut self, value: &'a str);
     fn validate_env(&mut self, env: &'a HashMap<String, String>);
 }

@@ -46,7 +46,7 @@ impl<'a> Validate<'a> for External {
         if let Some(name) = self.name.as_deref() {
             debug!("Validating external's name value");
             ctx.push_section("name");
-            ctx.validate_symbols(name);
+            ctx.validate_expressions(name);
             ctx.pop_section();
         };
 
@@ -76,8 +76,8 @@ impl<'a> Validate<'a> for External {
 async fn validate_external_file<'a, C: ValidatorContext<'a>>(ctx: &mut C, uses: &'a str) {
     use crate::VersionedFileLoader;
 
-    if ctx.contains_symbols(uses) {
-        ctx.validate_symbols(uses);
+    if ctx.contains_expressions(uses) {
+        ctx.validate_expressions(uses);
         return;
     }
 
@@ -97,8 +97,8 @@ fn validate_external_server<'a, C: ValidatorContext<'a>>(ctx: &mut C, server: Op
         return;
     };
 
-    if ctx.contains_symbols(server) {
-        ctx.validate_symbols(server);
+    if ctx.contains_expressions(server) {
+        ctx.validate_expressions(server);
     } else {
         let config = ctx.get_config();
         if config.server(server).is_err() {
@@ -144,7 +144,7 @@ async fn validate_external_with<'a, C: ValidatorContext<'a>>(
     for (name, input) in with.iter() {
         debug!("Validating input: {}", name);
         ctx.push_section(name);
-        ctx.validate_symbols(input);
+        ctx.validate_expressions(input);
         ctx.pop_section();
     }
 }

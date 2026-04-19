@@ -47,12 +47,12 @@ impl<'a> Validate<'a> for Input {
         match self {
             Input::Simple(v) => {
                 debug!("Validating input: {}", v);
-                ctx.validate_symbols(v);
+                ctx.validate_expressions(v);
             }
             Input::Complex { default, .. } => {
                 if let Some(v) = default {
                     ctx.push_section("default");
-                    ctx.validate_symbols(v);
+                    ctx.validate_expressions(v);
                     ctx.pop_section();
                 }
             }

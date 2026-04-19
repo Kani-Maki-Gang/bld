@@ -150,11 +150,11 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValida
         let _ = writeln!(self.errors, "[{section}] {error}");
     }
 
-    fn contains_symbols(&mut self, value: &str) -> bool {
+    fn contains_expressions(&mut self, value: &str) -> bool {
         self.expr_regex.find(value).is_some()
     }
 
-    fn validate_symbols(&mut self, value: &'a str) {
+    fn validate_expressions(&mut self, value: &'a str) {
         let expr_wctx = self
             .expr_wctx
             .iter()
@@ -174,7 +174,7 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValida
     }
 
     fn validate_file_path(&mut self, value: &'a str) {
-        if self.contains_symbols(value) {
+        if self.contains_expressions(value) {
             return;
         }
         let path = path![value];
@@ -188,7 +188,7 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValida
         for (k, v) in env.iter() {
             debug!("Validating env: {}", k);
             self.section.push(Section::Other(k));
-            self.validate_symbols(v);
+            self.validate_expressions(v);
             self.section.pop();
         }
     }
@@ -197,7 +197,6 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValida
 impl<'a, V: Validate<'a> + EvalObject<'a>> ConsumeValidator for CommonValidator<'a, V> {
     async fn validate(mut self) -> Result<()> {
         self.validatable.validate(&mut self).await;
-
         if self.errors.is_empty() {
             Ok(())
         } else {
