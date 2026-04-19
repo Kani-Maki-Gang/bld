@@ -101,6 +101,32 @@ impl Pipeline {
         }
         ctx.pop_section();
     }
+
+    #[cfg(feature = "all")]
+    async fn validate_jobs<'a, C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
+        ctx.push_section("jobs");
+
+        if self.jobs.is_empty() {
+            ctx.append_error("Pipeline must have at least one job defined");
+        }
+
+        for (job, steps) in &self.jobs {
+            ctx.push_job_section(job);
+            debug!("Validating {job} job's steps");
+            let mut step_ids = HashSet::new();
+            for step in steps {
+                let step_id = step.id();
+                if !step_ids.insert(step_id) {
+                    ctx.push_section(step_id);
+                    ctx.append_error(&format!("Duplicate step id '{step_id}' found in job"));
+                    ctx.pop_section();
+                }
+                step.validate(ctx).await;
+            }
+            ctx.pop_section();
+        }
+        ctx.pop_section();
+    }
 }
 
 impl IntoVariables for Pipeline {
@@ -264,16 +290,7 @@ impl<'a> Validate<'a> for Pipeline {
         ctx.pop_section();
 
         debug!("Validating pipeline's jobs section");
-        ctx.push_section("jobs");
-        for (job, steps) in &self.jobs {
-            ctx.push_job_section(job);
-            debug!("Validating {job} job's steps");
-            for step in steps {
-                step.validate(ctx).await;
-            }
-            ctx.pop_section();
-        }
-        ctx.pop_section();
+        self.validate_jobs(ctx).await;
     }
 }
 

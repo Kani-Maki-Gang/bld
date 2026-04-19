@@ -93,7 +93,7 @@ impl<S: RootState> ActionRunner<S> {
             match step {
                 Step::ComplexSh(complex) => self.complex_shell(complex).await,
                 Step::ExternalFile(_external) => {
-                    unimplemented!()
+                    bail!("external calls are not supported in actions")
                 }
             }
             .inspect(|_| self.state.update_node_state(step.id(), State::Completed))

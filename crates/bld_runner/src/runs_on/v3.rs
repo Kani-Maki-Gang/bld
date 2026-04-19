@@ -337,7 +337,14 @@ impl<'a> Validate<'a> for RunsOn {
                 ctx.pop_section();
 
                 ctx.push_section("port");
-                ctx.validate_expressions(&config.port);
+                if ctx.contains_expressions(&config.port) {
+                    ctx.validate_expressions(&config.port);
+                } else if config.port.parse::<u16>().is_err() {
+                    ctx.append_error(&format!(
+                        "'{}' is not a valid port number (must be 0-65535)",
+                        config.port
+                    ));
+                }
                 ctx.pop_section();
 
                 ctx.push_section("user");

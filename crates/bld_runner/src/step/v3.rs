@@ -165,12 +165,19 @@ impl<'a> Validate<'a> for Step {
                 if let Some(condition) = complex.condition.as_ref() {
                     debug!("Validating step's if condition");
                     ctx.push_section("if");
-                    ctx.validate_expressions(condition);
+                    if ctx.expression_count(condition) > 1 {
+                        ctx.append_error("Condition must contain at most one expression");
+                    } else {
+                        ctx.validate_expressions(condition);
+                    }
                     ctx.pop_section();
                 }
 
                 debug!("Validating step's run command");
                 ctx.push_section("run");
+                if complex.run.trim().is_empty() {
+                    ctx.append_error("Run command must not be empty");
+                }
                 ctx.validate_expressions(&complex.run);
                 ctx.pop_section();
 

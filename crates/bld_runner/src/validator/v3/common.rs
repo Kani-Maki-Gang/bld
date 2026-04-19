@@ -150,6 +150,10 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValida
         let _ = writeln!(self.errors, "[{section}] {error}");
     }
 
+    fn expression_count(&self, value: &str) -> usize {
+        self.expr_regex.find_iter(value).count()
+    }
+
     fn contains_expressions(&mut self, value: &str) -> bool {
         self.expr_regex.find(value).is_some()
     }
