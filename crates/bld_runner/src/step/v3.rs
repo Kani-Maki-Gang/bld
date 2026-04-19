@@ -148,6 +148,13 @@ impl<'a> Validate<'a> for Step {
                 debug!("Step is a complex shell command");
                 ctx.push_section(&complex.id);
 
+                if let Some(name) = complex.name.as_ref() {
+                    debug!("Validating step's name value");
+                    ctx.push_section("name");
+                    ctx.validate_expressions(name);
+                    ctx.pop_section();
+                }
+
                 if let Some(wd) = complex.working_dir.as_ref() {
                     debug!("Validating step's working directory");
                     ctx.push_section("working_dir");

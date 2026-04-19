@@ -190,6 +190,11 @@ impl<'a> Validate<'a> for Action {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         debug!("Validating action: {}", self.name);
 
+        debug!("Validating action's name value");
+        ctx.push_section("name");
+        ctx.validate_expressions(&self.name);
+        ctx.pop_section();
+
         debug!("Validating action's inputs section");
         ctx.push_section("inputs");
         for (name, input) in self.inputs.iter() {

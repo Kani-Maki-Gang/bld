@@ -92,12 +92,14 @@ impl Pipeline {
         let Some(cron) = self.cron.as_ref() else {
             return;
         };
-        if let Err(e) = Schedule::from_str(cron) {
+        ctx.push_section("cron");
+        if ctx.contains_expressions(cron) {
+            ctx.validate_expressions(cron);
+        } else if let Err(e) = Schedule::from_str(cron) {
             let error = format!("{cron} {e}");
-            ctx.push_section("cron");
             ctx.append_error(&error);
-            ctx.pop_section();
         }
+        ctx.pop_section();
     }
 }
 
@@ -230,6 +232,13 @@ impl<'a> EvalObject<'a> for Pipeline {
 impl<'a> Validate<'a> for Pipeline {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         debug!("Validating pipeline");
+
+        if let Some(name) = self.name.as_ref() {
+            debug!("Validating pipeline's name value");
+            ctx.push_section("name");
+            ctx.validate_expressions(name);
+            ctx.pop_section();
+        }
 
         debug!("Validating pipeline's runs_on section");
         ctx.push_section("runs_on");
