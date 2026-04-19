@@ -8,7 +8,7 @@ use regex::Regex;
 use tracing::debug;
 
 use crate::expr::v3::{
-    context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
+    context::CommonReadonlyRuntimeExprContext,
     exec::CommonExprExecutor,
     parser::EXPR_REGEX,
     traits::{EvalExpr, EvalObject, WritableRuntimeExprContext},
@@ -33,6 +33,40 @@ impl<'a> Section<'a> {
     }
 }
 
+pub struct ValidatorWritableRuntimeExprContext<'a> {
+    exec_id: &'a str,
+    outputs: HashMap<String, String>,
+}
+
+impl<'a> ValidatorWritableRuntimeExprContext<'a> {
+    pub fn new(exec_id: &'a str) -> Self {
+        Self {
+            exec_id,
+            outputs: HashMap::new(),
+        }
+    }
+}
+
+impl<'a> WritableRuntimeExprContext for ValidatorWritableRuntimeExprContext<'a> {
+    fn get_exec_id(&self) -> Option<&str> {
+        Some(self.exec_id)
+    }
+
+    fn get_output<'b>(&'b self, _id: &str, _name: &str) -> Result<&'b str> {
+        Ok("")
+    }
+
+    fn set_output(&mut self, _id: &str, name: String, value: String) -> Result<()> {
+        self.outputs.insert(name, value);
+        Ok(())
+    }
+
+    fn set_outputs(&mut self, _id: &str, outputs: HashMap<String, String>) -> Result<()> {
+        self.outputs = outputs;
+        Ok(())
+    }
+}
+
 pub struct CommonValidator<'a, V: Validate<'a> + EvalObject<'a>> {
     validatable: &'a V,
     config: Arc<BldConfig>,
@@ -40,7 +74,7 @@ pub struct CommonValidator<'a, V: Validate<'a> + EvalObject<'a>> {
     package_manager: Arc<PackageManager>,
     expr_regex: Regex,
     expr_rctx: &'a CommonReadonlyRuntimeExprContext,
-    expr_wctx: &'a [CommonWritableRuntimeExprContext<'a>],
+    expr_wctx: &'a [ValidatorWritableRuntimeExprContext<'a>],
     section: Vec<Section<'a>>,
     current_job: Option<Section<'a>>,
     errors: String,
@@ -53,7 +87,7 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> CommonValidator<'a, V> {
         file_system: Arc<FileSystem>,
         package_manager: Arc<PackageManager>,
         expr_rctx: &'a CommonReadonlyRuntimeExprContext,
-        expr_wctx: &'a [CommonWritableRuntimeExprContext],
+        expr_wctx: &'a [ValidatorWritableRuntimeExprContext],
     ) -> Result<Self> {
         Ok(Self {
             validatable,

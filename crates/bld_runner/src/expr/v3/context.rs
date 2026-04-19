@@ -1,5 +1,3 @@
-use crate::expr::v3::traits::WritableRuntimeExprContext;
-
 use super::traits::ReadonlyRuntimeExprContext;
 use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
@@ -61,39 +59,5 @@ impl<'a> ReadonlyRuntimeExprContext<'a> for CommonReadonlyRuntimeExprContext {
 
     fn get_run_start_time(&'a self) -> &'a str {
         &self.run_start_time
-    }
-}
-
-pub struct CommonWritableRuntimeExprContext<'a> {
-    exec_id: &'a str,
-    outputs: HashMap<String, String>,
-}
-
-impl<'a> CommonWritableRuntimeExprContext<'a> {
-    pub fn new(exec_id: &'a str) -> Self {
-        Self {
-            exec_id,
-            outputs: HashMap::new(),
-        }
-    }
-}
-
-impl<'a> WritableRuntimeExprContext for CommonWritableRuntimeExprContext<'a> {
-    fn get_exec_id(&self) -> Option<&str> {
-        Some(self.exec_id)
-    }
-
-    fn get_output<'b>(&'b self, _id: &str, _name: &str) -> Result<&'b str> {
-        Ok("")
-    }
-
-    fn set_output(&mut self, _id: &str, name: String, value: String) -> Result<()> {
-        self.outputs.insert(name, value);
-        Ok(())
-    }
-
-    fn set_outputs(&mut self, _id: &str, outputs: HashMap<String, String>) -> Result<()> {
-        self.outputs = outputs;
-        Ok(())
     }
 }

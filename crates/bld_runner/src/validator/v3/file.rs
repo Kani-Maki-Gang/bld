@@ -7,8 +7,8 @@ use bld_pkg::PackageManager;
 use bld_utils::sync::IntoArc;
 
 use crate::{
-    expr::v3::context::{CommonReadonlyRuntimeExprContext, CommonWritableRuntimeExprContext},
-    files::v3::RunnerFile,
+    expr::v3::context::CommonReadonlyRuntimeExprContext, files::v3::RunnerFile,
+    validator::v3::ValidatorWritableRuntimeExprContext,
 };
 
 use super::{CommonValidator, ConsumeValidator};
@@ -19,7 +19,7 @@ pub struct RunnerFileValidator<'a> {
     file_system: Arc<FileSystem>,
     package_manager: Arc<PackageManager>,
     expr_rctx: CommonReadonlyRuntimeExprContext,
-    expr_wctx: Vec<CommonWritableRuntimeExprContext<'a>>,
+    expr_wctx: Vec<ValidatorWritableRuntimeExprContext<'a>>,
 }
 
 impl<'a> RunnerFileValidator<'a> {
@@ -40,10 +40,10 @@ impl<'a> RunnerFileValidator<'a> {
             RunnerFile::PipelineFileType(pipeline) => pipeline
                 .jobs
                 .keys()
-                .map(|k| CommonWritableRuntimeExprContext::new(k))
+                .map(|k| ValidatorWritableRuntimeExprContext::new(k))
                 .collect(),
             RunnerFile::ActionFileType(_) => {
-                vec![CommonWritableRuntimeExprContext::new("action")]
+                vec![ValidatorWritableRuntimeExprContext::new("action")]
             }
         };
         Ok(Self {
