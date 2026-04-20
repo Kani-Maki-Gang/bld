@@ -103,7 +103,7 @@ pub fn PipelineDeleteButton(
                     logging::console_error("App dialog context not found");
                     return;
                 };
-                let _ = content
+                content
                     .set(
                         Some(
                             view! {

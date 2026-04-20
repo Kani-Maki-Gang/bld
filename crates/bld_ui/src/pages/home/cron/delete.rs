@@ -19,7 +19,7 @@ type DeleteActionArgs = (
 
 async fn delete(id: String) -> Result<()> {
     let res = reqwest::Client::new()
-        .delete(&format!("http://localhost:6080/v1/cron/{}", id))
+        .delete(format!("http://localhost:6080/v1/cron/{}", id))
         .send()
         .await?;
 

@@ -17,7 +17,13 @@ use anyhow::{Result, anyhow, bail};
 use bld_core::fs::FileSystem;
 
 #[cfg(feature = "all")]
-use bld_config::BldConfig;
+use bld_config::{
+    BldConfig,
+    definitions::{
+        KEYWORD_BLD_DIR_V3, KEYWORD_PROJECT_DIR_V3, KEYWORD_RUN_PROPS_ID_V3,
+        KEYWORD_RUN_PROPS_START_TIME_V3,
+    },
+};
 
 #[cfg(feature = "all")]
 use crate::{
@@ -157,6 +163,23 @@ impl<'a> EvalObject<'a> for Action {
                 step.eval_object(&mut object_parts.peekable(), rctx, wctx)
             }
 
+            // Keywords section
+            value if value == KEYWORD_BLD_DIR_V3 => {
+                Ok(ExprValue::Text(ExprText::Ref(rctx.get_root_dir())))
+            }
+
+            value if value == KEYWORD_PROJECT_DIR_V3 => {
+                Ok(ExprValue::Text(ExprText::Ref(rctx.get_project_dir())))
+            }
+
+            value if value == KEYWORD_RUN_PROPS_ID_V3 => {
+                Ok(ExprValue::Text(ExprText::Ref(rctx.get_run_id())))
+            }
+
+            value if value == KEYWORD_RUN_PROPS_START_TIME_V3 => {
+                Ok(ExprValue::Text(ExprText::Ref(rctx.get_run_start_time())))
+            }
+
             value => bail!("invalid expression identifier {value}"),
         }
     }
@@ -167,12 +190,16 @@ impl<'a> Validate<'a> for Action {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         debug!("Validating action: {}", self.name);
 
+        debug!("Validating action's name value");
+        ctx.push_section("name");
+        ctx.validate_expressions(&self.name);
+        ctx.pop_section();
+
         debug!("Validating action's inputs section");
         ctx.push_section("inputs");
         for (name, input) in self.inputs.iter() {
             debug!("Validating input: {}", name);
             ctx.push_section(name);
-            ctx.validate_keywords(name);
             input.validate(ctx).await;
             ctx.pop_section();
         }
@@ -207,7 +234,7 @@ mod tests {
 
     #[test]
     pub fn name_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut action = Action::default();
         let data = vec!["test", "hello world", ""];
@@ -215,7 +242,7 @@ mod tests {
         for entry in data {
             action.name = entry.to_string();
 
-            let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+            let exec = CommonExprExecutor::new(&action, &rctx, &wctx);
             let Ok(value) = exec.eval("${{ name }}") else {
                 panic!("result is an error during expression evaluation");
             };
@@ -231,7 +258,7 @@ mod tests {
 
     #[test]
     pub fn inputs_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut action = Action::default();
         action
@@ -260,7 +287,7 @@ mod tests {
             },
         );
 
-        let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&action, &rctx, &wctx);
 
         for (k, v) in &action.inputs {
             let expr = format!("{} inputs.{k} {}", "${{", "}}");
@@ -295,14 +322,14 @@ mod tests {
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
 
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext {
             inputs: data.clone().into_arc(),
             ..Default::default()
         };
         let action = Action::default();
 
-        let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&action, &rctx, &wctx);
 
         for (name, expected) in data {
             let expr = format!("{} inputs.{name} {}", "${{", "}}");

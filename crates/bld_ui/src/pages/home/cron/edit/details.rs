@@ -3,7 +3,7 @@ use bld_models::dtos::CronJobResponse;
 use leptos::*;
 
 #[component]
-pub fn CronJobsEditDetails<F: Fn() -> () + 'static>(
+pub fn CronJobsEditDetails<F: Fn() + 'static>(
     #[prop(into)] job: Signal<CronJobResponse>,
     save: F,
     delete: Option<WriteSignal<bool>>,

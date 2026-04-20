@@ -1,9 +1,13 @@
 use crate::{
-    external::v3::External,
     inputs::v3::Input,
     runs_on::v3::RunsOn,
     step::v3::Step,
     traits::{IntoVariables, Variables},
+};
+#[cfg(feature = "all")]
+use bld_config::definitions::{
+    KEYWORD_BLD_DIR_V3, KEYWORD_PROJECT_DIR_V3, KEYWORD_RUN_PROPS_ID_V3,
+    KEYWORD_RUN_PROPS_START_TIME_V3,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -44,9 +48,6 @@ pub struct Pipeline {
 
     #[serde(default)]
     pub inputs: HashMap<String, Input>,
-
-    #[serde(default)]
-    pub external: Vec<External>,
 
     #[serde(default)]
     pub jobs: HashMap<String, Vec<Step>>,
@@ -91,12 +92,40 @@ impl Pipeline {
         let Some(cron) = self.cron.as_ref() else {
             return;
         };
-        if let Err(e) = Schedule::from_str(cron) {
+        ctx.push_section("cron");
+        if ctx.contains_expressions(cron) {
+            ctx.validate_expressions(cron);
+        } else if let Err(e) = Schedule::from_str(cron) {
             let error = format!("{cron} {e}");
-            ctx.push_section("cron");
             ctx.append_error(&error);
+        }
+        ctx.pop_section();
+    }
+
+    #[cfg(feature = "all")]
+    async fn validate_jobs<'a, C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
+        ctx.push_section("jobs");
+
+        if self.jobs.is_empty() {
+            ctx.append_error("Pipeline must have at least one job defined");
+        }
+
+        for (job, steps) in &self.jobs {
+            ctx.push_job_section(job);
+            debug!("Validating {job} job's steps");
+            let mut step_ids = HashSet::new();
+            for step in steps {
+                let step_id = step.id();
+                if !step_ids.insert(step_id) {
+                    ctx.push_section(step_id);
+                    ctx.append_error(&format!("Duplicate step id '{step_id}' found in job"));
+                    ctx.pop_section();
+                }
+                step.validate(ctx).await;
+            }
             ctx.pop_section();
         }
+        ctx.pop_section();
     }
 }
 
@@ -203,7 +232,24 @@ impl<'a> EvalObject<'a> for Pipeline {
                 step.eval_object(&mut object_parts.peekable(), rctx, wctx)
             }
 
-            value => bail!("invalid expression identifier {value}"),
+            // Keywords section
+            value if value == KEYWORD_BLD_DIR_V3 => {
+                Ok(ExprValue::Text(ExprText::Ref(rctx.get_root_dir())))
+            }
+
+            value if value == KEYWORD_PROJECT_DIR_V3 => {
+                Ok(ExprValue::Text(ExprText::Ref(rctx.get_project_dir())))
+            }
+
+            value if value == KEYWORD_RUN_PROPS_ID_V3 => {
+                Ok(ExprValue::Text(ExprText::Ref(rctx.get_run_id())))
+            }
+
+            value if value == KEYWORD_RUN_PROPS_START_TIME_V3 => {
+                Ok(ExprValue::Text(ExprText::Ref(rctx.get_run_start_time())))
+            }
+
+            value => bail!("invalid expression identifier '{value}'"),
         }
     }
 }
@@ -212,6 +258,13 @@ impl<'a> EvalObject<'a> for Pipeline {
 impl<'a> Validate<'a> for Pipeline {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         debug!("Validating pipeline");
+
+        if let Some(name) = self.name.as_ref() {
+            debug!("Validating pipeline's name value");
+            ctx.push_section("name");
+            ctx.validate_expressions(name);
+            ctx.pop_section();
+        }
 
         debug!("Validating pipeline's runs_on section");
         ctx.push_section("runs_on");
@@ -226,7 +279,6 @@ impl<'a> Validate<'a> for Pipeline {
         for (name, input) in self.inputs.iter() {
             debug!("Validating input: {}", name);
             ctx.push_section(name);
-            ctx.validate_keywords(name);
             input.validate(ctx).await;
             ctx.pop_section();
         }
@@ -237,24 +289,8 @@ impl<'a> Validate<'a> for Pipeline {
         ctx.validate_env(&self.env);
         ctx.pop_section();
 
-        debug!("Validating pipeline external section");
-        ctx.push_section("external");
-        for external in &self.external {
-            external.validate(ctx).await;
-        }
-        ctx.pop_section();
-
         debug!("Validating pipeline's jobs section");
-        ctx.push_section("jobs");
-        for (job, steps) in &self.jobs {
-            ctx.push_section(job);
-            debug!("Validating {job} job's steps");
-            for step in steps {
-                step.validate(ctx).await;
-            }
-            ctx.pop_section();
-        }
-        ctx.pop_section();
+        self.validate_jobs(ctx).await;
     }
 }
 
@@ -277,7 +313,7 @@ mod tests {
 
     #[test]
     pub fn name_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         let data = vec![Some("test"), Some("hello world"), Some(""), None];
@@ -285,7 +321,7 @@ mod tests {
         for entry in data {
             pipeline.name = entry.map(|x| x.to_string());
 
-            let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+            let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
             let Ok(value) = exec.eval("${{ name }}") else {
                 panic!("result is an error during expression evaluation");
             };
@@ -303,7 +339,7 @@ mod tests {
 
     #[test]
     pub fn cron_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         let data = vec![
@@ -316,7 +352,7 @@ mod tests {
         for entry in data {
             pipeline.cron = entry.map(|x| x.to_string());
 
-            let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+            let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
             let Ok(value) = exec.eval("${{ cron }}") else {
                 panic!("result is an error during expression evaluation");
             };
@@ -334,7 +370,7 @@ mod tests {
 
     #[test]
     pub fn dispose_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         let data = vec![true, false];
@@ -342,7 +378,7 @@ mod tests {
         for entry in data {
             pipeline.dispose = entry;
 
-            let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+            let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
             let Ok(value) = exec.eval("${{ dispose }}") else {
                 panic!("result is an error during expression evaluation");
             };
@@ -356,7 +392,7 @@ mod tests {
 
     #[test]
     pub fn env_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.env.insert("NODE".to_string(), "22.10".to_string());
@@ -365,14 +401,14 @@ mod tests {
             .env
             .insert("HOME".to_string(), "/home/user".to_string());
 
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         for (k, v) in &pipeline.env {
             let expr = format!("{} env.{k} {}", "${{", "}}");
             let Ok(value) = exec.eval(&expr) else {
                 panic!("result is an error during expression evaluation");
             };
-            let expected = ExprValue::Text(ExprText::Ref(&v));
+            let expected = ExprValue::Text(ExprText::Ref(v));
             assert!(matches!(
                 value.try_eq(&expected),
                 Ok(ExprValue::Boolean(true))
@@ -382,7 +418,7 @@ mod tests {
 
     #[test]
     pub fn inputs_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline
@@ -411,7 +447,7 @@ mod tests {
             },
         );
 
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         for (k, v) in &pipeline.inputs {
             let expr = format!("{} inputs.{k} {}", "${{", "}}");
@@ -446,13 +482,13 @@ mod tests {
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
 
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext {
             inputs: data.clone().into_arc(),
             ..Default::default()
         };
         let pipeline = Pipeline::default();
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         for (name, expected) in data {
             let expr = format!("{} inputs.{name} {}", "${{", "}}");
@@ -480,13 +516,13 @@ mod tests {
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
 
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext {
             env: data.clone().into_arc(),
             ..Default::default()
         };
         let pipeline = Pipeline::default();
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         for (name, expected) in data {
             let expr = format!("{} env.{name} {}", "${{", "}}");

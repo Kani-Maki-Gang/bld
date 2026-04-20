@@ -290,15 +290,15 @@ impl<'a> Validate<'a> for RunsOn {
                 docker_url,
             } => {
                 ctx.push_section("name");
-                ctx.validate_symbols(name);
+                ctx.validate_expressions(name);
                 ctx.pop_section();
 
                 ctx.push_section("tag");
-                ctx.validate_symbols(tag);
+                ctx.validate_expressions(tag);
                 ctx.pop_section();
 
                 ctx.push_section("dockerfile");
-                ctx.validate_symbols(dockerfile);
+                ctx.validate_expressions(dockerfile);
                 ctx.validate_file_path(dockerfile);
                 ctx.pop_section();
 
@@ -314,7 +314,7 @@ impl<'a> Validate<'a> for RunsOn {
                 registry,
             } => {
                 ctx.push_section("image");
-                ctx.validate_symbols(image);
+                ctx.validate_expressions(image);
                 ctx.pop_section();
 
                 if let Some(docker_url) = docker_url {
@@ -325,7 +325,7 @@ impl<'a> Validate<'a> for RunsOn {
                 }
             }
 
-            RunsOn::ContainerOrMachine(value) => ctx.validate_symbols(value),
+            RunsOn::ContainerOrMachine(value) => ctx.validate_expressions(value),
 
             RunsOn::SshFromGlobalConfig { ssh_config } => {
                 validate_global_ssh_config(ctx, ssh_config);
@@ -333,15 +333,22 @@ impl<'a> Validate<'a> for RunsOn {
 
             RunsOn::Ssh(config) => {
                 ctx.push_section("host");
-                ctx.validate_symbols(&config.host);
+                ctx.validate_expressions(&config.host);
                 ctx.pop_section();
 
                 ctx.push_section("port");
-                ctx.validate_symbols(&config.port);
+                if ctx.contains_expressions(&config.port) {
+                    ctx.validate_expressions(&config.port);
+                } else if config.port.parse::<u16>().is_err() {
+                    ctx.append_error(&format!(
+                        "'{}' is not a valid port number (must be 0-65535)",
+                        config.port
+                    ));
+                }
                 ctx.pop_section();
 
                 ctx.push_section("user");
-                ctx.validate_symbols(&config.user);
+                ctx.validate_expressions(&config.user);
                 ctx.pop_section();
 
                 ctx.push_section("auth");
@@ -354,20 +361,20 @@ impl<'a> Validate<'a> for RunsOn {
                     } => {
                         if let Some(pubkey) = public_key {
                             ctx.push_section("public_key");
-                            ctx.validate_symbols(pubkey);
+                            ctx.validate_expressions(pubkey);
                             ctx.validate_file_path(pubkey);
                             ctx.pop_section();
                         }
 
                         ctx.push_section("private_key");
-                        ctx.validate_symbols(private_key);
+                        ctx.validate_expressions(private_key);
                         ctx.validate_file_path(private_key);
                         ctx.pop_section();
                     }
 
                     SshUserAuth::Password { password } => {
                         ctx.push_section("password");
-                        ctx.validate_symbols(password);
+                        ctx.validate_expressions(password);
                         ctx.pop_section();
                     }
                 }
@@ -381,8 +388,8 @@ impl<'a> Validate<'a> for RunsOn {
 fn validate_docker_url<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &'a str) {
     ctx.push_section("docker_url");
 
-    if ctx.contains_symbols(value) {
-        ctx.validate_symbols(value);
+    if ctx.contains_expressions(value) {
+        ctx.validate_expressions(value);
     } else {
         let config = ctx.get_config();
         match &config.local.docker_url {
@@ -411,18 +418,18 @@ fn validate_registry<'a, C: ValidatorContext<'a>>(ctx: &mut C, registry: &'a Reg
         }
         Registry::Full(config) => {
             ctx.push_section("url");
-            ctx.validate_symbols(&config.url);
+            ctx.validate_expressions(&config.url);
             ctx.pop_section();
 
             if let Some(username) = &config.username {
                 ctx.push_section("username");
-                ctx.validate_symbols(username);
+                ctx.validate_expressions(username);
                 ctx.pop_section();
             }
 
             if let Some(password) = &config.password {
                 ctx.push_section("password");
-                ctx.validate_symbols(password);
+                ctx.validate_expressions(password);
                 ctx.pop_section();
             }
         }
@@ -433,8 +440,8 @@ fn validate_registry<'a, C: ValidatorContext<'a>>(ctx: &mut C, registry: &'a Reg
 
 #[cfg(feature = "all")]
 fn validate_global_registry_config<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &'a str) {
-    if ctx.contains_symbols(value) {
-        ctx.validate_symbols(value);
+    if ctx.contains_expressions(value) {
+        ctx.validate_expressions(value);
     } else {
         let config = ctx.get_config();
         if config.registry(value).is_none() {
@@ -447,8 +454,8 @@ fn validate_global_registry_config<'a, C: ValidatorContext<'a>>(ctx: &mut C, val
 fn validate_global_ssh_config<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &'a str) {
     ctx.push_section("ssh_config");
 
-    if ctx.contains_symbols(value) {
-        ctx.validate_symbols(value);
+    if ctx.contains_expressions(value) {
+        ctx.validate_expressions(value);
     } else {
         let config = ctx.get_config();
         if let Err(e) = config.ssh(value) {
@@ -477,12 +484,13 @@ mod tests {
 
     #[test]
     pub fn runs_on_machine_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut pipeline = Pipeline::default();
-        pipeline.runs_on = RunsOn::ContainerOrMachine("machine".to_string());
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
-
+        let pipeline = Pipeline {
+            runs_on: RunsOn::ContainerOrMachine("machine".to_string()),
+            ..Default::default()
+        };
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
         let expected = ExprValue::Text(ExprText::Ref("machine"));
         let actual = exec.eval("${{ runs_on }}").unwrap();
         assert!(matches!(
@@ -493,7 +501,7 @@ mod tests {
 
     #[test]
     pub fn runs_on_container_name_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
 
@@ -513,7 +521,7 @@ mod tests {
 
         for (value, expected) in data {
             pipeline.runs_on = RunsOn::ContainerOrMachine(value.to_string());
-            let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+            let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
             let actual = exec.eval("${{ runs_on }}").unwrap();
             assert!(matches!(
@@ -525,16 +533,18 @@ mod tests {
 
     #[test]
     pub fn runs_on_pull_image_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut pipeline = Pipeline::default();
-        pipeline.runs_on = RunsOn::Pull {
-            image: "ubuntu:latest".to_string(),
-            registry: Some(Registry::FromConfig("registry-config".to_string())),
-            pull: Some(true),
-            docker_url: Some("docker-url".to_string()),
+        let pipeline = Pipeline {
+            runs_on: RunsOn::Pull {
+                image: "ubuntu:latest".to_string(),
+                registry: Some(Registry::FromConfig("registry-config".to_string())),
+                pull: Some(true),
+                docker_url: Some("docker-url".to_string()),
+            },
+            ..Default::default()
         };
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         let actual = exec.eval("${{ runs_on.image }}").unwrap();
         assert!(matches!(
@@ -563,16 +573,18 @@ mod tests {
 
     #[test]
     pub fn runs_on_build_image_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut pipeline = Pipeline::default();
-        pipeline.runs_on = RunsOn::Build {
-            name: "test-image".to_string(),
-            tag: "1.3.4".to_string(),
-            dockerfile: "path-to-dockerfile".to_string(),
-            docker_url: Some("docker-url".to_string()),
+        let pipeline = Pipeline {
+            runs_on: RunsOn::Build {
+                name: "test-image".to_string(),
+                tag: "1.3.4".to_string(),
+                dockerfile: "path-to-dockerfile".to_string(),
+                docker_url: Some("docker-url".to_string()),
+            },
+            ..Default::default()
         };
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         let actual = exec.eval("${{ runs_on.name}}").unwrap();
         assert!(matches!(
@@ -601,19 +613,21 @@ mod tests {
 
     #[test]
     pub fn runs_on_ssh_with_user_auth_key_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut pipeline = Pipeline::default();
-        pipeline.runs_on = RunsOn::Ssh(SshConfig {
-            host: "localhost".to_string(),
-            port: "3000".to_string(),
-            user: "some_user".to_string(),
-            userauth: SshUserAuth::Keys {
-                public_key: Some("some_public_key".to_string()),
-                private_key: "some_private_key".to_string(),
-            },
-        });
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+        let pipeline = Pipeline {
+            runs_on: RunsOn::Ssh(SshConfig {
+                host: "localhost".to_string(),
+                port: "3000".to_string(),
+                user: "some_user".to_string(),
+                userauth: SshUserAuth::Keys {
+                    public_key: Some("some_public_key".to_string()),
+                    private_key: "some_private_key".to_string(),
+                },
+            }),
+            ..Default::default()
+        };
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         let actual = exec.eval("${{ runs_on.host }}").unwrap();
         assert!(matches!(
@@ -654,18 +668,20 @@ mod tests {
 
     #[test]
     pub fn runs_on_ssh_with_user_password_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut pipeline = Pipeline::default();
-        pipeline.runs_on = RunsOn::Ssh(SshConfig {
-            host: "localhost".to_string(),
-            port: "3000".to_string(),
-            user: "some_user".to_string(),
-            userauth: SshUserAuth::Password {
-                password: "some_password".to_string(),
-            },
-        });
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+        let pipeline = Pipeline {
+            runs_on: RunsOn::Ssh(SshConfig {
+                host: "localhost".to_string(),
+                port: "3000".to_string(),
+                user: "some_user".to_string(),
+                userauth: SshUserAuth::Password {
+                    password: "some_password".to_string(),
+                },
+            }),
+            ..Default::default()
+        };
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         let actual = exec.eval("${{ runs_on.host }}").unwrap();
         assert!(matches!(
@@ -700,16 +716,18 @@ mod tests {
 
     #[test]
     pub fn runs_on_ssh_with_user_agent_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut pipeline = Pipeline::default();
-        pipeline.runs_on = RunsOn::Ssh(SshConfig {
-            host: "localhost".to_string(),
-            port: "3000".to_string(),
-            user: "some_user".to_string(),
-            userauth: SshUserAuth::Agent,
-        });
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+        let pipeline = Pipeline {
+            runs_on: RunsOn::Ssh(SshConfig {
+                host: "localhost".to_string(),
+                port: "3000".to_string(),
+                user: "some_user".to_string(),
+                userauth: SshUserAuth::Agent,
+            }),
+            ..Default::default()
+        };
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         let actual = exec.eval("${{ runs_on.host }}").unwrap();
         assert!(matches!(
@@ -738,13 +756,15 @@ mod tests {
 
     #[test]
     pub fn runs_on_ssh_config_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut pipeline = Pipeline::default();
-        pipeline.runs_on = RunsOn::SshFromGlobalConfig {
-            ssh_config: "some_global_ssh_config".to_string(),
+        let pipeline = Pipeline {
+            runs_on: RunsOn::SshFromGlobalConfig {
+                ssh_config: "some_global_ssh_config".to_string(),
+            },
+            ..Default::default()
         };
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         let actual = exec.eval("${{ runs_on.ssh_config }}").unwrap();
         assert!(matches!(

@@ -250,21 +250,15 @@ impl<S: RootState> JobRunner<S> {
             bail!("more than one condition found for step");
         };
 
-        let expr_exec = CommonExprExecutor::new(
-            self.pipeline.as_ref(),
-            self.expr_rctx.as_ref(),
-            &mut self.state,
-        );
+        let expr_exec =
+            CommonExprExecutor::new(self.pipeline.as_ref(), self.expr_rctx.as_ref(), &self.state);
         let value = expr_exec.eval(condition)?;
         Ok(matches!(value, ExprValue::Boolean(true)))
     }
 
     fn eval_all_expr(&mut self, value: &str) -> Result<String> {
-        let expr_exec = CommonExprExecutor::new(
-            self.pipeline.as_ref(),
-            self.expr_rctx.as_ref(),
-            &mut self.state,
-        );
+        let expr_exec =
+            CommonExprExecutor::new(self.pipeline.as_ref(), self.expr_rctx.as_ref(), &self.state);
 
         let mut result = value.to_string();
         for entry in self.expr_regex.find_iter(value) {

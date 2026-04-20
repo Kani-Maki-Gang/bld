@@ -234,7 +234,7 @@ mod tests {
                 for (i, object_part) in object_parts.into_iter().enumerate() {
                     assert_eq!(object_part.as_rule(), Rule::ObjectPart);
                     assert_eq!(object_part.as_span().as_str(), spans[i]);
-                    assert_eq!(object_part.into_inner().count(), 0 as usize);
+                    assert_eq!(object_part.into_inner().count(), 0_usize);
                 }
             }
         }
@@ -292,7 +292,7 @@ mod tests {
                             for (i, object_part) in object_parts.into_iter().enumerate() {
                                 assert_eq!(object_part.as_rule(), Rule::ObjectPart);
                                 assert_eq!(object_part.as_span().as_str(), symbol[i + 1]);
-                                assert_eq!(object_part.into_inner().count(), 0 as usize);
+                                assert_eq!(object_part.into_inner().count(), 0_usize);
                             }
                         }
 

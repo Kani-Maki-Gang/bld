@@ -10,13 +10,14 @@ pub trait ValidatorContext<'a> {
     fn get_fs(&self) -> Arc<FileSystem>;
     fn get_package_manager(&self) -> Arc<PackageManager>;
     fn push_section(&mut self, section: &'a str);
+    fn push_job_section(&mut self, section: &'a str);
     fn pop_section(&mut self);
     #[allow(dead_code)]
     fn clear_section(&mut self);
     fn append_error(&mut self, error: &str);
-    fn contains_symbols(&mut self, value: &str) -> bool;
-    fn validate_symbols(&mut self, symbol: &'a str);
-    fn validate_keywords(&mut self, name: &'a str);
+    fn expression_count(&self, value: &str) -> usize;
+    fn contains_expressions(&mut self, value: &str) -> bool;
+    fn validate_expressions(&mut self, symbol: &'a str);
     fn validate_file_path(&mut self, value: &'a str);
     fn validate_env(&mut self, env: &'a HashMap<String, String>);
 }

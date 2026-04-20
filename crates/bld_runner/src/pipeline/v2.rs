@@ -91,8 +91,8 @@ impl Dependencies for Pipeline {
     async fn local_deps(&self, config: &BldConfig, _fs: &FileSystem) -> Vec<String> {
         let from_steps = self
             .jobs
-            .iter()
-            .flat_map(|(_, steps)| steps)
+            .values()
+            .flatten()
             .flat_map(|s| s.local_dependencies(config));
 
         let from_external = self

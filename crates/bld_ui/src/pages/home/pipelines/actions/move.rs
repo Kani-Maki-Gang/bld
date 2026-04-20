@@ -126,7 +126,7 @@ pub fn PipelineMoveButton(
                     logging::console_error("App dialog context not found");
                     return;
                 };
-                let _ = content
+                content
                     .set(
                         Some(
                             view! {

@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 #[cfg(feature = "all")]
 use bld_config::BldConfig;
@@ -27,6 +27,20 @@ pub enum RunnerFile {
 }
 
 impl RunnerFile {
+    pub fn env_map(&self) -> HashMap<String, String> {
+        match self {
+            Self::PipelineFileType(pipeline) => pipeline.env.clone(),
+            Self::ActionFileType(_) => HashMap::new(),
+        }
+    }
+
+    pub fn inputs_map(&self) -> HashMap<String, String> {
+        match self {
+            Self::PipelineFileType(pipeline) => pipeline.inputs_map(),
+            Self::ActionFileType(action) => action.inputs_map(),
+        }
+    }
+
     pub fn required_inputs(&self) -> Option<HashSet<&str>> {
         match self {
             Self::PipelineFileType(pipeline) => pipeline.required_inputs(),
@@ -61,11 +75,6 @@ impl Dependencies for RunnerFile {
                     for step in steps {
                         let mut local_deps = step.local_deps(config, fs).await;
                         dependecies.append(&mut local_deps);
-                    }
-                }
-                for external in &pipeline.external {
-                    if external.server.is_none() {
-                        dependecies.push(external.uses.to_owned());
                     }
                 }
                 dependecies

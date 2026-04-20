@@ -90,12 +90,14 @@ impl Step {
 impl Dependencies for Step {
     async fn local_deps(&self, _config: &BldConfig, fs: &FileSystem) -> Vec<String> {
         match self {
-            Self::ExternalFile(external)
-                if matches!(fs.path(&external.uses).await.map(|x| x.is_yaml()), Ok(true)) =>
-            {
-                vec![external.uses.to_owned()]
+            Self::ExternalFile(external) => {
+                if matches!(fs.path(&external.uses).await.map(|x| x.is_yaml()), Ok(true)) {
+                    vec![external.uses.to_owned()]
+                } else {
+                    vec![]
+                }
             }
-            Self::ComplexSh { .. } | Self::ExternalFile { .. } => vec![],
+            Self::ComplexSh { .. } => vec![],
         }
     }
 }
@@ -146,15 +148,38 @@ impl<'a> Validate<'a> for Step {
                 debug!("Step is a complex shell command");
                 ctx.push_section(&complex.id);
 
+                if let Some(name) = complex.name.as_ref() {
+                    debug!("Validating step's name value");
+                    ctx.push_section("name");
+                    ctx.validate_expressions(name);
+                    ctx.pop_section();
+                }
+
                 if let Some(wd) = complex.working_dir.as_ref() {
                     debug!("Validating step's working directory");
                     ctx.push_section("working_dir");
-                    ctx.validate_symbols(wd);
+                    ctx.validate_expressions(wd);
+                    ctx.pop_section();
+                }
+
+                if let Some(condition) = complex.condition.as_ref() {
+                    debug!("Validating step's if condition");
+                    ctx.push_section("if");
+                    if ctx.expression_count(condition) > 1 {
+                        ctx.append_error("Condition must contain at most one expression");
+                    } else {
+                        ctx.validate_expressions(condition);
+                    }
                     ctx.pop_section();
                 }
 
                 debug!("Validating step's run command");
-                ctx.validate_symbols(&complex.run);
+                ctx.push_section("run");
+                if complex.run.trim().is_empty() {
+                    ctx.append_error("Run command must not be empty");
+                }
+                ctx.validate_expressions(&complex.run);
+                ctx.pop_section();
 
                 ctx.pop_section();
             }
@@ -180,7 +205,6 @@ mod tests {
             exec::CommonExprExecutor,
             traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext},
         },
-        external::v3::External,
         pipeline::v3::Pipeline,
         step::v3::{ShellCommand, Step},
     };
@@ -221,7 +245,7 @@ mod tests {
         );
 
         wctx.expect_get_exec_id().returning_st(|| Some("main"));
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         let actual = exec.eval("${{ steps.second.name }}").unwrap();
         assert!(matches!(
@@ -271,7 +295,7 @@ mod tests {
 
         let mut wctx = MockWritableRuntimeExprContext::new();
         wctx.expect_get_exec_id().returning_st(|| Some("backup"));
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         let actual = exec.eval("${{ steps.first.name }}").unwrap();
         assert!(matches!(
@@ -299,7 +323,7 @@ mod tests {
 
     #[test]
     pub fn steps_complex_step_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut action = Action::default();
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
@@ -324,7 +348,7 @@ mod tests {
             condition: Some("first_condition".to_string()),
         })));
 
-        let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&action, &rctx, &wctx);
 
         let actual = exec.eval("${{ steps.second.name }}").unwrap();
         assert!(matches!(
@@ -398,21 +422,21 @@ mod tests {
 
     #[test]
     pub fn jobs_external_step_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::default();
+        let wctx = MockWritableRuntimeExprContext::default();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.jobs.insert(
             "main".to_string(),
             vec![
-                Step::ExternalFile(Box::new(External::default())),
-                Step::ExternalFile(Box::new(External::default())),
+                Step::ExternalFile(Box::default()),
+                Step::ExternalFile(Box::default()),
             ],
         );
         pipeline.jobs.insert(
             "backup".to_string(),
-            vec![Step::ExternalFile(Box::new(External::default()))],
+            vec![Step::ExternalFile(Box::default())],
         );
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         let actual = exec.eval("${{ jobs.main.first }}");
         assert!(actual.is_err());
@@ -426,19 +450,13 @@ mod tests {
 
     #[test]
     pub fn steps_external_step_expr_eval_success() {
-        let mut wctx = MockWritableRuntimeExprContext::new();
+        let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut action = Action::default();
-        action
-            .steps
-            .push(Step::ExternalFile(Box::new(External::default())));
-        action
-            .steps
-            .push(Step::ExternalFile(Box::new(External::default())));
-        action
-            .steps
-            .push(Step::ExternalFile(Box::new(External::default())));
-        let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+        action.steps.push(Step::ExternalFile(Box::default()));
+        action.steps.push(Step::ExternalFile(Box::default()));
+        action.steps.push(Step::ExternalFile(Box::default()));
+        let exec = CommonExprExecutor::new(&action, &rctx, &wctx);
 
         let actual = exec.eval("${{ steps.main.first }}");
         assert!(actual.is_err());
@@ -453,7 +471,7 @@ mod tests {
     #[test]
     pub fn jobs_outputs_expr_eval_success() {
         // Arrange
-        let data = vec![
+        let data = [
             (
                 "main",
                 vec![
@@ -488,7 +506,7 @@ mod tests {
         let mut pipeline = Pipeline::default();
 
         for (job, steps) in data.iter() {
-            if pipeline.jobs.get(*job).is_none() {
+            if !pipeline.jobs.contains_key(*job) {
                 pipeline.jobs.insert(job.to_string(), vec![]);
             }
 
@@ -520,7 +538,7 @@ mod tests {
         for (_, steps) in data.iter() {
             for (step, outputs) in steps.iter() {
                 for (name, value) in outputs.iter() {
-                    let exec = CommonExprExecutor::new(&pipeline, &rctx, &mut wctx);
+                    let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
                     let expr = format!("{} steps.{step}.outputs.{name} {}", "${{", "}}");
 
                     // Act
@@ -541,7 +559,7 @@ mod tests {
     #[test]
     pub fn action_outputs_expr_eval_success() {
         // Arrange
-        let data = vec![
+        let data = [
             (
                 "build",
                 vec![
@@ -583,7 +601,7 @@ mod tests {
 
         for (step, outputs) in data.iter() {
             for (name, value) in outputs.iter() {
-                let exec = CommonExprExecutor::new(&action, &rctx, &mut wctx);
+                let exec = CommonExprExecutor::new(&action, &rctx, &wctx);
                 let expr = format!("{} steps.{step}.outputs.{name} {}", "${{", "}}");
 
                 // Act

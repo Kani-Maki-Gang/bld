@@ -49,7 +49,7 @@ pub fn DashboardKpis() -> impl IntoView {
                     count: data.count as u64,
                     title: "Running pipelines".to_string(),
                     footnote: if data.available_workers == 0 {
-                        format!("Full worker capacity has been reached")
+                        "Full worker capacity has been reached".to_string()
                     } else {
                         format!("{} worker available in the server", data.available_workers)
                     },

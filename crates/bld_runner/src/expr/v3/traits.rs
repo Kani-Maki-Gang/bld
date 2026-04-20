@@ -168,9 +168,9 @@ pub trait EvalObject<'a> {
 }
 
 pub trait EvalExpr<'a> {
-    fn eval_cmp(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
-    fn eval_symbol(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
-    fn eval_expr(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
-    fn eval_logical_expr(&'a self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
-    fn eval(&'a self, expr: &'a str) -> Result<ExprValue<'a>>;
+    fn eval_cmp(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
+    fn eval_symbol(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
+    fn eval_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
+    fn eval_logical_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
+    fn eval(&self, expr: &'a str) -> Result<ExprValue<'a>>;
 }
