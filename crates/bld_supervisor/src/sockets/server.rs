@@ -1,141 +1,108 @@
 use crate::queues::WorkerQueueSender;
-use actix::prelude::*;
+use actix_http::ws::Message;
 use actix_web::{
-    Error, HttpRequest, HttpResponse,
-    web::{Bytes, Data, Payload},
+    HttpRequest, Responder,
+    web::{self, Bytes, Data},
 };
-use actix_web_actors::ws;
+use actix_ws::CloseReason;
 use anyhow::Result;
 use bld_core::workers::Worker;
 use bld_models::dtos::ServerMessages;
-use futures_util::future::ready;
 use std::env::current_exe;
 use tokio::process::Command;
 use tracing::{debug, error, info};
 
-pub struct ServerSocket {
-    worker_queue_tx: Data<WorkerQueueSender>,
-}
+async fn handle_message(worker_queue_tx: &Data<WorkerQueueSender>, bytes: &Bytes) -> Result<()> {
+    let msg: ServerMessages = serde_json::from_slice(&bytes[..])?;
+    match msg {
+        ServerMessages::Ack => info!("a new server connection was acknowledged"),
 
-impl ServerSocket {
-    pub fn new(worker_queue_tx: Data<WorkerQueueSender>) -> Self {
-        Self { worker_queue_tx }
-    }
-
-    fn handle_message(&self, ctx: &mut <Self as Actor>::Context, bytes: &Bytes) -> Result<()> {
-        let msg: ServerMessages = serde_json::from_slice(&bytes[..])?;
-        match msg {
-            ServerMessages::Ack => info!("a new server connection was acknowledged"),
-
-            ServerMessages::Enqueue {
-                pipeline,
-                run_id,
-                inputs,
-                env,
-            } => {
-                info!("server sent an enqueue message for pipeline: {pipeline}");
-                let exe = current_exe().map_err(|e| {
-                    error!("could not get the current executable. {e}");
-                    e
-                })?;
-                let mut command = Command::new(exe);
-                command.arg("worker");
-                command.arg("--pipeline");
-                command.arg(&pipeline);
-                command.arg("--run-id");
-                command.arg(&run_id);
-                if let Some(inputs) = inputs {
-                    for entry in inputs {
-                        command.arg("--input");
-                        command.arg(entry);
-                    }
+        ServerMessages::Enqueue {
+            pipeline,
+            run_id,
+            inputs,
+            env,
+        } => {
+            info!("server sent an enqueue message for pipeline: {pipeline}");
+            let exe = current_exe().map_err(|e| {
+                error!("could not get the current executable. {e}");
+                e
+            })?;
+            let mut command = Command::new(exe);
+            command.arg("worker");
+            command.arg("--pipeline");
+            command.arg(&pipeline);
+            command.arg("--run-id");
+            command.arg(&run_id);
+            if let Some(inputs) = inputs {
+                for entry in inputs {
+                    command.arg("--input");
+                    command.arg(entry);
                 }
-                if let Some(env) = env {
-                    for entry in env {
-                        command.arg("--environment");
-                        command.arg(entry);
-                    }
+            }
+            if let Some(env) = env {
+                for entry in env {
+                    command.arg("--environment");
+                    command.arg(entry);
                 }
-
-                let tx = self.worker_queue_tx.clone();
-
-                let success_msg = format!("worker for pipeline: {pipeline} has been queued");
-                let worker = Box::new(Worker::new(run_id, command));
-                let enqueque_fut = async move { tx.enqueue(worker).await }
-                    .into_actor(self)
-                    .then(move |res, _, _| {
-                        match res {
-                            Ok(_) => info!(success_msg),
-                            Err(e) => error!("{e}"),
-                        }
-                        ready(())
-                    });
-
-                ctx.spawn(enqueque_fut);
             }
 
-            ServerMessages::Stop { run_id } => {
-                info!("server sent a stop message for run_id: {run_id}");
-
-                let tx = self.worker_queue_tx.clone();
-
-                let success_msg = format!("stop signal sent to worker for run_id: {run_id}");
-                let stop_fut = async move { tx.stop(&run_id).await }.into_actor(self).then(
-                    move |res, _, _| {
-                        match res {
-                            Ok(_) => info!(success_msg),
-                            Err(e) => error!("{e}"),
-                        }
-                        ready(())
-                    },
-                );
-
-                ctx.spawn(stop_fut);
-            }
+            let worker = Box::new(Worker::new(run_id, command));
+            worker_queue_tx
+                .enqueue(worker)
+                .await
+                .inspect(|_| info!("worker for pipeline: {pipeline} has been queued"))?;
         }
-        Ok(())
-    }
-}
 
-impl Actor for ServerSocket {
-    type Context = ws::WebsocketContext<Self>;
-
-    fn started(&mut self, _ctx: &mut Self::Context) {
-        debug!("queue socket started");
-    }
-
-    fn stopped(&mut self, _: &mut Self::Context) {
-        info!("server connection stopped");
-    }
-}
-
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ServerSocket {
-    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        match msg {
-            Ok(ws::Message::Binary(bytes)) => {
-                debug!("received binary message from server");
-                if let Err(e) = self.handle_message(ctx, &bytes) {
-                    error!("handling message error. {e}");
-                }
-            }
-            Ok(ws::Message::Ping(msg)) => {
-                ctx.pong(&msg);
-            }
-            Ok(ws::Message::Pong(_)) => {}
-            Ok(ws::Message::Close(reason)) => {
-                ctx.close(reason);
-                ctx.stop();
-            }
-            _ => ctx.stop(),
+        ServerMessages::Stop { run_id } => {
+            info!("server sent a stop message for run_id: {run_id}");
+            worker_queue_tx
+                .stop(&run_id)
+                .await
+                .inspect(|_| info!("stop signal sent to worker for run_id: {run_id}"))?;
         }
     }
+    Ok(())
 }
 
-pub async fn ws_server_socket(
+pub async fn ws(
     req: HttpRequest,
-    stream: Payload,
+    body: web::Payload,
     worker_queue_tx: Data<WorkerQueueSender>,
-) -> Result<HttpResponse, Error> {
-    let socket = ServerSocket::new(worker_queue_tx);
-    ws::start(socket, &req, stream)
+) -> actix_web::Result<impl Responder> {
+    let (response, mut session, mut msg_stream) = actix_ws::handle(&req, body)?;
+
+    actix_web::rt::spawn(async move {
+        let mut reason: Option<CloseReason> = None;
+        while let Some(Ok(msg)) = msg_stream.recv().await {
+            match msg {
+                Message::Binary(bytes) => {
+                    debug!("received binary message from server");
+                    if let Err(e) = handle_message(&worker_queue_tx, &bytes).await {
+                        error!("handling message error. {e}");
+                    }
+                }
+                Message::Ping(msg) => {
+                    if let Err(e) = session.pong(&msg).await {
+                        error!("{e}");
+                        break;
+                    }
+                }
+                Message::Pong(_) => {}
+                Message::Close(r) => {
+                    reason = r;
+                    break;
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+
+        if let Err(e) = session.close(reason).await {
+            error!("encountered error while closing websocket session due to {e}");
+        }
+    });
+
+    Ok(response)
 }

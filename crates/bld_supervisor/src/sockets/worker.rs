@@ -1,93 +1,80 @@
 use crate::queues::WorkerQueueSender;
-use actix::prelude::*;
-use actix_web::rt::spawn;
-use actix_web::web::{Bytes, Data, Payload};
-use actix_web::{Error, HttpRequest, HttpResponse};
-use actix_web_actors::ws;
+use actix_web::web::{self, Bytes, Data};
+use actix_web::{HttpRequest, Responder};
+use actix_ws::{CloseReason, Message};
 use anyhow::Result;
 use bld_models::dtos::WorkerMessages;
 use tracing::{debug, error, info};
 
-pub struct WorkerSocket {
-    worker_pid: Option<u32>,
+async fn handle_message(
+    bytes: &Bytes,
     worker_queue_tx: Data<WorkerQueueSender>,
+    worker_pid: &mut Option<u32>,
+) -> Result<bool> {
+    let msg: WorkerMessages = serde_json::from_slice(&bytes[..])?;
+    let completed = match msg {
+        WorkerMessages::Ack => {
+            info!("a new worker connection was acknowledged");
+            false
+        }
+        WorkerMessages::WhoAmI { pid } => {
+            info!("worker with pid: {pid} sent a whoami message");
+            worker_pid.replace(pid);
+            false
+        }
+        WorkerMessages::Completed => {
+            info!("worker just completed, starting cleanup");
+            if let Some(pid) = worker_pid {
+                debug!("dequeue of worker with pid: {}", pid);
+                worker_queue_tx.dequeue(*pid).await?;
+            }
+            true
+        }
+    };
+    Ok(completed)
 }
 
-impl WorkerSocket {
-    pub fn new(worker_queue_tx: Data<WorkerQueueSender>) -> Self {
-        Self {
-            worker_pid: None,
-            worker_queue_tx,
-        }
-    }
-
-    fn handle_message(&mut self, bytes: &Bytes, ctx: &mut <Self as Actor>::Context) -> Result<()> {
-        let msg: WorkerMessages = serde_json::from_slice(&bytes[..])?;
-        match msg {
-            WorkerMessages::Ack => info!("a new worker connection was acknowledged"),
-            WorkerMessages::WhoAmI { pid } => {
-                info!("worker with pid: {pid} sent a whoami message");
-                self.worker_pid = Some(pid);
-            }
-            WorkerMessages::Completed => {
-                info!("worker just completed, starting cleanup");
-                self.cleanup(ctx);
-            }
-        }
-        Ok(())
-    }
-
-    fn cleanup(&self, ctx: &mut <Self as Actor>::Context) {
-        if let Some(pid) = self.worker_pid {
-            debug!("dequeue of worker with pid: {}", pid);
-            let tx = self.worker_queue_tx.clone();
-            spawn(async move {
-                let _ = tx.dequeue(pid).await.map_err(|e| {
-                    error!("{e}");
-                    e
-                });
-            });
-        }
-        ctx.stop();
-    }
-}
-
-impl Actor for WorkerSocket {
-    type Context = ws::WebsocketContext<Self>;
-
-    fn started(&mut self, _ctx: &mut Self::Context) {
-        debug!("active worker socket started");
-    }
-
-    fn stopped(&mut self, ctx: &mut Self::Context) {
-        self.cleanup(ctx);
-        debug!("active worker socket stopped");
-    }
-}
-
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WorkerSocket {
-    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        match msg {
-            Ok(ws::Message::Binary(bytes)) => {
-                let _ = self.handle_message(&bytes, ctx);
-            }
-            Ok(ws::Message::Ping(msg)) => {
-                ctx.pong(&msg);
-            }
-            Ok(ws::Message::Close(reason)) => {
-                debug!("worker socket closed with reason: {reason:?}");
-                self.cleanup(ctx);
-            }
-            _ => {}
-        }
-    }
-}
-
-pub async fn ws_worker_socket(
+pub async fn ws(
     req: HttpRequest,
-    stream: Payload,
+    body: web::Payload,
     worker_queue_tx: Data<WorkerQueueSender>,
-) -> Result<HttpResponse, Error> {
-    let socket = WorkerSocket::new(worker_queue_tx);
-    ws::start(socket, &req, stream)
+) -> actix_web::Result<impl Responder> {
+    let (response, mut session, mut msg_stream) = actix_ws::handle(&req, body)?;
+
+    actix_web::rt::spawn(async move {
+        let mut reason: Option<CloseReason> = None;
+        let mut worker_pid: Option<u32> = None;
+        while let Some(Ok(msg)) = msg_stream.recv().await {
+            match msg {
+                Message::Binary(bytes) => {
+                    debug!("received binary message from server");
+                    match handle_message(&bytes, worker_queue_tx.clone(), &mut worker_pid).await {
+                        Ok(true) => break,
+                        Ok(false) => {}
+                        Err(e) => error!("handling message error. {e}"),
+                    }
+                }
+                Message::Ping(msg) => {
+                    if let Err(e) = session.pong(&msg).await {
+                        error!("{e}");
+                        break;
+                    }
+                }
+                Message::Pong(_) => {}
+                Message::Close(r) => {
+                    reason = r;
+                    break;
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+
+        if let Err(e) = session.close(reason).await {
+            error!("encountered error while closing websocket session due to {e}");
+        }
+    });
+
+    Ok(response)
 }
