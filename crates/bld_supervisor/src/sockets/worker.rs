@@ -1,7 +1,10 @@
 use crate::queues::WorkerQueueSender;
-use actix_web::web::{self, Bytes, Data};
-use actix_web::{HttpRequest, Responder};
-use actix_ws::{CloseReason, Message};
+use actix_web::{
+    HttpRequest, Responder,
+    rt::spawn,
+    web::{self, Bytes, Data},
+};
+use actix_ws::{CloseReason, Message, handle};
 use anyhow::Result;
 use bld_models::dtos::WorkerMessages;
 use tracing::{debug, error, info};
@@ -39,9 +42,9 @@ pub async fn ws(
     body: web::Payload,
     worker_queue_tx: Data<WorkerQueueSender>,
 ) -> actix_web::Result<impl Responder> {
-    let (response, mut session, mut msg_stream) = actix_ws::handle(&req, body)?;
+    let (response, mut session, mut msg_stream) = handle(&req, body)?;
 
-    actix_web::rt::spawn(async move {
+    spawn(async move {
         let mut reason: Option<CloseReason> = None;
         let mut worker_pid: Option<u32> = None;
         while let Some(Ok(msg)) = msg_stream.recv().await {

@@ -978,7 +978,7 @@ dependencies = [
  "actix-cors",
  "actix-http",
  "actix-web",
- "actix-web-actors",
+ "actix-ws",
  "anyhow",
  "awc",
  "bld_config",

@@ -4,11 +4,12 @@ use crate::{
 };
 use actix::prelude::*;
 use actix_web::{
-    Error, HttpRequest, HttpResponse,
+    HttpRequest, Responder,
     error::ErrorUnauthorized,
+    rt::spawn,
     web::{Data, Payload},
 };
-use actix_web_actors::ws;
+use actix_ws::{CloseReason, Message, Session, handle};
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::{fs::FileSystem, scanner::FileScanner};
@@ -20,6 +21,11 @@ use bld_utils::sync::IntoArc;
 use futures_util::future::ready;
 use sea_orm::DatabaseConnection;
 use std::{sync::Arc, time::Duration};
+use tokio::{
+    sync::{Mutex, RwLock},
+    task::JoinHandle,
+    time,
+};
 use tracing::{debug, error};
 
 pub struct ExecutePipelineSocket {
@@ -180,19 +186,132 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSo
     }
 }
 
+struct ExecState {
+    config: Data<BldConfig>,
+    supervisor: Data<SupervisorMessageSender>,
+    conn: Data<DatabaseConnection>,
+    fs: Data<FileSystem>,
+    user: User,
+    scanner: Option<FileScanner>,
+    run_id: Option<String>,
+}
+
+impl ExecState {
+    pub fn new(
+        config: Data<BldConfig>,
+        supervisor: Data<SupervisorMessageSender>,
+        conn: Data<DatabaseConnection>,
+        fs: Data<FileSystem>,
+        user: User,
+    ) -> Self {
+        Self {
+            config,
+            supervisor,
+            conn,
+            fs,
+            user,
+            scanner: None,
+            run_id: None,
+        }
+    }
+
+    pub async fn exec(&self, session: &mut Session) -> bool {
+        let Some(run_id) = self.run_id.as_ref() else {
+            return false;
+        };
+        match pipeline_runs::select_by_id(self.conn.as_ref(), &run_id).await {
+            Ok(run) if run.state == PR_STATE_FINISHED || run.state == PR_STATE_FAULTED => true,
+            Ok(run) if run.state == PR_STATE_QUEUED => {
+                let message = format!(
+                    "run with id {run_id} has been queued, use the monit command to see the output when it's started"
+                );
+                if let Err(e) = session.text(message.as_str()).await {
+                    error!("{e}");
+                }
+                true
+            }
+            Err(_) => {
+                if let Err(e) = session.text("internal server error").await {
+                    error!("{e}");
+                }
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub async fn handle_message(&mut self, session: &mut Session, message: &str) -> Result<()> {
+        let message: ExecClientMessage = serde_json::from_str(message)?;
+
+        debug!("enqueueing run");
+
+        let username = self.user.name.to_owned();
+        let fs = Arc::clone(&self.fs);
+        let pool = Arc::clone(&self.conn);
+        let supervisor = Arc::clone(&self.supervisor);
+
+        match enqueue_worker(&username, fs, pool, supervisor, message).await {
+            Ok(run_id) => {
+                self.scanner
+                    .replace(FileScanner::new(self.config.as_ref(), &run_id));
+                self.run_id.replace(run_id.to_owned());
+                let message = ExecServerMessage::QueuedRun { run_id };
+                if let Ok(data) = serde_json::to_string(&message) {
+                    session.text(data).await;
+                }
+                Ok(())
+            }
+            Err(e) => {
+                session.text(e.to_string()).await;
+                Err(e)
+            }
+        }
+    }
+}
+
 pub async fn ws(
     user: Option<User>,
     req: HttpRequest,
-    stream: Payload,
-    cfg: Data<BldConfig>,
-    supervisor_sender: Data<SupervisorMessageSender>,
+    body: Payload,
+    config: Data<BldConfig>,
+    supervisor: Data<SupervisorMessageSender>,
     conn: Data<DatabaseConnection>,
     fs: Data<FileSystem>,
-) -> Result<HttpResponse, Error> {
+) -> actix_web::Result<impl Responder> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
-    println!("{req:?}");
-    let socket = ExecutePipelineSocket::new(user, cfg, supervisor_sender, conn, fs);
-    let res = ws::start(socket, &req, stream);
-    println!("{res:?}");
-    res
+    let mut state = ExecState::new(config, supervisor, conn, fs, user);
+    let (response, mut session, mut msg_stream) = handle(&req, body)?;
+
+    spawn(async move {
+        let mut reason: Option<CloseReason> = None;
+
+        while let Some(Ok(msg)) = msg_stream.recv().await {
+            match msg {
+                Message::Text(txt) => {
+                    if let Err(e) = state.handle_message(&mut session, &txt).await {
+                        error!("handling message error. {e}");
+                        break;
+                    }
+                }
+                Message::Ping(msg) => {
+                    if let Err(e) = session.pong(&msg).await {
+                        error!("{e}");
+                        break;
+                    }
+                }
+                Message::Pong(_) | Message::Binary(_) => {}
+                Message::Close(r) => {
+                    reason = r;
+                    break;
+                }
+                _ => {}
+            }
+        }
+
+        if let Err(e) = session.close(reason).await {
+            error!("encountered error while closing websocket session due to {e}");
+        }
+    });
+
+    Ok(response)
 }
