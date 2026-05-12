@@ -89,11 +89,11 @@ impl LoginSocket {
 
         if let Err(e) = login_attempts::insert(&conn, model).await {
             let message = serde_json::to_string(&LoginServerMessage::Failed(e.to_string()))?;
-            session.text(message).await;
+            session.text(message).await?;
         }
 
         let message = LoginServerMessage::AuthorizationUrl(url.to_string());
-        session.text(serde_json::to_string(&message)?).await;
+        session.text(serde_json::to_string(&message)?).await?;
 
         Ok(())
     }
@@ -117,7 +117,7 @@ impl LoginSocket {
         else {
             let message = LoginServerMessage::Failed("Login operation failed".to_string());
             if let Ok(text) = serde_json::to_string(&message) {
-                session.text(text).await;
+                let _ = session.text(text).await.inspect_err(|e| error!("{e}"));
             }
             return false;
         };
@@ -128,7 +128,7 @@ impl LoginSocket {
             let Some(access_token) = login_attempt.access_token else {
                 let message = LoginServerMessage::Failed("Access token not found".to_string());
                 if let Ok(text) = serde_json::to_string(&message) {
-                    session.text(text).await;
+                    let _ = session.text(text).await.inspect_err(|e| error!("{e}"));
                 }
                 return false;
             };
@@ -136,7 +136,7 @@ impl LoginSocket {
             let auth_tokens = AuthTokens::new(access_token, login_attempt.refresh_token);
             let message = LoginServerMessage::Completed(auth_tokens);
             if let Ok(text) = serde_json::to_string(&message) {
-                session.text(text).await;
+                let _ = session.text(text).await.inspect_err(|e| error!("{e}"));
             }
 
             return false;
@@ -145,7 +145,7 @@ impl LoginSocket {
         if let Ok(LoginAttemptStatus::Failed) = status {
             let message = LoginServerMessage::Failed("Login operation failed".to_string());
             if let Ok(text) = serde_json::to_string(&message) {
-                session.text(text).await;
+                let _ = session.text(text).await.inspect_err(|e| error!("{e}"));
             }
             return false;
         }
@@ -153,17 +153,17 @@ impl LoginSocket {
         if Utc::now().naive_utc() > login_attempt.date_expires {
             let message = LoginServerMessage::Failed("Operation timeout".to_string());
             if let Ok(text) = serde_json::to_string(&message) {
-                session.text(text).await;
+                let _ = session.text(text).await.inspect_err(|e| error!("{e}"));
             }
             return false;
         }
 
-        return true;
+        true
     }
 
     async fn cleanup(&mut self) {
         if let Err(e) =
-            login_attempts::delete_by_csrf_token(&self.conn.as_ref(), &self.csrf_token.secret())
+            login_attempts::delete_by_csrf_token(self.conn.as_ref(), self.csrf_token.secret())
                 .await
         {
             error!("{e}");
@@ -188,28 +188,36 @@ pub async fn ws(
         let mut interval = time::interval(Duration::from_millis(500));
 
         loop {
-            let Some(Ok(msg)) = msg_stream.next().await else {
-                break;
-            };
-
-            match msg {
-                Message::Text(txt) => {
-                    if let Err(e) = socket.handle_client_message(&mut session, &txt).await {
+            if let Some(msg) = msg_stream.next().await {
+                match msg {
+                    Ok(Message::Text(txt)) => {
+                        if let Err(e) = socket.handle_client_message(&mut session, &txt).await {
+                            error!("{e}");
+                            break;
+                        }
+                    }
+                    Ok(Message::Ping(msg)) => {
+                        if let Err(e) = session.pong(&msg).await {
+                            error!("{e}");
+                            break;
+                        }
+                    }
+                    Ok(Message::Pong(msg)) => {
+                        if let Err(e) = session.ping(&msg).await {
+                            error!("{e}");
+                            break;
+                        }
+                    }
+                    Ok(Message::Close(r)) => {
+                        reason = r;
+                        break;
+                    }
+                    Err(e) => {
                         error!("{e}");
                         break;
                     }
+                    _ => break,
                 }
-                Message::Ping(msg) => {
-                    session.pong(&msg).await;
-                }
-                Message::Pong(msg) => {
-                    session.ping(&msg).await;
-                }
-                Message::Close(r) => {
-                    reason = r;
-                    break;
-                }
-                _ => {}
             }
 
             interval.tick().await;
@@ -221,6 +229,8 @@ pub async fn ws(
         if let Err(e) = session.close(reason).await {
             error!("encountered error while closing websocket session due to {e}");
         }
+
+        socket.cleanup().await
     });
 
     Ok(response)

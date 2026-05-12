@@ -64,7 +64,9 @@ impl ExecWebsocket {
             let Ok(data) = serde_json::to_string(&message) else {
                 continue;
             };
-            session.text(data);
+            if let Err(e) = session.text(data).await {
+                error!("{e}");
+            }
         }
     }
 
@@ -72,7 +74,7 @@ impl ExecWebsocket {
         let Some(run_id) = self.run_id.as_ref() else {
             return false;
         };
-        match pipeline_runs::select_by_id(self.conn.as_ref(), &run_id).await {
+        match pipeline_runs::select_by_id(self.conn.as_ref(), run_id).await {
             Ok(run) if run.state == PR_STATE_FINISHED || run.state == PR_STATE_FAULTED => true,
             Ok(run) if run.state == PR_STATE_QUEUED => {
                 let message = format!(
@@ -110,12 +112,12 @@ impl ExecWebsocket {
                 self.run_id.replace(run_id.to_owned());
                 let message = ExecServerMessage::QueuedRun { run_id };
                 if let Ok(data) = serde_json::to_string(&message) {
-                    session.text(data).await;
+                    session.text(data).await?;
                 }
                 Ok(())
             }
             Err(e) => {
-                session.text(e.to_string()).await;
+                session.text(e.to_string()).await?;
                 Err(e)
             }
         }
@@ -141,29 +143,36 @@ pub async fn ws(
         let mut exec_interval = time::interval(Duration::from_millis(500));
 
         loop {
-            let Some(Ok(msg)) = msg_stream.next().await else {
-                break;
-            };
-
-            match msg {
-                Message::Text(txt) => {
-                    if let Err(e) = socket.handle_message(&mut session, &txt).await {
-                        error!("handling message error. {e}");
+            if let Some(msg) = msg_stream.next().await {
+                match msg {
+                    Ok(Message::Text(txt)) => {
+                        if let Err(e) = socket.handle_message(&mut session, &txt).await {
+                            error!("handling message error. {e}");
+                            break;
+                        }
+                    }
+                    Ok(Message::Ping(msg)) => {
+                        if let Err(e) = session.pong(&msg).await {
+                            error!("{e}");
+                            break;
+                        }
+                    }
+                    Ok(Message::Pong(msg)) => {
+                        if let Err(e) = session.ping(&msg).await {
+                            error!("{e}");
+                            break;
+                        }
+                    }
+                    Ok(Message::Close(r)) => {
+                        reason = r;
                         break;
                     }
-                }
-                Message::Ping(msg) => {
-                    if let Err(e) = session.pong(&msg).await {
+                    Err(e) => {
                         error!("{e}");
                         break;
                     }
+                    _ => break,
                 }
-                Message::Pong(_) | Message::Binary(_) => {}
-                Message::Close(r) => {
-                    reason = r;
-                    break;
-                }
-                _ => {}
             }
 
             scan_interval.tick().await;
