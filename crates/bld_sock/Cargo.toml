@@ -10,7 +10,6 @@ actix = "0.13.5"
 actix-codec = "0.5.2"
 actix-http = "3.11.2"
 actix-web = { version = "4.9.0", features = ["rustls"] }
-actix-web-actors = "4.3.0"
 awc = { version = "3.5.1", features = ["rustls"] }
 anyhow = "1.0.93"
 bld_config = { path = "../bld_config" }
