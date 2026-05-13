@@ -19,7 +19,7 @@ enum FileScannerMessage {
 
 struct FileScannerBackend {
     path: PathBuf,
-    file_handle: Option<File>,
+    reader: Option<BufReader<File>>,
     rx: Receiver<FileScannerMessage>,
 }
 
@@ -27,7 +27,7 @@ impl FileScannerBackend {
     pub fn new(path: PathBuf, rx: Receiver<FileScannerMessage>) -> Self {
         Self {
             path,
-            file_handle: None,
+            reader: None,
             rx,
         }
     }
@@ -49,23 +49,25 @@ impl FileScannerBackend {
         }
     }
 
-    async fn try_file_handle(&mut self) -> Option<&mut File> {
-        if self.file_handle.is_none() && self.path.is_file() {
-            self.file_handle = File::open(&self.path).await.map(Some).unwrap_or(None);
+    async fn try_file_handle(&mut self) -> Option<&mut BufReader<File>> {
+        if self.reader.is_none() && self.path.is_file() {
+            self.reader = File::open(&self.path)
+                .await
+                .map(|x| Some(BufReader::new(x)))
+                .unwrap_or(None);
         }
-        self.file_handle.as_mut()
+        self.reader.as_mut()
     }
 
     async fn next(&mut self, resp_tx: oneshot::Sender<Vec<String>>) -> Result<()> {
         let mut content: Vec<String> = vec![];
-        let Some(file_handle) = self.try_file_handle().await else {
+        let Some(reader) = self.try_file_handle().await else {
             resp_tx
                 .send(content)
                 .map_err(|_| anyhow!("oneshot response sender dropped"))?;
             return Ok(());
         };
 
-        let reader = BufReader::new(file_handle);
         let mut lines = reader.lines();
         let mut next = lines.next_line().await?;
         while let Some(line) = next {

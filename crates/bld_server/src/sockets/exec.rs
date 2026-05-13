@@ -16,7 +16,7 @@ use bld_models::{
     dtos::{ExecClientMessage, ExecServerMessage},
     pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED},
 };
-use futures::StreamExt;
+use futures::{FutureExt, StreamExt};
 use sea_orm::DatabaseConnection;
 use std::{sync::Arc, time::Duration};
 use tracing::{debug, error};
@@ -70,13 +70,17 @@ impl ExecWebsocket {
         }
     }
 
-    pub async fn exec(&self, session: &mut Session) -> bool {
+    pub async fn check_state(&self, session: &mut Session) -> bool {
         let Some(run_id) = self.run_id.as_ref() else {
-            return false;
+            return true;
         };
         match pipeline_runs::select_by_id(self.conn.as_ref(), run_id).await {
-            Ok(run) if run.state == PR_STATE_FINISHED || run.state == PR_STATE_FAULTED => true,
+            Ok(run) if run.state == PR_STATE_FINISHED || run.state == PR_STATE_FAULTED => {
+                debug!("run is in a {} state", run.state);
+                false
+            }
             Ok(run) if run.state == PR_STATE_QUEUED => {
+                debug!("run is in a {} state", PR_STATE_QUEUED);
                 let message = format!(
                     "run with id {run_id} has been queued, use the monit command to see the output when it's started"
                 );
@@ -85,7 +89,8 @@ impl ExecWebsocket {
                 }
                 false
             }
-            Err(_) => {
+            Err(e) => {
+                debug!("run encountered error {e}");
                 if let Err(e) = session.text("internal server error").await {
                     error!("{e}");
                 }
@@ -97,14 +102,12 @@ impl ExecWebsocket {
 
     pub async fn handle_message(&mut self, session: &mut Session, message: &str) -> Result<()> {
         let message: ExecClientMessage = serde_json::from_str(message)?;
-
-        debug!("enqueueing run");
-
         let username = self.user.name.to_owned();
         let fs = Arc::clone(&self.fs);
         let pool = Arc::clone(&self.conn);
         let supervisor = Arc::clone(&self.supervisor);
 
+        debug!("enqueueing run");
         match enqueue_worker(&username, fs, pool, supervisor, message).await {
             Ok(run_id) => {
                 self.scanner
@@ -138,55 +141,73 @@ pub async fn ws(
     let (response, mut session, mut msg_stream) = handle(&req, body)?;
 
     spawn(async move {
+        debug!("spawned exec web socket");
         let mut reason: Option<CloseReason> = None;
-        let mut scan_interval = time::interval(Duration::from_millis(500));
-        let mut exec_interval = time::interval(Duration::from_millis(500));
+        let mut scan_interval = time::interval(Duration::from_millis(300));
+        let mut exec_interval = time::interval(Duration::from_millis(300));
 
         loop {
-            if let Some(msg) = msg_stream.next().await {
-                match msg {
-                    Ok(Message::Text(txt)) => {
+            match msg_stream.next().now_or_never() {
+                Some(Some(Ok(msg))) => match msg {
+                    Message::Text(txt) => {
                         if let Err(e) = socket.handle_message(&mut session, &txt).await {
                             error!("handling message error. {e}");
                             break;
                         }
                     }
-                    Ok(Message::Ping(msg)) => {
+
+                    Message::Ping(msg) => {
                         if let Err(e) = session.pong(&msg).await {
                             error!("{e}");
                             break;
                         }
                     }
-                    Ok(Message::Pong(msg)) => {
+
+                    Message::Pong(msg) => {
                         if let Err(e) = session.ping(&msg).await {
                             error!("{e}");
                             break;
                         }
                     }
-                    Ok(Message::Close(r)) => {
+
+                    Message::Close(r) => {
                         reason = r;
                         break;
                     }
-                    Err(e) => {
-                        error!("{e}");
+
+                    _ => {
                         break;
                     }
-                    _ => break,
+                },
+
+                Some(Some(Err(e))) => {
+                    error!("encountered error during message processing. {e}");
+                    break;
                 }
+
+                Some(None) => {
+                    break;
+                }
+
+                None => {}
             }
 
             scan_interval.tick().await;
             socket.scan(&mut session).await;
 
             exec_interval.tick().await;
-            if !socket.exec(&mut session).await {
+            if !socket.check_state(&mut session).await {
                 break;
             }
         }
 
-        if let Err(e) = session.close(reason).await {
-            error!("encountered error while closing websocket session due to {e}");
-        }
+        let _ = session
+            .close(reason)
+            .await
+            .inspect(|_| debug!("closed session successfully"))
+            .inspect_err(|e| {
+                error!("encountered error while closing websocket session due to {e}")
+            });
     });
 
     Ok(response)
