@@ -16,7 +16,7 @@ use bld_models::{
     dtos::{ExecClientMessage, ExecServerMessage},
     pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED},
 };
-use futures::{FutureExt, StreamExt};
+use futures::StreamExt;
 use sea_orm::DatabaseConnection;
 use std::{sync::Arc, time::Duration};
 use tracing::{debug, error};
@@ -147,57 +147,53 @@ pub async fn ws(
         let mut exec_interval = time::interval(Duration::from_millis(300));
 
         loop {
-            match msg_stream.next().now_or_never() {
-                Some(Some(Ok(msg))) => match msg {
-                    Message::Text(txt) => {
-                        if let Err(e) = socket.handle_message(&mut session, &txt).await {
-                            error!("handling message error. {e}");
-                            break;
-                        }
-                    }
-
-                    Message::Ping(msg) => {
-                        if let Err(e) = session.pong(&msg).await {
-                            error!("{e}");
-                            break;
-                        }
-                    }
-
-                    Message::Pong(msg) => {
-                        if let Err(e) = session.ping(&msg).await {
-                            error!("{e}");
-                            break;
-                        }
-                    }
-
-                    Message::Close(r) => {
-                        reason = r;
+            tokio::select! {
+                Some(message) = msg_stream.next() => {
+                    let Ok(message) = message.inspect_err(|e| error!("{e}")) else {
                         break;
-                    }
+                    };
+                    match message {
+                        Message::Text(txt) => {
+                            if let Err(e) = socket.handle_message(&mut session, &txt).await {
+                                error!("handling message error. {e}");
+                                break;
+                            }
+                        }
 
-                    _ => {
-                        break;
-                    }
-                },
+                        Message::Ping(msg) => {
+                            if let Err(e) = session.pong(&msg).await {
+                                error!("{e}");
+                                break;
+                            }
+                        }
 
-                Some(Some(Err(e))) => {
-                    error!("encountered error during message processing. {e}");
-                    break;
+                        Message::Pong(msg) => {
+                            if let Err(e) = session.ping(&msg).await {
+                                error!("{e}");
+                                break;
+                            }
+                        }
+
+                        Message::Close(r) => {
+                            reason = r;
+                            break;
+                        }
+
+                        _ => {
+                            break;
+                        }
+                    }
                 }
 
-                Some(None) => {
-                    break;
+                _ = scan_interval.tick() => {
+                    socket.scan(&mut session).await;
                 }
 
-                None => {}
-            }
-
-            scan_interval.tick().await;
-            socket.scan(&mut session).await;
-
-            exec_interval.tick().await;
-            if !socket.check_state(&mut session).await {
-                break;
+                _ = exec_interval.tick() => {
+                    if !socket.check_state(&mut session).await {
+                        break;
+                    }
+                }
             }
         }
 

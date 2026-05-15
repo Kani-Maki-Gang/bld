@@ -1,9 +1,7 @@
 use std::time::Duration;
 
 use actix_web::{
-    Error, HttpRequest, HttpResponse,
-    rt::{spawn, time},
-    web::{Data, Payload},
+    HttpRequest, Responder, rt::{spawn, time}, web::{Data, Payload}
 };
 use actix_ws::{CloseReason, Message, Session, handle};
 use anyhow::{Result, bail};
@@ -177,7 +175,7 @@ pub async fn ws(
     config: Data<BldConfig>,
     client: Data<Option<CoreClient>>,
     conn: Data<DatabaseConnection>,
-) -> Result<HttpResponse, Error> {
+) -> actix_web::Result<impl Responder> {
     let csrf_token = CsrfToken::new_random();
     let nonce = Nonce::new_random();
     let mut socket = LoginSocket::new(csrf_token, nonce, config, client, conn);
@@ -188,41 +186,44 @@ pub async fn ws(
         let mut interval = time::interval(Duration::from_millis(500));
 
         loop {
-            if let Some(msg) = msg_stream.next().await {
-                match msg {
-                    Ok(Message::Text(txt)) => {
-                        if let Err(e) = socket.handle_client_message(&mut session, &txt).await {
+            tokio::select! {
+                Some(msg) = msg_stream.next() => {
+                    match msg {
+                        Ok(Message::Text(txt)) => {
+                            if let Err(e) = socket.handle_client_message(&mut session, &txt).await {
+                                error!("{e}");
+                                break;
+                            }
+                        }
+                        Ok(Message::Ping(msg)) => {
+                            if let Err(e) = session.pong(&msg).await {
+                                error!("{e}");
+                                break;
+                            }
+                        }
+                        Ok(Message::Pong(msg)) => {
+                            if let Err(e) = session.ping(&msg).await {
+                                error!("{e}");
+                                break;
+                            }
+                        }
+                        Ok(Message::Close(r)) => {
+                            reason = r;
+                            break;
+                        }
+                        Err(e) => {
                             error!("{e}");
                             break;
                         }
+                        _ => break,
                     }
-                    Ok(Message::Ping(msg)) => {
-                        if let Err(e) = session.pong(&msg).await {
-                            error!("{e}");
-                            break;
-                        }
-                    }
-                    Ok(Message::Pong(msg)) => {
-                        if let Err(e) = session.ping(&msg).await {
-                            error!("{e}");
-                            break;
-                        }
-                    }
-                    Ok(Message::Close(r)) => {
-                        reason = r;
-                        break;
-                    }
-                    Err(e) => {
-                        error!("{e}");
-                        break;
-                    }
-                    _ => break,
                 }
-            }
 
-            interval.tick().await;
-            if !socket.check_status(&mut session).await {
-                break;
+                _ = interval.tick() => {
+                    if !socket.check_status(&mut session).await {
+                        break;
+                    }
+                }
             }
         }
 

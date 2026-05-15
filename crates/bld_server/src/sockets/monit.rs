@@ -1,9 +1,6 @@
 use crate::extractors::User;
 use actix_web::{
-    Error, HttpRequest, HttpResponse,
-    error::ErrorUnauthorized,
-    rt::{spawn, time},
-    web::{Data, Payload},
+    HttpRequest, Responder, error::ErrorUnauthorized, rt::{spawn, time}, web::{Data, Payload}
 };
 use actix_ws::{CloseReason, Message, Session, handle};
 use anyhow::{Result, bail};
@@ -13,17 +10,16 @@ use bld_models::{
     dtos::MonitInfo,
     pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED},
 };
-use bld_utils::sync::IntoArc;
 use futures::StreamExt;
 use sea_orm::DatabaseConnection;
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 use tracing::{debug, error};
 
 pub struct MonitorPipelineSocket {
     id: String,
     conn: Data<DatabaseConnection>,
     config: Data<BldConfig>,
-    scanner: Option<Arc<FileScanner>>,
+    scanner: Option<FileScanner>,
 }
 
 impl MonitorPipelineSocket {
@@ -78,7 +74,7 @@ impl MonitorPipelineSocket {
             Ok(run) => {
                 debug!("starting scan for run");
                 self.id.clone_from(&run.id);
-                self.scanner = Some(FileScanner::new(self.config.as_ref(), &run.id).into_arc());
+                self.scanner = Some(FileScanner::new(self.config.as_ref(), &run.id));
                 Ok(())
             }
             Err(e) => {
@@ -95,10 +91,8 @@ pub async fn ws(
     body: Payload,
     conn: Data<DatabaseConnection>,
     config: Data<BldConfig>,
-) -> Result<HttpResponse, Error> {
-    if user.is_none() {
-        return Err(ErrorUnauthorized(""));
-    }
+) -> actix_web::Result<impl Responder> {
+    user.ok_or_else(|| ErrorUnauthorized(""))?;
     let mut socket = MonitorPipelineSocket::new(conn, config);
     let (response, mut session, mut msg_stream) = handle(&req, body)?;
 
@@ -108,44 +102,48 @@ pub async fn ws(
         let mut exec_interval = time::interval(Duration::from_millis(500));
 
         loop {
-            if let Some(msg) = msg_stream.next().await {
-                match msg {
-                    Ok(Message::Text(txt)) => {
-                        if let Err(e) = socket.dependencies(&mut session, &txt).await {
+            tokio::select! {
+                Some(msg) = msg_stream.next() => {
+                    match msg {
+                        Ok(Message::Text(txt)) => {
+                            if let Err(e) = socket.dependencies(&mut session, &txt).await {
+                                error!("{e}");
+                                break;
+                            }
+                        }
+                        Ok(Message::Ping(msg)) => {
+                            if let Err(e) = session.pong(&msg).await {
+                                error!("{e}");
+                                break;
+                            }
+                        }
+                        Ok(Message::Pong(msg)) => {
+                            if let Err(e) = session.ping(&msg).await {
+                                error!("{e}");
+                                break;
+                            }
+                        }
+                        Ok(Message::Close(r)) => {
+                            reason = r;
+                            break;
+                        }
+                        Err(e) => {
                             error!("{e}");
                             break;
                         }
+                        _ => break,
                     }
-                    Ok(Message::Ping(msg)) => {
-                        if let Err(e) = session.pong(&msg).await {
-                            error!("{e}");
-                            break;
-                        }
-                    }
-                    Ok(Message::Pong(msg)) => {
-                        if let Err(e) = session.ping(&msg).await {
-                            error!("{e}");
-                            break;
-                        }
-                    }
-                    Ok(Message::Close(r)) => {
-                        reason = r;
-                        break;
-                    }
-                    Err(e) => {
-                        error!("{e}");
-                        break;
-                    }
-                    _ => break,
                 }
-            };
 
-            scan_interval.tick().await;
-            socket.scan(&mut session).await;
+                _ = scan_interval.tick() => {
+                    socket.scan(&mut session).await;
+                }
 
-            exec_interval.tick().await;
-            if !socket.exec(&mut session).await {
-                break;
+                _ = exec_interval.tick() => {
+                    if !socket.exec(&mut session).await {
+                        break;
+                    }
+                }
             }
         }
 
