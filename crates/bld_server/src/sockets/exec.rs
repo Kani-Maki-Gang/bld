@@ -167,12 +167,7 @@ pub async fn ws(
                             }
                         }
 
-                        Message::Pong(msg) => {
-                            if let Err(e) = session.ping(&msg).await {
-                                error!("{e}");
-                                break;
-                            }
-                        }
+                        Message::Continuation(_) | Message::Pong(_) | Message::Nop => {}
 
                         Message::Close(r) => {
                             reason = r;

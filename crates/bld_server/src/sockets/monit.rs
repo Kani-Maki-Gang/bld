@@ -1,6 +1,9 @@
 use crate::extractors::User;
 use actix_web::{
-    HttpRequest, Responder, error::ErrorUnauthorized, rt::{spawn, time}, web::{Data, Payload}
+    HttpRequest, Responder,
+    error::ErrorUnauthorized,
+    rt::{spawn, time},
+    web::{Data, Payload},
 };
 use actix_ws::{CloseReason, Message, Session, handle};
 use anyhow::{Result, bail};
@@ -104,33 +107,31 @@ pub async fn ws(
         loop {
             tokio::select! {
                 Some(msg) = msg_stream.next() => {
+                    let Ok(msg) = msg.inspect_err(|e| error!("{e}")) else {
+                        break;
+                    };
                     match msg {
-                        Ok(Message::Text(txt)) => {
+                        Message::Text(txt) => {
                             if let Err(e) = socket.dependencies(&mut session, &txt).await {
                                 error!("{e}");
                                 break;
                             }
                         }
-                        Ok(Message::Ping(msg)) => {
+
+                        Message::Ping(msg) => {
                             if let Err(e) = session.pong(&msg).await {
                                 error!("{e}");
                                 break;
                             }
                         }
-                        Ok(Message::Pong(msg)) => {
-                            if let Err(e) = session.ping(&msg).await {
-                                error!("{e}");
-                                break;
-                            }
-                        }
-                        Ok(Message::Close(r)) => {
+
+                        Message::Continuation(_) | Message::Pong(_) | Message::Nop => {}
+
+                        Message::Close(r) => {
                             reason = r;
                             break;
                         }
-                        Err(e) => {
-                            error!("{e}");
-                            break;
-                        }
+
                         _ => break,
                     }
                 }

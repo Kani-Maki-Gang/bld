@@ -82,20 +82,22 @@ pub async fn ws(
                         error!("handling message error. {e}");
                     }
                 }
+
                 Message::Ping(msg) => {
                     if let Err(e) = session.pong(&msg).await {
                         error!("{e}");
                         break;
                     }
                 }
-                Message::Pong(_) => {}
+
+                Message::Continuation(_) | Message::Pong(_) | Message::Nop => {}
+
                 Message::Close(r) => {
                     reason = r;
                     break;
                 }
-                _ => {
-                    break;
-                }
+
+                _ => break,
             }
         }
 

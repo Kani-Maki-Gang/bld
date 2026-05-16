@@ -57,21 +57,34 @@ pub async fn ws(
                         Err(e) => error!("handling message error. {e}"),
                     }
                 }
+
                 Message::Ping(msg) => {
                     if let Err(e) = session.pong(&msg).await {
                         error!("{e}");
                         break;
                     }
                 }
-                Message::Pong(_) => {}
+
+                Message::Continuation(_) | Message::Pong(_) | Message::Nop => {}
+
                 Message::Close(r) => {
                     reason = r;
                     break;
                 }
+
+
                 _ => {
                     break;
                 }
             }
+        }
+
+        if let Some(pid) = worker_pid {
+            debug!("dequeue of worker with pid: {}", pid);
+            let _ = worker_queue_tx
+                .dequeue(pid)
+                .await
+                .inspect_err(|e| error!("{e}"));
         }
 
         if let Err(e) = session.close(reason).await {
