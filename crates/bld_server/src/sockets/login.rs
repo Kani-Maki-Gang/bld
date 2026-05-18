@@ -19,6 +19,8 @@ use openidconnect::{
 use sea_orm::DatabaseConnection;
 use tracing::error;
 
+const STATUS_CHECK_INTERVAL_MS: u64 = 500;
+
 pub struct LoginSocket {
     csrf_token: CsrfToken,
     nonce: Nonce,
@@ -183,7 +185,7 @@ pub async fn ws(
 
     spawn(async move {
         let mut reason: Option<CloseReason> = None;
-        let mut interval = time::interval(Duration::from_millis(500));
+        let mut interval = time::interval(Duration::from_millis(STATUS_CHECK_INTERVAL_MS));
 
         loop {
             tokio::select! {

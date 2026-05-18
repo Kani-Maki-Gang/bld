@@ -50,7 +50,7 @@ pub async fn ws(
         while let Some(Ok(msg)) = msg_stream.recv().await {
             match msg {
                 Message::Binary(bytes) => {
-                    debug!("received binary message from server");
+                    debug!("received binary message");
                     match handle_message(&bytes, worker_queue_tx.clone(), &mut worker_pid).await {
                         Ok(true) => break,
                         Ok(false) => {}

@@ -18,6 +18,8 @@ use sea_orm::DatabaseConnection;
 use std::time::Duration;
 use tracing::{debug, error};
 
+const STATE_CHECK_INTERVAL_MS: u64 = 500;
+
 pub struct MonitorPipelineSocket {
     id: String,
     conn: Data<DatabaseConnection>,
@@ -48,7 +50,7 @@ impl MonitorPipelineSocket {
         }
     }
 
-    async fn exec(&self, session: &mut Session) -> bool {
+    async fn check_state(&self, session: &mut Session) -> bool {
         match pipeline_runs::select_by_id(self.conn.as_ref(), &self.id).await {
             Ok(run) if run.state == PR_STATE_FINISHED || run.state == PR_STATE_FAULTED => false,
             Err(_) => {
@@ -101,8 +103,7 @@ pub async fn ws(
 
     spawn(async move {
         let mut reason: Option<CloseReason> = None;
-        let mut scan_interval = time::interval(Duration::from_millis(500));
-        let mut exec_interval = time::interval(Duration::from_millis(500));
+        let mut interval = time::interval(Duration::from_millis(STATE_CHECK_INTERVAL_MS));
 
         loop {
             tokio::select! {
@@ -136,12 +137,9 @@ pub async fn ws(
                     }
                 }
 
-                _ = scan_interval.tick() => {
+                _ = interval.tick() => {
                     socket.scan(&mut session).await;
-                }
-
-                _ = exec_interval.tick() => {
-                    if !socket.exec(&mut session).await {
+                    if !socket.check_state(&mut session).await {
                         break;
                     }
                 }

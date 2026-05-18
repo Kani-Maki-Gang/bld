@@ -18,8 +18,11 @@ use bld_models::{
 };
 use futures::StreamExt;
 use sea_orm::DatabaseConnection;
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 use tracing::{debug, error};
+
+const SCAN_INTERVAL_MS: u64 = 500;
+const STATE_CHECK_INTERVAL_MS: u64 = 1000;
 
 struct ExecWebsocket {
     config: Data<BldConfig>,
@@ -103,9 +106,9 @@ impl ExecWebsocket {
     pub async fn handle_message(&mut self, session: &mut Session, message: &str) -> Result<()> {
         let message: ExecClientMessage = serde_json::from_str(message)?;
         let username = self.user.name.to_owned();
-        let fs = Arc::clone(&self.fs);
-        let pool = Arc::clone(&self.conn);
-        let supervisor = Arc::clone(&self.supervisor);
+        let fs = self.fs.clone().into_inner();
+        let pool = self.conn.clone().into_inner();
+        let supervisor = self.supervisor.clone().into_inner();
 
         debug!("enqueueing run");
         match enqueue_worker(&username, fs, pool, supervisor, message).await {
@@ -143,13 +146,13 @@ pub async fn ws(
     spawn(async move {
         debug!("spawned exec web socket");
         let mut reason: Option<CloseReason> = None;
-        let mut scan_interval = time::interval(Duration::from_millis(300));
-        let mut exec_interval = time::interval(Duration::from_millis(300));
+        let mut scan_interval = time::interval(Duration::from_millis(SCAN_INTERVAL_MS));
+        let mut state_interval = time::interval(Duration::from_millis(STATE_CHECK_INTERVAL_MS));
 
         loop {
             tokio::select! {
-                Some(message) = msg_stream.next() => {
-                    let Ok(message) = message.inspect_err(|e| error!("{e}")) else {
+                Some(msg) = msg_stream.next() => {
+                    let Ok(message) = msg.inspect_err(|e| error!("{e}")) else {
                         break;
                     };
                     match message {
@@ -184,7 +187,7 @@ pub async fn ws(
                     socket.scan(&mut session).await;
                 }
 
-                _ = exec_interval.tick() => {
+                _ = state_interval.tick() => {
                     if !socket.check_state(&mut session).await {
                         break;
                     }
