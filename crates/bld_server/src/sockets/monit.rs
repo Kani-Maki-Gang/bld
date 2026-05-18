@@ -63,7 +63,7 @@ impl MonitorPipelineSocket {
         }
     }
 
-    async fn dependencies(&mut self, session: &mut Session, data: &str) -> Result<()> {
+    async fn dependencies(&mut self, data: &str) -> Result<()> {
         let conn = self.conn.clone();
         let data = serde_json::from_str::<MonitInfo>(data)?;
         let run = if data.last {
@@ -74,19 +74,11 @@ impl MonitorPipelineSocket {
             pipeline_runs::select_by_name(conn.as_ref(), &name).await
         } else {
             bail!("file not found");
-        };
-        match run {
-            Ok(run) => {
-                debug!("starting scan for run");
-                self.id.clone_from(&run.id);
-                self.scanner = Some(FileScanner::new(self.config.as_ref(), &run.id));
-                Ok(())
-            }
-            Err(e) => {
-                session.text("internal server error").await?;
-                Err(e)
-            }
-        }
+        }?;
+        debug!("starting scan for run");
+        self.id.clone_from(&run.id);
+        self.scanner = Some(FileScanner::new(self.config.as_ref(), &run.id));
+        Ok(())
     }
 }
 
@@ -113,7 +105,8 @@ pub async fn ws(
                     };
                     match msg {
                         Message::Text(txt) => {
-                            if let Err(e) = socket.dependencies(&mut session, &txt).await {
+                            if let Err(e) = socket.dependencies(&txt).await {
+                                let _ = session.text("internal server error").await.inspect_err(|e| error!("{e}"));
                                 error!("{e}");
                                 break;
                             }

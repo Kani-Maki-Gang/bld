@@ -1,7 +1,9 @@
 use std::time::Duration;
 
 use actix_web::{
-    HttpRequest, Responder, rt::{spawn, time}, web::{Data, Payload}
+    HttpRequest, Responder,
+    rt::{spawn, time},
+    web::{Data, Payload},
 };
 use actix_ws::{CloseReason, Message, Session, handle};
 use anyhow::{Result, bail};
@@ -163,8 +165,7 @@ impl LoginSocket {
 
     async fn cleanup(&mut self) {
         if let Err(e) =
-            login_attempts::delete_by_csrf_token(self.conn.as_ref(), self.csrf_token.secret())
-                .await
+            login_attempts::delete_by_csrf_token(self.conn.as_ref(), self.csrf_token.secret()).await
         {
             error!("{e}");
         }

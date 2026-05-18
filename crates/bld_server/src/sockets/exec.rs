@@ -111,22 +111,15 @@ impl ExecWebsocket {
         let supervisor = self.supervisor.clone().into_inner();
 
         debug!("enqueueing run");
-        match enqueue_worker(&username, fs, pool, supervisor, message).await {
-            Ok(run_id) => {
-                self.scanner
-                    .replace(FileScanner::new(self.config.as_ref(), &run_id));
-                self.run_id.replace(run_id.to_owned());
-                let message = ExecServerMessage::QueuedRun { run_id };
-                if let Ok(data) = serde_json::to_string(&message) {
-                    session.text(data).await?;
-                }
-                Ok(())
-            }
-            Err(e) => {
-                session.text(e.to_string()).await?;
-                Err(e)
-            }
+        let run_id = enqueue_worker(&username, fs, pool, supervisor, message).await?;
+        self.scanner
+            .replace(FileScanner::new(self.config.as_ref(), &run_id));
+        self.run_id.replace(run_id.to_owned());
+        let message = ExecServerMessage::QueuedRun { run_id };
+        if let Ok(data) = serde_json::to_string(&message) {
+            session.text(data).await?;
         }
+        Ok(())
     }
 }
 
@@ -158,6 +151,7 @@ pub async fn ws(
                     match message {
                         Message::Text(txt) => {
                             if let Err(e) = socket.handle_message(&mut session, &txt).await {
+                                let _ = session.text(e.to_string()).await.inspect_err(|e| error!("{e}"));
                                 error!("handling message error. {e}");
                                 break;
                             }
