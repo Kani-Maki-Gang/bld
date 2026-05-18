@@ -5,7 +5,7 @@ use actix_web::{
     rt::{spawn, time},
     web::{Data, Payload},
 };
-use actix_ws::{CloseReason, Message, Session, handle};
+use actix_ws::{CloseCode, CloseReason, Message, Session, handle};
 use anyhow::{Result, bail};
 use bld_config::BldConfig;
 use bld_core::scanner::FileScanner;
@@ -106,6 +106,7 @@ pub async fn ws(
                     match msg {
                         Message::Text(txt) => {
                             if let Err(e) = socket.dependencies(&txt).await {
+                                reason = Some(CloseCode::Error.into());
                                 let _ = session.text("internal server error").await.inspect_err(|e| error!("{e}"));
                                 error!("{e}");
                                 break;
@@ -114,6 +115,7 @@ pub async fn ws(
 
                         Message::Ping(msg) => {
                             if let Err(e) = session.pong(&msg).await {
+                                reason = Some(CloseCode::Error.into());
                                 error!("{e}");
                                 break;
                             }

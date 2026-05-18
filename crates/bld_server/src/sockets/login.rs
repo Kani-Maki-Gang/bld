@@ -5,7 +5,7 @@ use actix_web::{
     rt::{spawn, time},
     web::{Data, Payload},
 };
-use actix_ws::{CloseReason, Message, Session, handle};
+use actix_ws::{CloseCode, CloseReason, Message, Session, handle};
 use anyhow::{Result, bail};
 use bld_config::{Auth, BldConfig};
 use bld_models::{
@@ -197,6 +197,7 @@ pub async fn ws(
                     match msg {
                         Message::Text(txt) => {
                             if let Err(e) = socket.handle_client_message(&mut session, &txt).await {
+                                reason = Some(CloseCode::Error.into());
                                 error!("{e}");
                                 break;
                             }
@@ -204,6 +205,7 @@ pub async fn ws(
 
                         Message::Ping(msg) => {
                             if let Err(e) = session.pong(&msg).await {
+                                reason = Some(CloseCode::Error.into());
                                 error!("{e}");
                                 break;
                             }

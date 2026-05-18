@@ -4,7 +4,7 @@ use actix_web::{
     rt::spawn,
     web::{self, Bytes, Data},
 };
-use actix_ws::{CloseReason, Message, handle};
+use actix_ws::{CloseCode, CloseReason, Message, handle};
 use anyhow::Result;
 use bld_models::dtos::WorkerMessages;
 use tracing::{debug, error, info};
@@ -54,12 +54,20 @@ pub async fn ws(
                     match handle_message(&bytes, worker_queue_tx.clone(), &mut worker_pid).await {
                         Ok(true) => break,
                         Ok(false) => {}
-                        Err(e) => error!("handling message error. {e}"),
+                        Err(e) => {
+                            reason = Some(CloseCode::Error.into());
+                            let _ = session
+                                .text("internal server error")
+                                .await
+                                .inspect_err(|e| error!("{e}"));
+                            error!("handling message error. {e}")
+                        }
                     }
                 }
 
                 Message::Ping(msg) => {
                     if let Err(e) = session.pong(&msg).await {
+                        reason = Some(CloseCode::Error.into());
                         error!("{e}");
                         break;
                     }

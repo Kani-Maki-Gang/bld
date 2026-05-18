@@ -4,7 +4,7 @@ use actix_web::{
     HttpRequest, Responder,
     web::{self, Bytes, Data},
 };
-use actix_ws::CloseReason;
+use actix_ws::{CloseCode, CloseReason};
 use anyhow::Result;
 use bld_core::workers::Worker;
 use bld_models::dtos::ServerMessages;
@@ -79,12 +79,18 @@ pub async fn ws(
                 Message::Binary(bytes) => {
                     debug!("received binary message from server");
                     if let Err(e) = handle_message(&worker_queue_tx, &bytes).await {
+                        reason = Some(CloseCode::Error.into());
+                        let _ = session
+                            .text("internal server error")
+                            .await
+                            .inspect_err(|e| error!("{e}"));
                         error!("handling message error. {e}");
                     }
                 }
 
                 Message::Ping(msg) => {
                     if let Err(e) = session.pong(&msg).await {
+                        reason = Some(CloseCode::Error.into());
                         error!("{e}");
                         break;
                     }

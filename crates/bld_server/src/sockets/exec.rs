@@ -8,7 +8,7 @@ use actix_web::{
     rt::{spawn, time},
     web::{Data, Payload},
 };
-use actix_ws::{CloseReason, Message, Session, handle};
+use actix_ws::{CloseCode, CloseReason, Message, Session, handle};
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::{fs::FileSystem, scanner::FileScanner};
@@ -151,6 +151,7 @@ pub async fn ws(
                     match message {
                         Message::Text(txt) => {
                             if let Err(e) = socket.handle_message(&mut session, &txt).await {
+                                reason = Some(CloseCode::Error.into());
                                 let _ = session.text(e.to_string()).await.inspect_err(|e| error!("{e}"));
                                 error!("handling message error. {e}");
                                 break;
@@ -159,6 +160,7 @@ pub async fn ws(
 
                         Message::Ping(msg) => {
                             if let Err(e) = session.pong(&msg).await {
+                                reason = Some(CloseCode::Error.into());
                                 error!("{e}");
                                 break;
                             }
