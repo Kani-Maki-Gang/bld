@@ -18,11 +18,13 @@ use bld_models::{
 };
 use futures::StreamExt;
 use sea_orm::DatabaseConnection;
-use std::time::Duration;
-use tracing::{debug, error};
+use std::time::{Duration, Instant};
+use tracing::{debug, error, warn};
 
 const SCAN_INTERVAL_MS: u64 = 500;
 const STATE_CHECK_INTERVAL_MS: u64 = 1000;
+const HEARTBEAT_INTERVAL_MS: u64 = 5_000;
+const CLIENT_TIMEOUT_MS: u64 = 15_000;
 
 struct ExecWebsocket {
     config: Data<BldConfig>,
@@ -141,6 +143,8 @@ pub async fn ws(
         let mut reason: Option<CloseReason> = None;
         let mut scan_interval = time::interval(Duration::from_millis(SCAN_INTERVAL_MS));
         let mut state_interval = time::interval(Duration::from_millis(STATE_CHECK_INTERVAL_MS));
+        let mut hb_interval = time::interval(Duration::from_millis(HEARTBEAT_INTERVAL_MS));
+        let mut last_pong = Instant::now();
 
         loop {
             tokio::select! {
@@ -166,7 +170,11 @@ pub async fn ws(
                             }
                         }
 
-                        Message::Continuation(_) | Message::Pong(_) | Message::Nop => {}
+                        Message::Pong(_) => {
+                            last_pong = Instant::now();
+                        }
+
+                        Message::Continuation(_) | Message::Nop => {}
 
                         Message::Close(r) => {
                             reason = r;
@@ -185,6 +193,21 @@ pub async fn ws(
 
                 _ = state_interval.tick() => {
                     if !socket.check_state(&mut session).await {
+                        break;
+                    }
+                }
+
+                _ = hb_interval.tick() => {
+                    if Instant::now().duration_since(last_pong)
+                        > Duration::from_millis(CLIENT_TIMEOUT_MS)
+                    {
+                        warn!("client heartbeat timed out, closing session");
+                        reason = Some(CloseCode::Away.into());
+                        break;
+                    }
+                    if let Err(e) = session.ping(b"").await {
+                        error!("ping failed: {e}");
+                        reason = Some(CloseCode::Error.into());
                         break;
                     }
                 }

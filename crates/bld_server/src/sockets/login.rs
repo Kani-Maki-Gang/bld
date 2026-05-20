@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use actix_web::{
     HttpRequest, Responder,
@@ -19,9 +19,11 @@ use openidconnect::{
     core::{CoreAuthenticationFlow, CoreClient},
 };
 use sea_orm::DatabaseConnection;
-use tracing::error;
+use tracing::{error, warn};
 
 const STATUS_CHECK_INTERVAL_MS: u64 = 500;
+const HEARTBEAT_INTERVAL_MS: u64 = 5_000;
+const CLIENT_TIMEOUT_MS: u64 = 15_000;
 
 pub struct LoginSocket {
     csrf_token: CsrfToken,
@@ -187,6 +189,8 @@ pub async fn ws(
     spawn(async move {
         let mut reason: Option<CloseReason> = None;
         let mut interval = time::interval(Duration::from_millis(STATUS_CHECK_INTERVAL_MS));
+        let mut hb_interval = time::interval(Duration::from_millis(HEARTBEAT_INTERVAL_MS));
+        let mut last_pong = Instant::now();
 
         loop {
             tokio::select! {
@@ -211,7 +215,11 @@ pub async fn ws(
                             }
                         }
 
-                        Message::Continuation(_) | Message::Pong(_) | Message::Nop => {}
+                        Message::Pong(_) => {
+                            last_pong = Instant::now();
+                        }
+
+                        Message::Continuation(_) | Message::Nop => {}
 
                         Message::Close(r) => {
                             reason = r;
@@ -224,6 +232,21 @@ pub async fn ws(
 
                 _ = interval.tick() => {
                     if !socket.check_status(&mut session).await {
+                        break;
+                    }
+                }
+
+                _ = hb_interval.tick() => {
+                    if Instant::now().duration_since(last_pong)
+                        > Duration::from_millis(CLIENT_TIMEOUT_MS)
+                    {
+                        warn!("client heartbeat timed out, closing session");
+                        reason = Some(CloseCode::Away.into());
+                        break;
+                    }
+                    if let Err(e) = session.ping(b"").await {
+                        error!("ping failed: {e}");
+                        reason = Some(CloseCode::Error.into());
                         break;
                     }
                 }

@@ -2,6 +2,7 @@ use crate::queues::WorkerQueueSender;
 use actix_http::ws::Message;
 use actix_web::{
     HttpRequest, Responder,
+    rt::time,
     web::{self, Bytes, Data},
 };
 use actix_ws::{CloseCode, CloseReason};
@@ -9,8 +10,12 @@ use anyhow::Result;
 use bld_core::workers::Worker;
 use bld_models::dtos::ServerMessages;
 use std::env::current_exe;
+use std::time::{Duration, Instant};
 use tokio::process::Command;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
+
+const HEARTBEAT_INTERVAL_MS: u64 = 5_000;
+const CLIENT_TIMEOUT_MS: u64 = 15_000;
 
 async fn handle_message(worker_queue_tx: &Data<WorkerQueueSender>, bytes: &Bytes) -> Result<()> {
     let msg: ServerMessages = serde_json::from_slice(&bytes[..])?;
@@ -74,36 +79,63 @@ pub async fn ws(
 
     actix_web::rt::spawn(async move {
         let mut reason: Option<CloseReason> = None;
-        while let Some(Ok(msg)) = msg_stream.recv().await {
-            match msg {
-                Message::Binary(bytes) => {
-                    debug!("received binary message from server");
-                    if let Err(e) = handle_message(&worker_queue_tx, &bytes).await {
-                        reason = Some(CloseCode::Error.into());
-                        let _ = session
-                            .text("internal server error")
-                            .await
-                            .inspect_err(|e| error!("{e}"));
-                        error!("handling message error. {e}");
+        let mut hb_interval = time::interval(Duration::from_millis(HEARTBEAT_INTERVAL_MS));
+        let mut last_pong = Instant::now();
+
+        loop {
+            tokio::select! {
+                msg = msg_stream.recv() => {
+                    let Some(Ok(message)) = msg else { break; };
+                    match message {
+                        Message::Binary(bytes) => {
+                            debug!("received binary message from server");
+                            if let Err(e) = handle_message(&worker_queue_tx, &bytes).await {
+                                reason = Some(CloseCode::Error.into());
+                                let _ = session
+                                    .text("internal server error")
+                                    .await
+                                    .inspect_err(|e| error!("{e}"));
+                                error!("handling message error. {e}");
+                            }
+                        }
+
+                        Message::Ping(msg) => {
+                            if let Err(e) = session.pong(&msg).await {
+                                reason = Some(CloseCode::Error.into());
+                                error!("{e}");
+                                break;
+                            }
+                        }
+
+                        Message::Pong(_) => {
+                            last_pong = Instant::now();
+                        }
+
+                        Message::Continuation(_) | Message::Nop => {}
+
+                        Message::Close(r) => {
+                            reason = r;
+                            break;
+                        }
+
+                        _ => break,
                     }
                 }
 
-                Message::Ping(msg) => {
-                    if let Err(e) = session.pong(&msg).await {
+                _ = hb_interval.tick() => {
+                    if Instant::now().duration_since(last_pong)
+                        > Duration::from_millis(CLIENT_TIMEOUT_MS)
+                    {
+                        warn!("client heartbeat timed out, closing session");
+                        reason = Some(CloseCode::Away.into());
+                        break;
+                    }
+                    if let Err(e) = session.ping(b"").await {
+                        error!("ping failed: {e}");
                         reason = Some(CloseCode::Error.into());
-                        error!("{e}");
                         break;
                     }
                 }
-
-                Message::Continuation(_) | Message::Pong(_) | Message::Nop => {}
-
-                Message::Close(r) => {
-                    reason = r;
-                    break;
-                }
-
-                _ => break,
             }
         }
 
