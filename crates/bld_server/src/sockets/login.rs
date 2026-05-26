@@ -1,29 +1,27 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use actix_web::{
     HttpRequest, Responder,
     rt::{spawn, time},
     web::{Data, Payload},
 };
-use actix_ws::{CloseCode, CloseReason, Message, Session, handle};
+use actix_ws::Session;
 use anyhow::{Result, bail};
 use bld_config::{Auth, BldConfig};
 use bld_models::{
     dtos::{AuthTokens, LoginClientMessage, LoginServerMessage},
     login_attempts::{self, InsertLoginAttempt, LoginAttemptStatus},
 };
+use bld_sock::session::{self, WebSocketMessage};
 use chrono::Utc;
-use futures::StreamExt;
 use openidconnect::{
     CsrfToken, Nonce, PkceCodeChallenge,
     core::{CoreAuthenticationFlow, CoreClient},
 };
 use sea_orm::DatabaseConnection;
-use tracing::{error, warn};
+use tracing::error;
 
 const STATUS_CHECK_INTERVAL_MS: u64 = 500;
-const HEARTBEAT_INTERVAL_MS: u64 = 5_000;
-const CLIENT_TIMEOUT_MS: u64 = 15_000;
 
 pub struct LoginSocket {
     csrf_token: CsrfToken,
@@ -184,80 +182,39 @@ pub async fn ws(
     let csrf_token = CsrfToken::new_random();
     let nonce = Nonce::new_random();
     let mut socket = LoginSocket::new(csrf_token, nonce, config, client, conn);
-    let (response, mut session, mut msg_stream) = handle(&req, body)?;
+    let (response, mut handler) = session::handle(&req, body)?;
 
     spawn(async move {
-        let mut reason: Option<CloseReason> = None;
         let mut interval = time::interval(Duration::from_millis(STATUS_CHECK_INTERVAL_MS));
-        let mut hb_interval = time::interval(Duration::from_millis(HEARTBEAT_INTERVAL_MS));
-        let mut last_pong = Instant::now();
 
         loop {
             tokio::select! {
-                Some(msg) = msg_stream.next() => {
-                    let Ok(msg) = msg.inspect_err(|e| error!("{e}")) else {
-                        break;
-                    };
+                msg = handler.next() => {
                     match msg {
-                        Message::Text(txt) => {
-                            if let Err(e) = socket.handle_client_message(&mut session, &txt).await {
-                                reason = Some(CloseCode::Error.into());
+                        WebSocketMessage::Text(txt) => {
+                            let session = handler.session();
+                            if let Err(e) = socket.handle_client_message(session, &txt).await {
                                 error!("{e}");
+                                handler.error();
                                 break;
                             }
                         }
-
-                        Message::Ping(msg) => {
-                            if let Err(e) = session.pong(&msg).await {
-                                reason = Some(CloseCode::Error.into());
-                                error!("{e}");
-                                break;
-                            }
-                        }
-
-                        Message::Pong(_) => {
-                            last_pong = Instant::now();
-                        }
-
-                        Message::Continuation(_) | Message::Nop => {}
-
-                        Message::Close(r) => {
-                            reason = r;
-                            break;
-                        }
-
+                        WebSocketMessage::Continue => {}
                         _ => break,
                     }
                 }
 
                 _ = interval.tick() => {
-                    if !socket.check_status(&mut session).await {
-                        break;
-                    }
-                }
-
-                _ = hb_interval.tick() => {
-                    if Instant::now().duration_since(last_pong)
-                        > Duration::from_millis(CLIENT_TIMEOUT_MS)
-                    {
-                        warn!("client heartbeat timed out, closing session");
-                        reason = Some(CloseCode::Away.into());
-                        break;
-                    }
-                    if let Err(e) = session.ping(b"").await {
-                        error!("ping failed: {e}");
-                        reason = Some(CloseCode::Error.into());
+                    let session = handler.session();
+                    if !socket.check_status(session).await {
                         break;
                     }
                 }
             }
         }
 
-        if let Err(e) = session.close(reason).await {
-            error!("encountered error while closing websocket session due to {e}");
-        }
-
-        socket.cleanup().await
+        handler.cleanup().await;
+        socket.cleanup().await;
     });
 
     Ok(response)

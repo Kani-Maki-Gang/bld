@@ -1027,6 +1027,7 @@ dependencies = [
  "bld_core",
  "bld_http",
  "bld_models",
+ "bld_sock",
  "bld_utils",
  "bollard",
  "futures",
