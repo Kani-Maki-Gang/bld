@@ -8,7 +8,7 @@ use actix_web::{
     rt::{spawn, time},
     web::{Data, Payload},
 };
-use actix_ws::{CloseCode, CloseReason, Message, Session, handle};
+use actix_ws::Session;
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::{fs::FileSystem, scanner::FileScanner};
@@ -16,15 +16,13 @@ use bld_models::{
     dtos::{ExecClientMessage, ExecServerMessage},
     pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED},
 };
-use futures::StreamExt;
+use bld_sock::session::{self, WebSocketMessage};
 use sea_orm::DatabaseConnection;
-use std::time::{Duration, Instant};
-use tracing::{debug, error, warn};
+use std::time::Duration;
+use tracing::{debug, error};
 
 const SCAN_INTERVAL_MS: u64 = 500;
 const STATE_CHECK_INTERVAL_MS: u64 = 1000;
-const HEARTBEAT_INTERVAL_MS: u64 = 5_000;
-const CLIENT_TIMEOUT_MS: u64 = 15_000;
 
 struct ExecWebsocket {
     config: Data<BldConfig>,
@@ -136,91 +134,46 @@ pub async fn ws(
 ) -> actix_web::Result<impl Responder> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
     let mut socket = ExecWebsocket::new(config, supervisor, conn, fs, user);
-    let (response, mut session, mut msg_stream) = handle(&req, body)?;
+    let (response, mut handler) = session::handle(&req, body)?;
 
     spawn(async move {
         debug!("spawned exec web socket");
-        let mut reason: Option<CloseReason> = None;
         let mut scan_interval = time::interval(Duration::from_millis(SCAN_INTERVAL_MS));
         let mut state_interval = time::interval(Duration::from_millis(STATE_CHECK_INTERVAL_MS));
-        let mut hb_interval = time::interval(Duration::from_millis(HEARTBEAT_INTERVAL_MS));
-        let mut last_pong = Instant::now();
 
         loop {
             tokio::select! {
-                Some(msg) = msg_stream.next() => {
-                    let Ok(message) = msg.inspect_err(|e| error!("{e}")) else {
-                        break;
-                    };
-                    match message {
-                        Message::Text(txt) => {
-                            if let Err(e) = socket.handle_message(&mut session, &txt).await {
-                                reason = Some(CloseCode::Error.into());
-                                let _ = session.text(e.to_string()).await.inspect_err(|e| error!("{e}"));
+                msg = handler.next() =>  {
+                    match msg {
+                        WebSocketMessage::Text(txt) => {
+                            let session = handler.session();
+                            if let Err(e) = socket.handle_message(session, &txt).await {
                                 error!("handling message error. {e}");
+                                let _ = session.text(e.to_string()).await.inspect_err(|e| error!("{e}"));
+                                handler.error();
                                 break;
                             }
                         }
-
-                        Message::Ping(msg) => {
-                            if let Err(e) = session.pong(&msg).await {
-                                reason = Some(CloseCode::Error.into());
-                                error!("{e}");
-                                break;
-                            }
-                        }
-
-                        Message::Pong(_) => {
-                            last_pong = Instant::now();
-                        }
-
-                        Message::Continuation(_) | Message::Nop => {}
-
-                        Message::Close(r) => {
-                            reason = r;
-                            break;
-                        }
-
-                        _ => {
-                            break;
-                        }
+                        WebSocketMessage::Continue => {}
+                        _ => break,
                     }
                 }
 
                 _ = scan_interval.tick() => {
-                    socket.scan(&mut session).await;
+                    let session = handler.session();
+                    socket.scan(session).await;
                 }
 
                 _ = state_interval.tick() => {
-                    if !socket.check_state(&mut session).await {
-                        break;
-                    }
-                }
-
-                _ = hb_interval.tick() => {
-                    if Instant::now().duration_since(last_pong)
-                        > Duration::from_millis(CLIENT_TIMEOUT_MS)
-                    {
-                        warn!("client heartbeat timed out, closing session");
-                        reason = Some(CloseCode::Away.into());
-                        break;
-                    }
-                    if let Err(e) = session.ping(b"").await {
-                        error!("ping failed: {e}");
-                        reason = Some(CloseCode::Error.into());
+                    let session = handler.session();
+                    if !socket.check_state(session).await {
                         break;
                     }
                 }
             }
         }
 
-        let _ = session
-            .close(reason)
-            .await
-            .inspect(|_| debug!("closed session successfully"))
-            .inspect_err(|e| {
-                error!("encountered error while closing websocket session due to {e}")
-            });
+        handler.cleanup().await;
     });
 
     Ok(response)
