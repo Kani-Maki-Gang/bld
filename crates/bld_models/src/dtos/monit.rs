@@ -1,7 +1,7 @@
 use actix::Message;
 use serde::{Deserialize, Serialize};
 
-#[derive(Default, Serialize, Deserialize, Message)]
+#[derive(Debug, Default, Serialize, Deserialize, Message)]
 #[rtype(result = "()")]
 pub struct MonitInfo {
     pub id: Option<String>,

@@ -21,7 +21,7 @@ use tracing::{debug, error};
 const STATE_CHECK_INTERVAL_MS: u64 = 500;
 
 pub struct MonitorPipelineSocket {
-    id: String,
+    id: Option<String>,
     conn: Data<DatabaseConnection>,
     config: Data<BldConfig>,
     scanner: Option<FileScanner>,
@@ -30,7 +30,7 @@ pub struct MonitorPipelineSocket {
 impl MonitorPipelineSocket {
     pub fn new(conn: Data<DatabaseConnection>, config: Data<BldConfig>) -> Self {
         Self {
-            id: String::new(),
+            id: None,
             conn,
             config,
             scanner: None,
@@ -51,7 +51,11 @@ impl MonitorPipelineSocket {
     }
 
     async fn check_state(&self, session: &mut Session) -> bool {
-        match pipeline_runs::select_by_id(self.conn.as_ref(), &self.id).await {
+        let Some(run_id) = self.id.as_ref() else {
+            return true;
+        };
+        debug!("checking run state for pipeline run with id {run_id}");
+        match pipeline_runs::select_by_id(self.conn.as_ref(), &run_id).await {
             Ok(run) if run.state == PR_STATE_FINISHED || run.state == PR_STATE_FAULTED => false,
             Err(_) => {
                 if let Err(e) = session.text("internal server error").await {
@@ -66,18 +70,22 @@ impl MonitorPipelineSocket {
     async fn dependencies(&mut self, data: &str) -> Result<()> {
         let conn = self.conn.clone();
         let data = serde_json::from_str::<MonitInfo>(data)?;
+        debug!("{data:?}");
         let run = if data.last {
+            debug!("fetching the last pipeline run");
             pipeline_runs::select_last(conn.as_ref()).await
         } else if let Some(id) = data.id {
+            debug!("fetching pipeline run by id {id}");
             pipeline_runs::select_by_id(conn.as_ref(), &id).await
         } else if let Some(name) = data.name {
+            debug!("fetching pipeline run by name {name}");
             pipeline_runs::select_by_name(conn.as_ref(), &name).await
         } else {
             bail!("file not found");
         }?;
-        debug!("starting scan for run");
-        self.id.clone_from(&run.id);
+        debug!("starting scan for run with id {}", run.id);
         self.scanner = Some(FileScanner::new(self.config.as_ref(), &run.id));
+        self.id.replace(run.id);
         Ok(())
     }
 }
