@@ -1,6 +1,3 @@
-#[cfg(feature = "web_socket")]
-use actix::Message;
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,8 +29,7 @@ impl RefreshTokenParams {
 }
 
 #[cfg(feature = "web_socket")]
-#[derive(Debug, Serialize, Deserialize, Message)]
-#[rtype(result = "()")]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum LoginClientMessage {
     Init,
 }

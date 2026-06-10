@@ -1,11 +1,9 @@
-use actix::Message;
 use serde::{Deserialize, Serialize};
 
 pub static SERVER: &str = "server";
 pub static WORKER: &str = "worker";
 
-#[derive(Debug, Serialize, Deserialize, Message)]
-#[rtype(result = "()")]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum ServerMessages {
     Ack,
     Enqueue {
@@ -19,8 +17,7 @@ pub enum ServerMessages {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize, Message)]
-#[rtype(result = "()")]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum WorkerMessages {
     Ack,
     WhoAmI { pid: u32 },

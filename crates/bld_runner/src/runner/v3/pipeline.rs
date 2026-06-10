@@ -1,6 +1,6 @@
 use std::{fmt::Write, sync::Arc, time::Duration};
 
-use actix::{clock::sleep, spawn};
+use actix_web::rt::spawn;
 use anyhow::{Result, anyhow, bail};
 use bld_config::{BldConfig, SshUserAuth};
 use bld_core::{
@@ -18,7 +18,7 @@ use bld_models::dtos::WorkerMessages;
 use bld_pkg::PackageManager;
 use bld_utils::sync::IntoArc;
 use regex::Regex;
-use tokio::sync::mpsc::Sender;
+use tokio::{sync::mpsc::Sender, time::sleep};
 use tracing::debug;
 
 use crate::{

@@ -1,17 +1,14 @@
-use std::{collections::HashMap, fmt::Write, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt::Write, sync::Arc};
 
-use actix::{Actor, StreamHandler, clock::sleep, io::SinkWrite};
 use anyhow::{Result, anyhow, bail};
 use bld_config::BldConfig;
 use bld_core::{
     context::Context, fs::FileSystem, logger::Logger, platform::Platform, regex::RegexCache,
 };
-use bld_http::WebSocket;
 use bld_models::dtos::ExecClientMessage;
 use bld_pkg::PackageManager;
 use bld_sock::ExecClient;
 use bld_utils::sync::IntoArc;
-use futures::StreamExt;
 use regex::Regex;
 use tokio::task::JoinHandle;
 use tracing::debug;
@@ -157,51 +154,26 @@ impl<S: RootState> JobRunner<S> {
     async fn server_external(&mut self, server: &str, details: &External) -> Result<()> {
         let inputs = self.variables_external(&details.with)?;
         let env = self.variables_external(&details.env)?;
-        let server_name = server.to_owned();
-        let server = self.config.server(server)?;
-        let auth_path = self.config.auth_full_path(&server.name);
 
-        let url = format!("{}/v1/ws-exec/", server.base_url_ws());
+        debug!("establishing web socket connection with server {}", server);
 
-        debug!(
-            "establishing web socket connection with server {}",
-            server.name
-        );
-
-        let (_, framed) = WebSocket::new(&url)?
-            .auth(&auth_path)
-            .await
-            .request()
-            .connect()
-            .await
-            .map_err(|e| anyhow!(e.to_string()))?;
-
-        let (sink, stream) = framed.split();
-        let addr = ExecClient::create(|ctx| {
-            ExecClient::add_stream(stream, ctx);
-            ExecClient::new(
-                server_name,
-                self.logger.clone(),
-                self.run_ctx.clone(),
-                SinkWrite::new(sink, ctx),
-            )
-        });
+        let client = ExecClient::connect(
+            self.config.clone(),
+            server.to_owned(),
+            self.logger.clone(),
+            self.run_ctx.clone(),
+        )
+        .await?;
 
         debug!("sending message for pipeline execution over the web socket");
 
-        addr.send(ExecClientMessage::EnqueueRun {
-            name: details.uses.to_owned(),
-            env: Some(env),
-            inputs: Some(inputs),
-        })
-        .await
-        .map_err(|e| anyhow!(e))?;
-
-        while addr.connected() {
-            sleep(Duration::from_millis(200)).await;
-        }
-
-        Ok(())
+        client
+            .run(ExecClientMessage::EnqueueRun {
+                name: details.uses.to_owned(),
+                env: Some(env),
+                inputs: Some(inputs),
+            })
+            .await
     }
 
     fn variables_external(

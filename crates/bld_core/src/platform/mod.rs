@@ -18,7 +18,7 @@ pub use ssh::*;
 use tokio::sync::mpsc::{Receiver, Sender, channel};
 use uuid::Uuid;
 
-use actix::spawn;
+use actix_web::rt::spawn;
 use anyhow::{Result, anyhow};
 use tracing::{debug, error};
 

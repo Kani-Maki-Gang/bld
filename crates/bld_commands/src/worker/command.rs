@@ -1,12 +1,9 @@
 use crate::{command::BldCommand, signals::CommandSignals};
-use actix::{Actor, StreamHandler, io::SinkWrite};
 use actix_web::rt::{System, spawn};
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::{context::Context, fs::FileSystem, logger::Logger};
-use bld_http::WebSocket;
 use bld_models::{
-    dtos::WorkerMessages,
     new_connection_pool,
     pipeline_runs::{self, PR_STATE_FAULTED},
 };
@@ -16,10 +13,9 @@ use bld_sock::WorkerClient;
 use bld_utils::{sync::IntoArc, variables::parse_variables};
 use chrono::Utc;
 use clap::Args;
-use futures::{join, stream::StreamExt};
-use std::sync::Arc;
-use tokio::sync::mpsc::{Receiver, channel};
-use tracing::{debug, error};
+use futures::join;
+use tokio::sync::mpsc::channel;
+use tracing::error;
 
 #[derive(Args)]
 #[command(
@@ -94,9 +90,13 @@ impl BldCommand for WorkerCommand {
             let (cmd_signals, signals_rx) = CommandSignals::new()?;
 
             let socket_handle = spawn(async move {
-                if let Err(e) = connect_to_supervisor(socket_cfg, worker_rx).await {
-                    error!("{e}");
-                }
+                let Ok(client) = WorkerClient::connect(socket_cfg, Logger::shell())
+                    .await
+                    .inspect_err(|e| error!("{e}"))
+                else {
+                    return;
+                };
+                let _ = client.run(worker_rx).await.inspect_err(|e| error!("{e}"));
             });
 
             let runner_handle = spawn(async move {
@@ -143,41 +143,4 @@ impl BldCommand for WorkerCommand {
             Ok(())
         })
     }
-}
-
-async fn connect_to_supervisor(
-    config: Arc<BldConfig>,
-    mut worker_rx: Receiver<WorkerMessages>,
-) -> Result<()> {
-    let url = format!("{}/v1/ws-worker/", config.local.supervisor.base_url_ws());
-
-    debug!("establishing web socket connection on {}", url);
-
-    let (_, framed) = WebSocket::new(&url)?
-        .request()
-        .connect()
-        .await
-        .map_err(|e| {
-            error!("{e}");
-            anyhow!(e.to_string())
-        })?;
-
-    let (sink, stream) = framed.split();
-    let addr = WorkerClient::create(|ctx| {
-        WorkerClient::add_stream(stream, ctx);
-        WorkerClient::new(SinkWrite::new(sink, ctx))
-    });
-
-    addr.send(WorkerMessages::Ack).await?;
-    addr.send(WorkerMessages::WhoAmI {
-        pid: std::process::id(),
-    })
-    .await?;
-
-    while let Some(msg) = worker_rx.recv().await {
-        debug!("sending message to supervisor {:?}", msg);
-        addr.send(msg).await?
-    }
-
-    Ok(())
 }

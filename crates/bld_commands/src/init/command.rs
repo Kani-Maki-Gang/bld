@@ -1,5 +1,5 @@
 use crate::command::BldCommand;
-use actix::System;
+use actix_web::rt::System;
 use anyhow::{Result, bail};
 use bld_config::definitions::{
     DEFAULT_V3_PIPELINE_CONTENT, LOCAL_DEFAULT_DB_DIR, LOCAL_DEFAULT_DB_NAME,

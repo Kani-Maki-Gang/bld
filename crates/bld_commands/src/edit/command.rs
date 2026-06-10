@@ -1,4 +1,4 @@
-use actix::System;
+use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::{BldConfig, definitions::TOOL_DEFAULT_PIPELINE_FILE};
 use bld_core::fs::FileSystem;

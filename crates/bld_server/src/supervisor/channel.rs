@@ -1,14 +1,9 @@
-use actix::{Actor, StreamHandler, io::SinkWrite};
-use actix_codec::Framed;
-use actix_http::ws::Codec;
 use actix_web::rt::spawn;
 use anyhow::{Result, anyhow, bail};
-use awc::BoxedSocket;
 use bld_config::BldConfig;
-use bld_http::WebSocket;
+use bld_core::logger::Logger;
 use bld_models::dtos::ServerMessages;
-use bld_sock::EnqueueClient;
-use futures::stream::StreamExt;
+use bld_sock::{EnqueueClient, EnqueueClientState};
 use std::{env::current_exe, sync::Arc, time::Duration};
 use tokio::{
     process::{Child, Command},
@@ -21,24 +16,22 @@ use tracing::{debug, error};
 const INITIAL_DELAY: u64 = 500;
 const RETRY_DELAY: u64 = 2000;
 
-async fn try_ws_connection(url: &str) -> Result<Framed<BoxedSocket, Codec>> {
+async fn try_ws_connection(url: &str) -> Result<EnqueueClient> {
     // small wait for the supervisor
     sleep(Duration::from_millis(INITIAL_DELAY)).await;
 
     for _ in 0..10 {
         debug!("establishing web socket connection on {}", url);
 
-        let Ok((_, framed)) = WebSocket::new(url)?.request().connect().await.map_err(|e| {
-            error!(
-                "connection to supervisor web socket failed due to {e}, retrying in {RETRY_DELAY}ms"
-            );
-            anyhow!(e.to_string())
-        }) else {
-            sleep(Duration::from_millis(RETRY_DELAY)).await;
-            continue;
-        };
-
-        return Ok(framed);
+        match EnqueueClient::connect(url, Logger::shell()).await {
+            Ok(client) => return Ok(client),
+            Err(e) => {
+                error!(
+                    "connection to supervisor web socket failed due to {e}, retrying in {RETRY_DELAY}ms"
+                );
+                sleep(Duration::from_millis(RETRY_DELAY)).await;
+            }
+        }
     }
 
     bail!("unable to establish connection to supervisor websocket");
@@ -70,34 +63,35 @@ impl SupervisorMessageReceiver {
                 error!("{e}");
                 break 'retry_loop;
             }
-            let framed = try_ws_connection(&url).await?;
-            let (sink, stream) = framed.split();
-            let address = EnqueueClient::create(|ctx| {
-                EnqueueClient::add_stream(stream, ctx);
-                EnqueueClient::new(SinkWrite::new(sink, ctx))
-            });
+            let mut client = try_ws_connection(&url).await?;
 
-            address.send(ServerMessages::Ack).await.inspect_err(|e| {
-                error!("failed to send Ack to supervisor, {e}");
-            })?;
-
-            if let Some(msg) = self.last_message {
-                address.send(msg).await?;
-                self.last_message = None;
+            if let Some(msg) = self.last_message.take() {
+                client.send(&msg).await?;
             }
 
-            while let Some(msg) = self.rx.recv().await {
-                if !address.connected() {
-                    self.kill_inner().await;
-                    self.last_message = Some(msg);
-                    continue 'retry_loop;
+            loop {
+                tokio::select! {
+                    msg = self.rx.recv() => {
+                        let Some(msg) = msg else {
+                            break 'retry_loop;
+                        };
+                        if client.send(&msg).await.is_err() {
+                            self.kill_inner().await;
+                            self.last_message = Some(msg);
+                            continue 'retry_loop;
+                        }
+                    }
+                    state = client.next() => {
+                        if let EnqueueClientState::Completed = state {
+                            self.kill_inner().await;
+                            continue 'retry_loop;
+                        }
+                    }
                 }
-
-                address.send(msg).await?;
             }
-
-            self.kill_inner().await;
         }
+
+        self.kill_inner().await;
 
         Ok(())
     }

@@ -2,11 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[cfg(feature = "web_socket")]
-use actix::Message;
-
-#[cfg(feature = "web_socket")]
-#[derive(Debug, Clone, Serialize, Deserialize, Message)]
-#[rtype(result = "()")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExecClientMessage {
     EnqueueRun {
         name: String,
@@ -16,8 +12,7 @@ pub enum ExecClientMessage {
 }
 
 #[cfg(feature = "web_socket")]
-#[derive(Debug, Serialize, Deserialize, Message)]
-#[rtype(result = "()")]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum ExecServerMessage {
     QueuedRun { run_id: String },
     Log { content: String },

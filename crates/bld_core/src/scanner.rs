@@ -1,4 +1,4 @@
-use actix::spawn;
+use actix_web::rt::spawn;
 use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
 use std::path::PathBuf;

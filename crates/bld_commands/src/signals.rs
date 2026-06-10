@@ -1,4 +1,4 @@
-use actix::spawn;
+use actix_web::rt::spawn;
 use anyhow::Result;
 use async_signal::{Signal, Signals};
 use bld_core::signals::{UnixSignals, UnixSignalsBackend};

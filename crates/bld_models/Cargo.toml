@@ -6,7 +6,7 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-web_socket = ["dep:actix"]
+web_socket = []
 database = [
     "dep:anyhow",
     "dep:bld_config",
@@ -20,7 +20,6 @@ database = [
 all = ["web_socket", "database"]
 
 [dependencies]
-actix =  { version = "0.13.5", optional = true }
 anyhow = { version = "1.0.93", optional = true }
 bld_config = { path = "../bld_config", optional = true }
 bld_migrations = { path = "../bld_migrations", optional = true }

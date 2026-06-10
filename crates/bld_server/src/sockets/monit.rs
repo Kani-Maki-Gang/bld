@@ -55,7 +55,7 @@ impl MonitorPipelineSocket {
             return true;
         };
         debug!("checking run state for pipeline run with id {run_id}");
-        match pipeline_runs::select_by_id(self.conn.as_ref(), &run_id).await {
+        match pipeline_runs::select_by_id(self.conn.as_ref(), run_id).await {
             Ok(run) if run.state == PR_STATE_FINISHED || run.state == PR_STATE_FAULTED => false,
             Err(_) => {
                 if let Err(e) = session.text("internal server error").await {

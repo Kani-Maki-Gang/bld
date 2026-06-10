@@ -1,6 +1,6 @@
 use crate::command::BldCommand;
 use crate::run::adapter::RunBuilder;
-use actix::System;
+use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_config::definitions::TOOL_DEFAULT_PIPELINE_FILE;

@@ -1,61 +1,51 @@
-use actix::io::{SinkWrite, WriteHandler};
-use actix::{Actor, ActorContext, Context, Handler, StreamHandler};
-use actix_codec::Framed;
-use awc::BoxedSocket;
-use awc::error::WsProtocolError;
-use awc::ws::{Codec, Frame, Message};
+use anyhow::Result;
+use awc::ws::Frame;
+use bld_core::logger::Logger;
+use bld_http::WebSock;
 use bld_models::dtos::ServerMessages;
-use futures::stream::SplitSink;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
+
+pub enum EnqueueClientState {
+    Continue,
+    Completed,
+}
 
 pub struct EnqueueClient {
-    writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>,
+    logger: Logger,
+    sock: WebSock,
 }
 
 impl EnqueueClient {
-    pub fn new(writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>) -> Self {
-        Self { writer }
-    }
-}
-
-impl Actor for EnqueueClient {
-    type Context = Context<Self>;
-
-    fn started(&mut self, _ctx: &mut Context<Self>) {
-        debug!("supervisor socket started");
+    pub async fn connect(url: &str, logger: Logger) -> Result<Self> {
+        debug!("establishing web socket connection on {}", url);
+        let mut sock = WebSock::connect(url, None).await?;
+        sock.binary(&ServerMessages::Ack).await?;
+        Ok(Self { logger, sock })
     }
 
-    fn stopped(&mut self, _: &mut Context<Self>) {
-        debug!("supervisor socket stopped");
+    pub async fn send(&mut self, message: &ServerMessages) -> Result<()> {
+        self.sock.binary(message).await
     }
-}
 
-impl Handler<ServerMessages> for EnqueueClient {
-    type Result = ();
-
-    fn handle(&mut self, msg: ServerMessages, _ctx: &mut Self::Context) {
-        if let Ok(bytes) = serde_json::to_vec(&msg) {
-            let _ = self.writer.write(Message::Binary(bytes.into()));
-        }
-    }
-}
-
-impl StreamHandler<Result<Frame, WsProtocolError>> for EnqueueClient {
-    fn handle(&mut self, msg: Result<Frame, WsProtocolError>, ctx: &mut Context<Self>) {
-        match msg {
-            Ok(Frame::Text(bt)) => println!("{}", String::from_utf8_lossy(&bt)),
+    pub async fn next(&mut self) -> EnqueueClientState {
+        match self.sock.next().await {
+            Ok(Frame::Text(bt)) => {
+                let _ = self
+                    .logger
+                    .write_line(String::from_utf8_lossy(&bt).into())
+                    .await
+                    .inspect_err(|e| error!("unable to log line due to {e}"));
+                EnqueueClientState::Continue
+            }
             Ok(Frame::Close(_)) => {
                 info!("web socket connection stopped due to a sent closed frame");
-                ctx.stop();
+                EnqueueClientState::Completed
             }
-            _ => {}
+            Ok(_) => EnqueueClientState::Continue,
+            Err(e) => {
+                error!("{e}");
+                EnqueueClientState::Completed
+            }
         }
     }
-
-    fn finished(&mut self, ctx: &mut Context<Self>) {
-        info!("web socket communication finished");
-        ctx.stop();
-    }
 }
-
-impl WriteHandler<WsProtocolError> for EnqueueClient {}
