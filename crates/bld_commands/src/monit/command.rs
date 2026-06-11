@@ -1,13 +1,11 @@
 use crate::command::BldCommand;
-use actix::{Actor, StreamHandler, io::SinkWrite};
 use actix_web::rt::System;
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use bld_config::BldConfig;
-use bld_http::WebSocket;
+use bld_core::logger::Logger;
 use bld_models::dtos::MonitInfo;
 use bld_sock::MonitClient;
 use clap::Args;
-use futures::stream::StreamExt;
 use tracing::debug;
 
 #[derive(Args)]
@@ -47,34 +45,15 @@ pub struct MonitCommand {
 impl MonitCommand {
     async fn request(self) -> Result<()> {
         let config = BldConfig::load().await?;
-        let server = config.server(&self.server)?;
-        let auth_path = config.auth_full_path(&server.name);
-        let url = format!("{}/v1/ws-monit/", server.base_url_ws());
-
-        debug!("establishing web socket connection on {}", url);
-
-        let (_, framed) = WebSocket::new(&url)?
-            .auth(&auth_path)
-            .await
-            .request()
-            .connect()
-            .await
-            .map_err(|e| anyhow!(e.to_string()))?;
-
-        let (sink, stream) = framed.split();
-        let addr = MonitClient::create(|ctx| {
-            MonitClient::add_stream(stream, ctx);
-            MonitClient::new(SinkWrite::new(sink, ctx))
-        });
-
+        let logger = Logger::shell();
         debug!(
             "sending data over: {:?} {:?} {}",
             self.pipeline_id, self.file, self.last
         );
-
-        addr.send(MonitInfo::new(self.pipeline_id, self.file, self.last))
+        MonitClient::connect(config, logger, self.server)
+            .await?
+            .run(MonitInfo::new(self.pipeline_id, self.file, self.last))
             .await
-            .map_err(|e| anyhow!(e))
     }
 }
 
@@ -84,10 +63,6 @@ impl BldCommand for MonitCommand {
     }
 
     fn exec(self) -> Result<()> {
-        let system = System::new();
-        let result = system.block_on(self.request());
-
-        system.run()?;
-        result
+        System::new().block_on(self.request())
     }
 }

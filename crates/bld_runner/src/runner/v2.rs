@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Write, pin::Pin, sync::Arc, time::Duration};
 
-use actix::{Actor, StreamHandler, clock::sleep, io::SinkWrite, spawn};
+use actix_web::rt::spawn;
 use anyhow::{Result, anyhow, bail};
 use bld_config::{
     BldConfig, SshUserAuth,
@@ -17,13 +17,12 @@ use bld_core::{
     regex::RegexCache,
     signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend},
 };
-use bld_http::WebSocket;
 use bld_models::dtos::{ExecClientMessage, WorkerMessages};
 use bld_pkg::PackageManager;
 use bld_sock::ExecClient;
 use bld_utils::sync::IntoArc;
-use futures::{Future, StreamExt};
-use tokio::{sync::mpsc::Sender, task::JoinHandle};
+use futures::Future;
+use tokio::{sync::mpsc::Sender, task::JoinHandle, time::sleep};
 use tracing::debug;
 
 use crate::{
@@ -193,53 +192,28 @@ impl Job {
     }
 
     async fn server_external(&self, server: &str, details: &External) -> Result<()> {
-        let server_name = server.to_owned();
-        let server = self.config.server(server)?;
-        let auth_path = self.config.auth_full_path(&server.name);
         let variables = details.variables.clone();
         let environment = details.environment.clone();
 
-        let url = format!("{}/v1/ws-exec/", server.base_url_ws());
+        debug!("establishing web socket connection with server {}", server);
 
-        debug!(
-            "establishing web socket connection with server {}",
-            server.name
-        );
-
-        let (_, framed) = WebSocket::new(&url)?
-            .auth(&auth_path)
-            .await
-            .request()
-            .connect()
-            .await
-            .map_err(|e| anyhow!(e.to_string()))?;
-
-        let (sink, stream) = framed.split();
-        let addr = ExecClient::create(|ctx| {
-            ExecClient::add_stream(stream, ctx);
-            ExecClient::new(
-                server_name,
-                self.logger.clone(),
-                self.context.clone(),
-                SinkWrite::new(sink, ctx),
-            )
-        });
+        let client = ExecClient::connect(
+            self.config.clone(),
+            server.to_owned(),
+            self.logger.clone(),
+            self.context.clone(),
+        )
+        .await?;
 
         debug!("sending message for pipeline execution over the web socket");
 
-        addr.send(ExecClientMessage::EnqueueRun {
-            name: details.pipeline.to_owned(),
-            env: Some(environment),
-            inputs: Some(variables),
-        })
-        .await
-        .map_err(|e| anyhow!(e))?;
-
-        while addr.connected() {
-            sleep(Duration::from_millis(200)).await;
-        }
-
-        Ok(())
+        client
+            .run(ExecClientMessage::EnqueueRun {
+                name: details.pipeline.to_owned(),
+                env: Some(environment),
+                inputs: Some(variables),
+            })
+            .await
     }
 
     async fn shell(&self, working_dir: &Option<String>, command: &str) -> Result<()> {

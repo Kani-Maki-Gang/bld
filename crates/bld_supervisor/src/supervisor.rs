@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::queues::worker_queue_channel;
-use crate::sockets::{ws_server_socket, ws_worker_socket};
+use crate::sockets::{server, worker};
 use actix_web::web::{get, resource};
 use actix_web::{App, HttpServer};
 use anyhow::{Result, anyhow};
@@ -32,8 +32,8 @@ pub async fn start(config: BldConfig) -> Result<()> {
             .app_data(config_clone.clone())
             .app_data(conn.clone())
             .app_data(worker_queue_sender.clone())
-            .service(resource("/v1/ws-server/").route(get().to(ws_server_socket)))
-            .service(resource("/v1/ws-worker/").route(get().to(ws_worker_socket)))
+            .service(resource("/v1/ws-server/").route(get().to(server::ws)))
+            .service(resource("/v1/ws-worker/").route(get().to(worker::ws)))
     });
 
     server = match &config.local.supervisor.tls {

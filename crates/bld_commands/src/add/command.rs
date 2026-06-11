@@ -1,4 +1,4 @@
-use actix::System;
+use actix_web::rt::System;
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_config::definitions::DEFAULT_V3_PIPELINE_CONTENT;

@@ -1,25 +1,32 @@
-use std::collections::HashMap;
-use std::error::Error;
-use std::fmt::{Display, Formatter};
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    error::Error,
+    fmt::{Display, Formatter},
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
+use actix_codec::Framed;
 use anyhow::{Result, anyhow, bail};
-use awc::http::StatusCode;
-use awc::ws::WebsocketsRequest;
-use awc::{Client, ClientRequest, Connector, SendClientRequest};
+use awc::{
+    BoxedSocket, Client, ClientRequest, Connector, SendClientRequest,
+    http::StatusCode,
+    ws::{Codec, Frame, Message},
+};
 use bld_config::BldConfig;
 use bld_models::dtos::{
     AddJobRequest, AuthTokens, CronJobResponse, ExecClientMessage, HistQueryParams, HistoryEntry,
     JobFiltersParams, PipelineInfoQueryParams, PipelinePathRequest, PipelineQueryParams,
     PullResponse, PushInfo, RefreshTokenParams, UpdateJobRequest,
 };
-use bld_utils::fs::{read_tokens, write_tokens};
-use bld_utils::sync::IntoArc;
-use bld_utils::tls::load_root_certificates;
+use bld_utils::{
+    fs::{read_tokens, write_tokens},
+    sync::IntoArc,
+    tls::load_root_certificates,
+};
+use futures_util::{SinkExt as _, StreamExt as _};
 use rustls::ClientConfig;
-use serde::Serialize;
-use serde::de::DeserializeOwned;
+use serde::{Serialize, de::DeserializeOwned};
 use tracing::{debug, error};
 
 #[derive(Debug)]
@@ -182,12 +189,13 @@ impl Request {
     }
 }
 
-pub struct WebSocket {
-    request: WebsocketsRequest,
+pub struct WebSock {
+    connection: Framed<BoxedSocket, Codec>,
+    pong_pending: bool,
 }
 
-impl WebSocket {
-    pub fn new(url: &str) -> Result<Self> {
+impl WebSock {
+    pub async fn connect(url: &str, auth_path: Option<&Path>) -> Result<Self> {
         let root_certificates = load_root_certificates()?;
 
         let rustls_config = ClientConfig::builder()
@@ -196,23 +204,53 @@ impl WebSocket {
             .with_no_client_auth();
 
         let connector = Connector::new().rustls(rustls_config.into_arc());
+        let mut request = Client::builder().connector(connector).finish().ws(url);
+
+        if let Some(path) = auth_path
+            && let Ok(tokens) = read_tokens::<AuthTokens>(path).await
+        {
+            request = request.header("Authorization", format!("Bearer {}", tokens.access_token));
+        }
+
+        let (_, connection) = request.connect().await.map_err(|e| anyhow!("{e}"))?;
 
         Ok(Self {
-            request: Client::builder().connector(connector).finish().ws(url),
+            connection,
+            pong_pending: false,
         })
     }
 
-    pub async fn auth(mut self, path: &Path) -> Self {
-        if let Ok(tokens) = read_tokens::<AuthTokens>(path).await {
-            self.request = self
-                .request
-                .header("Authorization", format!("Bearer {}", tokens.access_token));
-        }
-        self
+    pub async fn text<T: Serialize>(&mut self, value: &T) -> Result<()> {
+        let message = serde_json::to_string(value)?;
+        self.connection.send(Message::Text(message.into())).await?;
+        Ok(())
     }
 
-    pub fn request(self) -> WebsocketsRequest {
-        self.request
+    pub async fn binary<T: Serialize>(&mut self, value: &T) -> Result<()> {
+        let message = serde_json::to_string(value)?;
+        self.connection
+            .send(Message::Binary(message.into()))
+            .await?;
+        Ok(())
+    }
+
+    pub async fn next(&mut self) -> Result<Frame> {
+        // resend a pong whose send was cancelled by a select! on a previous call
+        if self.pong_pending {
+            self.connection.send(Message::Pong("".into())).await?;
+            self.pong_pending = false;
+        }
+        let response = self
+            .connection
+            .next()
+            .await
+            .ok_or_else(|| anyhow!("unable to read message from ws connection"))??;
+        if let Frame::Ping(_) = &response {
+            self.pong_pending = true;
+            self.connection.send(Message::Pong("".into())).await?;
+            self.pong_pending = false;
+        }
+        Ok(response)
     }
 }
 

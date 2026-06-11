@@ -2,13 +2,13 @@ use crate::{
     extractors::User,
     supervisor::{channel::SupervisorMessageSender, helpers::enqueue_worker},
 };
-use actix::prelude::*;
 use actix_web::{
-    Error, HttpRequest, HttpResponse,
+    HttpRequest, Responder,
     error::ErrorUnauthorized,
+    rt::{spawn, time},
     web::{Data, Payload},
 };
-use actix_web_actors::ws;
+use actix_ws::Session;
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::{fs::FileSystem, scanner::FileScanner};
@@ -16,33 +16,35 @@ use bld_models::{
     dtos::{ExecClientMessage, ExecServerMessage},
     pipeline_runs::{self, PR_STATE_FAULTED, PR_STATE_FINISHED, PR_STATE_QUEUED},
 };
-use bld_utils::sync::IntoArc;
-use futures_util::future::ready;
+use bld_sock::session::{self, WebSocketMessage};
 use sea_orm::DatabaseConnection;
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 use tracing::{debug, error};
 
-pub struct ExecutePipelineSocket {
+const SCAN_INTERVAL_MS: u64 = 500;
+const STATE_CHECK_INTERVAL_MS: u64 = 1000;
+
+struct ExecWebsocket {
     config: Data<BldConfig>,
     supervisor: Data<SupervisorMessageSender>,
     conn: Data<DatabaseConnection>,
     fs: Data<FileSystem>,
     user: User,
-    scanner: Option<Arc<FileScanner>>,
+    scanner: Option<FileScanner>,
     run_id: Option<String>,
 }
 
-impl ExecutePipelineSocket {
+impl ExecWebsocket {
     pub fn new(
-        user: User,
         config: Data<BldConfig>,
-        supervisor_sender: Data<SupervisorMessageSender>,
+        supervisor: Data<SupervisorMessageSender>,
         conn: Data<DatabaseConnection>,
         fs: Data<FileSystem>,
+        user: User,
     ) -> Self {
         Self {
             config,
-            supervisor: supervisor_sender,
+            supervisor,
             conn,
             fs,
             user,
@@ -51,148 +53,128 @@ impl ExecutePipelineSocket {
         }
     }
 
-    fn scan(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
-        let Some(scanner) = act.scanner.as_ref() else {
+    pub async fn scan(&self, session: &mut Session) {
+        let Some(scanner) = self.scanner.as_ref() else {
             return;
         };
-        let scanner = scanner.clone();
-        let scan_fut = async move { scanner.scan().await }
-            .into_actor(act)
-            .then(|res, _, ctx| {
-                if let Ok(lines) = res {
-                    for line in lines.iter() {
-                        let message = ExecServerMessage::Log {
-                            content: line.to_string(),
-                        };
-                        let _ = serde_json::to_string(&message).map(|data| ctx.text(data));
-                    }
-                }
-                ready(())
-            });
-        ctx.spawn(scan_fut);
-    }
-
-    fn exec(act: &mut Self, ctx: &mut <Self as Actor>::Context) {
-        if let Some(run_id) = act.run_id.as_ref() {
-            let conn = act.conn.clone();
-            let run_id = run_id.to_owned();
-            let select_fut = async move { pipeline_runs::select_by_id(conn.as_ref(), &run_id).await }
-                .into_actor(act)
-                .then(|res, _, ctx| match res {
-                    Ok(run) if run.state == PR_STATE_FINISHED || run.state == PR_STATE_FAULTED => {
-                        ctx.stop();
-                        ready(())
-                    }
-                    Ok(run) if run.state == PR_STATE_QUEUED => {
-                        ctx.text("run with id {run_id} has been queued, use the monit command to see the output when it's started");
-                        ctx.stop();
-                        ready(())
-                    }
-                    Err(_) => {
-                        ctx.text("internal server error");
-                        ctx.stop();
-                        ready(())
-                    }
-                    _ => ready(())
-                });
-            ctx.spawn(select_fut);
+        let Ok(lines) = scanner.scan().await else {
+            return;
+        };
+        for line in lines.iter() {
+            let message = ExecServerMessage::Log {
+                content: line.to_string(),
+            };
+            let Ok(data) = serde_json::to_string(&message) else {
+                continue;
+            };
+            if let Err(e) = session.text(data).await {
+                error!("{e}");
+            }
         }
     }
 
-    fn handle_client_message(
-        &mut self,
-        message: &str,
-        ctx: &mut <Self as Actor>::Context,
-    ) -> Result<()> {
+    pub async fn check_state(&self, session: &mut Session) -> bool {
+        let Some(run_id) = self.run_id.as_ref() else {
+            return true;
+        };
+        match pipeline_runs::select_by_id(self.conn.as_ref(), run_id).await {
+            Ok(run) if run.state == PR_STATE_FINISHED || run.state == PR_STATE_FAULTED => {
+                debug!("run is in a {} state", run.state);
+                false
+            }
+            Ok(run) if run.state == PR_STATE_QUEUED => {
+                debug!("run is in a {} state", PR_STATE_QUEUED);
+                let message = format!(
+                    "run with id {run_id} has been queued, use the monit command to see the output when it's started"
+                );
+                if let Err(e) = session.text(message.as_str()).await {
+                    error!("{e}");
+                }
+                false
+            }
+            Err(e) => {
+                debug!("run encountered error {e}");
+                if let Err(e) = session.text("internal server error").await {
+                    error!("{e}");
+                }
+                false
+            }
+            _ => true,
+        }
+    }
+
+    pub async fn handle_message(&mut self, session: &mut Session, message: &str) -> Result<()> {
         let message: ExecClientMessage = serde_json::from_str(message)?;
+        let username = self.user.name.to_owned();
+        let fs = self.fs.clone().into_inner();
+        let pool = self.conn.clone().into_inner();
+        let supervisor = self.supervisor.clone().into_inner();
 
         debug!("enqueueing run");
-
-        let username = self.user.name.to_owned();
-        let fs = Arc::clone(&self.fs);
-        let pool = Arc::clone(&self.conn);
-        let supervisor = Arc::clone(&self.supervisor);
-
-        let enqueue_fut =
-            async move { enqueue_worker(&username, fs, pool, supervisor, message).await }
-                .into_actor(self)
-                .then(|res, act, ctx| match res {
-                    Ok(run_id) => {
-                        act.scanner =
-                            Some(FileScanner::new(act.config.as_ref(), &run_id).into_arc());
-                        act.run_id = Some(run_id.to_owned());
-                        let message = ExecServerMessage::QueuedRun { run_id };
-                        if let Ok(data) = serde_json::to_string(&message) {
-                            ctx.text(data);
-                        }
-                        ready(())
-                    }
-                    Err(e) => {
-                        error!("{e}");
-                        ctx.text(e.to_string());
-                        ctx.stop();
-                        ready(())
-                    }
-                });
-
-        ctx.spawn(enqueue_fut);
-
-        Ok(())
-    }
-}
-
-impl Actor for ExecutePipelineSocket {
-    type Context = ws::WebsocketContext<Self>;
-
-    fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_interval(Duration::from_millis(500), |act, ctx| {
-            ExecutePipelineSocket::scan(act, ctx);
-        });
-        ctx.run_interval(Duration::from_secs(1), |act, ctx| {
-            ExecutePipelineSocket::exec(act, ctx);
-        });
-    }
-}
-
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ExecutePipelineSocket {
-    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        match msg {
-            Ok(ws::Message::Text(txt)) => {
-                if let Err(e) = self.handle_client_message(&txt, ctx) {
-                    ctx.text(e.to_string());
-                    ctx.stop();
-                }
-            }
-
-            Ok(ws::Message::Ping(msg)) => {
-                ctx.pong(&msg);
-            }
-
-            Ok(ws::Message::Pong(_)) => {}
-
-            Ok(ws::Message::Close(reason)) => {
-                ctx.close(reason);
-                ctx.stop();
-            }
-
-            _ => ctx.stop(),
+        let run_id = enqueue_worker(&username, fs, pool, supervisor, message).await?;
+        self.scanner
+            .replace(FileScanner::new(self.config.as_ref(), &run_id));
+        self.run_id.replace(run_id.to_owned());
+        let message = ExecServerMessage::QueuedRun { run_id };
+        if let Ok(data) = serde_json::to_string(&message) {
+            session.text(data).await?;
         }
+        Ok(())
     }
 }
 
 pub async fn ws(
     user: Option<User>,
     req: HttpRequest,
-    stream: Payload,
-    cfg: Data<BldConfig>,
-    supervisor_sender: Data<SupervisorMessageSender>,
+    body: Payload,
+    config: Data<BldConfig>,
+    supervisor: Data<SupervisorMessageSender>,
     conn: Data<DatabaseConnection>,
     fs: Data<FileSystem>,
-) -> Result<HttpResponse, Error> {
+) -> actix_web::Result<impl Responder> {
     let user = user.ok_or_else(|| ErrorUnauthorized(""))?;
-    println!("{req:?}");
-    let socket = ExecutePipelineSocket::new(user, cfg, supervisor_sender, conn, fs);
-    let res = ws::start(socket, &req, stream);
-    println!("{res:?}");
-    res
+    let mut socket = ExecWebsocket::new(config, supervisor, conn, fs, user);
+    let (response, mut handler) = session::handle(&req, body)?;
+
+    spawn(async move {
+        debug!("spawned exec web socket");
+        let mut scan_interval = time::interval(Duration::from_millis(SCAN_INTERVAL_MS));
+        let mut state_interval = time::interval(Duration::from_millis(STATE_CHECK_INTERVAL_MS));
+
+        loop {
+            tokio::select! {
+                msg = handler.next() =>  {
+                    match msg {
+                        WebSocketMessage::Text(txt) => {
+                            let session = handler.session();
+                            if let Err(e) = socket.handle_message(session, &txt).await {
+                                error!("handling message error. {e}");
+                                let _ = session.text(e.to_string()).await.inspect_err(|e| error!("{e}"));
+                                handler.error();
+                                break;
+                            }
+                        }
+                        WebSocketMessage::Continue => {}
+                        _ => break,
+                    }
+                }
+
+                _ = scan_interval.tick() => {
+                    let session = handler.session();
+                    socket.scan(session).await;
+                }
+
+                _ = state_interval.tick() => {
+                    let session = handler.session();
+                    if !socket.check_state(session).await {
+                        break;
+                    }
+                }
+            }
+        }
+
+        handler.cleanup().await;
+    });
+
+    Ok(response)
 }

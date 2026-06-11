@@ -7,20 +7,15 @@ edition = "2024"
 
 [features]
 all = [
-    "dep:actix",
-    "dep:actix-codec",
     "dep:actix-web",
-    "dep:actix-web-actors",
     "dep:bollard",
     "dep:bld_core",
-    "dep:bld_http",
     "dep:bld_models",
     "dep:bld_sock",
     "dep:bld_utils",
     "dep:bld_pkg",
     "dep:chrono",
     "dep:futures",
-    "dep:futures-util",
     "dep:serde_json",
     "dep:serde_yaml_ng",
     "dep:tar",
@@ -33,22 +28,17 @@ all = [
 ]
 
 [dependencies]
-actix = { version = "0.13.5", optional = true }
-actix-codec = { version = "0.5.2", optional = true }
 actix-web = { version = "4.9.0", features = ["rustls"], optional = true }
-actix-web-actors = { version = "4.3.0", optional = true }
 anyhow = "1.0.93"
 bollard = { version = "0.16.1", features = ["ssl"], optional = true }
 bld_config = { path = "../bld_config" }
 bld_core = { path = "../bld_core", optional = true }
-bld_http = { path = "../bld_http", optional = true }
 bld_models = { path = "../bld_models", features = ["all"], optional = true }
 bld_sock = { path = "../bld_sock", optional = true }
 bld_utils = { path = "../bld_utils", optional = true }
 bld_pkg = { path = "../bld_pkg", optional = true }
 chrono = { version = "0.4.38", default-features = false, features = ["std"], optional = true }
 futures =  { version = "0.3.31", optional = true }
-futures-util = { version = "0.3.31", optional = true }
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = { version = "1.0.132", optional = true }
 serde_yaml_ng = { version = "0.10.0", optional = true }

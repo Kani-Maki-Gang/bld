@@ -1,65 +1,42 @@
-use actix::io::{SinkWrite, WriteHandler};
-use actix::{Actor, ActorContext, Context, Handler, StreamHandler, System};
-use actix_codec::Framed;
-use awc::BoxedSocket;
-use awc::error::WsProtocolError;
-use awc::ws::{Codec, Frame, Message};
+use anyhow::Result;
+use awc::ws::Frame;
+use bld_config::BldConfig;
+use bld_core::logger::Logger;
+use bld_http::WebSock;
 use bld_models::dtos::MonitInfo;
-use futures::stream::SplitSink;
-use tracing::{debug, error};
+use tracing::debug;
 
 pub struct MonitClient {
-    writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>,
+    logger: Logger,
+    sock: WebSock,
 }
 
 impl MonitClient {
-    pub fn new(writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>) -> Self {
-        Self { writer }
-    }
-}
-
-impl Actor for MonitClient {
-    type Context = Context<Self>;
-
-    fn started(&mut self, _ctx: &mut Context<Self>) {
-        debug!("monit socket started");
+    pub async fn connect(config: BldConfig, logger: Logger, server: String) -> Result<Self> {
+        let server_config = config.server(&server)?;
+        let auth_path = config.auth_full_path(&server_config.name);
+        let url = format!("{}/v1/ws-monit/", server_config.base_url_ws());
+        debug!("establishing web socket connection on {}", url);
+        let sock = WebSock::connect(&url, Some(&auth_path)).await?;
+        Ok(Self { logger, sock })
     }
 
-    fn stopped(&mut self, _ctx: &mut Context<Self>) {
-        debug!("monit socket stoppped");
-        if let Some(sys) = System::try_current() {
-            sys.stop();
+    pub async fn run(mut self, info: MonitInfo) -> Result<()> {
+        debug!("sending monit info to socket");
+        self.sock.text(&info).await?;
+
+        while let Ok(frame) = self.sock.next().await {
+            match frame {
+                Frame::Text(bt) => {
+                    self.logger
+                        .write_line(String::from_utf8_lossy(&bt).into())
+                        .await?;
+                }
+                Frame::Close(_) => break,
+                _ => {}
+            }
         }
+
+        Ok(())
     }
 }
-
-impl Handler<MonitInfo> for MonitClient {
-    type Result = ();
-
-    fn handle(&mut self, msg: MonitInfo, ctx: &mut Self::Context) {
-        let Ok(text) = serde_json::to_string(&msg) else {
-            return;
-        };
-        debug!("sending data {text} to socket");
-        if self.writer.write(Message::Text(text.into())).is_err() {
-            error!("encountered error while sending data to socket");
-            ctx.stop();
-        }
-    }
-}
-
-impl StreamHandler<Result<Frame, WsProtocolError>> for MonitClient {
-    fn handle(&mut self, msg: Result<Frame, WsProtocolError>, ctx: &mut Context<Self>) {
-        match msg {
-            Ok(Frame::Text(bt)) => println!("{}", String::from_utf8_lossy(&bt)),
-            Ok(Frame::Close(_)) => ctx.stop(),
-            _ => {}
-        }
-    }
-
-    fn finished(&mut self, ctx: &mut Context<Self>) {
-        ctx.stop();
-    }
-}
-
-impl WriteHandler<WsProtocolError> for MonitClient {}

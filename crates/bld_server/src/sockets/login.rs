@@ -1,20 +1,18 @@
 use std::time::Duration;
 
-use actix::{
-    Actor, ActorContext, AsyncContext, StreamHandler, WrapFuture,
-    fut::{future::ActorFutureExt, ready},
-};
 use actix_web::{
-    Error, HttpRequest, HttpResponse,
+    HttpRequest, Responder,
+    rt::{spawn, time},
     web::{Data, Payload},
 };
-use actix_web_actors::ws::{Message, ProtocolError, WebsocketContext, start};
+use actix_ws::Session;
 use anyhow::{Result, bail};
 use bld_config::{Auth, BldConfig};
 use bld_models::{
     dtos::{AuthTokens, LoginClientMessage, LoginServerMessage},
     login_attempts::{self, InsertLoginAttempt, LoginAttemptStatus},
 };
+use bld_sock::session::{self, WebSocketMessage};
 use chrono::Utc;
 use openidconnect::{
     CsrfToken, Nonce, PkceCodeChallenge,
@@ -22,6 +20,8 @@ use openidconnect::{
 };
 use sea_orm::DatabaseConnection;
 use tracing::error;
+
+const STATUS_CHECK_INTERVAL_MS: u64 = 500;
 
 pub struct LoginSocket {
     csrf_token: CsrfToken,
@@ -48,7 +48,7 @@ impl LoginSocket {
         }
     }
 
-    fn openid_authorization_url(&mut self, ctx: &mut <Self as Actor>::Context) -> Result<()> {
+    async fn openid_authorization_url(&mut self, session: &mut Session) -> Result<()> {
         let Some(client) = self.client.get_ref() else {
             bail!("openid core client hasn't be registered for server");
         };
@@ -83,173 +83,139 @@ impl LoginSocket {
         let nonce = self.nonce.clone();
         let conn = self.conn.clone();
 
-        let login_fut = async move {
-            let model = InsertLoginAttempt {
-                csrf_token: csrf_token.secret().to_owned(),
-                nonce: nonce.secret().to_owned(),
-                pkce_verifier: verifier.secret().to_owned(),
-            };
-            login_attempts::insert(&conn, model).await
+        let model = InsertLoginAttempt {
+            csrf_token: csrf_token.secret().to_owned(),
+            nonce: nonce.secret().to_owned(),
+            pkce_verifier: verifier.secret().to_owned(),
+        };
+
+        if let Err(e) = login_attempts::insert(&conn, model).await {
+            let message = serde_json::to_string(&LoginServerMessage::Failed(e.to_string()))?;
+            session.text(message).await?;
         }
-        .into_actor(self)
-        .then(|res: Result<()>, _, ctx| {
-            if let Err(e) = res {
-                let message = serde_json::to_string(&LoginServerMessage::Failed(e.to_string()));
-                if let Ok(message) = message {
-                    ctx.text(message);
-                } else {
-                    ctx.stop();
-                }
-            }
-            ready(())
-        });
-        ctx.spawn(login_fut);
 
         let message = LoginServerMessage::AuthorizationUrl(url.to_string());
-        ctx.text(serde_json::to_string(&message)?);
+        session.text(serde_json::to_string(&message)?).await?;
 
         Ok(())
     }
 
-    fn handle_client_message(
-        &mut self,
-        ctx: &mut <Self as Actor>::Context,
-        message: &str,
-    ) -> Result<()> {
+    async fn handle_client_message(&mut self, session: &mut Session, message: &str) -> Result<()> {
         let _: LoginClientMessage = serde_json::from_str(message)?;
 
         match &self.config.as_ref().local.server.auth {
-            Some(Auth::OpenId(_)) => self.openid_authorization_url(ctx)?,
+            Some(Auth::OpenId(_)) => self.openid_authorization_url(session).await?,
             _ => bail!("no authentication method configured for server"),
         }
 
         Ok(())
     }
 
-    fn check_status(act: &Self, ctx: &mut <Self as Actor>::Context) {
-        let csrf_token = act.csrf_token.secret().to_owned();
-        let conn = act.conn.clone();
-        let status_fut =
-            async move { login_attempts::select_by_csrf_token(&conn, &csrf_token).await }
-                .into_actor(act)
-                .then(|res, _, ctx| {
-                    let Ok(login_attempt) = res else {
-                        let message =
-                            LoginServerMessage::Failed("Login operation failed".to_string());
-                        if let Ok(text) = serde_json::to_string(&message) {
-                            ctx.text(text);
-                        }
-                        return ready(());
-                    };
-
-                    let status: Result<LoginAttemptStatus> = login_attempt.status.try_into();
-
-                    if let Ok(LoginAttemptStatus::Completed) = status {
-                        let Some(access_token) = login_attempt.access_token else {
-                            let message =
-                                LoginServerMessage::Failed("Access token not found".to_string());
-                            if let Ok(text) = serde_json::to_string(&message) {
-                                ctx.text(text);
-                            }
-                            return ready(());
-                        };
-
-                        let auth_tokens =
-                            AuthTokens::new(access_token, login_attempt.refresh_token);
-                        let message = LoginServerMessage::Completed(auth_tokens);
-                        if let Ok(text) = serde_json::to_string(&message) {
-                            ctx.text(text);
-                        }
-
-                        return ready(());
-                    }
-
-                    if let Ok(LoginAttemptStatus::Failed) = status {
-                        let message =
-                            LoginServerMessage::Failed("Login operation failed".to_string());
-                        if let Ok(text) = serde_json::to_string(&message) {
-                            ctx.text(text);
-                        }
-                        return ready(());
-                    }
-
-                    if Utc::now().naive_utc() > login_attempt.date_expires {
-                        let message = LoginServerMessage::Failed("Operation timeout".to_string());
-                        if let Ok(text) = serde_json::to_string(&message) {
-                            ctx.text(text);
-                        }
-                        ctx.stop();
-                        return ready(());
-                    }
-
-                    ready(())
-                });
-        ctx.spawn(status_fut);
-    }
-
-    fn cleanup(&mut self, ctx: &mut <LoginSocket as Actor>::Context) {
-        let token = self.csrf_token.secret().to_owned();
+    async fn check_status(&self, session: &mut Session) -> bool {
+        let csrf_token = self.csrf_token.secret().to_owned();
         let conn = self.conn.clone();
-        let logins_remove_fut =
-            async move { login_attempts::delete_by_csrf_token(&conn, &token).await }
-                .into_actor(self)
-                .then(|res, _, _| {
-                    if let Err(e) = res {
-                        error!("{e}");
-                    }
-                    ready(())
-                });
-        ctx.wait(logins_remove_fut);
-    }
-}
 
-impl Actor for LoginSocket {
-    type Context = WebsocketContext<Self>;
+        let Ok(login_attempt) = login_attempts::select_by_csrf_token(&conn, &csrf_token).await
+        else {
+            let message = LoginServerMessage::Failed("Login operation failed".to_string());
+            if let Ok(text) = serde_json::to_string(&message) {
+                let _ = session.text(text).await.inspect_err(|e| error!("{e}"));
+            }
+            return false;
+        };
 
-    fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_interval(Duration::from_secs(1), |act, ctx| {
-            LoginSocket::check_status(act, ctx);
-        });
-    }
+        let status: Result<LoginAttemptStatus> = login_attempt.status.try_into();
 
-    fn stopped(&mut self, ctx: &mut Self::Context) {
-        self.cleanup(ctx);
-    }
-}
-
-impl StreamHandler<Result<Message, ProtocolError>> for LoginSocket {
-    fn handle(&mut self, item: Result<Message, ProtocolError>, ctx: &mut Self::Context) {
-        match item {
-            Ok(Message::Text(txt)) => {
-                if let Err(e) = self.handle_client_message(ctx, &txt) {
-                    error!("{e}");
-                    ctx.stop();
+        if let Ok(LoginAttemptStatus::Completed) = status {
+            let Some(access_token) = login_attempt.access_token else {
+                let message = LoginServerMessage::Failed("Access token not found".to_string());
+                if let Ok(text) = serde_json::to_string(&message) {
+                    let _ = session.text(text).await.inspect_err(|e| error!("{e}"));
                 }
+                return false;
+            };
+
+            let auth_tokens = AuthTokens::new(access_token, login_attempt.refresh_token);
+            let message = LoginServerMessage::Completed(auth_tokens);
+            if let Ok(text) = serde_json::to_string(&message) {
+                let _ = session.text(text).await.inspect_err(|e| error!("{e}"));
             }
-            Ok(Message::Ping(msg)) => {
-                ctx.pong(&msg);
+
+            return false;
+        }
+
+        if let Ok(LoginAttemptStatus::Failed) = status {
+            let message = LoginServerMessage::Failed("Login operation failed".to_string());
+            if let Ok(text) = serde_json::to_string(&message) {
+                let _ = session.text(text).await.inspect_err(|e| error!("{e}"));
             }
-            Ok(Message::Pong(msg)) => {
-                ctx.ping(&msg);
+            return false;
+        }
+
+        if Utc::now().naive_utc() > login_attempt.date_expires {
+            let message = LoginServerMessage::Failed("Operation timeout".to_string());
+            if let Ok(text) = serde_json::to_string(&message) {
+                let _ = session.text(text).await.inspect_err(|e| error!("{e}"));
             }
-            Ok(Message::Close(reason)) => {
-                ctx.close(reason);
-                ctx.stop();
-            }
-            _ => {}
+            return false;
+        }
+
+        true
+    }
+
+    async fn cleanup(&mut self) {
+        if let Err(e) =
+            login_attempts::delete_by_csrf_token(self.conn.as_ref(), self.csrf_token.secret()).await
+        {
+            error!("{e}");
         }
     }
 }
 
 pub async fn ws(
     req: HttpRequest,
-    stream: Payload,
+    body: Payload,
     config: Data<BldConfig>,
     client: Data<Option<CoreClient>>,
     conn: Data<DatabaseConnection>,
-) -> Result<HttpResponse, Error> {
+) -> actix_web::Result<impl Responder> {
     let csrf_token = CsrfToken::new_random();
     let nonce = Nonce::new_random();
-    let socket = LoginSocket::new(csrf_token, nonce, config, client, conn);
-    start(socket, &req, stream)
+    let mut socket = LoginSocket::new(csrf_token, nonce, config, client, conn);
+    let (response, mut handler) = session::handle(&req, body)?;
+
+    spawn(async move {
+        let mut interval = time::interval(Duration::from_millis(STATUS_CHECK_INTERVAL_MS));
+
+        loop {
+            tokio::select! {
+                msg = handler.next() => {
+                    match msg {
+                        WebSocketMessage::Text(txt) => {
+                            let session = handler.session();
+                            if let Err(e) = socket.handle_client_message(session, &txt).await {
+                                error!("{e}");
+                                handler.error();
+                                break;
+                            }
+                        }
+                        WebSocketMessage::Continue => {}
+                        _ => break,
+                    }
+                }
+
+                _ = interval.tick() => {
+                    let session = handler.session();
+                    if !socket.check_status(session).await {
+                        break;
+                    }
+                }
+            }
+        }
+
+        handler.cleanup().await;
+        socket.cleanup().await;
+    });
+
+    Ok(response)
 }

@@ -1,7 +1,10 @@
-use std::process::ExitStatus;
+use std::{process::ExitStatus, time::Duration};
 
 use anyhow::{Result, anyhow};
-use tokio::process::{Child, Command};
+use tokio::{
+    process::{Child, Command},
+    time::timeout,
+};
 
 #[cfg(target_family = "unix")]
 use nix::{
@@ -58,13 +61,22 @@ impl Worker {
     }
 
     pub async fn cleanup(&mut self) -> Result<ExitStatus> {
-        self.try_wait()
-            .map_err(|_| anyhow!("command is still running. cannot cleanup"))?;
         let child = self
             .child
             .as_mut()
             .ok_or_else(|| anyhow!("worker has not spawned"))?;
-        child.wait().await.map_err(|e| anyhow!(e))
+        match child.try_wait()? {
+            Some(status) => Ok(status),
+            // give the process some time to exit gracefully but don't block
+            // the worker queue indefinitely on a process that never exits
+            None => match timeout(Duration::from_secs(30), child.wait()).await {
+                Ok(status) => status.map_err(|e| anyhow!(e)),
+                Err(_) => {
+                    child.kill().await?;
+                    child.wait().await.map_err(|e| anyhow!(e))
+                }
+            },
+        }
     }
 
     #[cfg(target_family = "unix")]

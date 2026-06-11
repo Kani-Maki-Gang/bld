@@ -1,60 +1,63 @@
-use actix::io::{SinkWrite, WriteHandler};
-use actix::{Actor, ActorContext, Context, Handler, StreamHandler, System};
-use actix_codec::Framed;
-use awc::BoxedSocket;
-use awc::error::WsProtocolError;
-use awc::ws::{Codec, Frame, Message};
+use anyhow::Result;
+use awc::ws::Frame;
+use bld_config::BldConfig;
+use bld_core::logger::Logger;
+use bld_http::WebSock;
 use bld_models::dtos::WorkerMessages;
-use futures::stream::SplitSink;
+use std::sync::Arc;
+use tokio::sync::mpsc::Receiver;
 use tracing::debug;
 
 pub struct WorkerClient {
-    writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>,
+    logger: Logger,
+    sock: WebSock,
 }
 
 impl WorkerClient {
-    pub fn new(writer: SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>) -> Self {
-        Self { writer }
-    }
-}
-
-impl Actor for WorkerClient {
-    type Context = Context<Self>;
-
-    fn started(&mut self, _ctx: &mut Context<Self>) {
-        debug!("supervisor socket started");
+    pub async fn connect(config: Arc<BldConfig>, logger: Logger) -> Result<Self> {
+        let url = format!("{}/v1/ws-worker/", config.local.supervisor.base_url_ws());
+        debug!("establishing web socket connection on {}", url);
+        let sock = WebSock::connect(&url, None).await?;
+        Ok(Self { logger, sock })
     }
 
-    fn stopped(&mut self, _ctx: &mut Context<Self>) {
-        debug!("supervisor socket stopped");
-        if let Some(sys) = System::try_current() {
-            sys.stop();
+    pub async fn run(mut self, mut worker_rx: Receiver<WorkerMessages>) -> Result<()> {
+        self.sock.binary(&WorkerMessages::Ack).await?;
+        self.sock
+            .binary(&WorkerMessages::WhoAmI {
+                pid: std::process::id(),
+            })
+            .await?;
+
+        loop {
+            tokio::select! {
+                msg = worker_rx.recv() => {
+                    // a closed channel means the runner is done, exit instead of
+                    // keeping the process alive until the supervisor closes the socket
+                    let Some(msg) = msg else {
+                        break;
+                    };
+                    debug!("sending message to supervisor {:?}", msg);
+                    if self.sock.binary(&msg).await.is_err() {
+                        break;
+                    }
+                }
+                res = self.sock.next() => {
+                    let Ok(frame) = res else {
+                        break;
+                    };
+                    match frame {
+                        Frame::Text(bt) => {
+                            let message = format!("{}", String::from_utf8_lossy(&bt));
+                            self.logger.write_line(message).await?;
+                        }
+                        Frame::Close(_) => break,
+                        _ => {}
+                    }
+                }
+            }
         }
+
+        Ok(())
     }
 }
-
-impl Handler<WorkerMessages> for WorkerClient {
-    type Result = ();
-
-    fn handle(&mut self, msg: WorkerMessages, _ctx: &mut Self::Context) {
-        if let Ok(bytes) = serde_json::to_vec(&msg) {
-            let _ = self.writer.write(Message::Binary(bytes.into()));
-        }
-    }
-}
-
-impl StreamHandler<Result<Frame, WsProtocolError>> for WorkerClient {
-    fn handle(&mut self, msg: Result<Frame, WsProtocolError>, ctx: &mut Context<Self>) {
-        match msg {
-            Ok(Frame::Text(bt)) => println!("{}", String::from_utf8_lossy(&bt)),
-            Ok(Frame::Close(_)) => ctx.stop(),
-            _ => {}
-        }
-    }
-
-    fn finished(&mut self, ctx: &mut Context<Self>) {
-        ctx.stop();
-    }
-}
-
-impl WriteHandler<WsProtocolError> for WorkerClient {}

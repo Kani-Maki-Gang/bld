@@ -1,16 +1,13 @@
-use actix::{Actor, StreamHandler, io::SinkWrite};
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::{context::Context, fs::FileSystem, logger::Logger};
-use bld_http::{HttpClient, WebSocket};
+use bld_http::HttpClient;
 use bld_models::dtos::ExecClientMessage;
 use bld_pkg::PackageManager;
 use bld_runner::RunnerBuilder;
 use bld_sock::ExecClient;
 use bld_utils::sync::IntoArc;
-use futures::stream::StreamExt;
-use std::{collections::HashMap, sync::Arc, time::Duration};
-use tokio::time::sleep;
+use std::{collections::HashMap, sync::Arc};
 use tracing::debug;
 
 use crate::signals::CommandSignals;
@@ -218,43 +215,21 @@ impl RunAdapter {
     }
 
     async fn run_web_socket(mode: WebSocketRequest) -> Result<()> {
-        let server = mode.config.server(&mode.server)?;
-        let auth_path = mode.config.auth_full_path(&server.name);
-        let url = format!("{}/v1/ws-exec/", server.base_url_ws());
         let data = ExecClientMessage::EnqueueRun {
             name: mode.pipeline,
             env: Some(mode.env),
             inputs: Some(mode.inputs),
         };
 
-        let web_socket = WebSocket::new(&url)?.auth(&auth_path).await;
+        let client = ExecClient::connect(
+            mode.config.clone(),
+            mode.server,
+            Logger::shell().into_arc(),
+            Context::local(mode.config).into_arc(),
+        )
+        .await?;
 
-        let (_, framed) = web_socket
-            .request()
-            .connect()
-            .await
-            .map_err(|e| anyhow!(e.to_string()))?;
-
-        let (sink, stream) = framed.split();
-        let address = ExecClient::create(|ctx| {
-            ExecClient::add_stream(stream, ctx);
-            ExecClient::new(
-                mode.server.to_owned(),
-                Logger::shell().into_arc(),
-                Context::local(mode.config.clone()).into_arc(),
-                SinkWrite::new(sink, ctx),
-            )
-        });
-
-        debug!("sending message to socket: {:?}", data);
-
-        address.send(data).await.map_err(|e| anyhow!(e))?;
-
-        while address.connected() {
-            sleep(Duration::from_millis(200)).await;
-        }
-
-        Ok(())
+        client.run(data).await
     }
 
     async fn run_http(mode: HttpRequest) -> Result<()> {
