@@ -67,15 +67,9 @@ impl WebSocketHandler {
                         }
                     }
 
-                    Message::Pong(msg) => {
+                    Message::Pong(_) => {
                         self.last_pong = Instant::now();
-                        if let Err(e) = self.session.ping(&msg).await {
-                            error!("{e}");
-                            self.error();
-                            WebSocketMessage::Completed
-                        } else {
-                            WebSocketMessage::Continue
-                        }
+                        WebSocketMessage::Continue
                     }
 
                     Message::Continuation(_) | Message::Nop => WebSocketMessage::Continue,
