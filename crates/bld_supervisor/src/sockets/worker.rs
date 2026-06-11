@@ -9,11 +9,7 @@ use bld_models::dtos::WorkerMessages;
 use bld_sock::session::{self, WebSocketMessage};
 use tracing::{debug, error, info};
 
-async fn handle_message(
-    bytes: &Bytes,
-    worker_queue_tx: Data<WorkerQueueSender>,
-    worker_pid: &mut Option<u32>,
-) -> Result<bool> {
+async fn handle_message(bytes: &Bytes, worker_pid: &mut Option<u32>) -> Result<bool> {
     let msg: WorkerMessages = serde_json::from_slice(&bytes[..])?;
     let completed = match msg {
         WorkerMessages::Ack => {
@@ -27,10 +23,6 @@ async fn handle_message(
         }
         WorkerMessages::Completed => {
             info!("worker just completed, starting cleanup");
-            if let Some(pid) = worker_pid {
-                debug!("dequeue of worker with pid: {}", pid);
-                worker_queue_tx.dequeue(*pid).await?;
-            }
             true
         }
     };
@@ -51,7 +43,7 @@ pub async fn ws(
             match handler.next().await {
                 WebSocketMessage::Binary(bytes) => {
                     debug!("received binary message");
-                    match handle_message(&bytes, worker_queue_tx.clone(), &mut worker_pid).await {
+                    match handle_message(&bytes, &mut worker_pid).await {
                         Ok(true) => break,
                         Ok(false) => {}
                         Err(e) => {

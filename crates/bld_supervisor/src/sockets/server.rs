@@ -8,7 +8,7 @@ use bld_core::workers::Worker;
 use bld_models::dtos::ServerMessages;
 use bld_sock::session::{self, WebSocketMessage};
 use std::env::current_exe;
-use tokio::process::Command;
+use tokio::{process::Command, sync::mpsc};
 use tracing::{debug, error, info};
 
 async fn handle_message(worker_queue_tx: &Data<WorkerQueueSender>, bytes: &Bytes) -> Result<()> {
@@ -70,20 +70,30 @@ pub async fn ws(
     worker_queue_tx: Data<WorkerQueueSender>,
 ) -> actix_web::Result<impl Responder> {
     let (response, mut handler) = session::handle(&req, body)?;
+    let (tx, mut rx) = mpsc::channel::<Bytes>(4096);
+    let mut session = handler.session().clone();
+
+    // process messages in a separate task so the read loop keeps
+    // serving heartbeats while the worker queue is busy
+    let processor = actix_web::rt::spawn(async move {
+        while let Some(bytes) = rx.recv().await {
+            if let Err(e) = handle_message(&worker_queue_tx, &bytes).await {
+                let _ = session
+                    .text("internal server error")
+                    .await
+                    .inspect_err(|e| error!("{e}"));
+                error!("handling message error. {e}");
+            }
+        }
+    });
 
     actix_web::rt::spawn(async move {
         loop {
             match handler.next().await {
                 WebSocketMessage::Binary(bytes) => {
                     debug!("received binary message from server");
-                    if let Err(e) = handle_message(&worker_queue_tx, &bytes).await {
-                        let session = handler.session();
-                        let _ = session
-                            .text("internal server error")
-                            .await
-                            .inspect_err(|e| error!("{e}"));
-                        error!("handling message error. {e}");
-                        handler.error();
+                    if tx.send(bytes).await.is_err() {
+                        break;
                     }
                 }
                 WebSocketMessage::Continue => {}
@@ -91,6 +101,8 @@ pub async fn ws(
             }
         }
 
+        drop(tx);
+        let _ = processor.await;
         handler.cleanup().await;
     });
 

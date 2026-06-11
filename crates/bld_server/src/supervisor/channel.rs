@@ -15,6 +15,7 @@ use tracing::{debug, error};
 
 const INITIAL_DELAY: u64 = 500;
 const RETRY_DELAY: u64 = 2000;
+const RESPAWN_DELAY: u64 = 5000;
 
 async fn try_ws_connection(url: &str) -> Result<EnqueueClient> {
     // small wait for the supervisor
@@ -60,13 +61,28 @@ impl SupervisorMessageReceiver {
 
         'retry_loop: loop {
             if let Err(e) = self.spawn_inner() {
-                error!("{e}");
-                break 'retry_loop;
+                error!("failed to spawn supervisor process: {e}, retrying in {RESPAWN_DELAY}ms");
+                sleep(Duration::from_millis(RESPAWN_DELAY)).await;
+                continue 'retry_loop;
             }
-            let mut client = try_ws_connection(&url).await?;
 
-            if let Some(msg) = self.last_message.take() {
-                client.send(&msg).await?;
+            let mut client = match try_ws_connection(&url).await {
+                Ok(client) => client,
+                Err(e) => {
+                    error!("{e}, respawning supervisor in {RESPAWN_DELAY}ms");
+                    self.kill_inner().await;
+                    sleep(Duration::from_millis(RESPAWN_DELAY)).await;
+                    continue 'retry_loop;
+                }
+            };
+
+            if let Some(msg) = self.last_message.take()
+                && client.send(&msg).await.is_err()
+            {
+                self.kill_inner().await;
+                self.last_message = Some(msg);
+                sleep(Duration::from_millis(RESPAWN_DELAY)).await;
+                continue 'retry_loop;
             }
 
             loop {

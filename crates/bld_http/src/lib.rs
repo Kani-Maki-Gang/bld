@@ -191,6 +191,7 @@ impl Request {
 
 pub struct WebSock {
     connection: Framed<BoxedSocket, Codec>,
+    pong_pending: bool,
 }
 
 impl WebSock {
@@ -213,7 +214,10 @@ impl WebSock {
 
         let (_, connection) = request.connect().await.map_err(|e| anyhow!("{e}"))?;
 
-        Ok(Self { connection })
+        Ok(Self {
+            connection,
+            pong_pending: false,
+        })
     }
 
     pub async fn text<T: Serialize>(&mut self, value: &T) -> Result<()> {
@@ -231,13 +235,20 @@ impl WebSock {
     }
 
     pub async fn next(&mut self) -> Result<Frame> {
+        // resend a pong whose send was cancelled by a select! on a previous call
+        if self.pong_pending {
+            self.connection.send(Message::Pong("".into())).await?;
+            self.pong_pending = false;
+        }
         let response = self
             .connection
             .next()
             .await
             .ok_or_else(|| anyhow!("unable to read message from ws connection"))??;
         if let Frame::Ping(_) = &response {
+            self.pong_pending = true;
             self.connection.send(Message::Pong("".into())).await?;
+            self.pong_pending = false;
         }
         Ok(response)
     }

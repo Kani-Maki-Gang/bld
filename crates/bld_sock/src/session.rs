@@ -5,7 +5,7 @@ use actix_ws::{CloseCode, CloseReason, Message, MessageStream, Session};
 use bytes::Bytes;
 use bytestring::ByteString;
 use futures::StreamExt;
-use tokio::time::{self, Instant, Interval};
+use tokio::time::{self, Instant, Interval, MissedTickBehavior};
 use tracing::{debug, error, warn};
 
 const HEARTBEAT_INTERVAL_MS: u64 = 5_000;
@@ -28,12 +28,14 @@ pub struct WebSocketHandler {
 
 impl WebSocketHandler {
     pub fn new(session: Session, stream: MessageStream) -> Self {
+        let mut hb_interval = time::interval(Duration::from_millis(HEARTBEAT_INTERVAL_MS));
+        hb_interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
         Self {
             session,
             stream,
             term_reason: None,
             last_pong: Instant::now(),
-            hb_interval: time::interval(Duration::from_millis(HEARTBEAT_INTERVAL_MS)),
+            hb_interval,
         }
     }
 
@@ -47,11 +49,15 @@ impl WebSocketHandler {
 
     pub async fn next(&mut self) -> WebSocketMessage {
         tokio::select! {
+            biased;
+
             Some(msg) = self.stream.next() => {
                 let Ok(message) = msg.inspect_err(|e| error!("{e}")) else {
                     self.error();
                     return WebSocketMessage::Completed;
                 };
+                // any inbound frame proves the peer is alive
+                self.last_pong = Instant::now();
                 match message {
                     Message::Text(txt) => WebSocketMessage::Text(txt),
 
@@ -67,10 +73,7 @@ impl WebSocketHandler {
                         }
                     }
 
-                    Message::Pong(_) => {
-                        self.last_pong = Instant::now();
-                        WebSocketMessage::Continue
-                    }
+                    Message::Pong(_) => WebSocketMessage::Continue,
 
                     Message::Continuation(_) | Message::Nop => WebSocketMessage::Continue,
 

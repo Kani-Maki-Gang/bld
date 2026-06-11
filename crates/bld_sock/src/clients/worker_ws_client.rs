@@ -31,7 +31,12 @@ impl WorkerClient {
 
         loop {
             tokio::select! {
-                Some(msg) = worker_rx.recv() => {
+                msg = worker_rx.recv() => {
+                    // a closed channel means the runner is done, exit instead of
+                    // keeping the process alive until the supervisor closes the socket
+                    let Some(msg) = msg else {
+                        break;
+                    };
                     debug!("sending message to supervisor {:?}", msg);
                     if self.sock.binary(&msg).await.is_err() {
                         break;
