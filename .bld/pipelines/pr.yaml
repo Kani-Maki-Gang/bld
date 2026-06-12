@@ -1,8 +1,6 @@
 name: PR pipeline
 version: 2
-runs_on:
-  image: ghcr.io/kani-maki-gang/bld-ci:1.95
-  pull: true
+runs_on: ghcr.io/kani-maki-gang/bld-ci:1.95
 
 variables:
   branch: master
