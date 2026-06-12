@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: ["master"]
 
+permissions:
+  packages: read
+
 jobs:
   main:
     runs-on: ubuntu-latest
