@@ -6,9 +6,9 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-actix-web = { version = "4.9.0", features = ["rustls"] }
+actix-web = { version = "4.9.0", features = ["rustls-0_23"] }
 actix-ws = "0.4.0"
-awc = { version = "3.5.1", features = ["rustls"] }
+awc = { version = "3.5.1", features = ["rustls-0_23-native-roots"] }
 anyhow = "1.0.93"
 bld_config = { path = "../bld_config" }
 bld_core = { path = "../bld_core" }

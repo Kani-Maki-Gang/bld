@@ -7,7 +7,7 @@ edition = "2024"
 
 [dependencies]
 actix-codec = "0.5.2"
-awc = { version = "3.5.1", features = ["rustls"] }
+awc = { version = "3.5.1", features = ["rustls-0_23-native-roots"] }
 anyhow = "1.0.93"
 bld_config = { path = "../bld_config", features = ["tokio"] }
 bld_models = { path = "../bld_models", features = ["all"] }
@@ -15,5 +15,5 @@ bld_utils = { path = "../bld_utils" }
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.132"
 tracing = "0.1.40"
-rustls = "0.20.7"
+rustls = { version = "0.23.40", default-features = false, features = ["ring", "tls12", "logging", "std"] }
 futures-util = "0.3.32"
