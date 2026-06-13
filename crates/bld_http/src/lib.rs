@@ -21,7 +21,6 @@ use bld_models::dtos::{
 };
 use bld_utils::{
     fs::{read_tokens, write_tokens},
-    sync::IntoArc,
     tls::load_root_certificates,
 };
 use futures_util::{SinkExt as _, StreamExt as _};
@@ -199,11 +198,10 @@ impl WebSock {
         let root_certificates = load_root_certificates()?;
 
         let rustls_config = ClientConfig::builder()
-            .with_safe_defaults()
             .with_root_certificates(root_certificates)
             .with_no_client_auth();
 
-        let connector = Connector::new().rustls(rustls_config.into_arc());
+        let connector = Connector::new().rustls_0_23(Arc::new(rustls_config));
         let mut request = Client::builder().connector(connector).finish().ws(url);
 
         if let Some(path) = auth_path

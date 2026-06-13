@@ -104,10 +104,9 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
             let cert_chain = load_server_certificate(&tls.cert_chain)?;
             let private_key = load_server_private_key(&tls.private_key)?;
             let builder = ServerConfig::builder()
-                .with_safe_defaults()
                 .with_no_client_auth()
                 .with_single_cert(cert_chain, private_key)?;
-            server.bind_rustls(address, builder)?
+            server.bind_rustls_0_23(address, builder)?
         }
         None => server.bind(address)?,
     };

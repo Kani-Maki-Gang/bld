@@ -28,7 +28,7 @@ all = [
 ]
 
 [dependencies]
-actix-web = { version = "4.9.0", features = ["rustls"], optional = true }
+actix-web = { version = "4.9.0", features = ["rustls-0_23"], optional = true }
 anyhow = "1.0.93"
 bollard = { version = "0.16.1", features = ["ssl"], optional = true }
 bld_config = { path = "../bld_config" }
