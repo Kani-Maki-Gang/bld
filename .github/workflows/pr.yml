@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: ["master"]
 
+permissions:
+  packages: read
+
 jobs:
   main:
     runs-on: ubuntu-latest
@@ -16,6 +19,11 @@ jobs:
         id: get_branch_name
         shell: bash
         run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+
+      - name: Pull bld-ci image from github registry
+        id: pull_ci_image
+        shell: bash
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin && docker pull ghcr.io/kani-maki-gang/bld-ci:1.96
 
       - name: Run bld pipeline
         uses: Kani-Maki-Gang/bld-github-action@v0.3.1-alpha

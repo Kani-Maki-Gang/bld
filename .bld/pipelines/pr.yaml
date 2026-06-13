@@ -1,9 +1,6 @@
 name: PR pipeline
 version: 2
-runs_on:
-  name: bld-image
-  dockerfile: ${{ bld_root_dir }}/dockerfiles/Dockerfile
-  tag: latest
+runs_on: ghcr.io/kani-maki-gang/bld-ci:1.96
 
 variables:
   branch: master
