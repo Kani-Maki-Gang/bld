@@ -3,6 +3,7 @@ pub mod artifacts;
 pub mod external;
 pub mod files;
 pub mod inputs;
+pub mod job;
 pub mod pipeline;
 pub mod registry;
 pub mod runs_on;
