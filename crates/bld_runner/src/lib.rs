@@ -1,5 +1,6 @@
 pub mod action;
 pub mod artifacts;
+pub mod deps;
 pub mod external;
 pub mod files;
 pub mod inputs;

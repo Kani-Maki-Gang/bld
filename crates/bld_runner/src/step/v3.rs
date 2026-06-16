@@ -1,6 +1,8 @@
 use crate::external::v3::External;
 #[cfg(feature = "all")]
 use bld_core::fs::FileSystem;
+#[cfg(feature = "all")]
+use bld_pkg::PackageManager;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -24,13 +26,13 @@ use anyhow::{Result, bail};
 
 #[cfg(feature = "all")]
 use crate::{
+    deps::v3::{Dependencies, Dependency, RemoteDependency},
     expr::v3::{
         parser::Rule,
         traits::{
             EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
         },
     },
-    traits::Dependencies,
     validator::v3::{Validate, ValidatorContext},
 };
 
@@ -87,18 +89,43 @@ impl Step {
 }
 
 #[cfg(feature = "all")]
-impl Dependencies for Step {
-    async fn local_deps(&self, _config: &BldConfig, fs: &FileSystem) -> Vec<String> {
-        match self {
-            Self::ExternalFile(external) => {
-                if matches!(fs.path(&external.uses).await.map(|x| x.is_yaml()), Ok(true)) {
-                    vec![external.uses.to_owned()]
-                } else {
-                    vec![]
-                }
+impl<'a> Dependencies<'a> for Step {
+    async fn local_deps(&'a self, manager: &PackageManager, fs: &FileSystem) -> Vec<Dependency<'a>> {
+        if let Self::ExternalFile(external) = self
+            && external.server.is_none()
+        {
+            if manager.is_package(&external.uses) {
+                return vec![Dependency::LocalPackage(&external.uses)];
             }
-            Self::ComplexSh { .. } => vec![],
+
+            if matches!(fs.path(&external.uses).await.map(|x| x.is_yaml()), Ok(true)) {
+                return vec![Dependency::LocalFile(&external.uses)];
+            }
         }
+
+        vec![]
+    }
+
+    async fn remote_deps(&'a self) -> Vec<Dependency<'a>> {
+        if let Self::ExternalFile(external) = self
+            && let Some(server) = external.server.as_ref()
+        {
+            return vec![Dependency::Remote(Box::new(RemoteDependency::new(
+                server,
+                &external.uses,
+            )))];
+        }
+        vec![]
+    }
+
+    async fn jobs(&'a self) -> Vec<Dependency<'a>> {
+        vec![]
+    }
+
+    async fn all(&'a self, manager: &PackageManager) -> Vec<Dependency<'a>> {
+        let mut deps = self.local_deps(manager).await;
+        deps.append(&mut self.remote_deps().await);
+        deps
     }
 }
 

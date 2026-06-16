@@ -1,7 +1,7 @@
 use crate::{
     inputs::v3::Input,
+    job::v3::Job,
     runs_on::v3::RunsOn,
-    step::v3::Step,
     traits::{IntoVariables, Variables},
 };
 #[cfg(feature = "all")]
@@ -50,7 +50,7 @@ pub struct Pipeline {
     pub inputs: HashMap<String, Input>,
 
     #[serde(default)]
-    pub jobs: HashMap<String, Vec<Step>>,
+    pub jobs: HashMap<String, Job>,
 }
 
 impl Pipeline {
@@ -110,19 +110,17 @@ impl Pipeline {
             ctx.append_error("Pipeline must have at least one job defined");
         }
 
-        for (job, steps) in &self.jobs {
-            ctx.push_job_section(job);
-            debug!("Validating {job} job's steps");
-            let mut step_ids = HashSet::new();
-            for step in steps {
-                let step_id = step.id();
-                if !step_ids.insert(step_id) {
-                    ctx.push_section(step_id);
-                    ctx.append_error(&format!("Duplicate step id '{step_id}' found in job"));
-                    ctx.pop_section();
-                }
-                step.validate(ctx).await;
+        let mut job_ids = HashSet::new();
+        for (name, job) in &self.jobs {
+            ctx.push_job_section(name);
+            debug!("Validating {name} job's steps");
+            let job_id = &job.id;
+            if !job_ids.insert(job_id) {
+                ctx.push_section(job_id);
+                ctx.append_error(&format!("Duplicate job id '{job_id}' found"));
+                ctx.pop_section();
             }
+            job.validate(ctx).await;
             ctx.pop_section();
         }
         ctx.pop_section();
@@ -215,21 +213,11 @@ impl<'a> EvalObject<'a> for Pipeline {
             }
 
             "steps" => {
-                let Some(step_id) = object_parts.next() else {
-                    bail!("expected id for step in expression");
-                };
-
-                let step_id = step_id.as_span().as_str();
-
                 let Some(job) = wctx.get_exec_id().and_then(|id| self.jobs.get(id)) else {
                     bail!("unable to find executing job id");
                 };
 
-                let Some(step) = job.iter().find(|x| x.is(step_id)) else {
-                    bail!("step with id {step_id} not defined");
-                };
-
-                step.eval_object(&mut object_parts.peekable(), rctx, wctx)
+                job.eval_object(&mut object_parts.peekable(), rctx, wctx)
             }
 
             // Keywords section
