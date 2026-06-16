@@ -75,7 +75,7 @@ impl Dependencies for Job {
 }
 
 #[cfg(feature = "all")]
-impl<'a> EvalObject<'a> for Step {
+impl<'a> EvalObject<'a> for Job {
     fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
         &'a self,
         _path: &mut Peekable<Pairs<'_, Rule>>,
@@ -87,7 +87,7 @@ impl<'a> EvalObject<'a> for Step {
 }
 
 #[cfg(feature = "all")]
-impl<'a> Validate<'a> for Step {
+impl<'a> Validate<'a> for Job {
     async fn validate<C: ValidatorContext<'a>>(&'a self, _ctx: &mut C) {
         unimplemented!()
     }
