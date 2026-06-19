@@ -1,9 +1,16 @@
 use std::{collections::HashMap, fmt::Write, sync::Arc};
 
 use anyhow::{Result, anyhow, bail};
-use bld_config::BldConfig;
+use bld_config::{BldConfig, SshUserAuth};
 use bld_core::{
-    context::Context, fs::FileSystem, logger::Logger, platform::Platform, regex::RegexCache,
+    context::Context,
+    fs::FileSystem,
+    logger::Logger,
+    platform::{
+        Image, Platform, SshAuthOptions, SshConnectOptions,
+        builder::{PlatformBuilder, PlatformOptions},
+    },
+    regex::RegexCache,
 };
 use bld_models::dtos::ExecClientMessage;
 use bld_pkg::PackageManager;
@@ -21,10 +28,28 @@ use crate::{
         traits::{EvalExpr, ExprValue},
     },
     external::v3::External,
+    job::v3::Job,
     pipeline::v3::Pipeline,
+    registry::v3::Registry,
     runner::v3::state::{JobState, RootState, State},
+    runs_on::v3::RunsOn,
     step::v3::{ShellCommand, Step},
 };
+
+pub struct JobRunnerOptions<S: RootState> {
+    pub job_name: String,
+    pub logger: Arc<Logger>,
+    pub config: Arc<BldConfig>,
+    pub fs: Arc<FileSystem>,
+    pub run_ctx: Arc<Context>,
+    pub pipeline: Arc<Pipeline>,
+    pub regex_cache: Arc<RegexCache>,
+    pub expr_regex: Arc<Regex>,
+    pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
+    pub package_manager: Arc<PackageManager>,
+    pub is_child: bool,
+    pub state: S,
+}
 
 pub struct JobRunner<S: RootState> {
     pub job_name: String,
@@ -38,11 +63,51 @@ pub struct JobRunner<S: RootState> {
     pub expr_regex: Arc<Regex>,
     pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
     pub package_manager: Arc<PackageManager>,
-    pub state: S,
     pub is_child: bool,
+    pub state: S,
 }
 
 impl<S: RootState> JobRunner<S> {
+    pub async fn new(mut options: JobRunnerOptions<S>) -> Result<Self> {
+        let cloned_pipeline = options.pipeline.clone();
+        let (_, job) = cloned_pipeline
+            .jobs
+            .iter()
+            .find(|(name, _)| **name == options.job_name)
+            .ok_or_else(|| anyhow!("unable to find job with name {}", options.job_name))
+            .inspect_err(|e| {
+                options.state.update_state(State::Failed {
+                    error: e.to_string(),
+                })
+            })?;
+
+        let platform = build_platform(
+            job,
+            options.pipeline.clone(),
+            options.config.clone(),
+            options.logger.clone(),
+            options.run_ctx.clone(),
+            options.expr_rctx.clone(),
+        )
+        .await?;
+
+        Ok(JobRunner {
+            job_name: options.job_name,
+            logger: options.logger,
+            config: options.config,
+            fs: options.fs,
+            run_ctx: options.run_ctx,
+            pipeline: options.pipeline,
+            regex_cache: options.regex_cache,
+            expr_regex: options.expr_regex,
+            expr_rctx: options.expr_rctx,
+            package_manager: options.package_manager,
+            is_child: options.is_child,
+            state: options.state,
+            platform,
+        })
+    }
+
     pub async fn run(mut self) -> Result<Self> {
         let pipeline = self.pipeline.clone();
         let (_, job) = pipeline
@@ -55,6 +120,8 @@ impl<S: RootState> JobRunner<S> {
                     error: e.to_string(),
                 })
             })?;
+
+        self.info(job).await?;
 
         if !self.condition(job.condition.as_deref())? {
             debug!("condition failed, skiping step");
@@ -73,8 +140,15 @@ impl<S: RootState> JobRunner<S> {
         }
 
         self.state.update_state(State::Completed);
-        self.dispose_platform().await?;
+        self.dispose_platform(job).await?;
         Ok(self)
+    }
+
+    async fn info(&self, job: &Job) -> Result<()> {
+        debug!("printing job informantion");
+        self.logger
+            .write_line(format!("{:<15}: {}", "Runs on", &job.runs_on))
+            .await
     }
 
     async fn step(&mut self, step: &Step) -> Result<()> {
@@ -250,8 +324,8 @@ impl<S: RootState> JobRunner<S> {
         Ok(result)
     }
 
-    async fn dispose_platform(&self) -> Result<()> {
-        if self.pipeline.dispose {
+    async fn dispose_platform(&self, job: &Job) -> Result<()> {
+        if job.dispose {
             debug!("executing dispose operations for platform");
             self.platform.dispose(self.is_child).await?;
         } else {
@@ -280,6 +354,113 @@ impl RunningJob {
             logger,
         }
     }
+}
+
+pub async fn build_platform(
+    job: &Job,
+    pipeline: Arc<Pipeline>,
+    config: Arc<BldConfig>,
+    logger: Arc<Logger>,
+    run_ctx: Arc<Context>,
+    expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
+) -> Result<Arc<Platform>> {
+    let options = match &job.runs_on {
+        RunsOn::ContainerOrMachine(image) if image == "machine" => PlatformOptions::Machine,
+
+        RunsOn::ContainerOrMachine(image) => PlatformOptions::Container {
+            image: Image::Use(image),
+            docker_url: None,
+        },
+
+        RunsOn::Pull {
+            image,
+            pull,
+            docker_url,
+            registry,
+        } => {
+            let image = if pull.unwrap_or_default() {
+                match registry.as_ref() {
+                    Some(Registry::FromConfig(value)) => Image::pull(image, config.registry(value)),
+                    Some(Registry::Full(config)) => Image::pull(image, Some(config)),
+                    None => Image::pull(image, None),
+                }
+            } else {
+                Image::Use(image)
+            };
+            PlatformOptions::Container {
+                docker_url: docker_url.as_deref(),
+                image,
+            }
+        }
+
+        RunsOn::Build {
+            name,
+            tag,
+            dockerfile,
+            docker_url,
+        } => PlatformOptions::Container {
+            image: Image::build(name, dockerfile, tag),
+            docker_url: docker_url.as_deref(),
+        },
+
+        RunsOn::SshFromGlobalConfig { ssh_config } => {
+            let config = config.ssh(ssh_config)?;
+            let port = config.port.parse::<u16>()?;
+            let auth = match &config.userauth {
+                SshUserAuth::Agent => SshAuthOptions::Agent,
+                SshUserAuth::Password { password } => SshAuthOptions::Password { password },
+                SshUserAuth::Keys {
+                    public_key,
+                    private_key,
+                } => SshAuthOptions::Keys {
+                    public_key: public_key.as_deref(),
+                    private_key,
+                },
+            };
+            PlatformOptions::Ssh(SshConnectOptions::new(
+                &config.host,
+                port,
+                &config.user,
+                auth,
+            ))
+        }
+
+        RunsOn::Ssh(config) => {
+            let port = config.port.parse::<u16>()?;
+            let auth = match &config.userauth {
+                SshUserAuth::Agent => SshAuthOptions::Agent,
+                SshUserAuth::Password { password } => SshAuthOptions::Password { password },
+                SshUserAuth::Keys {
+                    public_key,
+                    private_key,
+                } => SshAuthOptions::Keys {
+                    public_key: public_key.as_deref(),
+                    private_key,
+                },
+            };
+            PlatformOptions::Ssh(SshConnectOptions::new(
+                &config.host,
+                port,
+                &config.user,
+                auth,
+            ))
+        }
+    };
+
+    let conn = run_ctx.get_conn();
+    let platform = PlatformBuilder::default()
+        .run_id(&expr_rctx.run_id)
+        .config(config.clone())
+        .options(options)
+        .pipeline_env(&pipeline.env)
+        .env(expr_rctx.env.clone())
+        .logger(logger.clone())
+        .conn(conn)
+        .build()
+        .await?;
+
+    run_ctx.add_platform(platform.clone()).await?;
+    Ok(platform)
 }
 
 #[cfg(test)]

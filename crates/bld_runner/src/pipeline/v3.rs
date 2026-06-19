@@ -1,7 +1,6 @@
 use crate::{
     inputs::v3::Input,
     job::v3::Job,
-    runs_on::v3::RunsOn,
     traits::{IntoVariables, Variables},
 };
 #[cfg(feature = "all")]
@@ -38,11 +37,8 @@ use {
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Pipeline {
     pub name: Option<String>,
-    pub runs_on: RunsOn,
-    pub cron: Option<String>,
 
-    #[serde(default = "Pipeline::default_dispose")]
-    pub dispose: bool,
+    pub cron: Option<String>,
 
     #[serde(default)]
     pub env: HashMap<String, String>,
@@ -55,10 +51,6 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    fn default_dispose() -> bool {
-        true
-    }
-
     pub fn inputs_map(&self) -> HashMap<String, String> {
         let mut inputs = HashMap::new();
         for (name, input) in &self.inputs {
@@ -208,12 +200,6 @@ impl<'a> EvalObject<'a> for Pipeline {
                 Ok(ExprValue::Text(ExprText::Ref(name)))
             }
 
-            "runs_on" => self
-                .runs_on
-                .eval_object(&mut object_parts.peekable(), rctx, wctx),
-
-            "dispose" => Ok(ExprValue::Boolean(self.dispose)),
-
             "cron" => {
                 let cron = self.cron.as_ref().map_or("", |x| x.as_str());
                 Ok(ExprValue::Text(ExprText::Ref(cron)))
@@ -291,11 +277,6 @@ impl<'a> Validate<'a> for Pipeline {
             ctx.validate_expressions(name);
             ctx.pop_section();
         }
-
-        debug!("Validating pipeline's runs_on section");
-        ctx.push_section("runs_on");
-        self.runs_on.validate(ctx).await;
-        ctx.pop_section();
 
         debug!("Validating pipeline's cron value");
         self.validate_cron(ctx);

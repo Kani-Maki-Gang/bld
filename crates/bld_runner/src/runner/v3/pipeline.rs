@@ -2,15 +2,11 @@ use std::{fmt::Write, sync::Arc, time::Duration};
 
 use actix_web::rt::spawn;
 use anyhow::{Result, anyhow, bail};
-use bld_config::{BldConfig, SshUserAuth};
+use bld_config::BldConfig;
 use bld_core::{
     context::Context,
     fs::FileSystem,
     logger::Logger,
-    platform::{
-        Image, Platform, SshAuthOptions, SshConnectOptions,
-        builder::{PlatformBuilder, PlatformOptions},
-    },
     regex::RegexCache,
     signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend},
 };
@@ -24,9 +20,10 @@ use tracing::debug;
 use crate::{
     expr::v3::context::CommonReadonlyRuntimeExprContext,
     pipeline::v3::Pipeline,
-    registry::v3::Registry,
-    runner::v3::state::{JobState, RootState},
-    runs_on::v3::RunsOn,
+    runner::v3::{
+        job::JobRunnerOptions,
+        state::{JobState, RootState},
+    },
 };
 
 use super::{
@@ -95,7 +92,6 @@ impl PipelineRunner {
         if let Some(name) = &self.pipeline.name {
             writeln!(message, "{:<15}: {name}", "Name")?;
         }
-        writeln!(message, "{:<15}: {}", "Runs on", &self.pipeline.runs_on)?;
         writeln!(message, "{:<15}: 3", "Version")?;
 
         self.logger.write_line(message).await
@@ -120,16 +116,7 @@ impl PipelineRunner {
         logger: Arc<Logger>,
         state: JobState,
     ) -> Result<JobRunner<JobState>> {
-        let platform = build_platform(
-            self.pipeline.clone(),
-            self.config.clone(),
-            self.logger.clone(),
-            self.run_ctx.clone(),
-            self.expr_rctx.clone(),
-        )
-        .await?;
-
-        let job_runner = JobRunner {
+        let options = JobRunnerOptions {
             job_name: name.to_string(),
             logger: logger.clone(),
             config: self.config.clone(),
@@ -141,11 +128,9 @@ impl PipelineRunner {
             expr_rctx: self.expr_rctx.clone(),
             package_manager: self.package_manager.clone(),
             is_child: self.is_child,
-            platform,
             state,
         };
-
-        Ok(job_runner)
+        JobRunner::new(options).await
     }
 
     fn create_job_state(&self, name: &str) -> Result<JobState> {
@@ -309,110 +294,3 @@ impl PipelineRunner {
         })
     }
 }
-
-pub async fn build_platform(
-    pipeline: Arc<Pipeline>,
-    config: Arc<BldConfig>,
-    logger: Arc<Logger>,
-    run_ctx: Arc<Context>,
-    expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
-) -> Result<Arc<Platform>> {
-    let options = match &pipeline.runs_on {
-        RunsOn::ContainerOrMachine(image) if image == "machine" => PlatformOptions::Machine,
-
-        RunsOn::ContainerOrMachine(image) => PlatformOptions::Container {
-            image: Image::Use(image),
-            docker_url: None,
-        },
-
-        RunsOn::Pull {
-            image,
-            pull,
-            docker_url,
-            registry,
-        } => {
-            let image = if pull.unwrap_or_default() {
-                match registry.as_ref() {
-                    Some(Registry::FromConfig(value)) => Image::pull(image, config.registry(value)),
-                    Some(Registry::Full(config)) => Image::pull(image, Some(config)),
-                    None => Image::pull(image, None),
-                }
-            } else {
-                Image::Use(image)
-            };
-            PlatformOptions::Container {
-                docker_url: docker_url.as_deref(),
-                image,
-            }
-        }
-
-        RunsOn::Build {
-            name,
-            tag,
-            dockerfile,
-            docker_url,
-        } => PlatformOptions::Container {
-            image: Image::build(name, dockerfile, tag),
-            docker_url: docker_url.as_deref(),
-        },
-
-        RunsOn::SshFromGlobalConfig { ssh_config } => {
-            let config = config.ssh(ssh_config)?;
-            let port = config.port.parse::<u16>()?;
-            let auth = match &config.userauth {
-                SshUserAuth::Agent => SshAuthOptions::Agent,
-                SshUserAuth::Password { password } => SshAuthOptions::Password { password },
-                SshUserAuth::Keys {
-                    public_key,
-                    private_key,
-                } => SshAuthOptions::Keys {
-                    public_key: public_key.as_deref(),
-                    private_key,
-                },
-            };
-            PlatformOptions::Ssh(SshConnectOptions::new(
-                &config.host,
-                port,
-                &config.user,
-                auth,
-            ))
-        }
-
-        RunsOn::Ssh(config) => {
-            let port = config.port.parse::<u16>()?;
-            let auth = match &config.userauth {
-                SshUserAuth::Agent => SshAuthOptions::Agent,
-                SshUserAuth::Password { password } => SshAuthOptions::Password { password },
-                SshUserAuth::Keys {
-                    public_key,
-                    private_key,
-                } => SshAuthOptions::Keys {
-                    public_key: public_key.as_deref(),
-                    private_key,
-                },
-            };
-            PlatformOptions::Ssh(SshConnectOptions::new(
-                &config.host,
-                port,
-                &config.user,
-                auth,
-            ))
-        }
-    };
-
-    let conn = run_ctx.get_conn();
-    let platform = PlatformBuilder::default()
-        .run_id(&expr_rctx.run_id)
-        .config(config.clone())
-        .options(options)
-        .pipeline_env(&pipeline.env)
-        .env(expr_rctx.env.clone())
-        .logger(logger.clone())
-        .conn(conn)
-        .build()
-        .await?;
-
-    run_ctx.add_platform(platform.clone()).await?;
-    Ok(platform)
-}
-
