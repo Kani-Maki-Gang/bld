@@ -27,7 +27,7 @@ use {
 #[serde(untagged)]
 pub enum Needs {
     Single(String),
-    Multiple(Vec<String>),
+    Multiple(HashSet<String>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,11 +64,11 @@ impl<'a> Dependencies<'a> for Job {
     async fn local_deps(
         &'a self,
         manager: &PackageManager,
-        _fs: &FileSystem,
+        fs: &FileSystem,
     ) -> Vec<Dependency<'a>> {
         let mut deps = vec![];
         for step in &self.steps {
-            deps.append(&mut step.local_deps(manager).await);
+            deps.append(&mut step.local_deps(manager, fs).await);
         }
         deps
     }
@@ -81,13 +81,18 @@ impl<'a> Dependencies<'a> for Job {
     }
 
     async fn jobs(&'a self) -> Vec<Dependency<'a>> {
-        unimplemented!();
+        let Some(needs) = self.needs.as_ref() else {
+            return vec![];
+        };
+        match needs {
+            Needs::Single(need) => vec![Dependency::Job(need)],
+            Needs::Multiple(need) => need.iter().map(|x| Dependency::Job(x.as_str())).collect(),
+        }
     }
 
-    async fn all(&'a self, manager: &PackageManager) -> Vec<Dependency<'a>> {
-        let mut deps = self.local_deps(manager).await;
+    async fn all(&'a self, manager: &PackageManager, fs: &FileSystem) -> Vec<Dependency<'a>> {
+        let mut deps = self.local_deps(manager, fs).await;
         deps.append(&mut self.remote_deps().await);
-        deps.append(&mut self.jobs().await);
         deps
     }
 }

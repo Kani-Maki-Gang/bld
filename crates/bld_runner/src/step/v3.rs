@@ -10,9 +10,6 @@ use uuid::Uuid;
 use std::iter::Peekable;
 
 #[cfg(feature = "all")]
-use bld_config::BldConfig;
-
-#[cfg(feature = "all")]
 use bld_utils::fs::IsYaml;
 
 #[cfg(feature = "all")]
@@ -122,8 +119,8 @@ impl<'a> Dependencies<'a> for Step {
         vec![]
     }
 
-    async fn all(&'a self, manager: &PackageManager) -> Vec<Dependency<'a>> {
-        let mut deps = self.local_deps(manager).await;
+    async fn all(&'a self, manager: &PackageManager, fs: &FileSystem) -> Vec<Dependency<'a>> {
+        let mut deps = self.local_deps(manager, fs).await;
         deps.append(&mut self.remote_deps().await);
         deps
     }

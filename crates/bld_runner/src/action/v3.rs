@@ -8,33 +8,26 @@ use crate::{
 };
 
 #[cfg(feature = "all")]
-use std::iter::Peekable;
-
-#[cfg(feature = "all")]
-use anyhow::{Result, anyhow, bail};
-
-#[cfg(feature = "all")]
-use bld_core::fs::FileSystem;
-
-#[cfg(feature = "all")]
-use bld_config::{
-    BldConfig,
-    definitions::{
+use {
+    crate::{
+        deps::v3::{Dependencies, Dependency},
+        expr::v3::{
+            parser::Rule,
+            traits::{
+                EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext,
+                WritableRuntimeExprContext,
+            },
+        },
+        validator::v3::{Validate, ValidatorContext},
+    },
+    anyhow::{Result, anyhow, bail},
+    bld_config::definitions::{
         KEYWORD_BLD_DIR_V3, KEYWORD_PROJECT_DIR_V3, KEYWORD_RUN_PROPS_ID_V3,
         KEYWORD_RUN_PROPS_START_TIME_V3,
     },
-};
-
-#[cfg(feature = "all")]
-use crate::{
-    expr::v3::{
-        parser::Rule,
-        traits::{
-            EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
-        },
-    },
-    traits::Dependencies,
-    validator::v3::{Validate, ValidatorContext},
+    bld_core::fs::FileSystem,
+    bld_pkg::PackageManager,
+    std::iter::Peekable,
 };
 
 #[cfg(feature = "all")]
@@ -103,14 +96,35 @@ impl IntoVariables for Action {
 }
 
 #[cfg(feature = "all")]
-impl Dependencies for Action {
-    async fn local_deps(&self, config: &BldConfig, fs: &FileSystem) -> Vec<String> {
+impl<'a> Dependencies<'a> for Action {
+    async fn local_deps(
+        &'a self,
+        manager: &PackageManager,
+        fs: &FileSystem,
+    ) -> Vec<Dependency<'a>> {
         let mut dependecies = vec![];
         for step in &self.steps {
-            let mut local_deps = step.local_deps(config, fs).await;
-            dependecies.append(&mut local_deps);
+            dependecies.append(&mut step.local_deps(manager, fs).await);
         }
         dependecies
+    }
+
+    async fn remote_deps(&'a self) -> Vec<Dependency<'a>> {
+        let mut dependecies = vec![];
+        for step in &self.steps {
+            dependecies.append(&mut step.remote_deps().await);
+        }
+        dependecies
+    }
+
+    async fn jobs(&'a self) -> Vec<Dependency<'a>> {
+        vec![]
+    }
+
+    async fn all(&'a self, manager: &PackageManager, fs: &FileSystem) -> Vec<Dependency<'a>> {
+        let mut deps = self.local_deps(manager, fs).await;
+        deps.append(&mut self.remote_deps().await);
+        deps
     }
 }
 

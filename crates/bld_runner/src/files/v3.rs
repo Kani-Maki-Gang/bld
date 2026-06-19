@@ -1,13 +1,5 @@
 use std::collections::{HashMap, HashSet};
 
-#[cfg(feature = "all")]
-use bld_config::BldConfig;
-
-#[cfg(feature = "all")]
-use bld_core::fs::FileSystem;
-
-use serde::{Deserialize, Serialize};
-
 use crate::{
     action::v3::Action,
     pipeline::v3::Pipeline,
@@ -15,7 +7,12 @@ use crate::{
 };
 
 #[cfg(feature = "all")]
-use crate::traits::Dependencies;
+use {
+    crate::deps::v3::{Dependencies, Dependency},
+    bld_core::fs::FileSystem,
+    bld_pkg::PackageManager,
+    serde::{Deserialize, Serialize},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -66,21 +63,36 @@ impl IntoVariables for RunnerFile {
 }
 
 #[cfg(feature = "all")]
-impl Dependencies for RunnerFile {
-    async fn local_deps(&self, config: &BldConfig, fs: &FileSystem) -> Vec<String> {
+impl<'a> Dependencies<'a> for RunnerFile {
+    async fn local_deps(
+        &'a self,
+        manager: &PackageManager,
+        fs: &FileSystem,
+    ) -> Vec<Dependency<'a>> {
         match self {
-            Self::PipelineFileType(pipeline) => {
-                let mut dependecies = vec![];
-                for steps in pipeline.jobs.values() {
-                    for step in steps {
-                        let mut local_deps = step.local_deps(config, fs).await;
-                        dependecies.append(&mut local_deps);
-                    }
-                }
-                dependecies
-            }
+            Self::PipelineFileType(pipeline) => pipeline.local_deps(manager, fs).await,
+            Self::ActionFileType(action) => action.local_deps(manager, fs).await,
+        }
+    }
 
-            Self::ActionFileType(action) => action.local_deps(config, fs).await,
+    async fn remote_deps(&'a self) -> Vec<Dependency<'a>> {
+        match self {
+            Self::PipelineFileType(pipeline) => pipeline.remote_deps().await,
+            Self::ActionFileType(action) => action.remote_deps().await,
+        }
+    }
+
+    async fn jobs(&'a self) -> Vec<Dependency<'a>> {
+        match self {
+            Self::PipelineFileType(pipeline) => pipeline.jobs().await,
+            Self::ActionFileType(action) => action.jobs().await,
+        }
+    }
+
+    async fn all(&'a self, manager: &PackageManager, fs: &FileSystem) -> Vec<Dependency<'a>> {
+        match self {
+            Self::PipelineFileType(pipeline) => pipeline.all(manager, fs).await,
+            Self::ActionFileType(action) => action.all(manager, fs).await,
         }
     }
 }
