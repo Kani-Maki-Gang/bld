@@ -27,10 +27,7 @@ pub enum Dependency<'a> {
 
 impl<'a> Dependency<'a> {
     pub fn is_local(&self) -> bool {
-        match self {
-            Self::LocalFile(_) | Self::LocalPackage(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::LocalFile(_) | Self::LocalPackage(_))
     }
 
     pub fn get_local(&self) -> Option<&'a str> {

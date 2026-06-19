@@ -52,19 +52,8 @@ pub struct JobRunnerOptions<S: RootState> {
 }
 
 pub struct JobRunner<S: RootState> {
-    pub job_name: String,
-    pub logger: Arc<Logger>,
-    pub config: Arc<BldConfig>,
-    pub fs: Arc<FileSystem>,
-    pub run_ctx: Arc<Context>,
-    pub pipeline: Arc<Pipeline>,
+    pub options: JobRunnerOptions<S>,
     pub platform: Arc<Platform>,
-    pub regex_cache: Arc<RegexCache>,
-    pub expr_regex: Arc<Regex>,
-    pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
-    pub package_manager: Arc<PackageManager>,
-    pub is_child: bool,
-    pub state: S,
 }
 
 impl<S: RootState> JobRunner<S> {
@@ -91,32 +80,18 @@ impl<S: RootState> JobRunner<S> {
         )
         .await?;
 
-        Ok(JobRunner {
-            job_name: options.job_name,
-            logger: options.logger,
-            config: options.config,
-            fs: options.fs,
-            run_ctx: options.run_ctx,
-            pipeline: options.pipeline,
-            regex_cache: options.regex_cache,
-            expr_regex: options.expr_regex,
-            expr_rctx: options.expr_rctx,
-            package_manager: options.package_manager,
-            is_child: options.is_child,
-            state: options.state,
-            platform,
-        })
+        Ok(JobRunner { options, platform })
     }
 
     pub async fn run(mut self) -> Result<Self> {
-        let pipeline = self.pipeline.clone();
+        let pipeline = self.options.pipeline.clone();
         let (_, job) = pipeline
             .jobs
             .iter()
-            .find(|(name, _)| **name == self.job_name)
-            .ok_or_else(|| anyhow!("unable to find job with name {}", self.job_name))
+            .find(|(name, _)| **name == self.options.job_name)
+            .ok_or_else(|| anyhow!("unable to find job with name {}", self.options.job_name))
             .inspect_err(|e| {
-                self.state.update_state(State::Failed {
+                self.options.state.update_state(State::Failed {
                     error: e.to_string(),
                 })
             })?;
@@ -128,39 +103,46 @@ impl<S: RootState> JobRunner<S> {
             return Ok(self);
         }
 
-        self.state.update_state(State::Running);
+        self.options.state.update_state(State::Running);
 
         debug!("starting execution of pipeline steps");
         for step in job.steps.iter() {
             self.step(step).await.inspect_err(|e| {
-                self.state.update_state(State::Failed {
+                self.options.state.update_state(State::Failed {
                     error: e.to_string(),
                 });
             })?;
         }
 
-        self.state.update_state(State::Completed);
+        self.options.state.update_state(State::Completed);
         self.dispose_platform(job).await?;
         Ok(self)
     }
 
     async fn info(&self, job: &Job) -> Result<()> {
         debug!("printing job informantion");
-        self.logger
+        self.options
+            .logger
             .write_line(format!("{:<15}: {}", "Runs on", &job.runs_on))
             .await
     }
 
     async fn step(&mut self, step: &Step) -> Result<()> {
-        self.state.update_node_state(step.id(), State::Running);
+        self.options
+            .state
+            .update_node_state(step.id(), State::Running);
         let result = match step {
             Step::ComplexSh(complex) => self.complex_shell(complex).await,
             Step::ExternalFile(external) => self.external(external).await,
         };
         result
-            .inspect(|_| self.state.update_node_state(step.id(), State::Completed))
+            .inspect(|_| {
+                self.options
+                    .state
+                    .update_node_state(step.id(), State::Completed)
+            })
             .inspect_err(|e| {
-                self.state.update_node_state(
+                self.options.state.update_node_state(
                     step.id(),
                     State::Failed {
                         error: e.to_string(),
@@ -180,7 +162,7 @@ impl<S: RootState> JobRunner<S> {
         if let Some(name) = complex.name.as_ref() {
             let mut message = String::new();
             writeln!(message, "{:<15}: {name}", "Step")?;
-            self.logger.write_line(message).await?;
+            self.options.logger.write_line(message).await?;
         }
         self.shell(&complex.id, &complex.working_dir, &complex.run)
             .await?;
@@ -191,7 +173,7 @@ impl<S: RootState> JobRunner<S> {
         if let Some(name) = external.name.as_ref() {
             let mut message = String::new();
             writeln!(message, "{:<15}: {name}", "Step")?;
-            self.logger.write_line(message).await?;
+            self.options.logger.write_line(message).await?;
         }
 
         debug!("calling external pipeline or action {}", external.uses);
@@ -211,18 +193,18 @@ impl<S: RootState> JobRunner<S> {
         let env = self.variables_external(&details.env)?;
 
         let runner = RunnerBuilder::default()
-            .run_id(&self.expr_rctx.run_id)
-            .run_start_time(&self.expr_rctx.run_start_time)
-            .config(self.config.clone())
-            .fs(self.fs.clone())
+            .run_id(&self.options.expr_rctx.run_id)
+            .run_start_time(&self.options.expr_rctx.run_start_time)
+            .config(self.options.config.clone())
+            .fs(self.options.fs.clone())
             .file(&details.uses)
-            .logger(self.logger.clone())
+            .logger(self.options.logger.clone())
             .env(env.into_arc())
             .inputs(inputs.into_arc())
-            .context(self.run_ctx.clone())
+            .context(self.options.run_ctx.clone())
             .platform(self.platform.clone())
-            .regex_cache(self.regex_cache.clone())
-            .package_manager(self.package_manager.clone())
+            .regex_cache(self.options.regex_cache.clone())
+            .package_manager(self.options.package_manager.clone())
             .is_child(true)
             .build()
             .await?;
@@ -240,10 +222,10 @@ impl<S: RootState> JobRunner<S> {
         debug!("establishing web socket connection with server {}", server);
 
         let client = ExecClient::connect(
-            self.config.clone(),
+            self.options.config.clone(),
             server.to_owned(),
-            self.logger.clone(),
-            self.run_ctx.clone(),
+            self.options.logger.clone(),
+            self.options.run_ctx.clone(),
         )
         .await?;
 
@@ -283,10 +265,10 @@ impl<S: RootState> JobRunner<S> {
 
         let outputs = self
             .platform
-            .shell(self.logger.clone(), working_dir, &command)
+            .shell(self.options.logger.clone(), working_dir, &command)
             .await?;
 
-        self.state.set_outputs(step_id, outputs)?;
+        self.options.state.set_outputs(step_id, outputs)?;
 
         Ok(())
     }
@@ -298,24 +280,30 @@ impl<S: RootState> JobRunner<S> {
 
         debug!("evaluating condition {condition} for step");
 
-        let matches = self.expr_regex.find_iter(condition);
+        let matches = self.options.expr_regex.find_iter(condition);
 
         if matches.count() > 1 {
             bail!("more than one condition found for step");
         };
 
-        let expr_exec =
-            CommonExprExecutor::new(self.pipeline.as_ref(), self.expr_rctx.as_ref(), &self.state);
+        let expr_exec = CommonExprExecutor::new(
+            self.options.pipeline.as_ref(),
+            self.options.expr_rctx.as_ref(),
+            &self.options.state,
+        );
         let value = expr_exec.eval(condition)?;
         Ok(matches!(value, ExprValue::Boolean(true)))
     }
 
     fn eval_all_expr(&mut self, value: &str) -> Result<String> {
-        let expr_exec =
-            CommonExprExecutor::new(self.pipeline.as_ref(), self.expr_rctx.as_ref(), &self.state);
+        let expr_exec = CommonExprExecutor::new(
+            self.options.pipeline.as_ref(),
+            self.options.expr_rctx.as_ref(),
+            &self.options.state,
+        );
 
         let mut result = value.to_string();
-        for entry in self.expr_regex.find_iter(value) {
+        for entry in self.options.expr_regex.find_iter(value) {
             let entry = entry.as_str();
             let expr_value = expr_exec.eval(entry)?.to_string();
             result = result.replace(entry, &expr_value);
@@ -327,12 +315,15 @@ impl<S: RootState> JobRunner<S> {
     async fn dispose_platform(&self, job: &Job) -> Result<()> {
         if job.dispose {
             debug!("executing dispose operations for platform");
-            self.platform.dispose(self.is_child).await?;
+            self.platform.dispose(self.options.is_child).await?;
         } else {
             debug!("keeping platform alive");
             self.platform.keep_alive().await?;
         }
-        self.run_ctx.remove_platform(self.platform.id()).await
+        self.options
+            .run_ctx
+            .remove_platform(self.platform.id())
+            .await
     }
 }
 

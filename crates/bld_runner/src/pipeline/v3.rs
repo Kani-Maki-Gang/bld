@@ -148,7 +148,7 @@ impl<'a> Dependencies<'a> for Pipeline {
         fs: &FileSystem,
     ) -> Vec<Dependency<'a>> {
         let mut dependecies = vec![];
-        for (_, job) in &self.jobs {
+        for job in self.jobs.values() {
             dependecies.append(&mut job.local_deps(manager, fs).await);
         }
         dependecies
@@ -156,7 +156,7 @@ impl<'a> Dependencies<'a> for Pipeline {
 
     async fn remote_deps(&'a self) -> Vec<Dependency<'a>> {
         let mut dependecies = vec![];
-        for (_, job) in &self.jobs {
+        for job in self.jobs.values() {
             dependecies.append(&mut job.remote_deps().await);
         }
         dependecies
@@ -164,7 +164,7 @@ impl<'a> Dependencies<'a> for Pipeline {
 
     async fn jobs(&'a self) -> Vec<Dependency<'a>> {
         let mut set = HashSet::new();
-        for (name, _) in &self.jobs {
+        for name in self.jobs.keys() {
             set.insert(name.as_str());
         }
         set.into_iter().map(Dependency::Job).collect()
