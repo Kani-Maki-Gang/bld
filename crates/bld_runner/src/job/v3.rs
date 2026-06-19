@@ -38,12 +38,18 @@ pub struct Job {
     #[serde(rename = "if")]
     pub condition: Option<String>,
     pub needs: Option<Needs>,
+    #[serde(default = "Job::default_dispose")]
+    pub dispose: bool,
     pub steps: Vec<Step>,
 }
 
 impl Job {
     pub fn default_id() -> String {
         Uuid::new_v4().to_string()
+    }
+
+    pub fn default_dispose() -> bool {
+        true
     }
 }
 
@@ -54,6 +60,7 @@ impl Default for Job {
             runs_on: RunsOn::default(),
             condition: None,
             needs: None,
+            dispose: Self::default_dispose(),
             steps: vec![],
         }
     }

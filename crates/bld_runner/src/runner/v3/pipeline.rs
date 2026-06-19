@@ -43,7 +43,6 @@ pub struct PipelineRunner {
     pub expr_regex: Arc<Regex>,
     pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
     pub pipeline: Arc<Pipeline>,
-    pub platform: Arc<Platform>,
     pub signals: Option<UnixSignalsBackend>,
     pub package_manager: Arc<PackageManager>,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
@@ -76,18 +75,6 @@ impl PipelineRunner {
             }
         }
         Ok(())
-    }
-
-    async fn dispose_platform(&self) -> Result<()> {
-        if self.pipeline.dispose {
-            debug!("executing dispose operations for platform");
-            self.platform.dispose(self.is_child).await?;
-        } else {
-            debug!("keeping platform alive");
-            self.platform.keep_alive().await?;
-        }
-
-        self.run_ctx.remove_platform(self.platform.id()).await
     }
 
     async fn ipc_send_completed(&self) -> Result<()> {
@@ -123,34 +110,50 @@ impl PipelineRunner {
     async fn stop(&self) -> Result<()> {
         debug!("starting cleanup operations for runner");
         self.register_completion().await?;
-        self.dispose_platform().await?;
         self.ipc_send_completed().await?;
         Ok(())
     }
 
-    fn create_job(&self, name: &str, logger: Arc<Logger>, state: JobState) -> JobRunner<JobState> {
-        JobRunner {
+    async fn create_job(
+        &self,
+        name: &str,
+        logger: Arc<Logger>,
+        state: JobState,
+    ) -> Result<JobRunner<JobState>> {
+        let platform = build_platform(
+            self.pipeline.clone(),
+            self.config.clone(),
+            self.logger.clone(),
+            self.run_ctx.clone(),
+            self.expr_rctx.clone(),
+        )
+        .await?;
+
+        let job_runner = JobRunner {
             job_name: name.to_string(),
             logger: logger.clone(),
             config: self.config.clone(),
             fs: self.fs.clone(),
             run_ctx: self.run_ctx.clone(),
             pipeline: self.pipeline.clone(),
-            platform: self.platform.clone(),
             regex_cache: self.regex_cache.clone(),
             expr_regex: self.expr_regex.clone(),
             expr_rctx: self.expr_rctx.clone(),
             package_manager: self.package_manager.clone(),
+            is_child: self.is_child,
+            platform,
             state,
-        }
+        };
+
+        Ok(job_runner)
     }
 
     fn create_job_state(&self, name: &str) -> Result<JobState> {
         let mut state = JobState::new(name);
-        let Some(steps) = self.pipeline.jobs.get(name) else {
+        let Some(job) = self.pipeline.jobs.get(name) else {
             bail!("job with name {name} not found");
         };
-        for step in steps {
+        for step in &job.steps {
             state.add_node(step.id());
         }
         Ok(state)
@@ -164,7 +167,7 @@ impl PipelineRunner {
                 .await?;
             let logger = Logger::in_memory().into_arc();
             let state = self.create_job_state(name)?;
-            let job = self.create_job(name, logger.clone(), state);
+            let job = self.create_job(name, logger.clone(), state).await?;
             let handle = spawn(job.run());
             jobs.push(Some(RunningJob::new(name, handle, logger)));
         }
@@ -178,6 +181,7 @@ impl PipelineRunner {
         debug!("found only one job so running it in the current context");
         let state = self.create_job_state(name)?;
         self.create_job(name, self.logger.clone(), state)
+            .await?
             .run()
             .await
             .map(|_| ())
@@ -411,3 +415,4 @@ pub async fn build_platform(
     run_ctx.add_platform(platform.clone()).await?;
     Ok(platform)
 }
+

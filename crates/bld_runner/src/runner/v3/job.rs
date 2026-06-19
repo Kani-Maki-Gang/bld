@@ -39,13 +39,13 @@ pub struct JobRunner<S: RootState> {
     pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
     pub package_manager: Arc<PackageManager>,
     pub state: S,
+    pub is_child: bool,
 }
 
 impl<S: RootState> JobRunner<S> {
     pub async fn run(mut self) -> Result<Self> {
-        self.state.update_state(State::Running);
         let pipeline = self.pipeline.clone();
-        let (_, steps) = pipeline
+        let (_, job) = pipeline
             .jobs
             .iter()
             .find(|(name, _)| **name == self.job_name)
@@ -56,8 +56,15 @@ impl<S: RootState> JobRunner<S> {
                 })
             })?;
 
+        if !self.condition(job.condition.as_deref())? {
+            debug!("condition failed, skiping step");
+            return Ok(self);
+        }
+
+        self.state.update_state(State::Running);
+
         debug!("starting execution of pipeline steps");
-        for step in steps.iter() {
+        for step in job.steps.iter() {
             self.step(step).await.inspect_err(|e| {
                 self.state.update_state(State::Failed {
                     error: e.to_string(),
@@ -66,6 +73,7 @@ impl<S: RootState> JobRunner<S> {
         }
 
         self.state.update_state(State::Completed);
+        self.dispose_platform().await?;
         Ok(self)
     }
 
@@ -209,7 +217,7 @@ impl<S: RootState> JobRunner<S> {
         Ok(())
     }
 
-    fn condition(&mut self, condition: Option<&str>) -> Result<bool> {
+    fn condition(&self, condition: Option<&str>) -> Result<bool> {
         let Some(condition) = condition else {
             return Ok(true);
         };
@@ -240,6 +248,17 @@ impl<S: RootState> JobRunner<S> {
         }
 
         Ok(result)
+    }
+
+    async fn dispose_platform(&self) -> Result<()> {
+        if self.pipeline.dispose {
+            debug!("executing dispose operations for platform");
+            self.platform.dispose(self.is_child).await?;
+        } else {
+            debug!("keeping platform alive");
+            self.platform.keep_alive().await?;
+        }
+        self.run_ctx.remove_platform(self.platform.id()).await
     }
 }
 

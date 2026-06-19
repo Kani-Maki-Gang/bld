@@ -32,8 +32,6 @@ use crate::{
     token_context,
 };
 
-use super::v3::build_platform;
-
 pub struct RunnerBuilder<'a> {
     run_id: String,
     run_start_time: String,
@@ -271,21 +269,11 @@ impl<'a> RunnerBuilder<'a> {
 
                 let expr_regex = Regex::new(expr::v3::parser::EXPR_REGEX)?.into_arc();
 
-                let platform = build_platform(
-                    pipeline.clone(),
-                    config.clone(),
-                    self.logger.clone(),
-                    context.clone(),
-                    expr_rctx.clone(),
-                )
-                .await?;
-
                 let runner = Box::new(runner::v3::PipelineRunner {
                     config,
                     expr_regex,
                     expr_rctx,
                     pipeline,
-                    platform,
                     run_ctx: context,
                     fs: self.fs.clone(),
                     regex_cache: self.regex_cache.clone(),
