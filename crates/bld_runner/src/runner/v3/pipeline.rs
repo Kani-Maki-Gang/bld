@@ -18,6 +18,7 @@ use tokio::{sync::mpsc::Sender, time::sleep};
 use tracing::debug;
 
 use crate::{
+    dag::Dag,
     expr::v3::context::CommonReadonlyRuntimeExprContext,
     pipeline::v3::Pipeline,
     runner::v3::{
@@ -40,6 +41,7 @@ pub struct PipelineRunner {
     pub expr_regex: Arc<Regex>,
     pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
     pub pipeline: Arc<Pipeline>,
+    pub dag: Dag,
     pub signals: Option<UnixSignalsBackend>,
     pub package_manager: Arc<PackageManager>,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
@@ -144,9 +146,9 @@ impl PipelineRunner {
         Ok(state)
     }
 
-    async fn prepare_jobs(&self) -> Result<Vec<Option<RunningJob>>> {
+    async fn prepare_jobs(&self, names: &[String]) -> Result<Vec<Option<RunningJob>>> {
         let mut jobs = Vec::new();
-        for name in self.pipeline.jobs.keys() {
+        for name in names {
             self.logger
                 .write_line(format!("{:<15}: {}", "Running job", name))
                 .await?;
@@ -172,9 +174,9 @@ impl PipelineRunner {
             .map(|_| ())
     }
 
-    async fn run_all_jobs(&self) -> Result<()> {
+    async fn run_layer(&self, names: &[String]) -> Result<()> {
         let mut result = Ok(());
-        let mut running_jobs = self.prepare_jobs().await?;
+        let mut running_jobs = self.prepare_jobs(names).await?;
 
         while running_jobs.iter().any(|x| x.is_some()) {
             for job in running_jobs.iter_mut() {
@@ -210,6 +212,13 @@ impl PipelineRunner {
         }
 
         result.map_err(|_| anyhow!("One or more jobs completed with errors"))
+    }
+
+    async fn run_all_jobs(&self) -> Result<()> {
+        for layer in self.dag.layers() {
+            self.run_layer(&layer).await?;
+        }
+        Ok(())
     }
 
     async fn jobs(&self) -> Result<()> {

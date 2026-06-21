@@ -23,7 +23,7 @@ use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
-    expr,
+    Dag, expr,
     files::{
         v3::RunnerFile,
         versioned::{VersionedFile, VersionedFileLoader},
@@ -257,6 +257,9 @@ impl<'a> RunnerBuilder<'a> {
             }
 
             VersionedFile::Version3(RunnerFile::PipelineFileType(pipeline)) => {
+                let mut dag: Dag = pipeline.as_ref().try_into()?;
+                dag.reduce_edges();
+
                 let pipeline = (*pipeline).into_arc();
                 let expr_rctx = expr::v3::context::CommonReadonlyRuntimeExprContext::new(
                     config.clone(),
@@ -274,6 +277,7 @@ impl<'a> RunnerBuilder<'a> {
                     expr_regex,
                     expr_rctx,
                     pipeline,
+                    dag,
                     run_ctx: context,
                     fs: self.fs.clone(),
                     regex_cache: self.regex_cache.clone(),

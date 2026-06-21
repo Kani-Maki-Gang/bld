@@ -24,6 +24,8 @@ mod validator;
 #[cfg(feature = "all")]
 mod expr;
 
+pub use dag::{Dag, DagNode, DagRoot};
+
 pub use files::versioned::VersionedFile;
 
 #[cfg(feature = "all")]
