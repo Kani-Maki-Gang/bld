@@ -476,7 +476,7 @@ mod tests {
             exec::CommonExprExecutor,
             traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext},
         },
-        pipeline::v3::Pipeline,
+        job::v3::Job,
         registry::v3::Registry,
     };
 
@@ -486,11 +486,11 @@ mod tests {
     pub fn runs_on_machine_expr_eval_success() {
         let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
-        let pipeline = Pipeline {
+        let job = Job {
             runs_on: RunsOn::ContainerOrMachine("machine".to_string()),
             ..Default::default()
         };
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+        let exec = CommonExprExecutor::new(&job, &rctx, &wctx);
         let expected = ExprValue::Text(ExprText::Ref("machine"));
         let actual = exec.eval("${{ runs_on }}").unwrap();
         assert!(matches!(
@@ -503,7 +503,7 @@ mod tests {
     pub fn runs_on_container_name_expr_eval_success() {
         let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut pipeline = Pipeline::default();
+        let mut job = Job::default();
 
         let data: Vec<(&str, ExprValue)> = vec![
             ("ubuntu", ExprValue::Text(ExprText::Ref("ubuntu"))),
@@ -520,8 +520,8 @@ mod tests {
         ];
 
         for (value, expected) in data {
-            pipeline.runs_on = RunsOn::ContainerOrMachine(value.to_string());
-            let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+            job.runs_on = RunsOn::ContainerOrMachine(value.to_string());
+            let exec = CommonExprExecutor::new(&job, &rctx, &wctx);
 
             let actual = exec.eval("${{ runs_on }}").unwrap();
             assert!(matches!(
@@ -535,7 +535,7 @@ mod tests {
     pub fn runs_on_pull_image_expr_eval_success() {
         let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
-        let pipeline = Pipeline {
+        let job = Job {
             runs_on: RunsOn::Pull {
                 image: "ubuntu:latest".to_string(),
                 registry: Some(Registry::FromConfig("registry-config".to_string())),
@@ -544,7 +544,7 @@ mod tests {
             },
             ..Default::default()
         };
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+        let exec = CommonExprExecutor::new(&job, &rctx, &wctx);
 
         let actual = exec.eval("${{ runs_on.image }}").unwrap();
         assert!(matches!(
@@ -575,7 +575,7 @@ mod tests {
     pub fn runs_on_build_image_expr_eval_success() {
         let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
-        let pipeline = Pipeline {
+        let job = Job {
             runs_on: RunsOn::Build {
                 name: "test-image".to_string(),
                 tag: "1.3.4".to_string(),
@@ -584,7 +584,7 @@ mod tests {
             },
             ..Default::default()
         };
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+        let exec = CommonExprExecutor::new(&job, &rctx, &wctx);
 
         let actual = exec.eval("${{ runs_on.name}}").unwrap();
         assert!(matches!(
@@ -615,7 +615,7 @@ mod tests {
     pub fn runs_on_ssh_with_user_auth_key_expr_eval_success() {
         let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
-        let pipeline = Pipeline {
+        let job = Job {
             runs_on: RunsOn::Ssh(SshConfig {
                 host: "localhost".to_string(),
                 port: "3000".to_string(),
@@ -627,7 +627,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+        let exec = CommonExprExecutor::new(&job, &rctx, &wctx);
 
         let actual = exec.eval("${{ runs_on.host }}").unwrap();
         assert!(matches!(
@@ -670,7 +670,7 @@ mod tests {
     pub fn runs_on_ssh_with_user_password_expr_eval_success() {
         let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
-        let pipeline = Pipeline {
+        let job = Job {
             runs_on: RunsOn::Ssh(SshConfig {
                 host: "localhost".to_string(),
                 port: "3000".to_string(),
@@ -681,7 +681,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+        let exec = CommonExprExecutor::new(&job, &rctx, &wctx);
 
         let actual = exec.eval("${{ runs_on.host }}").unwrap();
         assert!(matches!(
@@ -718,7 +718,7 @@ mod tests {
     pub fn runs_on_ssh_with_user_agent_expr_eval_success() {
         let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
-        let pipeline = Pipeline {
+        let job = Job {
             runs_on: RunsOn::Ssh(SshConfig {
                 host: "localhost".to_string(),
                 port: "3000".to_string(),
@@ -727,7 +727,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+        let exec = CommonExprExecutor::new(&job, &rctx, &wctx);
 
         let actual = exec.eval("${{ runs_on.host }}").unwrap();
         assert!(matches!(
@@ -758,13 +758,13 @@ mod tests {
     pub fn runs_on_ssh_config_expr_eval_success() {
         let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
-        let pipeline = Pipeline {
+        let job = Job {
             runs_on: RunsOn::SshFromGlobalConfig {
                 ssh_config: "some_global_ssh_config".to_string(),
             },
             ..Default::default()
         };
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+        let exec = CommonExprExecutor::new(&job, &rctx, &wctx);
 
         let actual = exec.eval("${{ runs_on.ssh_config }}").unwrap();
         assert!(matches!(

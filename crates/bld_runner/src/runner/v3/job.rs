@@ -466,12 +466,13 @@ mod tests {
 
     use crate::{
         expr::v3::{context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX},
+        job::v3::Job,
         pipeline::v3::Pipeline,
         runner::v3::{MockRootState, State, state::JobState},
         step::v3::{ShellCommand, Step},
     };
 
-    use super::JobRunner;
+    use super::{JobRunner, JobRunnerOptions};
 
     #[test]
     pub fn condition_eval_success() {
@@ -488,20 +489,21 @@ mod tests {
         let package_manager = PackageManager::new(config.clone()).into_arc();
         let pipeline = Pipeline::default().into_arc();
 
-        let mut job = JobRunner {
+        let options = JobRunnerOptions {
             job_name,
             logger,
             config,
             fs,
             run_ctx,
             pipeline,
-            platform,
             regex_cache,
             expr_regex,
             expr_rctx,
             package_manager,
+            is_child: false,
             state,
         };
+        let job = JobRunner { options, platform };
 
         assert!(matches!(job.condition(None), Ok(true)));
 
@@ -575,22 +577,29 @@ mod tests {
             .withf(|state| matches!(state, State::Completed))
             .return_once(|_| ());
 
-        pipeline.jobs.insert(job_name.clone(), steps);
+        pipeline.jobs.insert(
+            job_name.clone(),
+            Job {
+                steps,
+                ..Default::default()
+            },
+        );
 
-        let runner = JobRunner {
+        let options = JobRunnerOptions {
             job_name,
             run_ctx,
             pipeline: pipeline.into_arc(),
             logger,
             config,
             fs,
-            platform,
             regex_cache,
             expr_regex,
             expr_rctx,
             package_manager,
+            is_child: false,
             state,
         };
+        let runner = JobRunner { options, platform };
 
         // Act
         runner.run().await.unwrap();

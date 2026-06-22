@@ -241,7 +241,16 @@ impl<'a> EvalObject<'a> for Pipeline {
                     bail!("unable to find executing job id");
                 };
 
-                job.eval_object(&mut object_parts.peekable(), rctx, wctx)
+                let Some(step_id) = object_parts.next() else {
+                    bail!("expected id for step in expression");
+                };
+                let step_id = step_id.as_span().as_str();
+
+                let Some(step) = job.steps.iter().find(|x| x.is(step_id)) else {
+                    bail!("step with id {step_id} not defined");
+                };
+
+                step.eval_object(&mut object_parts.peekable(), rctx, wctx)
             }
 
             // Keywords section
@@ -368,28 +377,6 @@ mod tests {
                 .map(|x| ExprValue::Text(ExprText::Ref(x)))
                 .unwrap_or_else(|| ExprValue::Text(ExprText::Ref("")));
 
-            assert!(matches!(
-                value.try_eq(&expected),
-                Ok(ExprValue::Boolean(true))
-            ));
-        }
-    }
-
-    #[test]
-    pub fn dispose_expr_eval_success() {
-        let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut pipeline = Pipeline::default();
-        let data = vec![true, false];
-
-        for entry in data {
-            pipeline.dispose = entry;
-
-            let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
-            let Ok(value) = exec.eval("${{ dispose }}") else {
-                panic!("result is an error during expression evaluation");
-            };
-            let expected = ExprValue::Boolean(entry);
             assert!(matches!(
                 value.try_eq(&expected),
                 Ok(ExprValue::Boolean(true))

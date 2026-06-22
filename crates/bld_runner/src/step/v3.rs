@@ -229,6 +229,7 @@ mod tests {
             exec::CommonExprExecutor,
             traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext},
         },
+        job::v3::Job,
         pipeline::v3::Pipeline,
         step::v3::{ShellCommand, Step},
     };
@@ -240,32 +241,38 @@ mod tests {
         let mut pipeline = Pipeline::default();
         pipeline.jobs.insert(
             "main".to_string(),
-            vec![
-                Step::ComplexSh(Box::new(ShellCommand {
-                    id: "second".to_string(),
-                    name: Some("second_name".to_string()),
-                    working_dir: Some("some_second_working_directory".to_string()),
-                    run: "second_run_command".to_string(),
-                    condition: Some("second_condition".to_string()),
-                })),
-                Step::ComplexSh(Box::new(ShellCommand {
-                    id: "third".to_string(),
-                    name: Some("third_name".to_string()),
-                    working_dir: Some("some_third_working_directory".to_string()),
-                    run: "third_run_command".to_string(),
-                    condition: Some("third_condition".to_string()),
-                })),
-            ],
+            Job {
+                steps: vec![
+                    Step::ComplexSh(Box::new(ShellCommand {
+                        id: "second".to_string(),
+                        name: Some("second_name".to_string()),
+                        working_dir: Some("some_second_working_directory".to_string()),
+                        run: "second_run_command".to_string(),
+                        condition: Some("second_condition".to_string()),
+                    })),
+                    Step::ComplexSh(Box::new(ShellCommand {
+                        id: "third".to_string(),
+                        name: Some("third_name".to_string()),
+                        working_dir: Some("some_third_working_directory".to_string()),
+                        run: "third_run_command".to_string(),
+                        condition: Some("third_condition".to_string()),
+                    })),
+                ],
+                ..Default::default()
+            },
         );
         pipeline.jobs.insert(
             "backup".to_string(),
-            vec![Step::ComplexSh(Box::new(ShellCommand {
-                id: "first".to_string(),
-                name: Some("first_name".to_string()),
-                working_dir: Some("some_first_working_directory".to_string()),
-                run: "first_run_command".to_string(),
-                condition: Some("first_condition".to_string()),
-            }))],
+            Job {
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "first".to_string(),
+                    name: Some("first_name".to_string()),
+                    working_dir: Some("some_first_working_directory".to_string()),
+                    run: "first_run_command".to_string(),
+                    condition: Some("first_condition".to_string()),
+                }))],
+                ..Default::default()
+            },
         );
 
         wctx.expect_get_exec_id().returning_st(|| Some("main"));
@@ -451,14 +458,20 @@ mod tests {
         let mut pipeline = Pipeline::default();
         pipeline.jobs.insert(
             "main".to_string(),
-            vec![
-                Step::ExternalFile(Box::default()),
-                Step::ExternalFile(Box::default()),
-            ],
+            Job {
+                steps: vec![
+                    Step::ExternalFile(Box::default()),
+                    Step::ExternalFile(Box::default()),
+                ],
+                ..Default::default()
+            },
         );
         pipeline.jobs.insert(
             "backup".to_string(),
-            vec![Step::ExternalFile(Box::default())],
+            Job {
+                steps: vec![Step::ExternalFile(Box::default())],
+                ..Default::default()
+            },
         );
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
@@ -531,11 +544,11 @@ mod tests {
 
         for (job, steps) in data.iter() {
             if !pipeline.jobs.contains_key(*job) {
-                pipeline.jobs.insert(job.to_string(), vec![]);
+                pipeline.jobs.insert(job.to_string(), Job::default());
             }
 
             for (step, outputs) in steps.iter() {
-                let job_steps = pipeline.jobs.get_mut(*job).unwrap();
+                let job_steps = &mut pipeline.jobs.get_mut(*job).unwrap().steps;
                 if job_steps.iter().find(|x| x.is(step)).is_none() {
                     job_steps.push(Step::ComplexSh(Box::new(ShellCommand {
                         id: step.to_string(),

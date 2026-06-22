@@ -187,3 +187,313 @@ impl TryFrom<&Pipeline> for Dag {
         Ok(dag)
     }
 }
+
+#[cfg(all(test, feature = "all"))]
+mod tests {
+    use std::collections::HashSet;
+
+    use crate::{
+        job::v3::{Job, Needs},
+        pipeline::v3::Pipeline,
+    };
+
+    use super::Dag;
+
+    fn job(needs: &[&str]) -> Job {
+        let needs = match needs {
+            [] => None,
+            [single] => Some(Needs::Single(single.to_string())),
+            many => Some(Needs::Multiple(
+                many.iter().map(|n| n.to_string()).collect::<HashSet<_>>(),
+            )),
+        };
+        Job {
+            needs,
+            ..Job::default()
+        }
+    }
+
+    fn pipeline(jobs: &[(&str, Job)]) -> Pipeline {
+        Pipeline {
+            jobs: jobs
+                .iter()
+                .map(|(name, job)| (name.to_string(), job.clone()))
+                .collect(),
+            ..Pipeline::default()
+        }
+    }
+
+    fn sorted_layers(dag: &Dag) -> Vec<Vec<String>> {
+        dag.layers()
+            .into_iter()
+            .map(|mut layer| {
+                layer.sort();
+                layer
+            })
+            .collect()
+    }
+
+    fn sorted_edges(dag: &Dag) -> Vec<(String, String)> {
+        let mut edges = Vec::new();
+        for (from, dependents) in dag.edges.iter().enumerate() {
+            for &to in dependents {
+                edges.push((dag.nodes[from].name.clone(), dag.nodes[to].name.clone()));
+            }
+        }
+        edges.sort();
+        edges
+    }
+
+    fn node_idx(dag: &Dag, name: &str) -> usize {
+        dag.nodes
+            .iter()
+            .position(|n| n.name == name)
+            .unwrap_or_else(|| panic!("node '{name}' not found"))
+    }
+
+    #[test]
+    fn empty_pipeline_builds_empty_dag() {
+        let dag = Dag::try_from(&pipeline(&[])).expect("empty pipeline is valid");
+        assert!(dag.nodes.is_empty());
+        assert!(dag.edges.is_empty());
+        assert!(dag.layers().is_empty());
+    }
+
+    #[test]
+    fn single_job_has_no_edges_and_copies_root() {
+        let mut p = pipeline(&[("a", job(&[]))]);
+        p.name = Some("my-pipeline".to_string());
+        p.cron = Some("0 0 * * * *".to_string());
+
+        let dag = Dag::try_from(&p).expect("single job is valid");
+
+        assert_eq!(dag.nodes.len(), 1);
+        assert!(dag.edges.iter().all(|e| e.is_empty()));
+        assert_eq!(sorted_layers(&dag), vec![vec!["a".to_string()]]);
+        assert_eq!(dag.root.name.as_deref(), Some("my-pipeline"));
+        assert_eq!(dag.root.cron.as_deref(), Some("0 0 * * * *"));
+    }
+
+    #[test]
+    fn single_need_produces_one_edge() {
+        let dag = Dag::try_from(&pipeline(&[("a", job(&[])), ("b", job(&["a"]))]))
+            .expect("valid dependency");
+
+        let a = node_idx(&dag, "a");
+        assert_eq!(dag.nodes[a].needs, Vec::<String>::new());
+        assert_eq!(dag.nodes[node_idx(&dag, "b")].needs, vec!["a".to_string()]);
+        assert_eq!(
+            sorted_edges(&dag),
+            vec![("a".to_string(), "b".to_string())]
+        );
+    }
+
+    #[test]
+    fn multiple_needs_produce_all_edges() {
+        let dag = Dag::try_from(&pipeline(&[
+            ("a", job(&[])),
+            ("b", job(&[])),
+            ("c", job(&[])),
+            ("d", job(&["b", "c"])),
+        ]))
+        .expect("valid dependencies");
+
+        assert_eq!(
+            sorted_edges(&dag),
+            vec![
+                ("b".to_string(), "d".to_string()),
+                ("c".to_string(), "d".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn linear_chain_layers_in_order() {
+        let dag = Dag::try_from(&pipeline(&[
+            ("a", job(&[])),
+            ("b", job(&["a"])),
+            ("c", job(&["b"])),
+        ]))
+        .expect("valid chain");
+
+        assert_eq!(
+            sorted_edges(&dag),
+            vec![
+                ("a".to_string(), "b".to_string()),
+                ("b".to_string(), "c".to_string()),
+            ]
+        );
+        assert_eq!(
+            sorted_layers(&dag),
+            vec![
+                vec!["a".to_string()],
+                vec!["b".to_string()],
+                vec!["c".to_string()],
+            ]
+        );
+    }
+
+    #[test]
+    fn diamond_layers_correctly() {
+        let dag = Dag::try_from(&pipeline(&[
+            ("a", job(&[])),
+            ("b", job(&["a"])),
+            ("c", job(&["a"])),
+            ("d", job(&["b", "c"])),
+        ]))
+        .expect("valid diamond");
+
+        assert_eq!(
+            sorted_layers(&dag),
+            vec![
+                vec!["a".to_string()],
+                vec!["b".to_string(), "c".to_string()],
+                vec!["d".to_string()],
+            ]
+        );
+    }
+
+    #[test]
+    fn undefined_dependency_is_rejected() {
+        let err = Dag::try_from(&pipeline(&[("a", job(&["missing"]))]))
+            .expect_err("undefined dependency must fail");
+        assert!(
+            err.to_string().contains("depends on undefined job"),
+            "unexpected message: {err}"
+        );
+    }
+
+    #[test]
+    fn self_cycle_is_rejected() {
+        let err = Dag::try_from(&pipeline(&[("a", job(&["a"]))]))
+            .expect_err("self cycle must fail");
+        assert!(
+            err.to_string().contains("cyclic dependency"),
+            "unexpected message: {err}"
+        );
+    }
+
+    #[test]
+    fn two_node_cycle_is_rejected() {
+        let err = Dag::try_from(&pipeline(&[("a", job(&["b"])), ("b", job(&["a"]))]))
+            .expect_err("two node cycle must fail");
+        let msg = err.to_string();
+        assert!(msg.contains("cyclic dependency"), "unexpected message: {msg}");
+        assert!(msg.contains('a') && msg.contains('b'), "should name jobs: {msg}");
+    }
+
+    #[test]
+    fn longer_cycle_is_rejected() {
+        let err = Dag::try_from(&pipeline(&[
+            ("a", job(&["c"])),
+            ("b", job(&["a"])),
+            ("c", job(&["b"])),
+        ]))
+        .expect_err("longer cycle must fail");
+        assert!(
+            err.to_string().contains("cyclic dependency"),
+            "unexpected message: {err}"
+        );
+    }
+
+    #[test]
+    fn independent_roots_share_first_layer() {
+        let dag =
+            Dag::try_from(&pipeline(&[("a", job(&[])), ("b", job(&[]))])).expect("valid");
+        assert_eq!(
+            sorted_layers(&dag),
+            vec![vec!["a".to_string(), "b".to_string()]]
+        );
+    }
+
+    #[test]
+    fn disconnected_components_layer_independently() {
+        let dag = Dag::try_from(&pipeline(&[
+            ("a", job(&[])),
+            ("b", job(&["a"])),
+            ("c", job(&[])),
+            ("d", job(&["c"])),
+        ]))
+        .expect("valid");
+        assert_eq!(
+            sorted_layers(&dag),
+            vec![
+                vec!["a".to_string(), "c".to_string()],
+                vec!["b".to_string(), "d".to_string()],
+            ]
+        );
+    }
+
+    #[test]
+    fn reduce_drops_redundant_transitive_edge() {
+        let mut dag = Dag::try_from(&pipeline(&[
+            ("a", job(&[])),
+            ("b", job(&["a"])),
+            ("c", job(&["a", "b"])),
+        ]))
+        .expect("valid");
+
+        assert_eq!(
+            sorted_edges(&dag),
+            vec![
+                ("a".to_string(), "b".to_string()),
+                ("a".to_string(), "c".to_string()),
+                ("b".to_string(), "c".to_string()),
+            ]
+        );
+
+        dag.reduce_edges();
+
+        assert_eq!(
+            sorted_edges(&dag),
+            vec![
+                ("a".to_string(), "b".to_string()),
+                ("b".to_string(), "c".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn reduce_preserves_diamond() {
+        let mut dag = Dag::try_from(&pipeline(&[
+            ("a", job(&[])),
+            ("b", job(&["a"])),
+            ("c", job(&["a"])),
+            ("d", job(&["b", "c"])),
+        ]))
+        .expect("valid");
+
+        let before = sorted_edges(&dag);
+        dag.reduce_edges();
+        assert_eq!(sorted_edges(&dag), before);
+    }
+
+    #[test]
+    fn reduce_preserves_layers() {
+        let mut dag = Dag::try_from(&pipeline(&[
+            ("a", job(&[])),
+            ("b", job(&["a"])),
+            ("c", job(&["a", "b"])),
+        ]))
+        .expect("valid");
+
+        let before = sorted_layers(&dag);
+        dag.reduce_edges();
+        assert_eq!(sorted_layers(&dag), before);
+    }
+
+    #[test]
+    fn reduce_is_idempotent() {
+        let mut once = Dag::try_from(&pipeline(&[
+            ("a", job(&[])),
+            ("b", job(&["a"])),
+            ("c", job(&["a", "b"])),
+        ]))
+        .expect("valid");
+        once.reduce_edges();
+        let after_once = sorted_edges(&once);
+
+        once.reduce_edges();
+        assert_eq!(sorted_edges(&once), after_once);
+    }
+}
