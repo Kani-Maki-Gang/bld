@@ -189,8 +189,8 @@ impl<'a> EvalObject<'a> for Pipeline {
             bail!("no object path present");
         };
 
-        let mut object_parts = object.into_inner();
-        let Some(part) = object_parts.next() else {
+        let mut object_parts = object.into_inner().peekable();
+        let Some(part) = object_parts.peek() else {
             bail!("expected at least one part in the object path");
         };
 
@@ -206,7 +206,7 @@ impl<'a> EvalObject<'a> for Pipeline {
             }
 
             "inputs" => {
-                let Some(part) = object_parts.next() else {
+                let Some(part) = object_parts.nth(1) else {
                     bail!("expected name of input in object path");
                 };
                 let name = part.as_span().as_str();
@@ -222,7 +222,7 @@ impl<'a> EvalObject<'a> for Pipeline {
             }
 
             "env" => {
-                let Some(part) = object_parts.next() else {
+                let Some(part) = object_parts.nth(1) else {
                     bail!("expected name of env variable in object path");
                 };
                 let name = part.as_span().as_str();
@@ -234,23 +234,6 @@ impl<'a> EvalObject<'a> for Pipeline {
                             .ok_or_else(|| anyhow!("env variable '{name}' not found"))
                     })
                     .map(|x| ExprValue::Text(ExprText::Ref(x)))
-            }
-
-            "steps" => {
-                let Some(job) = wctx.get_exec_id().and_then(|id| self.jobs.get(id)) else {
-                    bail!("unable to find executing job id");
-                };
-
-                let Some(step_id) = object_parts.next() else {
-                    bail!("expected id for step in expression");
-                };
-                let step_id = step_id.as_span().as_str();
-
-                let Some(step) = job.steps.iter().find(|x| x.is(step_id)) else {
-                    bail!("step with id {step_id} not defined");
-                };
-
-                step.eval_object(&mut object_parts.peekable(), rctx, wctx)
             }
 
             // Keywords section
@@ -270,7 +253,13 @@ impl<'a> EvalObject<'a> for Pipeline {
                 Ok(ExprValue::Text(ExprText::Ref(rctx.get_run_start_time())))
             }
 
-            value => bail!("invalid expression identifier '{value}'"),
+            // Move evaluation to the job level
+            _ => {
+                let Some(job) = wctx.get_exec_id().and_then(|id| self.jobs.get(id)) else {
+                    bail!("unable to find executing job id");
+                };
+                job.eval_object(&mut object_parts, rctx, wctx)
+            },
         }
     }
 }

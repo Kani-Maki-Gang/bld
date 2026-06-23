@@ -9,7 +9,7 @@ use {
         expr::v3::{
             parser::Rule,
             traits::{
-                EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext,
+                EvalObject, ExprValue, ReadonlyRuntimeExprContext,
                 WritableRuntimeExprContext,
             },
         },
@@ -112,22 +112,18 @@ impl<'a> EvalObject<'a> for Job {
         rctx: &'a RCtx,
         wctx: &'a WCtx,
     ) -> Result<ExprValue<'a>> {
-        let Some(object) = path.next() else {
+        let Some(part) = path.next() else {
             bail!("no object path present");
         };
-
-        let mut object_parts = object.into_inner();
-        let Some(part) = object_parts.next() else {
-            bail!("expected at least one part in the object path");
-        };
-
         let value = match part.as_span().as_str() {
             "runs_on" => self
                 .runs_on
-                .eval_object(&mut object_parts.peekable(), rctx, wctx)?,
+                .eval_object(path, rctx, wctx)?,
+
+            "dispose" => ExprValue::Boolean(self.dispose),
 
             "steps" => {
-                let Some(step_id) = object_parts.next() else {
+                let Some(step_id) = path.next() else {
                     bail!("expected id for step in expression");
                 };
 
@@ -137,20 +133,11 @@ impl<'a> EvalObject<'a> for Job {
                     bail!("step with id {step_id} not defined");
                 };
 
-                step.eval_object(&mut object_parts.peekable(), rctx, wctx)?
+                step.eval_object(path, rctx, wctx)?
             }
 
-            "outputs" => {
-                let Some(object) = path.next() else {
-                    bail!("no output variable name provided");
-                };
-                let name = object.as_span().as_str();
-                ExprValue::Text(ExprText::Ref(wctx.get_output(&self.id, name)?))
-            }
-
-            value => bail!("invalid steps field: {value}"),
+            value => bail!("invalid jobs field: {value}"),
         };
-
         Ok(value)
     }
 }

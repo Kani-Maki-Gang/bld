@@ -453,7 +453,7 @@ mod tests {
 
     #[test]
     pub fn jobs_external_step_expr_eval_success() {
-        let wctx = MockWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::default();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.jobs.insert(
@@ -473,14 +473,19 @@ mod tests {
                 ..Default::default()
             },
         );
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
+        wctx.expect_get_exec_id().returning_st(|| Some("main"));
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
         let actual = exec.eval("${{ jobs.main.first }}");
         assert!(actual.is_err());
 
+        wctx.expect_get_exec_id().returning_st(|| Some("main"));
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
         let actual = exec.eval("${{ jobs.main.second }}");
         assert!(actual.is_err());
 
+        wctx.expect_get_exec_id().returning_st(|| Some("backup"));
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
         let actual = exec.eval("${{ jobs.backup.third }}");
         assert!(actual.is_err());
     }
