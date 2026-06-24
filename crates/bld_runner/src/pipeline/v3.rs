@@ -142,22 +142,18 @@ impl IntoVariables for Pipeline {
 
 #[cfg(feature = "all")]
 impl<'a> Dependencies<'a> for Pipeline {
-    async fn local_deps(
-        &'a self,
-        manager: &PackageManager,
-        fs: &FileSystem,
-    ) -> Vec<Dependency<'a>> {
+    async fn local_deps(&'a self, fs: &FileSystem) -> Vec<Dependency<'a>> {
         let mut dependecies = vec![];
         for job in self.jobs.values() {
-            dependecies.append(&mut job.local_deps(manager, fs).await);
+            dependecies.append(&mut job.local_deps(fs).await);
         }
         dependecies
     }
 
-    async fn remote_deps(&'a self) -> Vec<Dependency<'a>> {
+    async fn remote_deps(&'a self, manager: &PackageManager) -> Vec<Dependency<'a>> {
         let mut dependecies = vec![];
         for job in self.jobs.values() {
-            dependecies.append(&mut job.remote_deps().await);
+            dependecies.append(&mut job.remote_deps(manager).await);
         }
         dependecies
     }
@@ -171,8 +167,8 @@ impl<'a> Dependencies<'a> for Pipeline {
     }
 
     async fn all(&'a self, manager: &PackageManager, fs: &FileSystem) -> Vec<Dependency<'a>> {
-        let mut deps = self.local_deps(manager, fs).await;
-        deps.append(&mut self.remote_deps().await);
+        let mut deps = self.local_deps(fs).await;
+        deps.append(&mut self.remote_deps(manager).await);
         deps
     }
 }
@@ -259,7 +255,7 @@ impl<'a> EvalObject<'a> for Pipeline {
                     bail!("unable to find executing job id");
                 };
                 job.eval_object(&mut object_parts, rctx, wctx)
-            },
+            }
         }
     }
 }

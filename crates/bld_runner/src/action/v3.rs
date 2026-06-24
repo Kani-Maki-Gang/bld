@@ -99,20 +99,19 @@ impl IntoVariables for Action {
 impl<'a> Dependencies<'a> for Action {
     async fn local_deps(
         &'a self,
-        manager: &PackageManager,
         fs: &FileSystem,
     ) -> Vec<Dependency<'a>> {
         let mut dependecies = vec![];
         for step in &self.steps {
-            dependecies.append(&mut step.local_deps(manager, fs).await);
+            dependecies.append(&mut step.local_deps(fs).await);
         }
         dependecies
     }
 
-    async fn remote_deps(&'a self) -> Vec<Dependency<'a>> {
+    async fn remote_deps(&'a self, manager: &PackageManager) -> Vec<Dependency<'a>> {
         let mut dependecies = vec![];
         for step in &self.steps {
-            dependecies.append(&mut step.remote_deps().await);
+            dependecies.append(&mut step.remote_deps(manager).await);
         }
         dependecies
     }
@@ -122,8 +121,8 @@ impl<'a> Dependencies<'a> for Action {
     }
 
     async fn all(&'a self, manager: &PackageManager, fs: &FileSystem) -> Vec<Dependency<'a>> {
-        let mut deps = self.local_deps(manager, fs).await;
-        deps.append(&mut self.remote_deps().await);
+        let mut deps = self.local_deps(fs).await;
+        deps.append(&mut self.remote_deps(manager).await);
         deps
     }
 }

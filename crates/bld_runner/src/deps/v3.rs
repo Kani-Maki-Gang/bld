@@ -5,14 +5,16 @@ use {bld_core::fs::FileSystem, bld_pkg::PackageManager};
 pub struct RemoteDependency<'a> {
     pub server: Option<&'a str>,
     pub name: &'a str,
+    pub is_package: bool,
 }
 
 #[cfg(feature = "all")]
 impl<'a> RemoteDependency<'a> {
-    pub fn new(server: &'a str, name: &'a str) -> Self {
+    pub fn new(server: Option<&'a str>, name: &'a str, is_package: bool) -> Self {
         Self {
-            server: Some(server),
+            server,
             name,
+            is_package,
         }
     }
 }
@@ -20,20 +22,19 @@ impl<'a> RemoteDependency<'a> {
 #[cfg(feature = "all")]
 pub enum Dependency<'a> {
     LocalFile(&'a str),
-    LocalPackage(&'a str),
     Remote(Box<RemoteDependency<'a>>),
     Job(&'a str),
 }
 
+#[cfg(feature = "all")]
 impl<'a> Dependency<'a> {
     pub fn is_local(&self) -> bool {
-        matches!(self, Self::LocalFile(_) | Self::LocalPackage(_))
+        matches!(self, Self::LocalFile(_))
     }
 
     pub fn get_local(&self) -> Option<&'a str> {
         match self {
             Self::LocalFile(file) => Some(file),
-            Self::LocalPackage(package) => Some(package),
             _ => None,
         }
     }
@@ -57,9 +58,8 @@ impl<'a> Dependency<'a> {
 #[allow(async_fn_in_trait)]
 #[cfg(feature = "all")]
 pub trait Dependencies<'a> {
-    async fn local_deps(&'a self, manager: &PackageManager, fs: &FileSystem)
-    -> Vec<Dependency<'a>>;
-    async fn remote_deps(&'a self) -> Vec<Dependency<'a>>;
+    async fn local_deps(&'a self, fs: &FileSystem) -> Vec<Dependency<'a>>;
+    async fn remote_deps(&'a self, manager: &PackageManager) -> Vec<Dependency<'a>>;
     async fn jobs(&'a self) -> Vec<Dependency<'a>>;
     async fn all(&'a self, manager: &PackageManager, fs: &FileSystem) -> Vec<Dependency<'a>>;
 }

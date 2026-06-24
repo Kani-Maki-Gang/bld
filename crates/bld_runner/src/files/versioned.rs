@@ -1,6 +1,7 @@
 use crate::pipeline::{v1, v2};
 use crate::traits::{IntoVariables, Variables};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 use super::v3 as files_v3;
 
@@ -18,7 +19,7 @@ use {
     bld_core::fs::FileSystem,
     bld_pkg::PackageManager,
     futures::Future,
-    std::collections::{HashMap, HashSet},
+    std::collections::HashMap,
     std::{fmt::Write, pin::Pin, sync::Arc},
     tracing::debug,
 };
@@ -180,7 +181,7 @@ impl VersionedFile {
                 .map_err(|e| anyhow!("{e} ({name})"))?;
             let mut set = HashMap::new();
             set.insert(name.to_string(), metadata.raw.clone());
-            let local_deps = metadata.file.local_deps(&config, &fs, &package_manager).await;
+            let local_deps = metadata.file.local_deps(&config, &fs).await;
             for pipeline in local_deps.into_iter() {
                 for (k, v) in Self::dependencies_recursive(
                     config.clone(),
@@ -258,17 +259,12 @@ impl VersionedFile {
     }
 
     #[cfg(feature = "all")]
-    async fn local_deps(
-        &self,
-        config: &BldConfig,
-        fs: &FileSystem,
-        package_manager: &PackageManager,
-    ) -> Vec<String> {
+    async fn local_deps(&self, config: &BldConfig, fs: &FileSystem) -> Vec<String> {
         match self {
             Self::Version1(pip) => pip.local_deps(config, fs).await,
             Self::Version2(pip) => pip.local_deps(config, fs).await,
             Self::Version3(file) => file
-                .local_deps(package_manager, fs)
+                .local_deps(fs)
                 .await
                 .into_iter()
                 .flat_map(|x| x.get_local())

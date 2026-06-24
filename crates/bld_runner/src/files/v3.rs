@@ -5,13 +5,13 @@ use crate::{
     pipeline::v3::Pipeline,
     traits::{IntoVariables, Variables},
 };
+use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "all")]
 use {
     crate::deps::v3::{Dependencies, Dependency},
     bld_core::fs::FileSystem,
     bld_pkg::PackageManager,
-    serde::{Deserialize, Serialize},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,21 +64,17 @@ impl IntoVariables for RunnerFile {
 
 #[cfg(feature = "all")]
 impl<'a> Dependencies<'a> for RunnerFile {
-    async fn local_deps(
-        &'a self,
-        manager: &PackageManager,
-        fs: &FileSystem,
-    ) -> Vec<Dependency<'a>> {
+    async fn local_deps(&'a self, fs: &FileSystem) -> Vec<Dependency<'a>> {
         match self {
-            Self::PipelineFileType(pipeline) => pipeline.local_deps(manager, fs).await,
-            Self::ActionFileType(action) => action.local_deps(manager, fs).await,
+            Self::PipelineFileType(pipeline) => pipeline.local_deps(fs).await,
+            Self::ActionFileType(action) => action.local_deps(fs).await,
         }
     }
 
-    async fn remote_deps(&'a self) -> Vec<Dependency<'a>> {
+    async fn remote_deps(&'a self, manager: &PackageManager) -> Vec<Dependency<'a>> {
         match self {
-            Self::PipelineFileType(pipeline) => pipeline.remote_deps().await,
-            Self::ActionFileType(action) => action.remote_deps().await,
+            Self::PipelineFileType(pipeline) => pipeline.remote_deps(manager).await,
+            Self::ActionFileType(action) => action.remote_deps(manager).await,
         }
     }
 

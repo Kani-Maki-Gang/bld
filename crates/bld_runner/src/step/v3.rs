@@ -87,14 +87,10 @@ impl Step {
 
 #[cfg(feature = "all")]
 impl<'a> Dependencies<'a> for Step {
-    async fn local_deps(&'a self, manager: &PackageManager, fs: &FileSystem) -> Vec<Dependency<'a>> {
+    async fn local_deps(&'a self, fs: &FileSystem) -> Vec<Dependency<'a>> {
         if let Self::ExternalFile(external) = self
             && external.server.is_none()
         {
-            if manager.is_package(&external.uses) {
-                return vec![Dependency::LocalPackage(&external.uses)];
-            }
-
             if matches!(fs.path(&external.uses).await.map(|x| x.is_yaml()), Ok(true)) {
                 return vec![Dependency::LocalFile(&external.uses)];
             }
@@ -103,13 +99,12 @@ impl<'a> Dependencies<'a> for Step {
         vec![]
     }
 
-    async fn remote_deps(&'a self) -> Vec<Dependency<'a>> {
-        if let Self::ExternalFile(external) = self
-            && let Some(server) = external.server.as_ref()
-        {
+    async fn remote_deps(&'a self, manager: &PackageManager) -> Vec<Dependency<'a>> {
+        if let Self::ExternalFile(external) = self {
             return vec![Dependency::Remote(Box::new(RemoteDependency::new(
-                server,
-                &external.uses,
+                external.server.as_deref(),
+                external.uses.as_str(),
+                manager.is_package(&external.uses),
             )))];
         }
         vec![]
@@ -120,8 +115,8 @@ impl<'a> Dependencies<'a> for Step {
     }
 
     async fn all(&'a self, manager: &PackageManager, fs: &FileSystem) -> Vec<Dependency<'a>> {
-        let mut deps = self.local_deps(manager, fs).await;
-        deps.append(&mut self.remote_deps().await);
+        let mut deps = self.local_deps(fs).await;
+        deps.append(&mut self.remote_deps(manager).await);
         deps
     }
 }

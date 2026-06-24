@@ -1,6 +1,7 @@
 use crate::{runs_on::v3::RunsOn, step::v3::Step};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use std::collections::HashSet;
 
 #[cfg(feature = "all")]
 use {
@@ -19,7 +20,7 @@ use {
     bld_core::fs::FileSystem,
     bld_pkg::PackageManager,
     pest::iterators::Pairs,
-    std::{collections::HashSet, iter::Peekable},
+    std::iter::Peekable,
     tracing::debug,
 };
 
@@ -70,19 +71,18 @@ impl Default for Job {
 impl<'a> Dependencies<'a> for Job {
     async fn local_deps(
         &'a self,
-        manager: &PackageManager,
         fs: &FileSystem,
     ) -> Vec<Dependency<'a>> {
         let mut deps = vec![];
         for step in &self.steps {
-            deps.append(&mut step.local_deps(manager, fs).await);
+            deps.append(&mut step.local_deps(fs).await);
         }
         deps
     }
-    async fn remote_deps(&'a self) -> Vec<Dependency<'a>> {
+    async fn remote_deps(&'a self, manager: &PackageManager) -> Vec<Dependency<'a>> {
         let mut deps = vec![];
         for step in &self.steps {
-            deps.append(&mut step.remote_deps().await);
+            deps.append(&mut step.remote_deps(manager).await);
         }
         deps
     }
@@ -98,8 +98,8 @@ impl<'a> Dependencies<'a> for Job {
     }
 
     async fn all(&'a self, manager: &PackageManager, fs: &FileSystem) -> Vec<Dependency<'a>> {
-        let mut deps = self.local_deps(manager, fs).await;
-        deps.append(&mut self.remote_deps().await);
+        let mut deps = self.local_deps(fs).await;
+        deps.append(&mut self.remote_deps(manager).await);
         deps
     }
 }
