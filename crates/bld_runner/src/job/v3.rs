@@ -1,7 +1,7 @@
 use crate::{runs_on::v3::RunsOn, step::v3::Step};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use std::collections::HashSet;
+use uuid::Uuid;
 
 #[cfg(feature = "all")]
 use {
@@ -10,8 +10,7 @@ use {
         expr::v3::{
             parser::Rule,
             traits::{
-                EvalObject, ExprValue, ReadonlyRuntimeExprContext,
-                WritableRuntimeExprContext,
+                EvalObject, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
             },
         },
         validator::v3::{Validate, ValidatorContext},
@@ -69,10 +68,7 @@ impl Default for Job {
 
 #[cfg(feature = "all")]
 impl<'a> Dependencies<'a> for Job {
-    async fn local_deps(
-        &'a self,
-        fs: &FileSystem,
-    ) -> Vec<Dependency<'a>> {
+    async fn local_deps(&'a self, fs: &FileSystem) -> Vec<Dependency<'a>> {
         let mut deps = vec![];
         for step in &self.steps {
             deps.append(&mut step.local_deps(fs).await);
@@ -116,9 +112,7 @@ impl<'a> EvalObject<'a> for Job {
             bail!("no object path present");
         };
         let value = match part.as_span().as_str() {
-            "runs_on" => self
-                .runs_on
-                .eval_object(path, rctx, wctx)?,
+            "runs_on" => self.runs_on.eval_object(path, rctx, wctx)?,
 
             "dispose" => ExprValue::Boolean(self.dispose),
 

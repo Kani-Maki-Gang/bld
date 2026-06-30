@@ -90,10 +90,9 @@ impl<'a> Dependencies<'a> for Step {
     async fn local_deps(&'a self, fs: &FileSystem) -> Vec<Dependency<'a>> {
         if let Self::ExternalFile(external) = self
             && external.server.is_none()
+            && matches!(fs.path(&external.uses).await.map(|x| x.is_yaml()), Ok(true))
         {
-            if matches!(fs.path(&external.uses).await.map(|x| x.is_yaml()), Ok(true)) {
-                return vec![Dependency::LocalFile(&external.uses)];
-            }
+            return vec![Dependency::LocalFile(&external.uses)];
         }
 
         vec![]

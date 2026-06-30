@@ -97,10 +97,7 @@ impl IntoVariables for Action {
 
 #[cfg(feature = "all")]
 impl<'a> Dependencies<'a> for Action {
-    async fn local_deps(
-        &'a self,
-        fs: &FileSystem,
-    ) -> Vec<Dependency<'a>> {
+    async fn local_deps(&'a self, fs: &FileSystem) -> Vec<Dependency<'a>> {
         let mut dependecies = vec![];
         for step in &self.steps {
             dependecies.append(&mut step.local_deps(fs).await);

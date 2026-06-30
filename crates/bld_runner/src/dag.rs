@@ -282,10 +282,7 @@ mod tests {
         let a = node_idx(&dag, "a");
         assert_eq!(dag.nodes[a].needs, Vec::<String>::new());
         assert_eq!(dag.nodes[node_idx(&dag, "b")].needs, vec!["a".to_string()]);
-        assert_eq!(
-            sorted_edges(&dag),
-            vec![("a".to_string(), "b".to_string())]
-        );
+        assert_eq!(sorted_edges(&dag), vec![("a".to_string(), "b".to_string())]);
     }
 
     #[test]
@@ -365,8 +362,8 @@ mod tests {
 
     #[test]
     fn self_cycle_is_rejected() {
-        let err = Dag::try_from(&pipeline(&[("a", job(&["a"]))]))
-            .expect_err("self cycle must fail");
+        let err =
+            Dag::try_from(&pipeline(&[("a", job(&["a"]))])).expect_err("self cycle must fail");
         assert!(
             err.to_string().contains("cyclic dependency"),
             "unexpected message: {err}"
@@ -378,8 +375,14 @@ mod tests {
         let err = Dag::try_from(&pipeline(&[("a", job(&["b"])), ("b", job(&["a"]))]))
             .expect_err("two node cycle must fail");
         let msg = err.to_string();
-        assert!(msg.contains("cyclic dependency"), "unexpected message: {msg}");
-        assert!(msg.contains('a') && msg.contains('b'), "should name jobs: {msg}");
+        assert!(
+            msg.contains("cyclic dependency"),
+            "unexpected message: {msg}"
+        );
+        assert!(
+            msg.contains('a') && msg.contains('b'),
+            "should name jobs: {msg}"
+        );
     }
 
     #[test]
@@ -398,8 +401,7 @@ mod tests {
 
     #[test]
     fn independent_roots_share_first_layer() {
-        let dag =
-            Dag::try_from(&pipeline(&[("a", job(&[])), ("b", job(&[]))])).expect("valid");
+        let dag = Dag::try_from(&pipeline(&[("a", job(&[])), ("b", job(&[]))])).expect("valid");
         assert_eq!(
             sorted_layers(&dag),
             vec![vec!["a".to_string(), "b".to_string()]]
