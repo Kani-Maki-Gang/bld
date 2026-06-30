@@ -2,15 +2,11 @@ use std::{fmt::Write, sync::Arc, time::Duration};
 
 use actix_web::rt::spawn;
 use anyhow::{Result, anyhow, bail};
-use bld_config::{BldConfig, SshUserAuth};
+use bld_config::BldConfig;
 use bld_core::{
     context::Context,
     fs::FileSystem,
     logger::Logger,
-    platform::{
-        Image, Platform, SshAuthOptions, SshConnectOptions,
-        builder::{PlatformBuilder, PlatformOptions},
-    },
     regex::RegexCache,
     signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend},
 };
@@ -22,11 +18,13 @@ use tokio::{sync::mpsc::Sender, time::sleep};
 use tracing::debug;
 
 use crate::{
+    dag::Dag,
     expr::v3::context::CommonReadonlyRuntimeExprContext,
     pipeline::v3::Pipeline,
-    registry::v3::Registry,
-    runner::v3::state::{JobState, RootState},
-    runs_on::v3::RunsOn,
+    runner::v3::{
+        job::JobRunnerOptions,
+        state::{JobState, RootState},
+    },
 };
 
 use super::{
@@ -43,7 +41,7 @@ pub struct PipelineRunner {
     pub expr_regex: Arc<Regex>,
     pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
     pub pipeline: Arc<Pipeline>,
-    pub platform: Arc<Platform>,
+    pub dag: Dag,
     pub signals: Option<UnixSignalsBackend>,
     pub package_manager: Arc<PackageManager>,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
@@ -78,18 +76,6 @@ impl PipelineRunner {
         Ok(())
     }
 
-    async fn dispose_platform(&self) -> Result<()> {
-        if self.pipeline.dispose {
-            debug!("executing dispose operations for platform");
-            self.platform.dispose(self.is_child).await?;
-        } else {
-            debug!("keeping platform alive");
-            self.platform.keep_alive().await?;
-        }
-
-        self.run_ctx.remove_platform(self.platform.id()).await
-    }
-
     async fn ipc_send_completed(&self) -> Result<()> {
         if !self.is_child
             && let Some(ipc) = Option::as_ref(&self.ipc)
@@ -108,7 +94,6 @@ impl PipelineRunner {
         if let Some(name) = &self.pipeline.name {
             writeln!(message, "{:<15}: {name}", "Name")?;
         }
-        writeln!(message, "{:<15}: {}", "Runs on", &self.pipeline.runs_on)?;
         writeln!(message, "{:<15}: 3", "Version")?;
 
         self.logger.write_line(message).await
@@ -123,48 +108,53 @@ impl PipelineRunner {
     async fn stop(&self) -> Result<()> {
         debug!("starting cleanup operations for runner");
         self.register_completion().await?;
-        self.dispose_platform().await?;
         self.ipc_send_completed().await?;
         Ok(())
     }
 
-    fn create_job(&self, name: &str, logger: Arc<Logger>, state: JobState) -> JobRunner<JobState> {
-        JobRunner {
+    async fn create_job(
+        &self,
+        name: &str,
+        logger: Arc<Logger>,
+        state: JobState,
+    ) -> Result<JobRunner<JobState>> {
+        let options = JobRunnerOptions {
             job_name: name.to_string(),
             logger: logger.clone(),
             config: self.config.clone(),
             fs: self.fs.clone(),
             run_ctx: self.run_ctx.clone(),
             pipeline: self.pipeline.clone(),
-            platform: self.platform.clone(),
             regex_cache: self.regex_cache.clone(),
             expr_regex: self.expr_regex.clone(),
             expr_rctx: self.expr_rctx.clone(),
             package_manager: self.package_manager.clone(),
+            is_child: self.is_child,
             state,
-        }
+        };
+        JobRunner::new(options).await
     }
 
     fn create_job_state(&self, name: &str) -> Result<JobState> {
         let mut state = JobState::new(name);
-        let Some(steps) = self.pipeline.jobs.get(name) else {
+        let Some(job) = self.pipeline.jobs.get(name) else {
             bail!("job with name {name} not found");
         };
-        for step in steps {
+        for step in &job.steps {
             state.add_node(step.id());
         }
         Ok(state)
     }
 
-    async fn prepare_jobs(&self) -> Result<Vec<Option<RunningJob>>> {
+    async fn prepare_jobs(&self, names: &[String]) -> Result<Vec<Option<RunningJob>>> {
         let mut jobs = Vec::new();
-        for name in self.pipeline.jobs.keys() {
+        for name in names {
             self.logger
                 .write_line(format!("{:<15}: {}", "Running job", name))
                 .await?;
             let logger = Logger::in_memory().into_arc();
             let state = self.create_job_state(name)?;
-            let job = self.create_job(name, logger.clone(), state);
+            let job = self.create_job(name, logger.clone(), state).await?;
             let handle = spawn(job.run());
             jobs.push(Some(RunningJob::new(name, handle, logger)));
         }
@@ -178,14 +168,15 @@ impl PipelineRunner {
         debug!("found only one job so running it in the current context");
         let state = self.create_job_state(name)?;
         self.create_job(name, self.logger.clone(), state)
+            .await?
             .run()
             .await
             .map(|_| ())
     }
 
-    async fn run_all_jobs(&self) -> Result<()> {
+    async fn run_layer(&self, names: &[String]) -> Result<()> {
         let mut result = Ok(());
-        let mut running_jobs = self.prepare_jobs().await?;
+        let mut running_jobs = self.prepare_jobs(names).await?;
 
         while running_jobs.iter().any(|x| x.is_some()) {
             for job in running_jobs.iter_mut() {
@@ -221,6 +212,13 @@ impl PipelineRunner {
         }
 
         result.map_err(|_| anyhow!("One or more jobs completed with errors"))
+    }
+
+    async fn run_all_jobs(&self) -> Result<()> {
+        for layer in self.dag.layers() {
+            self.run_layer(&layer).await?;
+        }
+        Ok(())
     }
 
     async fn jobs(&self) -> Result<()> {
@@ -304,110 +302,4 @@ impl PipelineRunner {
             }
         })
     }
-}
-
-pub async fn build_platform(
-    pipeline: Arc<Pipeline>,
-    config: Arc<BldConfig>,
-    logger: Arc<Logger>,
-    run_ctx: Arc<Context>,
-    expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
-) -> Result<Arc<Platform>> {
-    let options = match &pipeline.runs_on {
-        RunsOn::ContainerOrMachine(image) if image == "machine" => PlatformOptions::Machine,
-
-        RunsOn::ContainerOrMachine(image) => PlatformOptions::Container {
-            image: Image::Use(image),
-            docker_url: None,
-        },
-
-        RunsOn::Pull {
-            image,
-            pull,
-            docker_url,
-            registry,
-        } => {
-            let image = if pull.unwrap_or_default() {
-                match registry.as_ref() {
-                    Some(Registry::FromConfig(value)) => Image::pull(image, config.registry(value)),
-                    Some(Registry::Full(config)) => Image::pull(image, Some(config)),
-                    None => Image::pull(image, None),
-                }
-            } else {
-                Image::Use(image)
-            };
-            PlatformOptions::Container {
-                docker_url: docker_url.as_deref(),
-                image,
-            }
-        }
-
-        RunsOn::Build {
-            name,
-            tag,
-            dockerfile,
-            docker_url,
-        } => PlatformOptions::Container {
-            image: Image::build(name, dockerfile, tag),
-            docker_url: docker_url.as_deref(),
-        },
-
-        RunsOn::SshFromGlobalConfig { ssh_config } => {
-            let config = config.ssh(ssh_config)?;
-            let port = config.port.parse::<u16>()?;
-            let auth = match &config.userauth {
-                SshUserAuth::Agent => SshAuthOptions::Agent,
-                SshUserAuth::Password { password } => SshAuthOptions::Password { password },
-                SshUserAuth::Keys {
-                    public_key,
-                    private_key,
-                } => SshAuthOptions::Keys {
-                    public_key: public_key.as_deref(),
-                    private_key,
-                },
-            };
-            PlatformOptions::Ssh(SshConnectOptions::new(
-                &config.host,
-                port,
-                &config.user,
-                auth,
-            ))
-        }
-
-        RunsOn::Ssh(config) => {
-            let port = config.port.parse::<u16>()?;
-            let auth = match &config.userauth {
-                SshUserAuth::Agent => SshAuthOptions::Agent,
-                SshUserAuth::Password { password } => SshAuthOptions::Password { password },
-                SshUserAuth::Keys {
-                    public_key,
-                    private_key,
-                } => SshAuthOptions::Keys {
-                    public_key: public_key.as_deref(),
-                    private_key,
-                },
-            };
-            PlatformOptions::Ssh(SshConnectOptions::new(
-                &config.host,
-                port,
-                &config.user,
-                auth,
-            ))
-        }
-    };
-
-    let conn = run_ctx.get_conn();
-    let platform = PlatformBuilder::default()
-        .run_id(&expr_rctx.run_id)
-        .config(config.clone())
-        .options(options)
-        .pipeline_env(&pipeline.env)
-        .env(expr_rctx.env.clone())
-        .logger(logger.clone())
-        .conn(conn)
-        .build()
-        .await?;
-
-    run_ctx.add_platform(platform.clone()).await?;
-    Ok(platform)
 }

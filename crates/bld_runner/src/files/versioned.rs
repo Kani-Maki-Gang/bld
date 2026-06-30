@@ -1,41 +1,28 @@
 use crate::pipeline::{v1, v2};
 use crate::traits::{IntoVariables, Variables};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 use super::v3 as files_v3;
 
 #[cfg(feature = "all")]
-use std::collections::HashMap;
-use std::collections::HashSet;
-
-#[cfg(feature = "all")]
-use crate::{
-    traits::Dependencies,
-    validator::v1 as validator_v1,
-    validator::v2 as validator_v2,
-    validator::v3::{self as validator_v3, ConsumeValidator},
+use {
+    crate::{
+        deps::v3::Dependencies as Dependencies_v3,
+        traits::Dependencies,
+        validator::v1 as validator_v1,
+        validator::v2 as validator_v2,
+        validator::v3::{self as validator_v3, ConsumeValidator},
+    },
+    anyhow::{Result, anyhow},
+    bld_config::BldConfig,
+    bld_core::fs::FileSystem,
+    bld_pkg::PackageManager,
+    futures::Future,
+    std::collections::HashMap,
+    std::{fmt::Write, pin::Pin, sync::Arc},
+    tracing::debug,
 };
-
-#[cfg(feature = "all")]
-use anyhow::{Result, anyhow};
-
-#[cfg(feature = "all")]
-use bld_config::BldConfig;
-
-#[cfg(feature = "all")]
-use bld_core::fs::FileSystem;
-
-#[cfg(feature = "all")]
-use bld_pkg::PackageManager;
-
-#[cfg(feature = "all")]
-use futures::Future;
-
-#[cfg(feature = "all")]
-use std::{fmt::Write, pin::Pin, sync::Arc};
-
-#[cfg(feature = "all")]
-use tracing::debug;
 
 #[cfg(feature = "all")]
 type DependenciesRecursiveFuture = Pin<Box<dyn Future<Output = Result<HashMap<String, String>>>>>;
@@ -185,8 +172,6 @@ impl VersionedFile {
         package_manager: Arc<PackageManager>,
         name: String,
     ) -> DependenciesRecursiveFuture {
-        use crate::traits::Dependencies;
-
         Box::pin(async move {
             debug!("Parsing pipeline {name}");
             let loader = VersionedFileLoader::new(&package_manager, &fs, false);
@@ -272,15 +257,19 @@ impl VersionedFile {
             .await
             .map_err(|_| anyhow!("Pipeline has expression errors"))
     }
-}
 
-#[cfg(feature = "all")]
-impl Dependencies for VersionedFile {
+    #[cfg(feature = "all")]
     async fn local_deps(&self, config: &BldConfig, fs: &FileSystem) -> Vec<String> {
         match self {
             Self::Version1(pip) => pip.local_deps(config, fs).await,
             Self::Version2(pip) => pip.local_deps(config, fs).await,
-            Self::Version3(file) => file.local_deps(config, fs).await,
+            Self::Version3(file) => file
+                .local_deps(fs)
+                .await
+                .into_iter()
+                .flat_map(|x| x.get_local())
+                .map(|x| x.to_owned())
+                .collect(),
         }
     }
 }

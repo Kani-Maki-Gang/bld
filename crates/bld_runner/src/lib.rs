@@ -1,8 +1,11 @@
 pub mod action;
 pub mod artifacts;
+pub mod dag;
+pub mod deps;
 pub mod external;
 pub mod files;
 pub mod inputs;
+pub mod job;
 pub mod pipeline;
 pub mod registry;
 pub mod runs_on;
@@ -20,6 +23,8 @@ mod validator;
 
 #[cfg(feature = "all")]
 mod expr;
+
+pub use dag::{Dag, DagNode, DagRoot};
 
 pub use files::versioned::VersionedFile;
 

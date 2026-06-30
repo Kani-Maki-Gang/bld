@@ -1,23 +1,19 @@
 use crate::{
     inputs::v3::Input,
-    runs_on::v3::RunsOn,
-    step::v3::Step,
+    job::v3::Job,
     traits::{IntoVariables, Variables},
 };
 #[cfg(feature = "all")]
-use bld_config::definitions::{
-    KEYWORD_BLD_DIR_V3, KEYWORD_PROJECT_DIR_V3, KEYWORD_RUN_PROPS_ID_V3,
-    KEYWORD_RUN_PROPS_START_TIME_V3,
-};
+use bld_core::fs::FileSystem;
+#[cfg(feature = "all")]
+use bld_pkg::PackageManager;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 #[cfg(feature = "all")]
-use std::iter::Peekable;
-
-#[cfg(feature = "all")]
 use {
     crate::{
+        deps::v3::{Dependencies, Dependency},
         expr::v3::{
             parser::Rule,
             traits::{
@@ -28,20 +24,21 @@ use {
         validator::v3::{Validate, ValidatorContext},
     },
     anyhow::{Result, anyhow, bail},
+    bld_config::definitions::{
+        KEYWORD_BLD_DIR_V3, KEYWORD_PROJECT_DIR_V3, KEYWORD_RUN_PROPS_ID_V3,
+        KEYWORD_RUN_PROPS_START_TIME_V3,
+    },
     cron::Schedule,
     pest::iterators::Pairs,
-    std::str::FromStr,
+    std::{iter::Peekable, str::FromStr},
     tracing::debug,
 };
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Pipeline {
     pub name: Option<String>,
-    pub runs_on: RunsOn,
-    pub cron: Option<String>,
 
-    #[serde(default = "Pipeline::default_dispose")]
-    pub dispose: bool,
+    pub cron: Option<String>,
 
     #[serde(default)]
     pub env: HashMap<String, String>,
@@ -50,14 +47,10 @@ pub struct Pipeline {
     pub inputs: HashMap<String, Input>,
 
     #[serde(default)]
-    pub jobs: HashMap<String, Vec<Step>>,
+    pub jobs: HashMap<String, Job>,
 }
 
 impl Pipeline {
-    fn default_dispose() -> bool {
-        true
-    }
-
     pub fn inputs_map(&self) -> HashMap<String, String> {
         let mut inputs = HashMap::new();
         for (name, input) in &self.inputs {
@@ -110,19 +103,17 @@ impl Pipeline {
             ctx.append_error("Pipeline must have at least one job defined");
         }
 
-        for (job, steps) in &self.jobs {
-            ctx.push_job_section(job);
-            debug!("Validating {job} job's steps");
-            let mut step_ids = HashSet::new();
-            for step in steps {
-                let step_id = step.id();
-                if !step_ids.insert(step_id) {
-                    ctx.push_section(step_id);
-                    ctx.append_error(&format!("Duplicate step id '{step_id}' found in job"));
-                    ctx.pop_section();
-                }
-                step.validate(ctx).await;
+        let mut job_ids = HashSet::new();
+        for (name, job) in &self.jobs {
+            ctx.push_job_section(name);
+            debug!("Validating {name} job's steps");
+            let job_id = &job.id;
+            if !job_ids.insert(job_id) {
+                ctx.push_section(job_id);
+                ctx.append_error(&format!("Duplicate job id '{job_id}' found"));
+                ctx.pop_section();
             }
+            job.validate(ctx).await;
             ctx.pop_section();
         }
         ctx.pop_section();
@@ -150,6 +141,39 @@ impl IntoVariables for Pipeline {
 }
 
 #[cfg(feature = "all")]
+impl<'a> Dependencies<'a> for Pipeline {
+    async fn local_deps(&'a self, fs: &FileSystem) -> Vec<Dependency<'a>> {
+        let mut dependecies = vec![];
+        for job in self.jobs.values() {
+            dependecies.append(&mut job.local_deps(fs).await);
+        }
+        dependecies
+    }
+
+    async fn remote_deps(&'a self, manager: &PackageManager) -> Vec<Dependency<'a>> {
+        let mut dependecies = vec![];
+        for job in self.jobs.values() {
+            dependecies.append(&mut job.remote_deps(manager).await);
+        }
+        dependecies
+    }
+
+    async fn jobs(&'a self) -> Vec<Dependency<'a>> {
+        let mut set = HashSet::new();
+        for name in self.jobs.keys() {
+            set.insert(name.as_str());
+        }
+        set.into_iter().map(Dependency::Job).collect()
+    }
+
+    async fn all(&'a self, manager: &PackageManager, fs: &FileSystem) -> Vec<Dependency<'a>> {
+        let mut deps = self.local_deps(fs).await;
+        deps.append(&mut self.remote_deps(manager).await);
+        deps
+    }
+}
+
+#[cfg(feature = "all")]
 impl<'a> EvalObject<'a> for Pipeline {
     fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
         &'a self,
@@ -161,8 +185,8 @@ impl<'a> EvalObject<'a> for Pipeline {
             bail!("no object path present");
         };
 
-        let mut object_parts = object.into_inner();
-        let Some(part) = object_parts.next() else {
+        let mut object_parts = object.into_inner().peekable();
+        let Some(part) = object_parts.peek() else {
             bail!("expected at least one part in the object path");
         };
 
@@ -172,19 +196,13 @@ impl<'a> EvalObject<'a> for Pipeline {
                 Ok(ExprValue::Text(ExprText::Ref(name)))
             }
 
-            "runs_on" => self
-                .runs_on
-                .eval_object(&mut object_parts.peekable(), rctx, wctx),
-
-            "dispose" => Ok(ExprValue::Boolean(self.dispose)),
-
             "cron" => {
                 let cron = self.cron.as_ref().map_or("", |x| x.as_str());
                 Ok(ExprValue::Text(ExprText::Ref(cron)))
             }
 
             "inputs" => {
-                let Some(part) = object_parts.next() else {
+                let Some(part) = object_parts.nth(1) else {
                     bail!("expected name of input in object path");
                 };
                 let name = part.as_span().as_str();
@@ -200,7 +218,7 @@ impl<'a> EvalObject<'a> for Pipeline {
             }
 
             "env" => {
-                let Some(part) = object_parts.next() else {
+                let Some(part) = object_parts.nth(1) else {
                     bail!("expected name of env variable in object path");
                 };
                 let name = part.as_span().as_str();
@@ -212,24 +230,6 @@ impl<'a> EvalObject<'a> for Pipeline {
                             .ok_or_else(|| anyhow!("env variable '{name}' not found"))
                     })
                     .map(|x| ExprValue::Text(ExprText::Ref(x)))
-            }
-
-            "steps" => {
-                let Some(step_id) = object_parts.next() else {
-                    bail!("expected id for step in expression");
-                };
-
-                let step_id = step_id.as_span().as_str();
-
-                let Some(job) = wctx.get_exec_id().and_then(|id| self.jobs.get(id)) else {
-                    bail!("unable to find executing job id");
-                };
-
-                let Some(step) = job.iter().find(|x| x.is(step_id)) else {
-                    bail!("step with id {step_id} not defined");
-                };
-
-                step.eval_object(&mut object_parts.peekable(), rctx, wctx)
             }
 
             // Keywords section
@@ -249,7 +249,13 @@ impl<'a> EvalObject<'a> for Pipeline {
                 Ok(ExprValue::Text(ExprText::Ref(rctx.get_run_start_time())))
             }
 
-            value => bail!("invalid expression identifier '{value}'"),
+            // Move evaluation to the job level
+            _ => {
+                let Some(job) = wctx.get_exec_id().and_then(|id| self.jobs.get(id)) else {
+                    bail!("unable to find executing job id");
+                };
+                job.eval_object(&mut object_parts, rctx, wctx)
+            }
         }
     }
 }
@@ -265,11 +271,6 @@ impl<'a> Validate<'a> for Pipeline {
             ctx.validate_expressions(name);
             ctx.pop_section();
         }
-
-        debug!("Validating pipeline's runs_on section");
-        ctx.push_section("runs_on");
-        self.runs_on.validate(ctx).await;
-        ctx.pop_section();
 
         debug!("Validating pipeline's cron value");
         self.validate_cron(ctx);
@@ -361,28 +362,6 @@ mod tests {
                 .map(|x| ExprValue::Text(ExprText::Ref(x)))
                 .unwrap_or_else(|| ExprValue::Text(ExprText::Ref("")));
 
-            assert!(matches!(
-                value.try_eq(&expected),
-                Ok(ExprValue::Boolean(true))
-            ));
-        }
-    }
-
-    #[test]
-    pub fn dispose_expr_eval_success() {
-        let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut pipeline = Pipeline::default();
-        let data = vec![true, false];
-
-        for entry in data {
-            pipeline.dispose = entry;
-
-            let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
-            let Ok(value) = exec.eval("${{ dispose }}") else {
-                panic!("result is an error during expression evaluation");
-            };
-            let expected = ExprValue::Boolean(entry);
             assert!(matches!(
                 value.try_eq(&expected),
                 Ok(ExprValue::Boolean(true))

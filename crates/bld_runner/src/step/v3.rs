@@ -1,14 +1,13 @@
 use crate::external::v3::External;
 #[cfg(feature = "all")]
 use bld_core::fs::FileSystem;
+#[cfg(feature = "all")]
+use bld_pkg::PackageManager;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[cfg(feature = "all")]
 use std::iter::Peekable;
-
-#[cfg(feature = "all")]
-use bld_config::BldConfig;
 
 #[cfg(feature = "all")]
 use bld_utils::fs::IsYaml;
@@ -24,13 +23,13 @@ use anyhow::{Result, bail};
 
 #[cfg(feature = "all")]
 use crate::{
+    deps::v3::{Dependencies, Dependency, RemoteDependency},
     expr::v3::{
         parser::Rule,
         traits::{
             EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
         },
     },
-    traits::Dependencies,
     validator::v3::{Validate, ValidatorContext},
 };
 
@@ -87,18 +86,37 @@ impl Step {
 }
 
 #[cfg(feature = "all")]
-impl Dependencies for Step {
-    async fn local_deps(&self, _config: &BldConfig, fs: &FileSystem) -> Vec<String> {
-        match self {
-            Self::ExternalFile(external) => {
-                if matches!(fs.path(&external.uses).await.map(|x| x.is_yaml()), Ok(true)) {
-                    vec![external.uses.to_owned()]
-                } else {
-                    vec![]
-                }
-            }
-            Self::ComplexSh { .. } => vec![],
+impl<'a> Dependencies<'a> for Step {
+    async fn local_deps(&'a self, fs: &FileSystem) -> Vec<Dependency<'a>> {
+        if let Self::ExternalFile(external) = self
+            && external.server.is_none()
+            && matches!(fs.path(&external.uses).await.map(|x| x.is_yaml()), Ok(true))
+        {
+            return vec![Dependency::LocalFile(&external.uses)];
         }
+
+        vec![]
+    }
+
+    async fn remote_deps(&'a self, manager: &PackageManager) -> Vec<Dependency<'a>> {
+        if let Self::ExternalFile(external) = self {
+            return vec![Dependency::Remote(Box::new(RemoteDependency::new(
+                external.server.as_deref(),
+                external.uses.as_str(),
+                manager.is_package(&external.uses),
+            )))];
+        }
+        vec![]
+    }
+
+    async fn jobs(&'a self) -> Vec<Dependency<'a>> {
+        vec![]
+    }
+
+    async fn all(&'a self, manager: &PackageManager, fs: &FileSystem) -> Vec<Dependency<'a>> {
+        let mut deps = self.local_deps(fs).await;
+        deps.append(&mut self.remote_deps(manager).await);
+        deps
     }
 }
 
@@ -205,6 +223,7 @@ mod tests {
             exec::CommonExprExecutor,
             traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext},
         },
+        job::v3::Job,
         pipeline::v3::Pipeline,
         step::v3::{ShellCommand, Step},
     };
@@ -216,32 +235,38 @@ mod tests {
         let mut pipeline = Pipeline::default();
         pipeline.jobs.insert(
             "main".to_string(),
-            vec![
-                Step::ComplexSh(Box::new(ShellCommand {
-                    id: "second".to_string(),
-                    name: Some("second_name".to_string()),
-                    working_dir: Some("some_second_working_directory".to_string()),
-                    run: "second_run_command".to_string(),
-                    condition: Some("second_condition".to_string()),
-                })),
-                Step::ComplexSh(Box::new(ShellCommand {
-                    id: "third".to_string(),
-                    name: Some("third_name".to_string()),
-                    working_dir: Some("some_third_working_directory".to_string()),
-                    run: "third_run_command".to_string(),
-                    condition: Some("third_condition".to_string()),
-                })),
-            ],
+            Job {
+                steps: vec![
+                    Step::ComplexSh(Box::new(ShellCommand {
+                        id: "second".to_string(),
+                        name: Some("second_name".to_string()),
+                        working_dir: Some("some_second_working_directory".to_string()),
+                        run: "second_run_command".to_string(),
+                        condition: Some("second_condition".to_string()),
+                    })),
+                    Step::ComplexSh(Box::new(ShellCommand {
+                        id: "third".to_string(),
+                        name: Some("third_name".to_string()),
+                        working_dir: Some("some_third_working_directory".to_string()),
+                        run: "third_run_command".to_string(),
+                        condition: Some("third_condition".to_string()),
+                    })),
+                ],
+                ..Default::default()
+            },
         );
         pipeline.jobs.insert(
             "backup".to_string(),
-            vec![Step::ComplexSh(Box::new(ShellCommand {
-                id: "first".to_string(),
-                name: Some("first_name".to_string()),
-                working_dir: Some("some_first_working_directory".to_string()),
-                run: "first_run_command".to_string(),
-                condition: Some("first_condition".to_string()),
-            }))],
+            Job {
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "first".to_string(),
+                    name: Some("first_name".to_string()),
+                    working_dir: Some("some_first_working_directory".to_string()),
+                    run: "first_run_command".to_string(),
+                    condition: Some("first_condition".to_string()),
+                }))],
+                ..Default::default()
+            },
         );
 
         wctx.expect_get_exec_id().returning_st(|| Some("main"));
@@ -422,28 +447,39 @@ mod tests {
 
     #[test]
     pub fn jobs_external_step_expr_eval_success() {
-        let wctx = MockWritableRuntimeExprContext::default();
+        let mut wctx = MockWritableRuntimeExprContext::default();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut pipeline = Pipeline::default();
         pipeline.jobs.insert(
             "main".to_string(),
-            vec![
-                Step::ExternalFile(Box::default()),
-                Step::ExternalFile(Box::default()),
-            ],
+            Job {
+                steps: vec![
+                    Step::ExternalFile(Box::default()),
+                    Step::ExternalFile(Box::default()),
+                ],
+                ..Default::default()
+            },
         );
         pipeline.jobs.insert(
             "backup".to_string(),
-            vec![Step::ExternalFile(Box::default())],
+            Job {
+                steps: vec![Step::ExternalFile(Box::default())],
+                ..Default::default()
+            },
         );
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
+        wctx.expect_get_exec_id().returning_st(|| Some("main"));
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
         let actual = exec.eval("${{ jobs.main.first }}");
         assert!(actual.is_err());
 
+        wctx.expect_get_exec_id().returning_st(|| Some("main"));
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
         let actual = exec.eval("${{ jobs.main.second }}");
         assert!(actual.is_err());
 
+        wctx.expect_get_exec_id().returning_st(|| Some("backup"));
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
         let actual = exec.eval("${{ jobs.backup.third }}");
         assert!(actual.is_err());
     }
@@ -507,11 +543,11 @@ mod tests {
 
         for (job, steps) in data.iter() {
             if !pipeline.jobs.contains_key(*job) {
-                pipeline.jobs.insert(job.to_string(), vec![]);
+                pipeline.jobs.insert(job.to_string(), Job::default());
             }
 
             for (step, outputs) in steps.iter() {
-                let job_steps = pipeline.jobs.get_mut(*job).unwrap();
+                let job_steps = &mut pipeline.jobs.get_mut(*job).unwrap().steps;
                 if job_steps.iter().find(|x| x.is(step)).is_none() {
                     job_steps.push(Step::ComplexSh(Box::new(ShellCommand {
                         id: step.to_string(),
