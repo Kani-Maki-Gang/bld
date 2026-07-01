@@ -1,4 +1,4 @@
-use crate::external::v3::External;
+use crate::{artifacts::v3::{DownloadArtifact, UploadArtifact}, external::v3::External};
 #[cfg(feature = "all")]
 use bld_core::fs::FileSystem;
 #[cfg(feature = "all")]
@@ -67,6 +67,8 @@ impl Default for ShellCommand {
 pub enum Step {
     ComplexSh(Box<ShellCommand>),
     ExternalFile(Box<External>),
+    DownloadArtifact(Box<DownloadArtifact>),
+    UploadArtifact(Box<UploadArtifact>),
 }
 
 impl Step {
@@ -81,6 +83,8 @@ impl Step {
         match self {
             Self::ComplexSh(cmd) => &cmd.id,
             Self::ExternalFile(ext) => &ext.id,
+            Self::DownloadArtifact(value) => &value.id,
+            Self::UploadArtifact(value) => &value.id,
         }
     }
 }
