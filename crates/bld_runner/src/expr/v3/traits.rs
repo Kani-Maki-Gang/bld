@@ -156,6 +156,8 @@ pub trait WritableRuntimeExprContext {
     fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<&'a str>;
     fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
     fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
+    fn get_artifact<'a>(&'a self, name: &str) -> Option<&'a str>;
+    fn set_artifact(&mut self, name: String, value: String) -> ();
 }
 
 pub trait EvalObject<'a> {

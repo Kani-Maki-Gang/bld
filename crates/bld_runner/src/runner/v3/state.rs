@@ -88,6 +88,12 @@ impl WritableRuntimeExprContext for StepState {
         self.outputs = outputs;
         Ok(())
     }
+
+    fn get_artifact<'a>(&'a self, _name: &str) -> Option<&'a str> {
+        None
+    }
+
+    fn set_artifact(&mut self, _name: String, _value: String) {}
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -95,6 +101,7 @@ pub struct JobState {
     id: String,
     state: State,
     steps: HashMap<String, StepState>,
+    artifacts: HashMap<String, String>,
 }
 
 impl JobState {
@@ -157,12 +164,21 @@ impl WritableRuntimeExprContext for JobState {
         };
         step_state.set_outputs(id, outputs)
     }
+
+    fn get_artifact<'a>(&'a self, name: &str) -> Option<&'a str> {
+        self.artifacts.get(name).map(|x| x.as_str())
+    }
+
+    fn set_artifact(&mut self, name: String, value: String) {
+        self.artifacts.insert(name, value);
+    }
 }
 
 pub struct ActionState {
     id: String,
     state: State,
     steps: HashMap<String, StepState>,
+    artifacts: HashMap<String, String>,
 }
 
 impl Default for ActionState {
@@ -171,6 +187,7 @@ impl Default for ActionState {
             id: Uuid::new_v4().to_string(),
             state: State::Default,
             steps: HashMap::new(),
+            artifacts: HashMap::new(),
         }
     }
 }
@@ -226,6 +243,14 @@ impl WritableRuntimeExprContext for ActionState {
         };
         step_state.set_outputs(id, outputs)
     }
+
+    fn get_artifact<'a>(&'a self, name: &str) -> Option<&'a str> {
+        self.artifacts.get(name).map(|x| x.as_str())
+    }
+
+    fn set_artifact(&mut self, name: String, value: String) {
+        self.artifacts.insert(name, value);
+    }
 }
 
 mock! {
@@ -244,6 +269,8 @@ mock! {
         fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<&'a str>;
         fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
         fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
+        fn get_artifact<'a>(&'a self, name: &str) -> Option<&'a str>;
+        fn set_artifact(&mut self, name: String, value: String) -> ();
     }
 }
 
@@ -366,6 +393,7 @@ mod tests {
                 id: id.clone(),
                 state: state.clone(),
                 steps: HashMap::new(),
+                artifacts: HashMap::new(),
             };
             let mut actual = JobState::new(&id);
             actual.update_state(state);
@@ -400,6 +428,7 @@ mod tests {
             id: job_id.clone(),
             state: State::Default,
             steps: HashMap::new(),
+            artifacts: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),
@@ -428,6 +457,7 @@ mod tests {
             id: job_id.clone(),
             state: State::Default,
             steps: HashMap::new(),
+            artifacts: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),
@@ -456,6 +486,7 @@ mod tests {
             id: job_id.clone(),
             state: State::Default,
             steps: HashMap::new(),
+            artifacts: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),
@@ -496,6 +527,7 @@ mod tests {
             id: action_id.clone(),
             state: State::Default,
             steps: HashMap::new(),
+            artifacts: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),
@@ -524,6 +556,7 @@ mod tests {
             id: action_id.clone(),
             state: State::Default,
             steps: HashMap::new(),
+            artifacts: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),
@@ -552,6 +585,7 @@ mod tests {
             id: action_id.clone(),
             state: State::Default,
             steps: HashMap::new(),
+            artifacts: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),

@@ -21,19 +21,11 @@ use tokio::task::JoinHandle;
 use tracing::debug;
 
 use crate::{
-    RunnerBuilder,
-    expr::v3::{
+    RunnerBuilder, artifacts::v3::{DownloadArtifact, UploadArtifact}, expr::v3::{
         context::CommonReadonlyRuntimeExprContext,
         exec::CommonExprExecutor,
         traits::{EvalExpr, ExprValue},
-    },
-    external::v3::External,
-    job::v3::Job,
-    pipeline::v3::Pipeline,
-    registry::v3::Registry,
-    runner::v3::state::{JobState, RootState, State},
-    runs_on::v3::RunsOn,
-    step::v3::{ShellCommand, Step},
+    }, external::v3::External, job::v3::Job, pipeline::v3::Pipeline, registry::v3::Registry, runner::v3::state::{JobState, RootState, State}, runs_on::v3::RunsOn, step::v3::{ShellCommand, Step}
 };
 
 pub struct JobRunnerOptions<S: RootState> {
@@ -134,6 +126,8 @@ impl<S: RootState> JobRunner<S> {
         let result = match step {
             Step::ComplexSh(complex) => self.complex_shell(complex).await,
             Step::ExternalFile(external) => self.external(external).await,
+            Step::DownloadArtifact(download) => self.download_artifact(download).await,
+            Step::UploadArtifact(upload) => self.upload_artifact(upload).await,
         };
         result
             .inspect(|_| {
@@ -184,6 +178,14 @@ impl<S: RootState> JobRunner<S> {
         };
 
         Ok(())
+    }
+
+    async fn download_artifact(&mut self, _download: &DownloadArtifact) -> Result<()> {
+        unimplemented!()
+    }
+
+    async fn upload_artifact(&mut self, _upload: &UploadArtifact) -> Result<()> {
+        unimplemented!()
     }
 
     async fn local_external(&mut self, details: &External) -> Result<()> {

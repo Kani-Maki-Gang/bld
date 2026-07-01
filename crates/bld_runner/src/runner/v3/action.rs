@@ -95,6 +95,12 @@ impl<S: RootState> ActionRunner<S> {
                 Step::ExternalFile(_external) => {
                     bail!("external calls are not supported in actions")
                 }
+                Step::DownloadArtifact(_) => {
+                    bail!("download artifact calls are not supported in actions")
+                }
+                Step::UploadArtifact(_) => {
+                    bail!("upload artifact calls are not supported in actions")
+                }
             }
             .inspect(|_| self.state.update_node_state(step.id(), State::Completed))
             .inspect_err(|e| {
