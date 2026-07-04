@@ -36,7 +36,9 @@ impl<'a> Validate<'a> for DownloadArtifact {
 
         debug!("Validating artifact's download");
         ctx.push_section("download");
-        ctx.validate_expressions(&self.download);
+        if ctx.contains_expressions(&self.download) {
+            ctx.append_error("Expressions not supported");
+        }
         ctx.pop_section();
     }
 }

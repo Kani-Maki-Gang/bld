@@ -1,6 +1,7 @@
 use anyhow::{Result, anyhow, bail};
 use bld_config::BldConfig;
 use bld_core::{
+    artifacts::Artifacts,
     context::Context,
     fs::FileSystem,
     logger::Logger,
@@ -272,6 +273,8 @@ impl<'a> RunnerBuilder<'a> {
 
                 let expr_regex = Regex::new(expr::v3::parser::EXPR_REGEX)?.into_arc();
 
+                let artifacts = Artifacts::new(config.clone(), &expr_rctx.run_id).into_arc();
+
                 let runner = Box::new(runner::v3::PipelineRunner {
                     config,
                     expr_regex,
@@ -284,6 +287,7 @@ impl<'a> RunnerBuilder<'a> {
                     signals: self.signals,
                     logger: self.logger,
                     package_manager,
+                    artifacts,
                     ipc: self.ipc,
                     is_child: self.is_child,
                     has_faulted: false,

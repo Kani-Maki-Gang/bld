@@ -3,6 +3,7 @@ use std::{collections::HashMap, fmt::Write, sync::Arc};
 use anyhow::{Result, anyhow, bail};
 use bld_config::{BldConfig, SshUserAuth};
 use bld_core::{
+    artifacts::Artifacts,
     context::Context,
     fs::FileSystem,
     logger::Logger,
@@ -21,11 +22,20 @@ use tokio::task::JoinHandle;
 use tracing::debug;
 
 use crate::{
-    RunnerBuilder, artifacts::v3::{DownloadArtifact, UploadArtifact}, expr::v3::{
+    RunnerBuilder,
+    artifacts::v3::{DownloadArtifact, UploadArtifact},
+    expr::v3::{
         context::CommonReadonlyRuntimeExprContext,
         exec::CommonExprExecutor,
         traits::{EvalExpr, ExprValue},
-    }, external::v3::External, job::v3::Job, pipeline::v3::Pipeline, registry::v3::Registry, runner::v3::state::{JobState, RootState, State}, runs_on::v3::RunsOn, step::v3::{ShellCommand, Step}
+    },
+    external::v3::External,
+    job::v3::Job,
+    pipeline::v3::Pipeline,
+    registry::v3::Registry,
+    runner::v3::state::{JobState, RootState, State},
+    runs_on::v3::RunsOn,
+    step::v3::{ShellCommand, Step},
 };
 
 pub struct JobRunnerOptions<S: RootState> {
@@ -39,6 +49,7 @@ pub struct JobRunnerOptions<S: RootState> {
     pub expr_regex: Arc<Regex>,
     pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
     pub package_manager: Arc<PackageManager>,
+    pub artifacts: Arc<Artifacts>,
     pub is_child: bool,
     pub state: S,
 }
@@ -180,12 +191,19 @@ impl<S: RootState> JobRunner<S> {
         Ok(())
     }
 
-    async fn download_artifact(&mut self, _download: &DownloadArtifact) -> Result<()> {
-        unimplemented!()
+    async fn download_artifact(&mut self, download: &DownloadArtifact) -> Result<()> {
+        self.options
+            .artifacts
+            .download(self.platform.clone(), &download.id, &download.download)
+            .await
     }
 
-    async fn upload_artifact(&mut self, _upload: &UploadArtifact) -> Result<()> {
-        unimplemented!()
+    async fn upload_artifact(&mut self, upload: &UploadArtifact) -> Result<()> {
+        let local_path = self.eval_all_expr(&upload.upload)?;
+        self.options
+            .artifacts
+            .upload(self.platform.clone(), &upload.id, &local_path, &upload.to)
+            .await
     }
 
     async fn local_external(&mut self, details: &External) -> Result<()> {
@@ -460,7 +478,8 @@ pub async fn build_platform(
 mod tests {
     use bld_config::BldConfig;
     use bld_core::{
-        context::Context, fs::FileSystem, logger::Logger, platform::Platform, regex::RegexCache,
+        artifacts::Artifacts, context::Context, fs::FileSystem, logger::Logger,
+        platform::Platform, regex::RegexCache,
     };
     use bld_pkg::PackageManager;
     use bld_utils::sync::IntoArc;
@@ -484,6 +503,7 @@ mod tests {
         let fs = FileSystem::local(config.clone()).into_arc();
         let run_ctx = Context::mock().into_arc();
         let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
         let regex_cache = RegexCache::mock().into_arc();
         let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
         let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
@@ -502,6 +522,7 @@ mod tests {
             expr_regex,
             expr_rctx,
             package_manager,
+            artifacts,
             is_child: false,
             state,
         };
@@ -535,6 +556,7 @@ mod tests {
         let run_ctx = Context::mock().into_arc();
         let mut pipeline = Pipeline::default();
         let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
         let regex_cache = RegexCache::mock().into_arc();
         let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
         let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
@@ -598,6 +620,7 @@ mod tests {
             expr_regex,
             expr_rctx,
             package_manager,
+            artifacts,
             is_child: false,
             state,
         };

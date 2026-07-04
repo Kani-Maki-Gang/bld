@@ -4,6 +4,7 @@ use actix_web::rt::spawn;
 use anyhow::{Result, anyhow, bail};
 use bld_config::BldConfig;
 use bld_core::{
+    artifacts::Artifacts,
     context::Context,
     fs::FileSystem,
     logger::Logger,
@@ -15,7 +16,7 @@ use bld_pkg::PackageManager;
 use bld_utils::sync::IntoArc;
 use regex::Regex;
 use tokio::{sync::mpsc::Sender, time::sleep};
-use tracing::debug;
+use tracing::{debug, error};
 
 use crate::{
     dag::Dag,
@@ -44,6 +45,7 @@ pub struct PipelineRunner {
     pub dag: Dag,
     pub signals: Option<UnixSignalsBackend>,
     pub package_manager: Arc<PackageManager>,
+    pub artifacts: Arc<Artifacts>,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
     pub is_child: bool,
     pub has_faulted: bool,
@@ -74,6 +76,16 @@ impl PipelineRunner {
             }
         }
         Ok(())
+    }
+
+    async fn cleanup_artifacts(&self) {
+        if self.is_child {
+            return;
+        }
+        debug!("cleaning up artifacts directory for run");
+        if let Err(e) = Artifacts::cleanup_run(&self.config, &self.expr_rctx.run_id).await {
+            error!("unable to clean up artifacts directory for run: {e}");
+        }
     }
 
     async fn ipc_send_completed(&self) -> Result<()> {
@@ -108,6 +120,7 @@ impl PipelineRunner {
     async fn stop(&self) -> Result<()> {
         debug!("starting cleanup operations for runner");
         self.register_completion().await?;
+        self.cleanup_artifacts().await;
         self.ipc_send_completed().await?;
         Ok(())
     }
@@ -129,6 +142,7 @@ impl PipelineRunner {
             expr_regex: self.expr_regex.clone(),
             expr_rctx: self.expr_rctx.clone(),
             package_manager: self.package_manager.clone(),
+            artifacts: self.artifacts.clone(),
             is_child: self.is_child,
             state,
         };

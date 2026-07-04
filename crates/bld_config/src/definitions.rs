@@ -34,6 +34,7 @@ pub const LOCAL_SUPERVISOR_PORT: i64 = 7080;
 pub const LOCAL_SUPERVISOR_WORKERS: i64 = 5;
 pub const LOCAL_HA_MODE: bool = false;
 pub const LOCAL_LOGS: &str = "logs";
+pub const LOCAL_ARTIFACTS: &str = "artifacts";
 pub const LOCAL_DEFAULT_DB_DIR: &str = "db";
 pub const LOCAL_DEFAULT_DB_NAME: &str = "bld-server.db";
 pub const LOCAL_DOCKER_URL: &str = "tcp://127.0.0.1:2376";

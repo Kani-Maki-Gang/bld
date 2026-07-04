@@ -1,3 +1,4 @@
+pub mod artifacts;
 pub mod context;
 pub mod fs;
 pub mod logger;

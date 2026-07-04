@@ -43,7 +43,9 @@ impl<'a> Validate<'a> for UploadArtifact {
 
         debug!("Validating artifact's to");
         ctx.push_section("to");
-        ctx.validate_expressions(&self.to);
+        if ctx.contains_expressions(&self.to) {
+            ctx.append_error("Expressions not supported");
+        }
         ctx.pop_section();
     }
 }
