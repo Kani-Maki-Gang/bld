@@ -12,6 +12,7 @@ pub struct DownloadArtifact {
     #[serde(default = "DownloadArtifact::default_id")]
     pub id: String,
     pub download: String,
+    pub to: String,
 }
 
 impl DownloadArtifact {
@@ -25,6 +26,7 @@ impl Default for DownloadArtifact {
         Self {
             id: Self::default_id(),
             download: String::new(),
+            to: String::new(),
         }
     }
 }
@@ -34,11 +36,16 @@ impl<'a> Validate<'a> for DownloadArtifact {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         debug!("Validating download artifact {}", self.id);
 
-        debug!("Validating artifact's download");
+        debug!("Validating artifact's download field");
         ctx.push_section("download");
         if ctx.contains_expressions(&self.download) {
             ctx.append_error("Expressions not supported");
         }
+        ctx.pop_section();
+
+        debug!("Validating artifact's to field");
+        ctx.push_section("to");
+        ctx.validate_expressions(&self.to);
         ctx.pop_section();
     }
 }

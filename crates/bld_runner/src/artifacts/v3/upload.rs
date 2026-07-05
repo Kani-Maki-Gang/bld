@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[cfg(feature = "all")]
@@ -12,7 +12,7 @@ pub struct UploadArtifact {
     #[serde(default = "UploadArtifact::default_id")]
     pub id: String,
     pub upload: String,
-    pub to: String,
+    pub name: String,
 }
 
 impl UploadArtifact {
@@ -26,7 +26,7 @@ impl Default for UploadArtifact {
         Self {
             id: Self::default_id(),
             upload: String::new(),
-            to: String::new(),
+            name: String::new(),
         }
     }
 }
@@ -42,8 +42,8 @@ impl<'a> Validate<'a> for UploadArtifact {
         ctx.pop_section();
 
         debug!("Validating artifact's to");
-        ctx.push_section("to");
-        if ctx.contains_expressions(&self.to) {
+        ctx.push_section("name");
+        if ctx.contains_expressions(&self.name) {
             ctx.append_error("Expressions not supported");
         }
         ctx.pop_section();

@@ -150,7 +150,7 @@ impl<'a> EvalObject<'a> for Step {
             Self::ExternalFile(_) => {
                 // TODO: Remove once external section is removed.
                 bail!("invalid expression for step");
-            },
+            }
 
             Self::DownloadArtifact(_) => {
                 bail!("invalid expression for step");

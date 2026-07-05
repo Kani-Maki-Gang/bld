@@ -24,14 +24,13 @@ enum ArtifactsMessage {
     Download {
         platform: Arc<Platform>,
         name: String,
-        remote_path: String,
+        to: String,
         resp_tx: oneshot::Sender<Result<()>>,
     },
     Upload {
         platform: Arc<Platform>,
         name: String,
-        local_path: String,
-        remote_path: String,
+        path: String,
         resp_tx: oneshot::Sender<Result<()>>,
     },
 }
@@ -67,10 +66,10 @@ impl ArtifactsBackend {
                 ArtifactsMessage::Download {
                     platform,
                     name,
-                    remote_path,
+                    to,
                     resp_tx,
                 } => {
-                    let res = self.download(&platform, &name, &remote_path).await;
+                    let res = self.download(&platform, name, to).await;
                     resp_tx
                         .send(res)
                         .map_err(|_| anyhow!("oneshot channel closed"))?;
@@ -78,13 +77,10 @@ impl ArtifactsBackend {
                 ArtifactsMessage::Upload {
                     platform,
                     name,
-                    local_path,
-                    remote_path,
+                    path,
                     resp_tx,
                 } => {
-                    let res = self
-                        .upload(&platform, &name, &local_path, &remote_path)
-                        .await;
+                    let res = self.upload(&platform, name, path).await;
                     resp_tx
                         .send(res)
                         .map_err(|_| anyhow!("oneshot channel closed"))?;
@@ -94,20 +90,22 @@ impl ArtifactsBackend {
         Ok(())
     }
 
-    fn local_path(&mut self, name: &str) -> &PathBuf {
-        let run_id = &self.run_id;
-        let config = &self.config;
-        self.map
-            .entry(name.to_string())
-            .or_insert_with(|| config.artifact_full_path(run_id, name))
+    async fn download(&mut self, platform: &Platform, name: String, to: String) -> Result<()> {
+        let archive_path = self
+            .map
+            .get(&name)
+            .ok_or_else(|| anyhow!("artifact '{name}' not found"))?;
+        platform
+            .push(&archive_path.display().to_string(), &to)
+            .await
     }
 
-    async fn download(&mut self, platform: &Platform, name: &str, remote_path: &str) -> Result<()> {
+    async fn upload(&mut self, platform: &Platform, name: String, path: String) -> Result<()> {
         let staging_dir = self.config.tmp_full_path(&Uuid::new_v4().to_string());
         create_dir_all(&staging_dir).await?;
 
         let result = self
-            .download_inner(platform, name, remote_path, &staging_dir)
+            .upload_inner(platform, &name, &path, &staging_dir)
             .await;
 
         if let Err(e) = remove_dir_all(&staging_dir).await {
@@ -117,46 +115,32 @@ impl ArtifactsBackend {
         result
     }
 
-    async fn download_inner(
+    async fn upload_inner(
         &mut self,
         platform: &Platform,
         name: &str,
-        remote_path: &str,
+        path: &str,
         staging_dir: &Path,
     ) -> Result<()> {
         platform
-            .get(remote_path, &staging_dir.display().to_string())
+            .get(path, &staging_dir.display().to_string())
             .await?;
 
-        let archive_path = self.local_path(name);
-        if let Some(parent) = archive_path.parent() {
+        let run_id = &self.run_id;
+        let config = &self.config;
+        let artifact_path = self
+            .map
+            .entry(name.to_string())
+            .or_insert_with(|| config.artifact_full_path(run_id, name));
+
+        if let Some(parent) = artifact_path.parent() {
             create_dir_all(parent).await?;
         }
 
         let compressed = compress_to_tar_gz(staging_dir, name)?;
-        write(archive_path, compressed).await?;
+        write(artifact_path, compressed).await?;
 
         Ok(())
-    }
-
-    async fn upload(
-        &mut self,
-        platform: &Platform,
-        name: &str,
-        local_path: &str,
-        remote_path: &str,
-    ) -> Result<()> {
-        let archive_path = self.local_path(name);
-        if let Some(parent) = archive_path.parent() {
-            create_dir_all(parent).await?;
-        }
-
-        let compressed = compress_to_tar_gz(Path::new(local_path), name)?;
-        write(archive_path, compressed).await?;
-
-        platform
-            .push(&archive_path.display().to_string(), remote_path)
-            .await
     }
 }
 
@@ -198,19 +182,14 @@ impl Artifacts {
         Ok(())
     }
 
-    pub async fn download(
-        &self,
-        platform: Arc<Platform>,
-        name: &str,
-        remote_path: &str,
-    ) -> Result<()> {
+    pub async fn download(&self, platform: Arc<Platform>, name: &str, to: &str) -> Result<()> {
         let Some(tx) = &self.tx else { return Ok(()) };
         let (resp_tx, resp_rx) = oneshot::channel();
 
         tx.send(ArtifactsMessage::Download {
             platform,
             name: name.to_string(),
-            remote_path: remote_path.to_string(),
+            to: to.to_string(),
             resp_tx,
         })
         .await?;
@@ -218,21 +197,14 @@ impl Artifacts {
         resp_rx.await?
     }
 
-    pub async fn upload(
-        &self,
-        platform: Arc<Platform>,
-        name: &str,
-        local_path: &str,
-        remote_path: &str,
-    ) -> Result<()> {
+    pub async fn upload(&self, platform: Arc<Platform>, name: &str, path: &str) -> Result<()> {
         let Some(tx) = &self.tx else { return Ok(()) };
         let (resp_tx, resp_rx) = oneshot::channel();
 
         tx.send(ArtifactsMessage::Upload {
             platform,
             name: name.to_string(),
-            local_path: local_path.to_string(),
-            remote_path: remote_path.to_string(),
+            path: path.to_string(),
             resp_tx,
         })
         .await?;

@@ -192,9 +192,10 @@ impl<S: RootState> JobRunner<S> {
     }
 
     async fn download_artifact(&mut self, download: &DownloadArtifact) -> Result<()> {
+        let local_path = self.eval_all_expr(&download.to)?;
         self.options
             .artifacts
-            .download(self.platform.clone(), &download.id, &download.download)
+            .download(self.platform.clone(), &download.download, &local_path)
             .await
     }
 
@@ -202,7 +203,7 @@ impl<S: RootState> JobRunner<S> {
         let local_path = self.eval_all_expr(&upload.upload)?;
         self.options
             .artifacts
-            .upload(self.platform.clone(), &upload.id, &local_path, &upload.to)
+            .upload(self.platform.clone(), &upload.name, &local_path)
             .await
     }
 
@@ -478,8 +479,8 @@ pub async fn build_platform(
 mod tests {
     use bld_config::BldConfig;
     use bld_core::{
-        artifacts::Artifacts, context::Context, fs::FileSystem, logger::Logger,
-        platform::Platform, regex::RegexCache,
+        artifacts::Artifacts, context::Context, fs::FileSystem, logger::Logger, platform::Platform,
+        regex::RegexCache,
     };
     use bld_pkg::PackageManager;
     use bld_utils::sync::IntoArc;
