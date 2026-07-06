@@ -9,10 +9,10 @@ use actix_web::rt::spawn;
 use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
 use bld_models::artifacts::{self, InsertArtifact};
-use flate2::{Compression, write::GzEncoder};
+use flate2::{Compression, read::GzDecoder, write::GzEncoder};
 use sea_orm::DatabaseConnection;
-use tar::Builder;
-use tokio::fs::{create_dir_all, remove_dir_all, write};
+use tar::{Archive, Builder};
+use tokio::fs::{create_dir_all, read, remove_dir_all, write};
 use tokio::sync::{
     mpsc::{Receiver, Sender, channel},
     oneshot,
@@ -105,12 +105,39 @@ impl ArtifactsBackend {
     }
 
     async fn download(&mut self, platform: &Platform, name: String, to: String) -> Result<()> {
+        let staging_dir = self.config.tmp_full_path(&Uuid::new_v4().to_string());
+        create_dir_all(&staging_dir).await?;
+
+        let result = self
+            .download_inner(platform, &name, &to, &staging_dir)
+            .await;
+
+        if let Err(e) = remove_dir_all(&staging_dir).await {
+            error!("unable to clean up staging directory for artifact {name}: {e}");
+        }
+
+        result
+    }
+
+    async fn download_inner(
+        &self,
+        platform: &Platform,
+        name: &str,
+        to: &str,
+        staging_dir: &Path,
+    ) -> Result<()> {
         let archive_path = self
             .map
-            .get(&name)
+            .get(name)
             .ok_or_else(|| anyhow!("artifact '{name}' not found"))?;
+
+        let compressed = read(archive_path).await?;
+        decompress_tar_gz(&compressed, staging_dir)?;
+
+        let extracted_path = staging_dir.join(name);
+
         platform
-            .push(&archive_path.display().to_string(), &to)
+            .push(&extracted_path.display().to_string(), to)
             .await
     }
 
@@ -193,6 +220,13 @@ fn compress_to_tar_gz(source: &Path, entry_name: &str) -> Result<Vec<u8>> {
     Ok(gz.finish()?)
 }
 
+fn decompress_tar_gz(data: &[u8], dest: &Path) -> Result<()> {
+    let gz = GzDecoder::new(data);
+    let mut archive = Archive::new(gz);
+    archive.unpack(dest)?;
+    Ok(())
+}
+
 pub struct Artifacts {
     tx: Option<Sender<ArtifactsMessage>>,
 }
@@ -249,11 +283,9 @@ impl Artifacts {
 
 #[cfg(test)]
 mod tests {
-    use super::compress_to_tar_gz;
+    use super::{compress_to_tar_gz, decompress_tar_gz};
     use bld_config::BldConfig;
-    use flate2::read::GzDecoder;
     use std::fs::{create_dir_all, read_to_string, remove_dir_all, write};
-    use tar::Archive;
     use uuid::Uuid;
 
     #[test]
@@ -266,13 +298,28 @@ mod tests {
         write(source.join("hello.txt"), b"hello world").unwrap();
 
         let compressed = compress_to_tar_gz(&source, "my-artifact").unwrap();
-
-        let tar = GzDecoder::new(&compressed[..]);
-        let mut archive = Archive::new(tar);
-        archive.unpack(&extracted).unwrap();
+        decompress_tar_gz(&compressed, &extracted).unwrap();
 
         let content = read_to_string(extracted.join("my-artifact").join("hello.txt")).unwrap();
         assert_eq!(content, "hello world");
+
+        let _ = remove_dir_all(&base);
+    }
+
+    #[test]
+    fn compress_to_tar_gz_round_trip_single_file() {
+        let config = BldConfig::default();
+        let base = config.tmp_full_path(&format!("artifacts-test-{}", Uuid::new_v4()));
+        let extracted = base.join("extracted");
+        create_dir_all(&base).unwrap();
+        let source = base.join("payload.txt");
+        write(&source, b"hello file").unwrap();
+
+        let compressed = compress_to_tar_gz(&source, "my-artifact").unwrap();
+        decompress_tar_gz(&compressed, &extracted).unwrap();
+
+        let content = read_to_string(extracted.join("my-artifact")).unwrap();
+        assert_eq!(content, "hello file");
 
         let _ = remove_dir_all(&base);
     }
