@@ -1,3 +1,4 @@
+mod artifacts;
 mod auth;
 mod common;
 mod cron;
@@ -17,6 +18,7 @@ mod monit;
 #[cfg(feature = "web_socket")]
 mod supervisor;
 
+pub use artifacts::*;
 pub use auth::*;
 pub use common::*;
 pub use cron::*;

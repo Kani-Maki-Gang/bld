@@ -1,10 +1,13 @@
 use anyhow::{Result, anyhow};
 use chrono::{Duration, Utc};
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
+    TransactionTrait,
+};
 use tracing::{debug, error};
 
 pub use crate::generated::artifacts::Model as Artifacts;
-use crate::generated::artifacts;
+use crate::generated::artifacts::{self, Entity as ArtifactsEntity};
 
 const DEFAULT_RETENTION_DAYS: i64 = 7;
 
@@ -33,4 +36,54 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
         error!("could not insert artifact due to: {e}");
         anyhow!(e)
     })
+}
+
+pub async fn select_by_run_id<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    run_id: &str,
+) -> Result<Vec<Artifacts>> {
+    debug!("loading artifacts for run: {run_id}");
+
+    ArtifactsEntity::find()
+        .filter(artifacts::Column::RunId.eq(run_id))
+        .all(conn)
+        .await
+        .map_err(|e| {
+            error!("could not load artifacts due to: {e}");
+            anyhow!(e)
+        })
+}
+
+pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    id: i32,
+) -> Result<Artifacts> {
+    debug!("loading artifact with id: {id}");
+
+    ArtifactsEntity::find_by_id(id)
+        .one(conn)
+        .await
+        .map_err(|e| {
+            error!("could not load artifact due to: {e}");
+            anyhow!(e)
+        })?
+        .ok_or_else(|| {
+            error!("couldn't load artifact. Not found");
+            anyhow!("artifact not found")
+        })
+}
+
+pub async fn delete_by_id<C: ConnectionTrait + TransactionTrait>(conn: &C, id: i32) -> Result<()> {
+    debug!("deleting artifact with id: {id}");
+
+    ArtifactsEntity::delete_by_id(id)
+        .exec(conn)
+        .await
+        .map(|_| {
+            debug!("deleted artifact successfully");
+        })
+        .map_err(|e| {
+            error!("could not delete artifact due to: {e}");
+            anyhow!(e)
+        })
 }

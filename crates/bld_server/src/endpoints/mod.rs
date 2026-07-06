@@ -1,3 +1,4 @@
+pub mod artifacts;
 pub mod auth;
 pub mod check;
 pub mod copy;

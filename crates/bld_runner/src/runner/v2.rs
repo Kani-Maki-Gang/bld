@@ -7,10 +7,16 @@ use bld_config::{
     definitions::{GET, PUSH},
 };
 use bld_core::{
-    artifacts::Artifacts, context::Context, fs::FileSystem, logger::Logger, platform::{
+    artifacts::Artifacts,
+    context::Context,
+    fs::FileSystem,
+    logger::Logger,
+    platform::{
         Image, Platform, SshAuthOptions, SshConnectOptions,
         builder::{PlatformBuilder, PlatformOptions},
-    }, regex::RegexCache, signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend}
+    },
+    regex::RegexCache,
+    signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend},
 };
 use bld_models::dtos::{ExecClientMessage, WorkerMessages};
 use bld_pkg::PackageManager;
