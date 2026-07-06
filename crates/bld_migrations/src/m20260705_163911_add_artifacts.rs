@@ -22,7 +22,6 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Artifacts::RunId).string().not_null())
                     .col(ColumnDef::new(Artifacts::Name).string().not_null())
-                    .col(ColumnDef::new(Artifacts::Path).string().not_null())
                     .col(
                         ColumnDef::new(Artifacts::DateCreated)
                             .date_time()
@@ -61,7 +60,6 @@ enum Artifacts {
     Id,
     RunId,
     Name,
-    Path,
     DateCreated,
     DateUpdated,
     DateExpires,

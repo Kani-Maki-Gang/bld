@@ -8,7 +8,9 @@ use std::{
 use actix_web::rt::spawn;
 use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
+use bld_models::artifacts::{self, InsertArtifact};
 use flate2::{Compression, write::GzEncoder};
+use sea_orm::DatabaseConnection;
 use tar::Builder;
 use tokio::fs::{create_dir_all, remove_dir_all, write};
 use tokio::sync::{
@@ -19,6 +21,11 @@ use tracing::error;
 use uuid::Uuid;
 
 use crate::platform::Platform;
+
+pub enum ArtifactsStore {
+    Local,
+    Server(Arc<DatabaseConnection>),
+}
 
 enum ArtifactsMessage {
     Download {
@@ -38,15 +45,22 @@ enum ArtifactsMessage {
 struct ArtifactsBackend {
     config: Arc<BldConfig>,
     run_id: String,
+    store: ArtifactsStore,
     map: HashMap<String, PathBuf>,
     rx: Receiver<ArtifactsMessage>,
 }
 
 impl ArtifactsBackend {
-    fn new(config: Arc<BldConfig>, run_id: String, rx: Receiver<ArtifactsMessage>) -> Self {
+    fn new(
+        config: Arc<BldConfig>,
+        run_id: String,
+        store: ArtifactsStore,
+        rx: Receiver<ArtifactsMessage>,
+    ) -> Self {
         Self {
             config,
             run_id,
+            store,
             map: HashMap::new(),
             rx,
         }
@@ -126,21 +140,41 @@ impl ArtifactsBackend {
             .get(path, &staging_dir.display().to_string())
             .await?;
 
-        let run_id = &self.run_id;
-        let config = &self.config;
-        let artifact_path = self
-            .map
-            .entry(name.to_string())
-            .or_insert_with(|| config.artifact_full_path(run_id, name));
+        let artifact_path = match self.map.get(name) {
+            Some(value) => value.clone(),
+            None => {
+                let path = self.resolve_artifact_path(name).await?;
+                self.map.insert(name.to_string(), path.clone());
+                path
+            }
+        };
 
         if let Some(parent) = artifact_path.parent() {
             create_dir_all(parent).await?;
         }
 
         let compressed = compress_to_tar_gz(staging_dir, name)?;
-        write(artifact_path, compressed).await?;
+        write(&artifact_path, compressed).await?;
 
         Ok(())
+    }
+
+    async fn resolve_artifact_path(&self, name: &str) -> Result<PathBuf> {
+        let file_name = match &self.store {
+            ArtifactsStore::Local => name,
+            ArtifactsStore::Server(conn) => {
+                let insert = InsertArtifact {
+                    run_id: self.run_id.clone(),
+                    name: name.to_string(),
+                };
+                let model = artifacts::insert(conn.as_ref(), insert).await?;
+                &model.id.to_string()
+            }
+        };
+
+        let artifact_path = self.config.artifact_full_path(&self.run_id, file_name);
+
+        Ok(artifact_path)
     }
 }
 
@@ -164,9 +198,9 @@ pub struct Artifacts {
 }
 
 impl Artifacts {
-    pub fn new(config: Arc<BldConfig>, run_id: &str) -> Self {
+    pub fn new(config: Arc<BldConfig>, run_id: &str, store: ArtifactsStore) -> Self {
         let (tx, rx) = channel(4096);
-        ArtifactsBackend::new(config, run_id.to_string(), rx).receive();
+        ArtifactsBackend::new(config, run_id.to_string(), store, rx).receive();
         Self { tx: Some(tx) }
     }
 

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::{context::Context, fs::FileSystem, logger::Logger};
+use bld_core::{artifacts::ArtifactsStore, context::Context, fs::FileSystem, logger::Logger};
 use bld_http::HttpClient;
 use bld_models::dtos::ExecClientMessage;
 use bld_pkg::PackageManager;
@@ -203,6 +203,7 @@ impl RunAdapter {
             .env(mode.env.into_arc())
             .inputs(mode.inputs.into_arc())
             .package_manager(PackageManager::new(mode.config.clone()).into_arc())
+            .artifacts_store(ArtifactsStore::Local)
             .build()
             .await?;
 

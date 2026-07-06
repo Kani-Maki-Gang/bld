@@ -7,15 +7,10 @@ use bld_config::{
     definitions::{GET, PUSH},
 };
 use bld_core::{
-    context::Context,
-    fs::FileSystem,
-    logger::Logger,
-    platform::{
+    artifacts::Artifacts, context::Context, fs::FileSystem, logger::Logger, platform::{
         Image, Platform, SshAuthOptions, SshConnectOptions,
         builder::{PlatformBuilder, PlatformOptions},
-    },
-    regex::RegexCache,
-    signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend},
+    }, regex::RegexCache, signals::{UnixSignal, UnixSignalMessage, UnixSignalsBackend}
 };
 use bld_models::dtos::{ExecClientMessage, WorkerMessages};
 use bld_pkg::PackageManager;
@@ -47,6 +42,7 @@ struct Job {
     pub context: Arc<Context>,
     pub platform: Option<Arc<Platform>>,
     pub package_manager: Arc<PackageManager>,
+    pub artifacts: Arc<Artifacts>,
 }
 
 impl Job {
@@ -181,6 +177,7 @@ impl Job {
             .context(self.context.clone())
             .platform(platform.clone())
             .package_manager(self.package_manager.clone())
+            .artifacts(self.artifacts.clone())
             .is_child(true)
             .build()
             .await?;
@@ -261,6 +258,7 @@ pub struct Runner {
     pub context: Arc<Context>,
     pub platform: Option<Arc<Platform>>,
     pub package_manager: Arc<PackageManager>,
+    pub artifacts: Arc<Artifacts>,
     pub is_child: bool,
     pub has_faulted: bool,
 }
@@ -461,6 +459,7 @@ impl Runner {
             context: self.context.clone(),
             platform: self.platform.clone(),
             package_manager: self.package_manager.clone(),
+            artifacts: self.artifacts.clone(),
         }
     }
 

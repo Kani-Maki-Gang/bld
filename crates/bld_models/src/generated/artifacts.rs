@@ -9,7 +9,6 @@ pub struct Model {
     pub id: i32,
     pub run_id: String,
     pub name: String,
-    pub path: String,
     pub date_created: DateTime,
     pub date_updated: Option<DateTime>,
     pub date_expires: DateTime,

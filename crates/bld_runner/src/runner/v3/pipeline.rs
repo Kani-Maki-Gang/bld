@@ -16,7 +16,7 @@ use bld_pkg::PackageManager;
 use bld_utils::sync::IntoArc;
 use regex::Regex;
 use tokio::{sync::mpsc::Sender, time::sleep};
-use tracing::{debug, error};
+use tracing::debug;
 
 use crate::{
     dag::Dag,
@@ -78,16 +78,6 @@ impl PipelineRunner {
         Ok(())
     }
 
-    async fn cleanup_artifacts(&self) {
-        if self.is_child {
-            return;
-        }
-        debug!("cleaning up artifacts directory for run");
-        if let Err(e) = Artifacts::cleanup_run(&self.config, &self.expr_rctx.run_id).await {
-            error!("unable to clean up artifacts directory for run: {e}");
-        }
-    }
-
     async fn ipc_send_completed(&self) -> Result<()> {
         if !self.is_child
             && let Some(ipc) = Option::as_ref(&self.ipc)
@@ -120,7 +110,6 @@ impl PipelineRunner {
     async fn stop(&self) -> Result<()> {
         debug!("starting cleanup operations for runner");
         self.register_completion().await?;
-        self.cleanup_artifacts().await;
         self.ipc_send_completed().await?;
         Ok(())
     }

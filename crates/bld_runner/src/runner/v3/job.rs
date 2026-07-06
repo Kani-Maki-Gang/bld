@@ -226,6 +226,7 @@ impl<S: RootState> JobRunner<S> {
             .platform(self.platform.clone())
             .regex_cache(self.options.regex_cache.clone())
             .package_manager(self.options.package_manager.clone())
+            .artifacts(self.options.artifacts.clone())
             .is_child(true)
             .build()
             .await?;

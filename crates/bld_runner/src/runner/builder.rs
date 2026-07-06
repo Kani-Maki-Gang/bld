@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow, bail};
 use bld_config::BldConfig;
 use bld_core::{
-    artifacts::Artifacts,
+    artifacts::{Artifacts, ArtifactsStore},
     context::Context,
     fs::FileSystem,
     logger::Logger,
@@ -48,6 +48,8 @@ pub struct RunnerBuilder<'a> {
     context: Option<Arc<Context>>,
     platform: Option<Arc<Platform>>,
     package_manager: Option<Arc<PackageManager>>,
+    artifacts_store: Option<ArtifactsStore>,
+    artifacts: Option<Arc<Artifacts>>,
     is_child: bool,
 }
 
@@ -68,6 +70,8 @@ impl Default for RunnerBuilder<'_> {
             context: None,
             platform: None,
             package_manager: None,
+            artifacts_store: None,
+            artifacts: None,
             is_child: false,
         }
     }
@@ -144,6 +148,16 @@ impl<'a> RunnerBuilder<'a> {
         self
     }
 
+    pub fn artifacts_store(mut self, artifacts_store: ArtifactsStore) -> Self {
+        self.artifacts_store = Some(artifacts_store);
+        self
+    }
+
+    pub fn artifacts(mut self, artifacts: Arc<Artifacts>) -> Self {
+        self.artifacts = Some(artifacts);
+        self
+    }
+
     pub fn is_child(mut self, is_child: bool) -> Self {
         self.is_child = is_child;
         self
@@ -179,6 +193,14 @@ impl<'a> RunnerBuilder<'a> {
         let context = self
             .context
             .ok_or_else(|| anyhow!("no context instance provided"))?;
+
+        let artifacts = self
+            .artifacts
+            .or_else(|| {
+                self.artifacts_store
+                    .map(|x| Artifacts::new(config.clone(), &self.run_id, x).into_arc())
+            })
+            .ok_or_else(|| anyhow!("no artifacts or artifacts store was provided"))?;
 
         let runner = match metadata.file {
             VersionedFile::Version1(pipeline) => {
@@ -218,6 +240,7 @@ impl<'a> RunnerBuilder<'a> {
                     context,
                     platform,
                     package_manager,
+                    artifacts,
                     is_child: self.is_child,
                     has_faulted: false,
                 }))
@@ -252,6 +275,7 @@ impl<'a> RunnerBuilder<'a> {
                     context,
                     platform: None,
                     package_manager,
+                    artifacts,
                     is_child: self.is_child,
                     has_faulted: false,
                 }))
@@ -262,6 +286,7 @@ impl<'a> RunnerBuilder<'a> {
                 dag.reduce_edges();
 
                 let pipeline = (*pipeline).into_arc();
+
                 let expr_rctx = expr::v3::context::CommonReadonlyRuntimeExprContext::new(
                     config.clone(),
                     inputs,
@@ -272,8 +297,6 @@ impl<'a> RunnerBuilder<'a> {
                 .into_arc();
 
                 let expr_regex = Regex::new(expr::v3::parser::EXPR_REGEX)?.into_arc();
-
-                let artifacts = Artifacts::new(config.clone(), &expr_rctx.run_id).into_arc();
 
                 let runner = Box::new(runner::v3::PipelineRunner {
                     config,
