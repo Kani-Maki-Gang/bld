@@ -74,22 +74,24 @@ pub fn MonitArtifacts(#[prop(into)] run_id: Signal<Option<String>>) -> impl Into
                     <Body>
                         <For
                             each=move || data.get().unwrap().unwrap().into_iter()
-                            key=|e| e.id
+                            key=|e| e.id.clone()
                             let:child
                         >
                             {
                                 let id = child.id;
                                 let name = child.name.clone();
                                 let display_name = name.clone();
+                                let display_id = id.clone();
+                                let download_id = id.clone();
                                 view! {
                                     <Row>
-                                        <Cell>{id}</Cell>
+                                        <Cell>{display_id}</Cell>
                                         <Cell>{display_name}</Cell>
                                         <Cell>{child.date_created}</Cell>
                                         <Cell>{child.date_expires}</Cell>
                                         <Cell>
                                             <div class="flex gap-2">
-                                                <ArtifactDownloadButton id=id name=name.clone() />
+                                                <ArtifactDownloadButton id=download_id name=name.clone() />
                                                 <ArtifactDeleteButton id=id name=name />
                                             </div>
                                         </Cell>

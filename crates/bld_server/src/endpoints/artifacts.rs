@@ -34,17 +34,17 @@ pub async fn download(
     _: User,
     conn: Data<DatabaseConnection>,
     config: Data<BldConfig>,
-    path: Path<i32>,
+    path: Path<String>,
 ) -> impl Responder {
     info!("Reached handler for GET /artifacts/{{id}}/download route");
     let id = path.into_inner();
 
-    let artifact = match select_by_id(conn.get_ref(), id).await {
+    let artifact = match select_by_id(conn.get_ref(), &id).await {
         Ok(artifact) => artifact,
         Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
     };
 
-    let artifact_path = config.artifact_full_path(&artifact.run_id, &artifact.id.to_string());
+    let artifact_path = config.artifact_full_path(&artifact.run_id, &artifact.id);
     match tokio::fs::read(&artifact_path).await {
         Ok(bytes) => HttpResponse::Ok()
             .content_type("application/gzip")
@@ -62,21 +62,21 @@ pub async fn delete(
     _: User,
     conn: Data<DatabaseConnection>,
     config: Data<BldConfig>,
-    path: Path<i32>,
+    path: Path<String>,
 ) -> impl Responder {
     info!("Reached handler for DELETE /artifacts route");
     let id = path.into_inner();
 
-    let artifact = match select_by_id(conn.get_ref(), id).await {
+    let artifact = match select_by_id(conn.get_ref(), &id).await {
         Ok(artifact) => artifact,
         Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
     };
 
-    if let Err(e) = delete_by_id(conn.get_ref(), id).await {
+    if let Err(e) = delete_by_id(conn.get_ref(), &id).await {
         return HttpResponse::BadRequest().body(e.to_string());
     }
 
-    let artifact_path = config.artifact_full_path(&artifact.run_id, &artifact.id.to_string());
+    let artifact_path = config.artifact_full_path(&artifact.run_id, &artifact.id);
     if let Err(e) = tokio::fs::remove_file(&artifact_path).await {
         warn!("unable to remove artifact file at {artifact_path:?}: {e}");
     }

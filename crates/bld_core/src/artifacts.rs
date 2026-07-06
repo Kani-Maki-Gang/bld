@@ -188,18 +188,18 @@ impl ArtifactsBackend {
 
     async fn resolve_artifact_path(&self, name: &str) -> Result<PathBuf> {
         let file_name = match &self.store {
-            ArtifactsStore::Local => name,
+            ArtifactsStore::Local => name.to_string(),
             ArtifactsStore::Server(conn) => {
                 let insert = InsertArtifact {
                     run_id: self.run_id.clone(),
                     name: name.to_string(),
                 };
                 let model = artifacts::insert(conn.as_ref(), insert).await?;
-                &model.id.to_string()
+                model.id
             }
         };
 
-        let artifact_path = self.config.artifact_full_path(&self.run_id, file_name);
+        let artifact_path = self.config.artifact_full_path(&self.run_id, &file_name);
 
         Ok(artifact_path)
     }

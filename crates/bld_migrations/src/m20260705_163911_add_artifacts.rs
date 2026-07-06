@@ -15,9 +15,8 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(Artifacts::Id)
-                            .integer()
+                            .string()
                             .not_null()
-                            .auto_increment()
                             .primary_key(),
                     )
                     .col(ColumnDef::new(Artifacts::RunId).string().not_null())

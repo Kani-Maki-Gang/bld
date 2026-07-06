@@ -672,12 +672,12 @@ impl HttpClient {
         }
     }
 
-    async fn artifacts_download_inner(&self, id: i32) -> Result<Vec<u8>> {
+    async fn artifacts_download_inner(&self, id: &str) -> Result<Vec<u8>> {
         let url = format!("{}/v1/artifacts/{id}/download", self.base_url);
         Request::get(&url).auth(&self.auth_path).await.bytes().await
     }
 
-    pub async fn artifacts_download(&self, id: i32) -> Result<Vec<u8>> {
+    pub async fn artifacts_download(&self, id: &str) -> Result<Vec<u8>> {
         let response = self.artifacts_download_inner(id).await;
 
         if Self::unauthorized(&response) {
@@ -688,7 +688,7 @@ impl HttpClient {
         }
     }
 
-    async fn artifacts_remove_inner(&self, id: i32) -> Result<()> {
+    async fn artifacts_remove_inner(&self, id: &str) -> Result<()> {
         let url = format!("{}/v1/artifacts/{id}", self.base_url);
         Request::delete(&url)
             .auth(&self.auth_path)
@@ -698,7 +698,7 @@ impl HttpClient {
             .map(|_: String| ())
     }
 
-    pub async fn artifacts_remove(&self, id: i32) -> Result<()> {
+    pub async fn artifacts_remove(&self, id: &str) -> Result<()> {
         let response = self.artifacts_remove_inner(id).await;
 
         if Self::unauthorized(&response) {

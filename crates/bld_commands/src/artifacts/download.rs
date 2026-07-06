@@ -13,7 +13,7 @@ pub struct ArtifactsDownloadCommand {
     verbose: bool,
 
     #[arg(required = true, help = "The id of the artifact to download")]
-    id: i32,
+    id: String,
 
     #[arg(
         short = 's',
@@ -39,7 +39,7 @@ impl BldCommand for ArtifactsDownloadCommand {
         System::new().block_on(async move {
             let config = BldConfig::load().await?.into_arc();
             let client = HttpClient::new(config, &self.server)?;
-            let bytes = client.artifacts_download(self.id).await?;
+            let bytes = client.artifacts_download(&self.id).await?;
             let output = self.output.unwrap_or_else(|| format!("{}.tar.gz", self.id));
             tokio::fs::write(&output, bytes).await?;
             println!("Downloaded artifact {} to {output}", self.id);

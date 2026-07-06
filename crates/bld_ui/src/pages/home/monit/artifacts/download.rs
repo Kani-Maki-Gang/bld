@@ -9,7 +9,7 @@ use leptos::{leptos_dom::logging, *};
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlAnchorElement, Url, window};
 
-type DownloadActionArgs = (i32, String, Option<AppDialog>, Option<AppDialogContent>);
+type DownloadActionArgs = (String, String, Option<AppDialog>, Option<AppDialogContent>);
 
 fn save_bytes_as_file(bytes: Vec<u8>, filename: &str) -> Result<()> {
     let array = js_sys::Uint8Array::from(bytes.as_slice());
@@ -45,7 +45,7 @@ fn save_bytes_as_file(bytes: Vec<u8>, filename: &str) -> Result<()> {
 }
 
 #[component]
-pub fn ArtifactDownloadButton(#[prop(into)] id: i32, #[prop(into)] name: String) -> impl IntoView {
+pub fn ArtifactDownloadButton(#[prop(into)] id: String, #[prop(into)] name: String) -> impl IntoView {
     let app_dialog = use_context::<AppDialog>();
     let app_dialog_content = use_context::<AppDialogContent>();
 
@@ -80,7 +80,7 @@ pub fn ArtifactDownloadButton(#[prop(into)] id: i32, #[prop(into)] name: String)
             icon="iconoir-download"
             ghost=true
             on:click=move |_| {
-                download_action.dispatch((id, name.clone(), app_dialog, app_dialog_content));
+                download_action.dispatch((id.clone(), name.clone(), app_dialog, app_dialog_content));
             }
         />
     }

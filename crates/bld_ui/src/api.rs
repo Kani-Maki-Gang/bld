@@ -428,7 +428,7 @@ pub async fn artifacts(params: ArtifactsQueryParams) -> Result<Vec<ArtifactRespo
     }
 }
 
-pub async fn artifact_delete(id: i32) -> Result<()> {
+pub async fn artifact_delete(id: String) -> Result<()> {
     let url = build_url(format!("/v1/artifacts/{id}"))?;
     let request = add_authorization_header(Client::builder().build()?.delete(&url))?;
     let response = request.send().await?;
@@ -440,7 +440,7 @@ pub async fn artifact_delete(id: i32) -> Result<()> {
     }
 }
 
-pub async fn artifact_download(id: i32) -> Result<Vec<u8>> {
+pub async fn artifact_download(id: String) -> Result<Vec<u8>> {
     let url = build_url(format!("/v1/artifacts/{id}/download"))?;
     let request = add_authorization_header(Client::builder().build()?.get(&url))?;
     let response = request.send().await?;

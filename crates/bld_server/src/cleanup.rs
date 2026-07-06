@@ -42,7 +42,7 @@ async fn cleanup_expired_artifacts(conn: &DatabaseConnection, config: &BldConfig
     info!("found {} expired artifact(s) to clean up", expired.len());
 
     for artifact in expired {
-        let path = config.artifact_full_path(&artifact.run_id, &artifact.id.to_string());
+        let path = config.artifact_full_path(&artifact.run_id, &artifact.id);
         match tokio::fs::remove_file(&path).await {
             Ok(_) => debug!("removed artifact file at {path:?}"),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -51,7 +51,7 @@ async fn cleanup_expired_artifacts(conn: &DatabaseConnection, config: &BldConfig
             Err(e) => warn!("unable to remove artifact file at {path:?}: {e}"),
         }
 
-        if let Err(e) = artifacts::delete_by_id(conn, artifact.id).await {
+        if let Err(e) = artifacts::delete_by_id(conn, &artifact.id).await {
             error!("unable to delete expired artifact entry {}: {e}", artifact.id);
         }
     }

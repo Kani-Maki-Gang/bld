@@ -13,7 +13,7 @@ pub struct ArtifactsRemoveCommand {
     verbose: bool,
 
     #[arg(required = true, help = "The id of the artifact to remove")]
-    id: i32,
+    id: String,
 
     #[arg(
         short = 's',
@@ -32,7 +32,7 @@ impl BldCommand for ArtifactsRemoveCommand {
         System::new().block_on(async move {
             let config = BldConfig::load().await?.into_arc();
             let client = HttpClient::new(config, &self.server)?;
-            client.artifacts_remove(self.id).await
+            client.artifacts_remove(&self.id).await
         })
     }
 }

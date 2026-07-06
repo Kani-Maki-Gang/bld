@@ -7,7 +7,7 @@ pub struct ArtifactsQueryParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArtifactResponse {
-    pub id: i32,
+    pub id: String,
     pub run_id: String,
     pub name: String,
     pub date_created: String,

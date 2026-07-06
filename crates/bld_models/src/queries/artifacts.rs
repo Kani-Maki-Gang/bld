@@ -25,6 +25,7 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
     let date_created = Utc::now();
     let date_expires = date_created + Duration::days(DEFAULT_RETENTION_DAYS);
     let active_model = artifacts::ActiveModel {
+        id: Set(uuid::Uuid::new_v4().to_string()),
         run_id: Set(model.run_id),
         name: Set(model.name),
         date_created: Set(date_created.naive_utc()),
@@ -71,7 +72,7 @@ pub async fn select_expired<C: ConnectionTrait + TransactionTrait>(
 
 pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
     conn: &C,
-    id: i32,
+    id: &str,
 ) -> Result<Artifacts> {
     debug!("loading artifact with id: {id}");
 
@@ -88,7 +89,7 @@ pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
         })
 }
 
-pub async fn delete_by_id<C: ConnectionTrait + TransactionTrait>(conn: &C, id: i32) -> Result<()> {
+pub async fn delete_by_id<C: ConnectionTrait + TransactionTrait>(conn: &C, id: &str) -> Result<()> {
     debug!("deleting artifact with id: {id}");
 
     ArtifactsEntity::delete_by_id(id)

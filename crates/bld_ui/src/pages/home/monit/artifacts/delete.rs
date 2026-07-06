@@ -11,7 +11,7 @@ use crate::{
 use leptos::{html::Dialog, leptos_dom::logging, *};
 
 type DeleteActionArgs = (
-    i32,
+    String,
     RwSignal<Option<String>>,
     Option<RefreshArtifacts>,
     NodeRef<Dialog>,
@@ -19,7 +19,7 @@ type DeleteActionArgs = (
 
 #[component]
 fn ArtifactDeleteDialog(
-    #[prop(into)] id: Signal<i32>,
+    #[prop(into)] id: Signal<String>,
     #[prop(into)] name: Signal<String>,
     #[prop(into)] app_dialog: NodeRef<Dialog>,
     #[prop()] refresh: Option<RefreshArtifacts>,
@@ -74,7 +74,7 @@ fn ArtifactDeleteDialog(
 }
 
 #[component]
-pub fn ArtifactDeleteButton(#[prop(into)] id: i32, #[prop(into)] name: String) -> impl IntoView {
+pub fn ArtifactDeleteButton(#[prop(into)] id: String, #[prop(into)] name: String) -> impl IntoView {
     let app_dialog = use_context::<AppDialog>();
     let app_dialog_content = use_context::<AppDialogContent>();
     let refresh = use_context::<RefreshArtifacts>();

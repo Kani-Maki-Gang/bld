@@ -9,7 +9,7 @@ use tabled::{Table, Tabled, settings::Style};
 
 #[derive(Tabled)]
 struct ArtifactInfoRow<'a> {
-    pub id: i32,
+    pub id: &'a str,
     pub name: &'a str,
     pub date_created: &'a str,
     pub date_expires: &'a str,
@@ -51,7 +51,7 @@ impl BldCommand for ArtifactsListCommand {
                 let data: Vec<ArtifactInfoRow> = response
                     .iter()
                     .map(|a| ArtifactInfoRow {
-                        id: a.id,
+                        id: &a.id,
                         name: &a.name,
                         date_created: &a.date_created,
                         date_expires: &a.date_expires,
