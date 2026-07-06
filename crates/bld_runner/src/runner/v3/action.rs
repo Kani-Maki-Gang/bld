@@ -1,12 +1,13 @@
 use std::{fmt::Write, sync::Arc};
 
 use anyhow::{Result, bail};
-use bld_core::{logger::Logger, platform::Platform};
+use bld_core::{artifacts::Artifacts, logger::Logger, platform::Platform};
 use regex::Regex;
 use tracing::debug;
 
 use crate::{
     action::v3::Action,
+    artifacts::v3::{DownloadArtifact, UploadArtifact},
     expr::v3::{
         context::CommonReadonlyRuntimeExprContext,
         exec::CommonExprExecutor,
@@ -22,6 +23,7 @@ pub struct ActionRunner<S: RootState> {
     pub logger: Arc<Logger>,
     pub action: Action,
     pub platform: Arc<Platform>,
+    pub artifacts: Arc<Artifacts>,
     pub expr_regex: Regex,
     pub expr_rctx: CommonReadonlyRuntimeExprContext,
     pub state: S,
@@ -37,6 +39,19 @@ impl<S: RootState> ActionRunner<S> {
         writeln!(message, "{:<15}: 3", "Version")?;
 
         self.logger.write_line(message).await
+    }
+
+    fn eval_all_expr(&mut self, value: &str) -> Result<String> {
+        let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &self.state);
+
+        let mut result = value.to_string();
+        for entry in self.expr_regex.find_iter(value) {
+            let entry = entry.as_str();
+            let expr_value = expr_exec.eval(entry)?.to_string();
+            result = result.replace(entry, &expr_value);
+        }
+
+        Ok(result)
     }
 
     fn condition(&mut self, condition: Option<&str>) -> Result<bool> {
@@ -66,15 +81,7 @@ impl<S: RootState> ActionRunner<S> {
         debug!("start execution of exec section for step");
         debug!("executing shell command {}", command);
 
-        let mut cmd = command.to_string();
-        let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &self.state);
-
-        for entry in self.expr_regex.find_iter(command) {
-            let entry = entry.as_str();
-            let value = expr_exec.eval(entry)?.to_string();
-            cmd = cmd.replace(entry, &value);
-        }
-
+        let cmd = self.eval_all_expr(command)?;
         let outputs = self
             .platform
             .shell(self.logger.clone(), working_dir, &cmd)
@@ -95,12 +102,8 @@ impl<S: RootState> ActionRunner<S> {
                 Step::ExternalFile(_external) => {
                     bail!("external calls are not supported in actions")
                 }
-                Step::DownloadArtifact(_) => {
-                    bail!("download artifact calls are not supported in actions")
-                }
-                Step::UploadArtifact(_) => {
-                    bail!("upload artifact calls are not supported in actions")
-                }
+                Step::DownloadArtifact(download) => self.download_artifact(download).await,
+                Step::UploadArtifact(upload) => self.upload_artifact(upload).await,
             }
             .inspect(|_| self.state.update_node_state(step.id(), State::Completed))
             .inspect_err(|e| {
@@ -133,6 +136,20 @@ impl<S: RootState> ActionRunner<S> {
         Ok(())
     }
 
+    async fn download_artifact(&mut self, download: &DownloadArtifact) -> Result<()> {
+        let local_path = self.eval_all_expr(&download.to)?;
+        self.artifacts
+            .download(self.platform.clone(), &download.download, &local_path)
+            .await
+    }
+
+    async fn upload_artifact(&mut self, upload: &UploadArtifact) -> Result<()> {
+        let local_path = self.eval_all_expr(&upload.upload)?;
+        self.artifacts
+            .upload(self.platform.clone(), &upload.name, &local_path)
+            .await
+    }
+
     async fn execute(mut self) -> Result<()> {
         self.state.update_state(State::Running);
         self.info().await.inspect_err(|e| {
@@ -155,6 +172,7 @@ impl ActionRunner<ActionState> {
         logger: Arc<Logger>,
         action: Action,
         platform: Arc<Platform>,
+        artifacts: Arc<Artifacts>,
         expr_regex: Regex,
         expr_rctx: CommonReadonlyRuntimeExprContext,
     ) -> Self {
@@ -166,6 +184,7 @@ impl ActionRunner<ActionState> {
             logger,
             action,
             platform,
+            artifacts,
             expr_regex,
             expr_rctx,
             state,
@@ -179,7 +198,7 @@ impl ActionRunner<ActionState> {
 
 #[cfg(test)]
 mod tests {
-    use bld_core::{logger::Logger, platform::Platform};
+    use bld_core::{artifacts::Artifacts, logger::Logger, platform::Platform};
     use bld_utils::sync::IntoArc;
     use regex::Regex;
 
@@ -195,6 +214,7 @@ mod tests {
         let logger = Logger::mock().into_arc();
         let action = Action::default();
         let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
         let regex = Regex::new(EXPR_REGEX).unwrap();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let state = MockRootState::new();
@@ -203,6 +223,7 @@ mod tests {
             logger,
             action,
             platform,
+            artifacts,
             expr_regex: regex,
             expr_rctx: rctx,
             state,
@@ -233,6 +254,7 @@ mod tests {
         let logger = Logger::mock().into_arc();
         let mut action = Action::default();
         let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
         let regex = Regex::new(EXPR_REGEX).unwrap();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut state = MockRootState::new();
@@ -279,6 +301,7 @@ mod tests {
             logger,
             action,
             platform,
+            artifacts,
             expr_regex: regex,
             expr_rctx: rctx,
             state,

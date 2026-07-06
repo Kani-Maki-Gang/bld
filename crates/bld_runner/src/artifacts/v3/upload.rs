@@ -36,12 +36,12 @@ impl<'a> Validate<'a> for UploadArtifact {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
         debug!("Validating upload artifact {}", self.id);
 
-        debug!("Validating artifact's name");
+        debug!("Validating artifact's upload");
         ctx.push_section("upload");
         ctx.validate_expressions(&self.upload);
         ctx.pop_section();
 
-        debug!("Validating artifact's to");
+        debug!("Validating artifact's name");
         ctx.push_section("name");
         if ctx.contains_expressions(&self.name) {
             ctx.append_error("Expressions not supported");

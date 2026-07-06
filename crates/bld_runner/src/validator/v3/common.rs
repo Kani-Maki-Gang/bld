@@ -36,7 +36,6 @@ impl<'a> Section<'a> {
 pub struct ValidatorWritableRuntimeExprContext<'a> {
     exec_id: &'a str,
     outputs: HashMap<String, String>,
-    artifacts: HashMap<String, String>,
 }
 
 impl<'a> ValidatorWritableRuntimeExprContext<'a> {
@@ -44,7 +43,6 @@ impl<'a> ValidatorWritableRuntimeExprContext<'a> {
         Self {
             exec_id,
             outputs: HashMap::new(),
-            artifacts: HashMap::new(),
         }
     }
 }
@@ -66,14 +64,6 @@ impl<'a> WritableRuntimeExprContext for ValidatorWritableRuntimeExprContext<'a> 
     fn set_outputs(&mut self, _id: &str, outputs: HashMap<String, String>) -> Result<()> {
         self.outputs = outputs;
         Ok(())
-    }
-
-    fn get_artifact<'b>(&'b self, name: &str) -> Option<&'b str> {
-        self.artifacts.get(name).map(|x| x.as_str())
-    }
-
-    fn set_artifact(&mut self, name: String, value: String) {
-        self.artifacts.insert(name, value);
     }
 }
 

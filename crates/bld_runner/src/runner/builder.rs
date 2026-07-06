@@ -341,6 +341,7 @@ impl<'a> RunnerBuilder<'a> {
                     self.logger,
                     *action,
                     platform,
+                    artifacts,
                     expr_regex,
                     expr_rctx,
                 ));

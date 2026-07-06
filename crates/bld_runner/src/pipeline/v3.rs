@@ -230,16 +230,6 @@ impl<'a> EvalObject<'a> for Pipeline {
                     .map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
-            "artifacts" => {
-                let Some(part) = object_parts.nth(1) else {
-                    bail!("expected name of artifact in object path");
-                };
-                let name = part.as_span().as_str();
-                wctx.get_artifact(name)
-                    .map(|x| ExprValue::Text(ExprText::Ref(x)))
-                    .ok_or_else(|| anyhow!("artifact with name '{name}' not found"))
-            }
-
             // Keywords section
             value if value == KEYWORD_BLD_DIR_V3 => {
                 Ok(ExprValue::Text(ExprText::Ref(rctx.get_root_dir())))
