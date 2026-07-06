@@ -1,3 +1,4 @@
+use crate::cleanup::CleanupWorker;
 use crate::cron::CronScheduler;
 use crate::endpoints::auth::WebCoreClient;
 use crate::endpoints::{
@@ -34,6 +35,8 @@ pub async fn start(config: BldConfig, host: String, port: i64) -> Result<()> {
     let conn = new_connection_pool(Arc::clone(&config)).await?;
     let supervisor_sender = SupervisorMessageSender::new(Arc::clone(&config)).into_data();
     let pool = conn.into_data();
+    // Cleanup worker run in the background, ignore the variable until server exits and the worker is dropped.
+    let _cleanup_worker = CleanupWorker::new(Arc::clone(&pool), Arc::clone(&config));
     let fs = FileSystem::server(Arc::clone(&config), Arc::clone(&pool)).into_data();
     let package_manager = PackageManager::new(Arc::clone(&config)).into_data();
     let cron = CronScheduler::new(

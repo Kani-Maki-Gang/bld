@@ -29,6 +29,7 @@ pub const TOOL_DEFAULT_CONFIG_FILE: &str = "config.yaml";
 pub const LOCAL_SERVER_HOST: &str = "127.0.0.1";
 pub const LOCAL_SERVER_PORT: i64 = 6080;
 pub const LOCAL_SERVER_PIPELINES: &str = "server_pipelines";
+pub const LOCAL_SERVER_CLEANUP_INTERVAL: i64 = 3600;
 pub const LOCAL_SUPERVISOR_HOST: &str = "127.0.0.1";
 pub const LOCAL_SUPERVISOR_PORT: i64 = 7080;
 pub const LOCAL_SUPERVISOR_WORKERS: i64 = 5;

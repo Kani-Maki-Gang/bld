@@ -54,6 +54,21 @@ pub async fn select_by_run_id<C: ConnectionTrait + TransactionTrait>(
         })
 }
 
+pub async fn select_expired<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+) -> Result<Vec<Artifacts>> {
+    debug!("loading expired artifacts");
+
+    ArtifactsEntity::find()
+        .filter(artifacts::Column::DateExpires.lt(Utc::now().naive_utc()))
+        .all(conn)
+        .await
+        .map_err(|e| {
+            error!("could not load expired artifacts due to: {e}");
+            anyhow!(e)
+        })
+}
+
 pub async fn select_by_id<C: ConnectionTrait + TransactionTrait>(
     conn: &C,
     id: i32,

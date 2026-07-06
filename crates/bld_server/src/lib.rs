@@ -1,3 +1,4 @@
+mod cleanup;
 pub mod cron;
 pub mod endpoints;
 pub mod extractors;
