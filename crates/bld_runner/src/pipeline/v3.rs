@@ -3,10 +3,6 @@ use crate::{
     job::v3::Job,
     traits::{IntoVariables, Variables},
 };
-#[cfg(feature = "all")]
-use bld_core::fs::FileSystem;
-#[cfg(feature = "all")]
-use bld_pkg::PackageManager;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -28,6 +24,8 @@ use {
         KEYWORD_BLD_DIR_V3, KEYWORD_PROJECT_DIR_V3, KEYWORD_RUN_PROPS_ID_V3,
         KEYWORD_RUN_PROPS_START_TIME_V3,
     },
+    bld_core::fs::FileSystem,
+    bld_pkg::PackageManager,
     cron::Schedule,
     pest::iterators::Pairs,
     std::{iter::Peekable, str::FromStr},

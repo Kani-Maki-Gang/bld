@@ -18,7 +18,7 @@ use crate::server::ServerCommand;
 use crate::stop::StopCommand;
 use crate::supervisor::SupervisorCommand;
 use crate::worker::WorkerCommand;
-use crate::{add::AddCommand, cron::command::CronCommand};
+use crate::{add::AddCommand, artifacts::command::ArtifactsCommand, cron::command::CronCommand};
 use anyhow::Result;
 use bld_config::definitions::VERSION;
 use clap::{Parser, Subcommand};
@@ -26,6 +26,7 @@ use clap::{Parser, Subcommand};
 #[derive(Subcommand)]
 enum Commands {
     Login(AuthCommand),
+    Artifacts(ArtifactsCommand),
     Cat(CatCommand),
     Check(CheckCommand),
     Config(ConfigCommand),
@@ -60,6 +61,7 @@ impl Cli {
     pub fn invoke(self) -> Result<()> {
         match self.command {
             Commands::Login(auth) => auth.invoke(),
+            Commands::Artifacts(artifacts) => artifacts.invoke(),
             Commands::Cat(cat) => cat.invoke(),
             Commands::Check(check) => check.invoke(),
             Commands::Config(config) => config.invoke(),

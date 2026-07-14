@@ -2,7 +2,7 @@ use crate::{command::BldCommand, signals::CommandSignals};
 use actix_web::rt::{System, spawn};
 use anyhow::Result;
 use bld_config::BldConfig;
-use bld_core::{context::Context, fs::FileSystem, logger::Logger};
+use bld_core::{artifacts::ArtifactsStore, context::Context, fs::FileSystem, logger::Logger};
 use bld_models::{
     new_connection_pool,
     pipeline_runs::{self, PR_STATE_FAULTED},
@@ -82,6 +82,7 @@ impl BldCommand for WorkerCommand {
             .into_arc();
 
             let package_manager = PackageManager::new(config.clone()).into_arc();
+            let artifacts_store = ArtifactsStore::Server(conn.clone());
 
             let (worker_tx, worker_rx) = channel(4096);
             let worker_tx = Some(worker_tx).into_arc();
@@ -113,6 +114,7 @@ impl BldCommand for WorkerCommand {
                     .ipc(worker_tx)
                     .signals(signals_rx)
                     .package_manager(package_manager)
+                    .artifacts_store(artifacts_store)
                     .build()
                     .await
                 {

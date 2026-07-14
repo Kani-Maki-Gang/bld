@@ -1,36 +1,30 @@
-use crate::external::v3::External;
-#[cfg(feature = "all")]
-use bld_core::fs::FileSystem;
-#[cfg(feature = "all")]
-use bld_pkg::PackageManager;
+use crate::{
+    artifacts::v3::{DownloadArtifact, UploadArtifact},
+    external::v3::External,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[cfg(feature = "all")]
-use std::iter::Peekable;
-
-#[cfg(feature = "all")]
-use bld_utils::fs::IsYaml;
-
-#[cfg(feature = "all")]
-use tracing::debug;
-
-#[cfg(feature = "all")]
-use pest::iterators::Pairs;
-
-#[cfg(feature = "all")]
-use anyhow::{Result, bail};
-
-#[cfg(feature = "all")]
-use crate::{
-    deps::v3::{Dependencies, Dependency, RemoteDependency},
-    expr::v3::{
-        parser::Rule,
-        traits::{
-            EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
+use {
+    crate::{
+        deps::v3::{Dependencies, Dependency, RemoteDependency},
+        expr::v3::{
+            parser::Rule,
+            traits::{
+                EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext,
+                WritableRuntimeExprContext,
+            },
         },
+        validator::v3::{Validate, ValidatorContext},
     },
-    validator::v3::{Validate, ValidatorContext},
+    anyhow::{Result, bail},
+    bld_core::fs::FileSystem,
+    bld_pkg::PackageManager,
+    bld_utils::fs::IsYaml,
+    pest::iterators::Pairs,
+    std::iter::Peekable,
+    tracing::debug,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,6 +61,8 @@ impl Default for ShellCommand {
 pub enum Step {
     ComplexSh(Box<ShellCommand>),
     ExternalFile(Box<External>),
+    DownloadArtifact(Box<DownloadArtifact>),
+    UploadArtifact(Box<UploadArtifact>),
 }
 
 impl Step {
@@ -81,6 +77,8 @@ impl Step {
         match self {
             Self::ComplexSh(cmd) => &cmd.id,
             Self::ExternalFile(ext) => &ext.id,
+            Self::DownloadArtifact(value) => &value.id,
+            Self::UploadArtifact(value) => &value.id,
         }
     }
 }
@@ -148,8 +146,17 @@ impl<'a> EvalObject<'a> for Step {
                 }
                 value => bail!("invalid steps field: {value}"),
             },
+
             Self::ExternalFile(_) => {
                 // TODO: Remove once external section is removed.
+                bail!("invalid expression for step");
+            }
+
+            Self::DownloadArtifact(_) => {
+                bail!("invalid expression for step");
+            }
+
+            Self::UploadArtifact(_) => {
                 bail!("invalid expression for step");
             }
         };
@@ -206,6 +213,20 @@ impl<'a> Validate<'a> for Step {
                 debug!("Step is an external file");
                 ctx.push_section(&external.id);
                 external.validate(ctx).await;
+                ctx.pop_section();
+            }
+
+            Step::DownloadArtifact(download) => {
+                debug!("Step is an artifact download");
+                ctx.push_section(&download.id);
+                download.validate(ctx).await;
+                ctx.pop_section();
+            }
+
+            Step::UploadArtifact(upload) => {
+                debug!("Step is an artifact upload");
+                ctx.push_section(&upload.id);
+                upload.validate(ctx).await;
                 ctx.pop_section();
             }
         }

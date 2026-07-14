@@ -217,4 +217,12 @@ impl BldConfig {
     pub fn tmp_full_path(&self, name: &str) -> PathBuf {
         path![&self.root_dir, LOCAL_MACHINE_TMP_DIR, name]
     }
+
+    pub fn artifacts_run_dir(&self, run_id: &str) -> PathBuf {
+        path![&self.root_dir, &self.local.artifacts, run_id]
+    }
+
+    pub fn artifact_full_path(&self, run_id: &str, name: &str) -> PathBuf {
+        path![self.artifacts_run_dir(run_id), format!("{name}.tar.gz")]
+    }
 }

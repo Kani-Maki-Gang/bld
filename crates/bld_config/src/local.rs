@@ -31,11 +31,18 @@ pub struct BldLocalConfig {
 
     #[serde(default)]
     pub packages: BldPackages,
+
+    #[serde(default = "BldLocalConfig::default_artifacts")]
+    pub artifacts: String,
 }
 
 impl BldLocalConfig {
     fn default_editor() -> String {
         definitions::DEFAULT_EDITOR.to_owned()
+    }
+
+    fn default_artifacts() -> String {
+        definitions::LOCAL_ARTIFACTS.to_owned()
     }
 
     #[cfg(feature = "tokio")]
@@ -48,6 +55,7 @@ impl BldLocalConfig {
         debug!("server > pipelines: {}", self.server.pipelines);
         debug!("logs: {}", self.server.logs);
         debug!("db: {:?}", self.server.db);
+        debug!("artifacts: {}", self.artifacts);
         if let Some(Auth::OpenId(openid)) = &self.server.auth {
             debug!("auth > method: openid");
             debug!("auth > issuer_url: {:?}", openid.issuer_url);
@@ -122,6 +130,7 @@ impl Default for BldLocalConfig {
             ssh: Default::default(),
             registries: Default::default(),
             packages: Default::default(),
+            artifacts: Self::default_artifacts(),
         }
     }
 }

@@ -3,6 +3,7 @@ use std::{collections::HashMap, fmt::Write, sync::Arc};
 use anyhow::{Result, anyhow, bail};
 use bld_config::{BldConfig, SshUserAuth};
 use bld_core::{
+    artifacts::Artifacts,
     context::Context,
     fs::FileSystem,
     logger::Logger,
@@ -22,6 +23,7 @@ use tracing::debug;
 
 use crate::{
     RunnerBuilder,
+    artifacts::v3::{DownloadArtifact, UploadArtifact},
     expr::v3::{
         context::CommonReadonlyRuntimeExprContext,
         exec::CommonExprExecutor,
@@ -47,6 +49,7 @@ pub struct JobRunnerOptions<S: RootState> {
     pub expr_regex: Arc<Regex>,
     pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
     pub package_manager: Arc<PackageManager>,
+    pub artifacts: Arc<Artifacts>,
     pub is_child: bool,
     pub state: S,
 }
@@ -134,6 +137,8 @@ impl<S: RootState> JobRunner<S> {
         let result = match step {
             Step::ComplexSh(complex) => self.complex_shell(complex).await,
             Step::ExternalFile(external) => self.external(external).await,
+            Step::DownloadArtifact(download) => self.download_artifact(download).await,
+            Step::UploadArtifact(upload) => self.upload_artifact(upload).await,
         };
         result
             .inspect(|_| {
@@ -186,6 +191,22 @@ impl<S: RootState> JobRunner<S> {
         Ok(())
     }
 
+    async fn download_artifact(&mut self, download: &DownloadArtifact) -> Result<()> {
+        let local_path = self.eval_all_expr(&download.to)?;
+        self.options
+            .artifacts
+            .download(self.platform.clone(), &download.download, &local_path)
+            .await
+    }
+
+    async fn upload_artifact(&mut self, upload: &UploadArtifact) -> Result<()> {
+        let local_path = self.eval_all_expr(&upload.upload)?;
+        self.options
+            .artifacts
+            .upload(self.platform.clone(), &upload.name, &local_path)
+            .await
+    }
+
     async fn local_external(&mut self, details: &External) -> Result<()> {
         debug!("building runner for child file");
 
@@ -205,6 +226,7 @@ impl<S: RootState> JobRunner<S> {
             .platform(self.platform.clone())
             .regex_cache(self.options.regex_cache.clone())
             .package_manager(self.options.package_manager.clone())
+            .artifacts(self.options.artifacts.clone())
             .is_child(true)
             .build()
             .await?;
@@ -458,7 +480,8 @@ pub async fn build_platform(
 mod tests {
     use bld_config::BldConfig;
     use bld_core::{
-        context::Context, fs::FileSystem, logger::Logger, platform::Platform, regex::RegexCache,
+        artifacts::Artifacts, context::Context, fs::FileSystem, logger::Logger, platform::Platform,
+        regex::RegexCache,
     };
     use bld_pkg::PackageManager;
     use bld_utils::sync::IntoArc;
@@ -482,6 +505,7 @@ mod tests {
         let fs = FileSystem::local(config.clone()).into_arc();
         let run_ctx = Context::mock().into_arc();
         let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
         let regex_cache = RegexCache::mock().into_arc();
         let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
         let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
@@ -500,6 +524,7 @@ mod tests {
             expr_regex,
             expr_rctx,
             package_manager,
+            artifacts,
             is_child: false,
             state,
         };
@@ -533,6 +558,7 @@ mod tests {
         let run_ctx = Context::mock().into_arc();
         let mut pipeline = Pipeline::default();
         let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
         let regex_cache = RegexCache::mock().into_arc();
         let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
         let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
@@ -596,6 +622,7 @@ mod tests {
             expr_regex,
             expr_rctx,
             package_manager,
+            artifacts,
             is_child: false,
             state,
         };

@@ -4,6 +4,7 @@ use actix_web::rt::spawn;
 use anyhow::{Result, anyhow, bail};
 use bld_config::BldConfig;
 use bld_core::{
+    artifacts::Artifacts,
     context::Context,
     fs::FileSystem,
     logger::Logger,
@@ -44,6 +45,7 @@ pub struct PipelineRunner {
     pub dag: Dag,
     pub signals: Option<UnixSignalsBackend>,
     pub package_manager: Arc<PackageManager>,
+    pub artifacts: Arc<Artifacts>,
     pub ipc: Arc<Option<Sender<WorkerMessages>>>,
     pub is_child: bool,
     pub has_faulted: bool,
@@ -129,6 +131,7 @@ impl PipelineRunner {
             expr_regex: self.expr_regex.clone(),
             expr_rctx: self.expr_rctx.clone(),
             package_manager: self.package_manager.clone(),
+            artifacts: self.artifacts.clone(),
             is_child: self.is_child,
             state,
         };

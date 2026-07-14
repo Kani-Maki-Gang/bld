@@ -5,6 +5,7 @@ use bld_config::definitions::{
     GET, KEYWORD_ENV_V1, KEYWORD_RUN_PROPS_ID_V1, KEYWORD_RUN_PROPS_START_TIME_V1, KEYWORD_VAR_V1,
     PUSH,
 };
+use bld_core::artifacts::Artifacts;
 use bld_core::{
     context::Context,
     fs::FileSystem,
@@ -43,6 +44,7 @@ pub struct Runner {
     pub context: Arc<Context>,
     pub platform: Arc<Platform>,
     pub package_manager: Arc<PackageManager>,
+    pub artifacts: Arc<Artifacts>,
     pub is_child: bool,
     pub has_faulted: bool,
 }
@@ -266,6 +268,7 @@ impl Runner {
             .context(self.context.clone())
             .platform(self.platform.clone())
             .package_manager(self.package_manager.clone())
+            .artifacts(self.artifacts.clone())
             .is_child(true)
             .build()
             .await?;

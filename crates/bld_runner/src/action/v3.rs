@@ -217,8 +217,18 @@ impl<'a> Validate<'a> for Action {
 
         debug!("Validating action's steps");
         ctx.push_section("steps");
-        for (i, step) in self.steps.iter().enumerate() {
-            debug!("Validating step at index {i}");
+        if self.steps.is_empty() {
+            ctx.append_error("Action must have at least one step defined");
+        }
+
+        let mut step_ids = HashSet::new();
+        for step in &self.steps {
+            let step_id = step.id();
+            if !step_ids.insert(step_id) {
+                ctx.push_section(step_id);
+                ctx.append_error(&format!("Duplicate step id '{step_id}' found in action"));
+                ctx.pop_section();
+            }
             step.validate(ctx).await;
         }
         ctx.pop_section();

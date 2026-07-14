@@ -996,6 +996,7 @@ dependencies = [
  "bld_runner",
  "chrono",
  "codee",
+ "js-sys",
  "leptos",
  "leptos-chartistry",
  "leptos-use",
@@ -1004,6 +1005,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml_ng",
+ "wasm-bindgen",
  "web-sys",
 ]
 

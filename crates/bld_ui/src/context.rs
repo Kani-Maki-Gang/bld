@@ -25,6 +25,15 @@ impl RefreshHistory {
 }
 
 #[derive(Copy, Clone)]
+pub struct RefreshArtifacts(pub RwSignal<()>);
+
+impl RefreshArtifacts {
+    pub fn set(&self) {
+        self.0.set(());
+    }
+}
+
+#[derive(Copy, Clone)]
 pub struct RefreshPipelines(pub RwSignal<()>);
 
 impl RefreshPipelines {

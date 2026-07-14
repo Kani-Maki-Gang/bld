@@ -1,9 +1,10 @@
 use anyhow::{Result, anyhow, bail};
 use bld_models::dtos::{
-    AddJobRequest, AuthTokens, CompletedPipelinesKpi, CronJobResponse, HistQueryParams,
-    HistoryEntry, JobFiltersParams, ListResponse, PipelineInfoQueryParams, PipelinePathRequest,
-    PipelinePerCompletedStateKpi, PipelineQueryParams, PipelineRunsPerMonthKpi, QueuedPipelinesKpi,
-    RunningPipelinesKpi, RunsPerUserKpi, UpdateJobRequest,
+    AddJobRequest, ArtifactResponse, ArtifactsQueryParams, AuthTokens, CompletedPipelinesKpi,
+    CronJobResponse, HistQueryParams, HistoryEntry, JobFiltersParams, ListResponse,
+    PipelineInfoQueryParams, PipelinePathRequest, PipelinePerCompletedStateKpi,
+    PipelineQueryParams, PipelineRunsPerMonthKpi, QueuedPipelinesKpi, RunningPipelinesKpi,
+    RunsPerUserKpi, UpdateJobRequest,
 };
 use leptos::leptos_dom::logging;
 use leptos_router::{NavigateOptions, use_navigate};
@@ -412,6 +413,42 @@ pub async fn remove(params: PipelineQueryParams) -> Result<()> {
         handle_error(status, response.text().await?)
     } else {
         Ok(())
+    }
+}
+
+pub async fn artifacts(params: ArtifactsQueryParams) -> Result<Vec<ArtifactResponse>> {
+    let url = build_url("/v1/artifacts")?;
+    let request = add_authorization_header(Client::builder().build()?.get(&url))?;
+    let response = request.query(&params).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        Ok(response.json().await?)
+    }
+}
+
+pub async fn artifact_delete(id: String) -> Result<()> {
+    let url = build_url(format!("/v1/artifacts/{id}"))?;
+    let request = add_authorization_header(Client::builder().build()?.delete(&url))?;
+    let response = request.send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        Ok(())
+    }
+}
+
+pub async fn artifact_download(id: String) -> Result<Vec<u8>> {
+    let url = build_url(format!("/v1/artifacts/{id}/download"))?;
+    let request = add_authorization_header(Client::builder().build()?.get(&url))?;
+    let response = request.send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        Ok(response.bytes().await?.to_vec())
     }
 }
 

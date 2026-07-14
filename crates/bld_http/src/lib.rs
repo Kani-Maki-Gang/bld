@@ -15,9 +15,10 @@ use awc::{
 };
 use bld_config::BldConfig;
 use bld_models::dtos::{
-    AddJobRequest, AuthTokens, CronJobResponse, ExecClientMessage, HistQueryParams, HistoryEntry,
-    JobFiltersParams, PipelineInfoQueryParams, PipelinePathRequest, PipelineQueryParams,
-    PullResponse, PushInfo, RefreshTokenParams, UpdateJobRequest,
+    AddJobRequest, ArtifactResponse, ArtifactsQueryParams, AuthTokens, CronJobResponse,
+    ExecClientMessage, HistQueryParams, HistoryEntry, JobFiltersParams, PipelineInfoQueryParams,
+    PipelinePathRequest, PipelineQueryParams, PullResponse, PushInfo, RefreshTokenParams,
+    UpdateJobRequest,
 };
 use bld_utils::{
     fs::{read_tokens, write_tokens},
@@ -113,6 +114,11 @@ impl Request {
         Self::request_with_text(send_request).await
     }
 
+    pub async fn bytes(self) -> Result<Vec<u8>> {
+        let send_request = self.request.send();
+        Self::request_with_bytes(send_request).await
+    }
+
     pub async fn json<T: DeserializeOwned>(self) -> Result<T> {
         let send_request = self.request.send();
         Self::request_with_json::<T>(send_request).await
@@ -139,6 +145,38 @@ impl Request {
                     .await
                     .map_err(|e| anyhow!(e))
                     .map(|body| String::from_utf8_lossy(&body).to_string())
+            }
+            StatusCode::BAD_REQUEST => {
+                let body = response.body().await.map_err(|e| anyhow!(e))?;
+                let text = format!("{}", String::from_utf8_lossy(&body));
+                debug!("response from server status: {status}");
+                Err(RequestError::new(&text, StatusCode::BAD_REQUEST).into())
+            }
+            StatusCode::UNAUTHORIZED => {
+                debug!("response from server status: {status}");
+                let message = format!("request failed with status code: {status}");
+                Err(RequestError::new(&message, StatusCode::UNAUTHORIZED).into())
+            }
+            st => {
+                debug!("response from server status: {status}");
+                let message = format!("request failed with status code: {st}");
+                Err(RequestError::new(&message, st).into())
+            }
+        }
+    }
+
+    async fn request_with_bytes(send_request: SendClientRequest) -> Result<Vec<u8>> {
+        let mut response = send_request.await.map_err(|e| anyhow!(e.to_string()))?;
+        let status = response.status();
+
+        match status {
+            StatusCode::OK => {
+                debug!("response from server status: {status}");
+                response
+                    .body()
+                    .await
+                    .map_err(|e| anyhow!(e))
+                    .map(|body| body.to_vec())
             }
             StatusCode::BAD_REQUEST => {
                 let body = response.body().await.map_err(|e| anyhow!(e))?;
@@ -605,6 +643,67 @@ impl HttpClient {
         if Self::unauthorized(&response) {
             self.refresh().await?;
             self.cron_remove_inner(id).await
+        } else {
+            response
+        }
+    }
+
+    async fn artifacts_list_inner(&self, run_id: &str) -> Result<Vec<ArtifactResponse>> {
+        let url = format!("{}/v1/artifacts", self.base_url);
+        let params = ArtifactsQueryParams {
+            run_id: run_id.to_owned(),
+        };
+        Request::get(&url)
+            .auth(&self.auth_path)
+            .await
+            .query(&params)?
+            .json()
+            .await
+    }
+
+    pub async fn artifacts_list(&self, run_id: &str) -> Result<Vec<ArtifactResponse>> {
+        let response = self.artifacts_list_inner(run_id).await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.artifacts_list_inner(run_id).await
+        } else {
+            response
+        }
+    }
+
+    async fn artifacts_download_inner(&self, id: &str) -> Result<Vec<u8>> {
+        let url = format!("{}/v1/artifacts/{id}/download", self.base_url);
+        Request::get(&url).auth(&self.auth_path).await.bytes().await
+    }
+
+    pub async fn artifacts_download(&self, id: &str) -> Result<Vec<u8>> {
+        let response = self.artifacts_download_inner(id).await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.artifacts_download_inner(id).await
+        } else {
+            response
+        }
+    }
+
+    async fn artifacts_remove_inner(&self, id: &str) -> Result<()> {
+        let url = format!("{}/v1/artifacts/{id}", self.base_url);
+        Request::delete(&url)
+            .auth(&self.auth_path)
+            .await
+            .json()
+            .await
+            .map(|_: String| ())
+    }
+
+    pub async fn artifacts_remove(&self, id: &str) -> Result<()> {
+        let response = self.artifacts_remove_inner(id).await;
+
+        if Self::unauthorized(&response) {
+            self.refresh().await?;
+            self.artifacts_remove_inner(id).await
         } else {
             response
         }

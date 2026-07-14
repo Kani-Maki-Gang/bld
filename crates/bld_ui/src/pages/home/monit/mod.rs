@@ -1,7 +1,14 @@
+mod artifacts;
+mod logs;
+
 use crate::{
     api::{self, build_ws_url, get_access_token},
-    components::{button::Button, colors::Colors},
-    context::{AppDialog, AppDialogContent},
+    components::{
+        button::Button,
+        colors::Colors,
+        tabs::{Tab, Tabs, TabsDirection},
+    },
+    context::{AppDialog, AppDialogContent, RefreshArtifacts},
     error::ErrorDialog,
 };
 use codee::string::FromToStringCodec;
@@ -13,6 +20,8 @@ use leptos_use::{
 };
 use serde::{Deserialize, Serialize};
 
+use {artifacts::MonitArtifacts, logs::MonitLogs};
+
 type StopActionArgs = (String, NodeRef<Dialog>, RwSignal<Option<View>>);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,18 +31,29 @@ struct MonitInfo {
     last: bool,
 }
 
+#[derive(Clone, Default, Eq, PartialEq)]
+enum MenuItem {
+    #[default]
+    Logs,
+    Artifacts,
+}
+
 #[component]
 pub fn Monit() -> impl IntoView {
     let params = use_query_map();
     let id = move || params.with(|p| p.get("id").cloned());
+    let selected = create_rw_signal(MenuItem::Logs);
+    let app_dialog = use_context::<AppDialog>();
+    let app_dialog_content = use_context::<AppDialogContent>();
+
+    provide_context(RefreshArtifacts(create_rw_signal(())));
+
     let info = move || MonitInfo {
         id: id(),
         pipeline: None,
         last: false,
     };
     let (history, set_history) = create_signal(vec![]);
-    let app_dialog = use_context::<AppDialog>();
-    let app_dialog_content = use_context::<AppDialogContent>();
 
     let Ok(access_token) = get_access_token() else {
         return view! {}.into_view();
@@ -106,46 +126,65 @@ pub fn Monit() -> impl IntoView {
 
     view! {
         <div class="flex flex-col min-h-full">
-            <div class="px-6 py-5 border-b border-zinc-800 flex items-center gap-4">
+            <div class="px-6 py-5 border-b border-zinc-800 grid grid-cols-4 items-center gap-4">
                 <div class="grow">
                     <div class="text-lg font-semibold text-white">"Monitoring pipeline run"</div>
                     <div class="text-xs text-zinc-500 mt-0.5">
-                        "Run id: " {move || id()} " · Socket: " {move || socket_state()}
+                        "Run id: " {move || id().unwrap_or_default()}
                     </div>
                 </div>
-                <div class="w-24 shrink-0">
-                    <Button
-                        color=Colors::Red
-                        on:click=move |_| {
-                            let Some(id) = id() else {
-                                logging::console_error("Pipeline run id not provided in url");
-                                return;
-                            };
-                            let Some(AppDialog(dialog)) = app_dialog else {
-                                logging::console_error("App dialog context not found");
-                                return;
-                            };
-                            let Some(AppDialogContent(content)) = app_dialog_content else {
-                                logging::console_error("App dialog context not found");
-                                return;
-                            };
-                            stop_action.dispatch((id, dialog, content));
-                        }
-                    >
-                        "Stop"
-                    </Button>
+                <div class="col-span-2 flex justify-center">
+                    <Tabs direction=move || TabsDirection::Horizontal>
+                        <Tab
+                            is_selected=move || selected.get() == MenuItem::Logs
+                            on:click=move |_| selected.set(MenuItem::Logs)
+                        >
+                            "Logs"
+                        </Tab>
+                        <Tab
+                            is_selected=move || selected.get() == MenuItem::Artifacts
+                            on:click=move |_| selected.set(MenuItem::Artifacts)
+                        >
+                            "Artifacts"
+                        </Tab>
+                    </Tabs>
+                </div>
+                <div class="flex items-center justify-end gap-4">
+                    <div class="text-xs text-zinc-500">"Socket: " {move || socket_state()}</div>
+                    <div class="w-24 shrink-0">
+                        <Button
+                            color=Colors::Red
+                            on:click=move |_| {
+                                let Some(id) = id() else {
+                                    logging::console_error("Pipeline run id not provided in url");
+                                    return;
+                                };
+                                let Some(AppDialog(dialog)) = app_dialog else {
+                                    logging::console_error("App dialog context not found");
+                                    return;
+                                };
+                                let Some(AppDialogContent(content)) = app_dialog_content else {
+                                    logging::console_error("App dialog context not found");
+                                    return;
+                                };
+                                stop_action.dispatch((id, dialog, content));
+                            }
+                        >
+                            "Stop"
+                        </Button>
+                    </div>
                 </div>
             </div>
-            <div class="px-6 py-5 grow">
-                <div class="bg-zinc-950 border border-zinc-800 rounded-xl p-5 font-mono text-xs text-emerald-400 leading-relaxed min-h-[300px] overflow-auto">
-                    <For
-                        each=move || history.get().into_iter().enumerate()
-                        key=|(index, _)| *index
-                        let:child
-                    >
-                        <pre>{child.1}</pre>
-                    </For>
-                </div>
+            <div class="grow flex flex-col">
+                <Show when=move || matches!(selected.get(), MenuItem::Logs) fallback=|| view! {}>
+                    <MonitLogs history=history />
+                </Show>
+                <Show
+                    when=move || matches!(selected.get(), MenuItem::Artifacts)
+                    fallback=|| view! {}
+                >
+                    <MonitArtifacts run_id=Signal::derive(id) />
+                </Show>
             </div>
         </div>
     }

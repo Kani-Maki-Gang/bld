@@ -3,10 +3,22 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 #[cfg(feature = "all")]
-use crate::validator::v3::{Validate, ValidatorContext};
-
-#[cfg(feature = "all")]
-use tracing::debug;
+use {
+    crate::{
+        expr::v3::{
+            parser::Rule,
+            traits::{
+                EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext,
+                WritableRuntimeExprContext,
+            },
+        },
+        validator::v3::{Validate, ValidatorContext},
+    },
+    anyhow::{Result, bail},
+    pest::iterators::Pairs,
+    std::iter::Peekable,
+    tracing::debug,
+};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct External {
@@ -37,6 +49,51 @@ impl External {
             uses: uses.to_owned(),
             ..Default::default()
         }
+    }
+}
+
+#[cfg(feature = "all")]
+impl<'a> EvalObject<'a> for External {
+    fn eval_object<RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>(
+        &'a self,
+        path: &mut Peekable<Pairs<'_, Rule>>,
+        _rctx: &'a RCtx,
+        _wctx: &'a WCtx,
+    ) -> Result<ExprValue<'a>> {
+        let Some(object) = path.next() else {
+            bail!("no object path present");
+        };
+
+        let key = object.as_span().as_str();
+
+        let value = match key {
+            "name" => self.name.as_deref().unwrap_or(""),
+            "server" => self.server.as_deref().unwrap_or(""),
+            "uses" => &self.uses,
+            "with" => {
+                let Some(key) = path.next() else {
+                    bail!("expected object key for with field");
+                };
+                let key = key.as_span().as_str();
+                let Some(value) = self.with.get(key) else {
+                    bail!("object key '{}' not found in with field", key);
+                };
+                value
+            }
+            "env" => {
+                let Some(key) = path.next() else {
+                    bail!("expected object key for env field");
+                };
+                let key = key.as_span().as_str();
+                let Some(value) = self.env.get(key) else {
+                    bail!("object key '{}' not found in env field", key);
+                };
+                value
+            }
+            value => bail!("invalid steps field: {value}"),
+        };
+
+        Ok(ExprValue::Text(ExprText::Ref(value)))
     }
 }
 

@@ -15,6 +15,7 @@ mod m20230907_190009_create_cron_jobs_table;
 mod m20230907_190403_create_cron_job_variables_table;
 mod m20230907_190709_create_cron_job_environment_variables_table;
 mod m20240630_162930_login_attempts;
+mod m20260705_163911_add_artifacts;
 
 pub struct Migrator;
 
@@ -37,6 +38,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20230907_190403_create_cron_job_variables_table::Migration),
             Box::new(m20230907_190709_create_cron_job_environment_variables_table::Migration),
             Box::new(m20240630_162930_login_attempts::Migration),
+            Box::new(m20260705_163911_add_artifacts::Migration),
         ]
     }
 }

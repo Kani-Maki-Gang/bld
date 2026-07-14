@@ -1,4 +1,5 @@
 mod add;
+mod artifacts;
 mod auth;
 mod cat;
 mod check;
