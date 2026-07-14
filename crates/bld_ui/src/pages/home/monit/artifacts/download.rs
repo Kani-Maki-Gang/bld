@@ -32,7 +32,9 @@ fn save_bytes_as_file(bytes: Vec<u8>, filename: &str) -> Result<()> {
     anchor.set_href(&url);
     anchor.set_download(filename);
 
-    let body = document.body().ok_or_else(|| anyhow!("document body not found"))?;
+    let body = document
+        .body()
+        .ok_or_else(|| anyhow!("document body not found"))?;
     body.append_child(&anchor)
         .map_err(|e| anyhow!("unable to append anchor element: {e:?}"))?;
     anchor.click();
@@ -45,7 +47,10 @@ fn save_bytes_as_file(bytes: Vec<u8>, filename: &str) -> Result<()> {
 }
 
 #[component]
-pub fn ArtifactDownloadButton(#[prop(into)] id: String, #[prop(into)] name: String) -> impl IntoView {
+pub fn ArtifactDownloadButton(
+    #[prop(into)] id: String,
+    #[prop(into)] name: String,
+) -> impl IntoView {
     let app_dialog = use_context::<AppDialog>();
     let app_dialog_content = use_context::<AppDialogContent>();
 

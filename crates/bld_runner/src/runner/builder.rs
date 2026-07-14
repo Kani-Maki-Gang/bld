@@ -344,6 +344,11 @@ impl<'a> RunnerBuilder<'a> {
                     artifacts,
                     expr_regex,
                     expr_rctx,
+                    config,
+                    self.fs,
+                    context,
+                    self.regex_cache,
+                    package_manager,
                 ));
                 VersionedRunner::V3(FileRunner::Action(runner))
             }

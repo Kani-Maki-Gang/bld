@@ -52,7 +52,10 @@ async fn cleanup_expired_artifacts(conn: &DatabaseConnection, config: &BldConfig
         }
 
         if let Err(e) = artifacts::delete_by_id(conn, &artifact.id).await {
-            error!("unable to delete expired artifact entry {}: {e}", artifact.id);
+            error!(
+                "unable to delete expired artifact entry {}: {e}",
+                artifact.id
+            );
         }
     }
 

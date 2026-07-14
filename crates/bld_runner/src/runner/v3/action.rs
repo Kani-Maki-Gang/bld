@@ -1,11 +1,20 @@
-use std::{fmt::Write, sync::Arc};
+use std::{collections::HashMap, fmt::Write, sync::Arc};
 
 use anyhow::{Result, bail};
-use bld_core::{artifacts::Artifacts, logger::Logger, platform::Platform};
+use bld_config::BldConfig;
+use bld_core::{
+    artifacts::Artifacts, context::Context, fs::FileSystem, logger::Logger, platform::Platform,
+    regex::RegexCache,
+};
+use bld_models::dtos::ExecClientMessage;
+use bld_pkg::PackageManager;
+use bld_sock::ExecClient;
+use bld_utils::sync::IntoArc;
 use regex::Regex;
 use tracing::debug;
 
 use crate::{
+    RunnerBuilder,
     action::v3::Action,
     artifacts::v3::{DownloadArtifact, UploadArtifact},
     expr::v3::{
@@ -13,6 +22,7 @@ use crate::{
         exec::CommonExprExecutor,
         traits::{EvalExpr, ExprValue},
     },
+    external::v3::External,
     runner::v3::state::{ActionState, RootState, State},
     step::v3::{ShellCommand, Step},
 };
@@ -27,6 +37,11 @@ pub struct ActionRunner<S: RootState> {
     pub expr_regex: Regex,
     pub expr_rctx: CommonReadonlyRuntimeExprContext,
     pub state: S,
+    pub config: Arc<BldConfig>,
+    pub fs: Arc<FileSystem>,
+    pub run_ctx: Arc<Context>,
+    pub regex_cache: Arc<RegexCache>,
+    pub package_manager: Arc<PackageManager>,
 }
 
 impl<S: RootState> ActionRunner<S> {
@@ -99,9 +114,7 @@ impl<S: RootState> ActionRunner<S> {
             self.state.update_node_state(step.id(), State::Running);
             match step {
                 Step::ComplexSh(complex) => self.complex_shell(complex).await,
-                Step::ExternalFile(_external) => {
-                    bail!("external calls are not supported in actions")
-                }
+                Step::ExternalFile(external) => self.external(external).await,
                 Step::DownloadArtifact(download) => self.download_artifact(download).await,
                 Step::UploadArtifact(upload) => self.upload_artifact(upload).await,
             }
@@ -136,6 +149,90 @@ impl<S: RootState> ActionRunner<S> {
         Ok(())
     }
 
+    async fn external(&mut self, external: &External) -> Result<()> {
+        if let Some(name) = external.name.as_ref() {
+            let mut message = String::new();
+            writeln!(message, "{:<15}: {name}", "Step")?;
+            self.logger.write_line(message).await?;
+        }
+
+        debug!("calling external pipeline or action {}", external.uses);
+
+        match external.server.as_ref() {
+            Some(server) => self.server_external(server, external).await?,
+            None => self.local_external(external).await?,
+        };
+
+        Ok(())
+    }
+
+    async fn local_external(&mut self, details: &External) -> Result<()> {
+        debug!("building runner for child file");
+
+        let inputs = self.variables_external(&details.with)?;
+        let env = self.variables_external(&details.env)?;
+
+        let runner = RunnerBuilder::default()
+            .run_id(&self.expr_rctx.run_id)
+            .run_start_time(&self.expr_rctx.run_start_time)
+            .config(self.config.clone())
+            .fs(self.fs.clone())
+            .file(&details.uses)
+            .logger(self.logger.clone())
+            .env(env.into_arc())
+            .inputs(inputs.into_arc())
+            .context(self.run_ctx.clone())
+            .platform(self.platform.clone())
+            .regex_cache(self.regex_cache.clone())
+            .package_manager(self.package_manager.clone())
+            .artifacts(self.artifacts.clone())
+            .is_child(true)
+            .build()
+            .await?;
+
+        debug!("starting child file runner");
+        runner.run().await?;
+
+        Ok(())
+    }
+
+    async fn server_external(&mut self, server: &str, details: &External) -> Result<()> {
+        let inputs = self.variables_external(&details.with)?;
+        let env = self.variables_external(&details.env)?;
+
+        debug!("establishing web socket connection with server {}", server);
+
+        let client = ExecClient::connect(
+            self.config.clone(),
+            server.to_owned(),
+            self.logger.clone(),
+            self.run_ctx.clone(),
+        )
+        .await?;
+
+        debug!("sending message for pipeline execution over the web socket");
+
+        client
+            .run(ExecClientMessage::EnqueueRun {
+                name: details.uses.to_owned(),
+                env: Some(env),
+                inputs: Some(inputs),
+            })
+            .await
+    }
+
+    fn variables_external(
+        &mut self,
+        vars: &HashMap<String, String>,
+    ) -> Result<HashMap<String, String>> {
+        let mut result = HashMap::new();
+        for (name, value) in vars {
+            let value = self.eval_all_expr(value)?;
+            result.insert(name.to_string(), value);
+        }
+        Ok(result)
+    }
+
     async fn download_artifact(&mut self, download: &DownloadArtifact) -> Result<()> {
         let local_path = self.eval_all_expr(&download.to)?;
         self.artifacts
@@ -168,6 +265,7 @@ impl<S: RootState> ActionRunner<S> {
 }
 
 impl ActionRunner<ActionState> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         logger: Arc<Logger>,
         action: Action,
@@ -175,6 +273,11 @@ impl ActionRunner<ActionState> {
         artifacts: Arc<Artifacts>,
         expr_regex: Regex,
         expr_rctx: CommonReadonlyRuntimeExprContext,
+        config: Arc<BldConfig>,
+        fs: Arc<FileSystem>,
+        run_ctx: Arc<Context>,
+        regex_cache: Arc<RegexCache>,
+        package_manager: Arc<PackageManager>,
     ) -> Self {
         let mut state = ActionState::default();
         for step in &action.steps {
@@ -188,6 +291,11 @@ impl ActionRunner<ActionState> {
             expr_regex,
             expr_rctx,
             state,
+            config,
+            fs,
+            run_ctx,
+            regex_cache,
+            package_manager,
         }
     }
 
@@ -198,7 +306,12 @@ impl ActionRunner<ActionState> {
 
 #[cfg(test)]
 mod tests {
-    use bld_core::{artifacts::Artifacts, logger::Logger, platform::Platform};
+    use bld_config::BldConfig;
+    use bld_core::{
+        artifacts::Artifacts, context::Context, fs::FileSystem, logger::Logger, platform::Platform,
+        regex::RegexCache,
+    };
+    use bld_pkg::PackageManager;
     use bld_utils::sync::IntoArc;
     use regex::Regex;
 
@@ -218,6 +331,11 @@ mod tests {
         let regex = Regex::new(EXPR_REGEX).unwrap();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let state = MockRootState::new();
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
 
         let mut runner = ActionRunner {
             logger,
@@ -227,6 +345,11 @@ mod tests {
             expr_regex: regex,
             expr_rctx: rctx,
             state,
+            config,
+            fs,
+            run_ctx,
+            regex_cache,
+            package_manager,
         };
 
         assert!(matches!(runner.condition(None), Ok(true)));
@@ -258,6 +381,11 @@ mod tests {
         let regex = Regex::new(EXPR_REGEX).unwrap();
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let mut state = MockRootState::new();
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
 
         for node_id in data {
             state
@@ -305,6 +433,11 @@ mod tests {
             expr_regex: regex,
             expr_rctx: rctx,
             state,
+            config,
+            fs,
+            run_ctx,
+            regex_cache,
+            package_manager,
         };
 
         // Act
