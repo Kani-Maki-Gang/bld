@@ -44,11 +44,19 @@ String = ${
 }
 
 ObjectPart = @{ ('a'..'z' | 'A'..'Z' | "_" | "-" | "(" | ")" | ASCII_NONZERO_DIGIT | ASCII_DIGIT)+ }
+Index = @{ "[" ~ ASCII_DIGIT+ ~ "]" }
 Object = ${
-    ObjectPart ~ ("." ~ ObjectPart)*
+    ObjectPart ~ ("." ~ ObjectPart)* ~ Index?
 }
 
-Symbol = { Boolean | Number | String | Object }
+ArrayElement = { Boolean | Number | String }
+Array = {
+    "[" ~ " "*
+    ~ (ArrayElement ~ (" "* ~ "," ~ " "* ~ ArrayElement)*)?
+    ~ " "* ~ "]"
+}
+
+Symbol = { Boolean | Number | String | Array | Object }
 
 //
 // Defining expressions
