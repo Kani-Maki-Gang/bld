@@ -102,6 +102,7 @@ impl Pipeline {
         }
 
         let mut job_ids = HashSet::new();
+        let mut needs_defined = true;
         for (name, job) in &self.jobs {
             ctx.push_job_section(name);
             debug!("Validating {name} job's steps");
@@ -111,9 +112,28 @@ impl Pipeline {
                 ctx.append_error(&format!("Duplicate job id '{job_id}' found"));
                 ctx.pop_section();
             }
+
+            debug!("Validating {name} job's needs section");
+            ctx.push_section("needs");
+            for need in job.needs_iter() {
+                if !self.jobs.contains_key(need) {
+                    needs_defined = false;
+                    ctx.append_error(&format!("job depends on undefined job '{need}'"));
+                }
+            }
+            ctx.pop_section();
+
             job.validate(ctx).await;
             ctx.pop_section();
         }
+
+        if needs_defined {
+            debug!("Validating pipeline's jobs dependency graph for cycles");
+            if let Err(e) = crate::dag::Dag::try_from(self) {
+                ctx.append_error(&e.to_string());
+            }
+        }
+
         ctx.pop_section();
     }
 }
@@ -295,8 +315,11 @@ impl<'a> Validate<'a> for Pipeline {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, sync::Arc};
 
+    use bld_config::BldConfig;
+    use bld_core::fs::FileSystem;
+    use bld_pkg::PackageManager;
     use bld_utils::sync::IntoArc;
 
     use crate::{
@@ -306,10 +329,88 @@ mod tests {
             traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext},
         },
         inputs::v3::Input,
-        job::v3::Job,
+        job::v3::{Job, Needs},
+        step::v3::{ShellCommand, Step},
+        validator::v3::{Validate, ValidatorContext},
     };
 
     use super::Pipeline;
+
+    struct RecordingValidatorContext {
+        errors: Vec<String>,
+        config: Arc<BldConfig>,
+        fs: Arc<FileSystem>,
+        package_manager: Arc<PackageManager>,
+    }
+
+    impl RecordingValidatorContext {
+        fn new() -> Self {
+            let config = BldConfig::default().into_arc();
+            Self {
+                errors: Vec::new(),
+                fs: FileSystem::local(config.clone()).into_arc(),
+                package_manager: PackageManager::new(config.clone()).into_arc(),
+                config,
+            }
+        }
+    }
+
+    impl<'a> ValidatorContext<'a> for RecordingValidatorContext {
+        fn get_config(&self) -> Arc<BldConfig> {
+            self.config.clone()
+        }
+
+        fn get_fs(&self) -> Arc<FileSystem> {
+            self.fs.clone()
+        }
+
+        fn get_package_manager(&self) -> Arc<PackageManager> {
+            self.package_manager.clone()
+        }
+
+        fn push_section(&mut self, _section: &'a str) {}
+
+        fn push_job_section(&mut self, _section: &'a str) {}
+
+        fn pop_section(&mut self) {}
+
+        fn clear_section(&mut self) {}
+
+        fn append_error(&mut self, error: &str) {
+            self.errors.push(error.to_string());
+        }
+
+        fn expression_count(&self, _value: &str) -> usize {
+            0
+        }
+
+        fn contains_expressions(&mut self, _value: &str) -> bool {
+            false
+        }
+
+        fn validate_expressions(&mut self, _symbol: &'a str) {}
+
+        fn validate_file_path(&mut self, _value: &'a str) {}
+
+        fn validate_env(&mut self, _env: &'a HashMap<String, String>) {}
+
+        fn validate_array_expression(&mut self, _symbol: &'a str) {}
+
+        fn matrix_refs(&self, _value: &str) -> Vec<String> {
+            vec![]
+        }
+    }
+
+    fn job_with_needs(needs: Option<Needs>) -> Job {
+        Job {
+            needs,
+            steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                run: "echo hello".to_string(),
+                ..Default::default()
+            }))],
+            ..Default::default()
+        }
+    }
 
     #[test]
     pub fn name_expr_eval_success() {
@@ -551,5 +652,68 @@ mod tests {
                 Ok(ExprValue::Boolean(true))
             ));
         }
+    }
+
+    #[tokio::test]
+    pub async fn validate_rejects_job_depending_on_undefined_job() {
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            "b".to_string(),
+            job_with_needs(Some(Needs::Single("missing".to_string()))),
+        );
+
+        let mut ctx = RecordingValidatorContext::new();
+        pipeline.validate(&mut ctx).await;
+
+        assert!(
+            ctx.errors
+                .iter()
+                .any(|e| e.contains("depends on undefined job") && e.contains("missing")),
+            "expected an undefined job dependency error, got: {:?}",
+            ctx.errors
+        );
+    }
+
+    #[tokio::test]
+    pub async fn validate_rejects_cyclic_job_dependencies() {
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            "a".to_string(),
+            job_with_needs(Some(Needs::Single("b".to_string()))),
+        );
+        pipeline.jobs.insert(
+            "b".to_string(),
+            job_with_needs(Some(Needs::Single("a".to_string()))),
+        );
+
+        let mut ctx = RecordingValidatorContext::new();
+        pipeline.validate(&mut ctx).await;
+
+        assert!(
+            ctx.errors.iter().any(|e| e.contains("cyclic dependency")),
+            "expected a cyclic dependency error, got: {:?}",
+            ctx.errors
+        );
+    }
+
+    #[tokio::test]
+    pub async fn validate_accepts_valid_job_dependencies() {
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert("a".to_string(), job_with_needs(None));
+        pipeline.jobs.insert(
+            "b".to_string(),
+            job_with_needs(Some(Needs::Single("a".to_string()))),
+        );
+
+        let mut ctx = RecordingValidatorContext::new();
+        pipeline.validate(&mut ctx).await;
+
+        assert!(
+            !ctx.errors
+                .iter()
+                .any(|e| e.contains("undefined job") || e.contains("cyclic dependency")),
+            "did not expect dependency errors, got: {:?}",
+            ctx.errors
+        );
     }
 }
