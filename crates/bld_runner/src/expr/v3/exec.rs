@@ -122,27 +122,31 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
             .next()
             .ok_or_else(|| anyhow!("no expression found"))?;
 
-        let Rule::ExpressionInner = expr_inner.as_rule() else {
-            bail!(
-                "expected expression inner rule, found {:?}",
+        match expr_inner.as_rule() {
+            Rule::LogicalExpression => self.eval_logical_expr(expr_inner),
+
+            Rule::ExpressionInner => {
+                let actual_expr = expr_inner
+                    .into_inner()
+                    .next()
+                    .ok_or_else(|| anyhow!("no expression found"))?;
+
+                match actual_expr.as_rule() {
+                    Rule::Equals
+                    | Rule::NotEquals
+                    | Rule::Greater
+                    | Rule::GreaterEquals
+                    | Rule::Less
+                    | Rule::LessEquals => self.eval_cmp(actual_expr),
+                    Rule::Symbol => self.eval_symbol(actual_expr),
+                    _ => bail!("unexpected rule: {:?}", actual_expr.as_rule()),
+                }
+            }
+
+            _ => bail!(
+                "expected expression inner or logical expression rule, found {:?}",
                 expr_inner.as_rule()
-            );
-        };
-
-        let actual_expr = expr_inner
-            .into_inner()
-            .next()
-            .ok_or_else(|| anyhow!("no expression found"))?;
-
-        match actual_expr.as_rule() {
-            Rule::Equals
-            | Rule::NotEquals
-            | Rule::Greater
-            | Rule::GreaterEquals
-            | Rule::Less
-            | Rule::LessEquals => self.eval_cmp(actual_expr),
-            Rule::Symbol => self.eval_symbol(actual_expr),
-            _ => bail!("unexpected rule: {:?}", actual_expr.as_rule()),
+            ),
         }
     }
 
@@ -306,10 +310,44 @@ mod tests {
 
     #[test]
     pub fn string_eval_success() {
-        let data = vec![(
-            "${{ \"hello\" }}",
-            ExprValue::Text(ExprText::Owned("hello".to_string())),
-        )];
+        let data = vec![
+            (
+                "${{ \"hello\" }}",
+                ExprValue::Text(ExprText::Owned("hello".to_string())),
+            ),
+            (
+                "${{ 'hello' }}",
+                ExprValue::Text(ExprText::Owned("hello".to_string())),
+            ),
+            (
+                "${{ \"\" }}",
+                ExprValue::Text(ExprText::Owned("".to_string())),
+            ),
+            (
+                "${{ '' }}",
+                ExprValue::Text(ExprText::Owned("".to_string())),
+            ),
+            (
+                "${{ \"it's\" }}",
+                ExprValue::Text(ExprText::Owned("it's".to_string())),
+            ),
+            (
+                "${{ 'say \"hi\"' }}",
+                ExprValue::Text(ExprText::Owned("say \"hi\"".to_string())),
+            ),
+            (
+                "${{ \"say \\\"hi\\\"\" }}",
+                ExprValue::Text(ExprText::Owned("say \"hi\"".to_string())),
+            ),
+            (
+                "${{ \"a\\nb\\tc\" }}",
+                ExprValue::Text(ExprText::Owned("a\nb\tc".to_string())),
+            ),
+            (
+                "${{ \"back\\\\slash\" }}",
+                ExprValue::Text(ExprText::Owned("back\\slash".to_string())),
+            ),
+        ];
 
         let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
@@ -858,6 +896,72 @@ mod tests {
 
             if expected.is_err() && value.is_ok() {
                 panic!("invalid result after eval");
+            }
+        }
+    }
+
+    #[test]
+    pub fn nested_parens_logical_expression_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            (
+                "${{ (true == true && false == false) }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ (true == true && false == true) }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            (
+                "${{ true || (false && false) }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ false || (false && false) }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            (
+                "${{ (true && false) || true }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ true && (false || true) }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ (true == true) && (false == false) }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ (5 > 4 && 3 > 2) || (1 > 2 && 2 > 1) }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ (5 > 4 && 3 < 2) || (1 > 2 && 2 > 1) }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+        ];
+
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        for (expr, expected) in data {
+            let value = exec.eval(expr);
+
+            if let Ok(expected) = expected {
+                let Ok(value) = value else {
+                    panic!("invalid result after eval for expr: {expr}");
+                };
+                assert!(
+                    matches!(value.try_eq(&expected), Ok(ExprValue::Boolean(true))),
+                    "unexpected result for expr: {expr}"
+                );
+                continue;
+            }
+
+            if expected.is_err() && value.is_ok() {
+                panic!("invalid result after eval for expr: {expr}");
             }
         }
     }

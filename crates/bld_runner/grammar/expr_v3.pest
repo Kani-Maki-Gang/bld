@@ -33,15 +33,27 @@ Number = ${
 
 Boolean = @{ "true" | "false" }
 
-String = ${
-    ("\"" | "'")
+DoubleQuotedString = @{
+    "\""
     ~ (
         !("\"" | "\\") ~ ANY
         | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
         | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
     )*
-    ~ ("\"" | "'")
+    ~ "\""
 }
+
+SingleQuotedString = @{
+    "'"
+    ~ (
+        !("'" | "\\") ~ ANY
+        | "\\" ~ ("'" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+        | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+    )*
+    ~ "'"
+}
+
+String = ${ DoubleQuotedString | SingleQuotedString }
 
 ObjectPart = @{ ('a'..'z' | 'A'..'Z' | "_" | "-" | "(" | ")" | ASCII_NONZERO_DIGIT | ASCII_DIGIT)+ }
 Object = ${
@@ -61,7 +73,7 @@ Less = { Symbol ~ LessOperator ~ Symbol }
 LessEquals = { Symbol ~ LessEqualsOperator ~ Symbol }
 
 ExpressionInner = { Equals | NotEquals | Greater | GreaterEquals | Less | LessEquals | Symbol }
-Expression = { ("(" ~ " "* ~ ExpressionInner ~ " "* ~ ")") | ExpressionInner }
+Expression = { ("(" ~ " "* ~ (LogicalExpression | ExpressionInner) ~ " "* ~ ")") | ExpressionInner }
 
 LogicalExpression = {  Expression ~ ((AndOperator | OrOperator) ~ Expression)+ }
 
