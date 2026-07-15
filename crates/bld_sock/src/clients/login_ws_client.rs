@@ -41,7 +41,8 @@ impl LoginClient {
     pub async fn run(mut self) -> Result<()> {
         self.sock.text(&LoginClientMessage::Init).await?;
 
-        while let Ok(frame) = self.sock.next().await {
+        loop {
+            let frame = self.sock.next().await?;
             match frame {
                 Frame::Text(bt) => {
                     debug!("received text message from server");

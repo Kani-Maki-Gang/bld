@@ -38,14 +38,10 @@ impl WorkerClient {
                         break;
                     };
                     debug!("sending message to supervisor {:?}", msg);
-                    if self.sock.binary(&msg).await.is_err() {
-                        break;
-                    }
+                    self.sock.binary(&msg).await?;
                 }
                 res = self.sock.next() => {
-                    let Ok(frame) = res else {
-                        break;
-                    };
+                    let frame = res?;
                     match frame {
                         Frame::Text(bt) => {
                             let message = format!("{}", String::from_utf8_lossy(&bt));

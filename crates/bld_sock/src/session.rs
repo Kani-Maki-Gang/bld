@@ -85,9 +85,7 @@ impl WebSocketHandler {
             }
 
             _ = self.hb_interval.tick() => {
-                if Instant::now().duration_since(self.last_pong)
-                    > Duration::from_millis(CLIENT_TIMEOUT_MS)
-                {
+                if is_heartbeat_timed_out(self.last_pong, Instant::now()) {
                     self.error();
                     warn!("client heartbeat timed out, closing session");
                     return WebSocketMessage::Completed;
@@ -117,4 +115,34 @@ impl WebSocketHandler {
 pub fn handle(req: &HttpRequest, body: Payload) -> Result<(HttpResponse, WebSocketHandler)> {
     let (response, session, msg_stream) = actix_ws::handle(req, body)?;
     Ok((response, WebSocketHandler::new(session, msg_stream)))
+}
+
+fn is_heartbeat_timed_out(last_pong: Instant, now: Instant) -> bool {
+    now.duration_since(last_pong) > Duration::from_millis(CLIENT_TIMEOUT_MS)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_heartbeat_timed_out_within_limit() {
+        let last_pong = Instant::now();
+        let now = last_pong + Duration::from_millis(CLIENT_TIMEOUT_MS - 1);
+        assert!(!is_heartbeat_timed_out(last_pong, now));
+    }
+
+    #[test]
+    fn is_heartbeat_timed_out_at_limit() {
+        let last_pong = Instant::now();
+        let now = last_pong + Duration::from_millis(CLIENT_TIMEOUT_MS);
+        assert!(!is_heartbeat_timed_out(last_pong, now));
+    }
+
+    #[test]
+    fn is_heartbeat_timed_out_past_limit() {
+        let last_pong = Instant::now();
+        let now = last_pong + Duration::from_millis(CLIENT_TIMEOUT_MS + 1);
+        assert!(is_heartbeat_timed_out(last_pong, now));
+    }
 }

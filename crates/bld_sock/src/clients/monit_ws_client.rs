@@ -25,7 +25,8 @@ impl MonitClient {
         debug!("sending monit info to socket");
         self.sock.text(&info).await?;
 
-        while let Ok(frame) = self.sock.next().await {
+        loop {
+            let frame = self.sock.next().await?;
             match frame {
                 Frame::Text(bt) => {
                     self.logger
