@@ -8,7 +8,52 @@ use pest::iterators::{Pair, Pairs};
 
 use super::parser::Rule;
 
-const ESCAPE_CHARS: [&str; 2] = ["\\\"", "\""];
+fn unescape_string_literal(value: &str) -> String {
+    let quote = value.chars().next();
+    let inner = if matches!(quote, Some('"') | Some('\'')) && value.len() >= 2 {
+        &value[1..value.len() - 1]
+    } else {
+        value
+    };
+
+    let mut result = String::with_capacity(inner.len());
+    let mut chars = inner.chars();
+
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            result.push(c);
+            continue;
+        }
+
+        match chars.next() {
+            Some('"') => result.push('"'),
+            Some('\'') => result.push('\''),
+            Some('\\') => result.push('\\'),
+            Some('/') => result.push('/'),
+            Some('b') => result.push('\u{0008}'),
+            Some('f') => result.push('\u{000C}'),
+            Some('n') => result.push('\n'),
+            Some('r') => result.push('\r'),
+            Some('t') => result.push('\t'),
+            Some('u') => {
+                let hex: String = chars.by_ref().take(4).collect();
+                if let Some(decoded) = u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32) {
+                    result.push(decoded);
+                } else {
+                    result.push_str("\\u");
+                    result.push_str(&hex);
+                }
+            }
+            Some(other) => {
+                result.push('\\');
+                result.push(other);
+            }
+            None => result.push('\\'),
+        }
+    }
+
+    result
+}
 
 #[derive(Debug, Eq, Ord, PartialOrd, PartialEq)]
 pub enum ExprText<'a> {
@@ -113,18 +158,9 @@ impl<'b> TryFrom<&'b str> for ExprValue<'_> {
             return Ok(ExprValue::Boolean(boolean));
         }
 
-        let mut text = String::new();
-        for escape_char in ESCAPE_CHARS {
-            if value.starts_with(escape_char) {
-                text = value.replace(escape_char, "");
-            }
-
-            if value.ends_with(escape_char) {
-                text = value.replace(escape_char, "");
-            }
-        }
-
-        Ok(ExprValue::Text(ExprText::Owned(text)))
+        Ok(ExprValue::Text(ExprText::Owned(unescape_string_literal(
+            value,
+        ))))
     }
 }
 

@@ -185,10 +185,22 @@ mod tests {
 
     #[test]
     fn parse_string_success() {
-        let data = ["\"hellow world\""];
+        let data = [
+            "\"hellow world\"",
+            "'hello world'",
+            "\"\"",
+            "''",
+            "\"it's a test\"",
+            "'say \"hi\"'",
+            "\"escaped \\\"quote\\\"\"",
+            "\"line\\nbreak\"",
+            "\"tab\\tchar\"",
+            "\"back\\\\slash\"",
+            "\"unicode \\u00e9\"",
+        ];
         for string in data {
             let Ok(pairs) = ExprParser::parse(Rule::String, string) else {
-                panic!("unable to parse String symbol");
+                panic!("unable to parse String symbol: {string}");
             };
             for pair in pairs {
                 let Rule::String = pair.as_rule() else {
@@ -196,6 +208,18 @@ mod tests {
                 };
                 assert_eq!(pair.as_span().as_str(), string);
             }
+        }
+    }
+
+    #[test]
+    fn parse_string_mismatched_quotes_failure() {
+        let data = ["\"hello'", "'hello\""];
+        for string in data {
+            let pairs = ExprParser::parse(Rule::String, string);
+            assert!(
+                pairs.is_err() || pairs.unwrap().as_str() != string,
+                "expected mismatched quotes to not fully parse as a String: {string}"
+            );
         }
     }
 
@@ -749,6 +773,37 @@ mod tests {
                         _ => panic!("parsed value is not a valid rule"),
                     }
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn parse_expression_with_nested_parens_logical_success() {
+        let data = ["(true == true && false == false)"];
+        for expr in data {
+            let Ok(pairs) = ExprParser::parse(Rule::Expression, expr) else {
+                panic!("unable to parse nested parens Expression: {expr}");
+            };
+            for pair in pairs {
+                assert_eq!(pair.as_span().as_str(), expr);
+            }
+        }
+    }
+
+    #[test]
+    fn parse_nested_parens_logical_expression_success() {
+        let data = [
+            "true || (false && false)",
+            "(true && false) || true",
+            "(true == true) && (false == false)",
+            "((true == true) && (false == false)) || 1 == 2",
+        ];
+        for expr in data {
+            let Ok(pairs) = ExprParser::parse(Rule::LogicalExpression, expr) else {
+                panic!("unable to parse nested parens LogicalExpression: {expr}");
+            };
+            for pair in pairs {
+                assert_eq!(pair.as_span().as_str(), expr);
             }
         }
     }
