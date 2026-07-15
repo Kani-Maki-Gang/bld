@@ -286,7 +286,10 @@ impl<'a> Validate<'a> for Step {
                 if let Some(condition) = complex.condition.as_ref() {
                     debug!("Validating step's if condition");
                     ctx.push_section("if");
-                    if ctx.expression_count(condition) > 1 {
+                    let expr_count = ctx.expression_count(condition);
+                    if expr_count == 0 {
+                        ctx.append_error("Condition must contain exactly one expression");
+                    } else if expr_count > 1 {
                         ctx.append_error("Condition must contain at most one expression");
                     } else {
                         ctx.validate_expressions(condition);
@@ -331,6 +334,10 @@ impl<'a> Validate<'a> for Step {
 
 #[cfg(test)]
 mod tests {
+    use bld_config::BldConfig;
+    use bld_core::fs::FileSystem;
+    use bld_pkg::PackageManager;
+    use bld_utils::sync::IntoArc;
     use mockall::predicate;
 
     use crate::{
@@ -343,6 +350,7 @@ mod tests {
         job::v3::Job,
         pipeline::v3::Pipeline,
         step::v3::{ShellCommand, Step},
+        validator::v3::{CommonValidator, ConsumeValidator, ValidatorWritableRuntimeExprContext},
     };
 
     #[test]
@@ -777,5 +785,68 @@ mod tests {
                 ));
             }
         }
+    }
+
+    async fn validate_action(action: &Action) -> anyhow::Result<()> {
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default();
+        let expr_wctx = vec![ValidatorWritableRuntimeExprContext::new("action")];
+
+        CommonValidator::new(action, config, fs, package_manager, &expr_rctx, &expr_wctx)?
+            .validate()
+            .await
+    }
+
+    #[tokio::test]
+    pub async fn condition_without_expression_wrapper_fails_validation() {
+        let mut action = Action::default();
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "first".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo hello".to_string(),
+            condition: Some("true".to_string()),
+            strategy: None,
+        })));
+
+        let result = validate_action(&action).await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    pub async fn condition_with_multiple_expressions_fails_validation() {
+        let mut action = Action::default();
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "first".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo hello".to_string(),
+            condition: Some("${{ true }} ${{ false }}".to_string()),
+            strategy: None,
+        })));
+
+        let result = validate_action(&action).await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    pub async fn condition_with_single_expression_passes_validation() {
+        let mut action = Action::default();
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "first".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo hello".to_string(),
+            condition: Some("${{ true }}".to_string()),
+            strategy: None,
+        })));
+
+        let result = validate_action(&action).await;
+
+        assert!(result.is_ok());
     }
 }

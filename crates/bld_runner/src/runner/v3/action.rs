@@ -346,6 +346,8 @@ impl ActionRunner<ActionState> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use bld_config::BldConfig;
     use bld_core::{
         artifacts::Artifacts, context::Context, fs::FileSystem, logger::Logger, platform::Platform,
@@ -355,13 +357,12 @@ mod tests {
     use bld_utils::sync::IntoArc;
     use regex::Regex;
 
-    use std::collections::HashMap;
-
     use crate::{
         action::v3::Action,
+        artifacts::v3::{DownloadArtifact, UploadArtifact},
         expr::v3::{context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX},
         inputs::v3::Input,
-        runner::v3::{ActionRunner, RootState, State, state::MockRootState},
+        runner::v3::{ActionRunner, ActionState, RootState, State, state::MockRootState},
         step::v3::{ShellCommand, Step},
         strategy::v3::{FailFastValue, MatrixValue, Strategy},
     };
@@ -533,6 +534,131 @@ mod tests {
 
         // Act
         runner.execute().await.unwrap();
+    }
+
+    #[tokio::test]
+    pub async fn download_and_upload_artifact_steps_execute_with_expr_success() {
+        // Arrange
+        let logger = Logger::mock().into_arc();
+        let mut action = Action::default();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex = Regex::new(EXPR_REGEX).unwrap();
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        let mut inputs = HashMap::new();
+        inputs.insert("region".to_string(), "eu-west".to_string());
+        let rctx = CommonReadonlyRuntimeExprContext {
+            inputs: inputs.into_arc(),
+            ..Default::default()
+        };
+
+        action
+            .steps
+            .push(Step::DownloadArtifact(Box::new(DownloadArtifact {
+                id: "download".to_string(),
+                download: "artifact-name".to_string(),
+                to: "${{ inputs.region }}/artifact".to_string(),
+            })));
+        action
+            .steps
+            .push(Step::UploadArtifact(Box::new(UploadArtifact {
+                id: "upload".to_string(),
+                upload: "${{ inputs.region }}/artifact".to_string(),
+                name: "artifact-name".to_string(),
+            })));
+
+        let mut state = ActionState::default();
+        for step in &action.steps {
+            state.add_node(step.id());
+        }
+
+        let runner = ActionRunner {
+            logger,
+            action,
+            platform,
+            artifacts,
+            expr_regex: regex,
+            expr_rctx: rctx,
+            state,
+            config,
+            fs,
+            run_ctx,
+            regex_cache,
+            package_manager,
+        };
+
+        let result = runner.execute().await;
+
+        // Assert
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    pub async fn complex_shell_steps_respect_condition_and_still_run_remaining_steps() {
+        // Arrange
+        let logger = Logger::mock().into_arc();
+        let mut action = Action::default();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex = Regex::new(EXPR_REGEX).unwrap();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "skipped".to_string(),
+            name: None,
+            run: "echo skipped".to_string(),
+            condition: Some("${{ false }}".to_string()),
+            working_dir: None,
+            strategy: None,
+        })));
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "executed".to_string(),
+            name: None,
+            run: "echo executed".to_string(),
+            condition: Some("${{ true }}".to_string()),
+            working_dir: None,
+            strategy: None,
+        })));
+
+        let mut state = ActionState::default();
+        for step in &action.steps {
+            state.add_node(step.id());
+        }
+
+        let mut runner = ActionRunner {
+            logger,
+            action,
+            platform,
+            artifacts,
+            expr_regex: regex,
+            expr_rctx: rctx,
+            state,
+            config,
+            fs,
+            run_ctx,
+            regex_cache,
+            package_manager,
+        };
+
+        // Act
+        let result = runner.steps().await;
+
+        // Assert
+        assert!(result.is_ok());
+        assert!(matches!(
+            runner.state.get_node_state("executed"),
+            Some(State::Completed)
+        ));
     }
 
     #[tokio::test]
