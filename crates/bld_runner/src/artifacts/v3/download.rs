@@ -4,6 +4,7 @@ use uuid::Uuid;
 #[cfg(feature = "all")]
 use {
     crate::validator::v3::{Validate, ValidatorContext},
+    bld_core::artifacts::validate_artifact_name,
     tracing::debug,
 };
 
@@ -40,6 +41,8 @@ impl<'a> Validate<'a> for DownloadArtifact {
         ctx.push_section("download");
         if ctx.contains_expressions(&self.download) {
             ctx.append_error("Expressions not supported");
+        } else if let Err(e) = validate_artifact_name(&self.download) {
+            ctx.append_error(&e.to_string());
         }
         ctx.pop_section();
 

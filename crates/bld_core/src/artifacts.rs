@@ -205,6 +205,27 @@ impl ArtifactsBackend {
     }
 }
 
+pub fn validate_artifact_name(name: &str) -> Result<()> {
+    if name.is_empty() {
+        return Err(anyhow!("artifact name cannot be empty"));
+    }
+
+    let path = Path::new(name);
+    if path.is_absolute() {
+        return Err(anyhow!(
+            "artifact name '{name}' must not be an absolute path"
+        ));
+    }
+
+    let mut components = path.components();
+    match (components.next(), components.next()) {
+        (Some(std::path::Component::Normal(_)), None) => Ok(()),
+        _ => Err(anyhow!(
+            "artifact name '{name}' must be a single path segment without '.', '..' or path separators"
+        )),
+    }
+}
+
 fn compress_to_tar_gz(source: &Path, entry_name: &str) -> Result<Vec<u8>> {
     let mut tar = Builder::new(Vec::new());
 
@@ -251,6 +272,8 @@ impl Artifacts {
     }
 
     pub async fn download(&self, platform: Arc<Platform>, name: &str, to: &str) -> Result<()> {
+        validate_artifact_name(name)?;
+
         let Some(tx) = &self.tx else { return Ok(()) };
         let (resp_tx, resp_rx) = oneshot::channel();
 
@@ -266,6 +289,8 @@ impl Artifacts {
     }
 
     pub async fn upload(&self, platform: Arc<Platform>, name: &str, path: &str) -> Result<()> {
+        validate_artifact_name(name)?;
+
         let Some(tx) = &self.tx else { return Ok(()) };
         let (resp_tx, resp_rx) = oneshot::channel();
 
@@ -283,10 +308,43 @@ impl Artifacts {
 
 #[cfg(test)]
 mod tests {
-    use super::{compress_to_tar_gz, decompress_tar_gz};
+    use super::{compress_to_tar_gz, decompress_tar_gz, validate_artifact_name};
     use bld_config::BldConfig;
     use std::fs::{create_dir_all, read_to_string, remove_dir_all, write};
     use uuid::Uuid;
+
+    #[test]
+    fn validate_artifact_name_accepts_single_segment() {
+        assert!(validate_artifact_name("my-artifact").is_ok());
+        assert!(validate_artifact_name("my_artifact.tar").is_ok());
+    }
+
+    #[test]
+    fn validate_artifact_name_rejects_empty() {
+        assert!(validate_artifact_name("").is_err());
+    }
+
+    #[test]
+    fn validate_artifact_name_rejects_absolute_paths() {
+        assert!(validate_artifact_name("/etc/passwd").is_err());
+    }
+
+    #[test]
+    fn validate_artifact_name_rejects_parent_dir_traversal() {
+        assert!(validate_artifact_name("..").is_err());
+        assert!(validate_artifact_name("../../etc/passwd").is_err());
+        assert!(validate_artifact_name("foo/../../bar").is_err());
+    }
+
+    #[test]
+    fn validate_artifact_name_rejects_nested_segments() {
+        assert!(validate_artifact_name("foo/bar").is_err());
+    }
+
+    #[test]
+    fn validate_artifact_name_rejects_current_dir() {
+        assert!(validate_artifact_name(".").is_err());
+    }
 
     #[test]
     fn compress_to_tar_gz_round_trip() {
