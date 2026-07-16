@@ -265,6 +265,119 @@ mod tests {
     }
 
     #[test]
+    fn parse_object_with_index_success() {
+        let data = [
+            ("inputs.names[2]", vec!["inputs", "names"], "[2]"),
+            ("outputs.values[0]", vec!["outputs", "values"], "[0]"),
+        ];
+
+        for (expr, parts, index) in data {
+            let Ok(pairs) = ExprParser::parse(Rule::Object, expr) else {
+                panic!("unable to parse OBJECT symbol");
+            };
+
+            for object in pairs {
+                assert_eq!(object.as_rule(), Rule::Object);
+                let mut object_inner = object.into_inner();
+
+                for part in parts.iter() {
+                    let object_part = object_inner.next().unwrap();
+                    assert_eq!(object_part.as_rule(), Rule::ObjectPart);
+                    assert_eq!(object_part.as_span().as_str(), *part);
+                }
+
+                let index_part = object_inner.next().unwrap();
+                assert_eq!(index_part.as_rule(), Rule::Index);
+                assert_eq!(index_part.as_span().as_str(), index);
+
+                assert!(object_inner.next().is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn parse_array_number_success() {
+        let data = ["[100, 200, 300]", "[100,200,300]", "[-1, 2.5, -3.75]"];
+        for array in data {
+            let Ok(pairs) = ExprParser::parse(Rule::Array, array) else {
+                panic!("unable to parse Array of numbers");
+            };
+
+            for pair in pairs {
+                assert_eq!(pair.as_rule(), Rule::Array);
+                for element in pair.into_inner() {
+                    assert_eq!(element.as_rule(), Rule::ArrayElement);
+                    let inner = element.into_inner().next().unwrap();
+                    assert_eq!(inner.as_rule(), Rule::Number);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn parse_array_string_success() {
+        let data = ["[\"hello\", \"world\"]"];
+        for array in data {
+            let Ok(pairs) = ExprParser::parse(Rule::Array, array) else {
+                panic!("unable to parse Array of strings");
+            };
+
+            for pair in pairs {
+                assert_eq!(pair.as_rule(), Rule::Array);
+                for element in pair.into_inner() {
+                    assert_eq!(element.as_rule(), Rule::ArrayElement);
+                    let inner = element.into_inner().next().unwrap();
+                    assert_eq!(inner.as_rule(), Rule::String);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn parse_array_bool_success() {
+        let data = ["[true, false, true]"];
+        for array in data {
+            let Ok(pairs) = ExprParser::parse(Rule::Array, array) else {
+                panic!("unable to parse Array of booleans");
+            };
+
+            for pair in pairs {
+                assert_eq!(pair.as_rule(), Rule::Array);
+                for element in pair.into_inner() {
+                    assert_eq!(element.as_rule(), Rule::ArrayElement);
+                    let inner = element.into_inner().next().unwrap();
+                    assert_eq!(inner.as_rule(), Rule::Boolean);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn parse_array_empty_success() {
+        let Ok(pairs) = ExprParser::parse(Rule::Array, "[]") else {
+            panic!("unable to parse empty Array");
+        };
+
+        for pair in pairs {
+            assert_eq!(pair.as_rule(), Rule::Array);
+            assert_eq!(pair.into_inner().count(), 0_usize);
+        }
+    }
+
+    #[test]
+    fn parse_symbol_array_success() {
+        let Ok(pairs) = ExprParser::parse(Rule::Symbol, "[1, 2, 3]") else {
+            panic!("unable to parse Symbol containing an array");
+        };
+
+        for pair in pairs {
+            assert_eq!(pair.as_rule(), Rule::Symbol);
+            let inner = pair.into_inner().next().unwrap();
+            assert_eq!(inner.as_rule(), Rule::Array);
+        }
+    }
+
+    #[test]
     fn parse_symbol_success() {
         let data = [
             vec!["98"],

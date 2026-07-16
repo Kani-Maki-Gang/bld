@@ -75,6 +75,7 @@ pub enum ExprValue<'a> {
     Boolean(bool),
     Number(f64),
     Text(ExprText<'a>),
+    Array(Vec<ExprValue<'a>>),
 }
 
 impl<'a, 'b> ExprValue<'a> {
@@ -83,6 +84,7 @@ impl<'a, 'b> ExprValue<'a> {
             Self::Boolean(_) => "boolean",
             Self::Number(_) => "number",
             Self::Text(_) => "text",
+            Self::Array(_) => "array",
         }
     }
 
@@ -91,6 +93,23 @@ impl<'a, 'b> ExprValue<'a> {
             (Self::Boolean(l), Self::Boolean(r)) => l == r,
             (Self::Number(l), Self::Number(r)) => l == r,
             (Self::Text(l), Self::Text(r)) => l.inner() == r.inner(),
+            (Self::Array(l), Self::Array(r)) => {
+                if l.len() != r.len() {
+                    false
+                } else {
+                    let mut equal = true;
+                    for (l_item, r_item) in l.iter().zip(r.iter()) {
+                        let ExprValue::Boolean(item_eq) = l_item.try_eq(r_item)? else {
+                            bail!("non boolean type is an invalid comparison result");
+                        };
+                        if !item_eq {
+                            equal = false;
+                            break;
+                        }
+                    }
+                    equal
+                }
+            }
             _ => bail!(
                 "cannot compare {} and {}",
                 self.type_as_string(),
@@ -171,6 +190,14 @@ impl Display for ExprValue<'_> {
             Self::Number(value) => value.to_string(),
             Self::Text(ExprText::Ref(value)) => value.to_string(),
             Self::Text(ExprText::Owned(value)) => value.to_string(),
+            Self::Array(items) => format!(
+                "[{}]",
+                items
+                    .iter()
+                    .map(|item| item.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
         };
         f.write_str(&value)
     }

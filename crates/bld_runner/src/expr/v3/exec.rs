@@ -1,7 +1,8 @@
 use crate::expr::v3::parser::{ExprParser, Rule};
 
 use super::traits::{
-    EvalExpr, EvalObject, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
+    EvalExpr, EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext,
+    WritableRuntimeExprContext,
 };
 use anyhow::{Result, anyhow, bail};
 use pest::{Parser, iterators::Pair};
@@ -26,6 +27,74 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
             rctx,
             wctx,
         }
+    }
+
+    fn eval_array(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
+        let Rule::Array = expr.as_rule() else {
+            bail!("expected array rule, found {:?}", expr.as_rule());
+        };
+
+        let mut items = Vec::new();
+        let mut element_rule: Option<Rule> = None;
+
+        for element in expr.into_inner() {
+            let Rule::ArrayElement = element.as_rule() else {
+                bail!("expected array element rule, found {:?}", element.as_rule());
+            };
+
+            let element = element
+                .into_inner()
+                .next()
+                .ok_or_else(|| anyhow!("empty array element found"))?;
+            let rule = element.as_rule();
+
+            match element_rule {
+                Some(expected) if expected != rule => {
+                    bail!("array elements must all be of the same type")
+                }
+                None => element_rule = Some(rule),
+                _ => {}
+            }
+
+            items.push(element.as_span().as_str().try_into()?);
+        }
+
+        Ok(ExprValue::Array(items))
+    }
+
+    fn eval_index(&self, object: Pair<'a, Rule>, value: ExprValue<'a>) -> Result<ExprValue<'a>> {
+        let Some(index) = object
+            .into_inner()
+            .find(|part| part.as_rule() == Rule::Index)
+        else {
+            return Ok(value);
+        };
+
+        let index_span = index.as_span().as_str();
+        let index: usize = index_span[1..index_span.len() - 1]
+            .parse()
+            .map_err(|_| anyhow!("invalid array index: {index_span}"))?;
+
+        let type_str = value.type_as_string();
+        let ExprValue::Text(ExprText::Ref(text)) = value else {
+            bail!("cannot index into value of type {type_str}");
+        };
+
+        let mut pairs = ExprParser::parse(Rule::Array, text)
+            .map_err(|_| anyhow!("value is not an array: {text}"))?;
+        let array = pairs
+            .next()
+            .ok_or_else(|| anyhow!("value is not an array: {text}"))?;
+
+        let ExprValue::Array(items) = self.eval_array(array)? else {
+            bail!("expected array value");
+        };
+
+        let len = items.len();
+        items
+            .into_iter()
+            .nth(index)
+            .ok_or_else(|| anyhow!("index {index} out of bounds for array of length {len}"))
     }
 }
 
@@ -102,12 +171,22 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
             .ok_or_else(|| anyhow!("no symbol found in expression"))?;
         let symbol_span = peeked_symbol.as_span();
         let symbol_rule = peeked_symbol.as_rule();
+        let object_pair = peeked_symbol.clone();
 
         match &symbol_rule {
             Rule::Boolean | Rule::Number | Rule::String => symbol_span.as_str().try_into(),
-            Rule::Object => self
-                .obj_executor
-                .eval_object(&mut symbol, self.rctx, self.wctx),
+            Rule::Array => {
+                let array = symbol
+                    .next()
+                    .ok_or_else(|| anyhow!("no array found in expression"))?;
+                self.eval_array(array)
+            }
+            Rule::Object => {
+                let value = self
+                    .obj_executor
+                    .eval_object(&mut symbol, self.rctx, self.wctx)?;
+                self.eval_index(object_pair, value)
+            }
             _ => bail!("unexpected rule: {:?}", &symbol_rule),
         }
     }
@@ -372,6 +451,250 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    pub fn array_literal_eval_success() {
+        let data = vec![
+            (
+                "${{ [100, 200, 300] }}",
+                vec![
+                    ExprValue::Number(100.0),
+                    ExprValue::Number(200.0),
+                    ExprValue::Number(300.0),
+                ],
+            ),
+            (
+                "${{ [\"hello\", \"world\"] }}",
+                vec![
+                    ExprValue::Text(ExprText::Owned("hello".to_string())),
+                    ExprValue::Text(ExprText::Owned("world".to_string())),
+                ],
+            ),
+            (
+                "${{ [true, false, true] }}",
+                vec![
+                    ExprValue::Boolean(true),
+                    ExprValue::Boolean(false),
+                    ExprValue::Boolean(true),
+                ],
+            ),
+        ];
+
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        for (expr, expected) in data {
+            let Ok(value) = exec.eval(expr) else {
+                panic!("failed to parse expression: {expr}");
+            };
+
+            let ExprValue::Array(items) = value else {
+                panic!("expected array, found {:?}", value);
+            };
+
+            assert_eq!(items.len(), expected.len());
+            for (item, expected_item) in items.iter().zip(expected.iter()) {
+                assert!(matches!(
+                    item.try_eq(expected_item),
+                    Ok(ExprValue::Boolean(true))
+                ));
+            }
+        }
+    }
+
+    #[test]
+    pub fn array_mixed_type_eval_failure() {
+        let data = [
+            "${{ [1, \"two\", true] }}",
+            "${{ [1, 2, \"three\"] }}",
+            "${{ [true, 2] }}",
+        ];
+
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        for expr in data {
+            assert!(
+                exec.eval(expr).is_err(),
+                "expected error for mixed type array: {expr}"
+            );
+        }
+    }
+
+    #[test]
+    pub fn array_equals_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            (
+                "${{ [1, 2, 3] == [1, 2, 3] }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ [1, 2, 3] == [1, 2, 4] }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            ("${{ [1, 2, 3] == [1, 2] }}", Ok(ExprValue::Boolean(false))),
+            (
+                "${{ [\"a\", \"b\"] == [\"a\", \"b\"] }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ [true, false] == [true, false] }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            ("${{ [1, 2, 3] == 5 }}", Err(anyhow!(""))),
+        ];
+
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        for (expr, expected) in data {
+            let value = exec.eval(expr);
+
+            if let Ok(expected) = expected {
+                let Ok(value) = value else {
+                    panic!("invalid result after eval for {expr}");
+                };
+                assert!(matches!(
+                    value.try_eq(&expected),
+                    Ok(ExprValue::Boolean(true))
+                ));
+                continue;
+            }
+
+            if expected.is_err() && value.is_ok() {
+                panic!("expected an error for {expr}");
+            }
+        }
+    }
+
+    #[test]
+    pub fn array_not_equals_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            (
+                "${{ [1, 2, 3] != [1, 2, 3] }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            (
+                "${{ [1, 2, 3] != [1, 2, 4] }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            ("${{ [1, 2, 3] != [1, 2] }}", Ok(ExprValue::Boolean(true))),
+        ];
+
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        for (expr, expected) in data {
+            let value = exec.eval(expr);
+
+            if let Ok(expected) = expected {
+                let Ok(value) = value else {
+                    panic!("invalid result after eval for {expr}");
+                };
+                assert!(matches!(
+                    value.try_eq(&expected),
+                    Ok(ExprValue::Boolean(true))
+                ));
+                continue;
+            }
+
+            if expected.is_err() && value.is_ok() {
+                panic!("expected an error for {expr}");
+            }
+        }
+    }
+
+    #[test]
+    pub fn array_other_comparisons_eval_failure() {
+        let data = [
+            "${{ [1, 2, 3] > [1, 2, 3] }}",
+            "${{ [1, 2, 3] >= [1, 2, 3] }}",
+            "${{ [1, 2, 3] < [1, 2, 3] }}",
+            "${{ [1, 2, 3] <= [1, 2, 3] }}",
+        ];
+
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        for expr in data {
+            assert!(
+                exec.eval(expr).is_err(),
+                "expected error for comparison operator on arrays: {expr}"
+            );
+        }
+    }
+
+    #[test]
+    pub fn array_index_access_eval_success() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+
+        let mut pipeline = Pipeline::default();
+        pipeline.inputs.insert(
+            "names".to_string(),
+            Input::Simple("[\"john\", \"jane\", \"jim\"]".to_string()),
+        );
+        pipeline.inputs.insert(
+            "numbers".to_string(),
+            Input::Simple("[100, 200, 300]".to_string()),
+        );
+        pipeline.inputs.insert(
+            "flags".to_string(),
+            Input::Simple("[true, false]".to_string()),
+        );
+
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let Ok(value) = exec.eval("${{ inputs.names[1] }}") else {
+            panic!("failed to eval indexed expression");
+        };
+        assert!(matches!(
+            value.try_eq(&ExprValue::Text(ExprText::Owned("jane".to_string()))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let Ok(value) = exec.eval("${{ inputs.numbers[2] }}") else {
+            panic!("failed to eval indexed expression");
+        };
+        assert!(matches!(
+            value.try_eq(&ExprValue::Number(300.0)),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let Ok(value) = exec.eval("${{ inputs.flags[0] }}") else {
+            panic!("failed to eval indexed expression");
+        };
+        assert!(matches!(
+            value.try_eq(&ExprValue::Boolean(true)),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
+
+    #[test]
+    pub fn array_index_access_out_of_bounds_eval_failure() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+
+        let mut pipeline = Pipeline::default();
+        pipeline.inputs.insert(
+            "numbers".to_string(),
+            Input::Simple("[100, 200, 300]".to_string()),
+        );
+
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        assert!(exec.eval("${{ inputs.numbers[5] }}").is_err());
     }
 
     #[test]
