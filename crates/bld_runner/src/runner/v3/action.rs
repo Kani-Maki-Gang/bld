@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Write, sync::Arc};
 
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 use bld_config::BldConfig;
 use bld_core::{
     artifacts::Artifacts, context::Context, fs::FileSystem, logger::Logger, platform::Platform,
@@ -111,24 +111,58 @@ impl<S: RootState> ActionRunner<S> {
         debug!("starting execution of action steps");
         let action = self.action.clone();
         for step in &action.steps {
-            self.state.update_node_state(step.id(), State::Running);
-            match step {
-                Step::ComplexSh(complex) => self.complex_shell(complex).await,
-                Step::ExternalFile(external) => self.external(external).await,
-                Step::DownloadArtifact(download) => self.download_artifact(download).await,
-                Step::UploadArtifact(upload) => self.upload_artifact(upload).await,
-            }
-            .inspect(|_| self.state.update_node_state(step.id(), State::Completed))
-            .inspect_err(|e| {
-                self.state.update_node_state(
-                    step.id(),
-                    State::Failed {
-                        error: e.to_string(),
-                    },
-                )
-            })?;
+            self.run_step(step, &HashMap::new()).await?;
         }
         Ok(())
+    }
+
+    async fn run_step(&mut self, step: &Step, job_matrix: &HashMap<String, String>) -> Result<()> {
+        let Some(strategy) = step.strategy() else {
+            self.state.set_matrix(job_matrix.clone());
+            return self.dispatch_step(step).await;
+        };
+
+        let exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &self.state);
+        let combinations = strategy.combinations(&exec)?;
+        let fail_fast = strategy.resolve_fail_fast(&exec)?;
+
+        let mut errors: Vec<String> = Vec::new();
+        for combination in combinations {
+            let mut merged = job_matrix.clone();
+            merged.extend(combination);
+            self.state.set_matrix(merged);
+            if let Err(e) = self.dispatch_step(step).await {
+                if fail_fast {
+                    return Err(e);
+                }
+                errors.push(e.to_string());
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(anyhow!(errors.join("\n")))
+        }
+    }
+
+    async fn dispatch_step(&mut self, step: &Step) -> Result<()> {
+        self.state.update_node_state(step.id(), State::Running);
+        match step {
+            Step::ComplexSh(complex) => self.complex_shell(complex).await,
+            Step::ExternalFile(external) => self.external(external).await,
+            Step::DownloadArtifact(download) => self.download_artifact(download).await,
+            Step::UploadArtifact(upload) => self.upload_artifact(upload).await,
+        }
+        .inspect(|_| self.state.update_node_state(step.id(), State::Completed))
+        .inspect_err(|e| {
+            self.state.update_node_state(
+                step.id(),
+                State::Failed {
+                    error: e.to_string(),
+                },
+            )
+        })
     }
 
     async fn complex_shell(&mut self, complex: &ShellCommand) -> Result<()> {
@@ -315,11 +349,14 @@ mod tests {
     use bld_utils::sync::IntoArc;
     use regex::Regex;
 
+    use std::collections::HashMap;
+
     use crate::{
         action::v3::Action,
         expr::v3::{context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX},
-        runner::v3::{ActionRunner, State, state::MockRootState},
+        runner::v3::{ActionRunner, RootState, State, state::MockRootState},
         step::v3::{ShellCommand, Step},
+        strategy::v3::{FailFastValue, MatrixValue, Strategy},
     };
 
     #[test]
@@ -387,6 +424,8 @@ mod tests {
         let regex_cache = RegexCache::mock().into_arc();
         let package_manager = PackageManager::new(config.clone()).into_arc();
 
+        state.expect_set_matrix().returning(|_| ());
+
         for node_id in data {
             state
                 .expect_update_state()
@@ -417,6 +456,7 @@ mod tests {
                 run: "echo hello".to_string(),
                 condition: None,
                 working_dir: None,
+                strategy: None,
             })));
 
             state
@@ -442,5 +482,188 @@ mod tests {
 
         // Act
         runner.execute().await.unwrap();
+    }
+
+    #[tokio::test]
+    pub async fn step_level_matrix_expansion_runs_all_combinations_success() {
+        let logger = Logger::mock().into_arc();
+        let mut action = Action::default();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex = Regex::new(EXPR_REGEX).unwrap();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut state = crate::runner::v3::state::ActionState::default();
+        state.add_node("build");
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "os".to_string(),
+            MatrixValue::Array(vec!["linux".to_string(), "windows".to_string()]),
+        );
+
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "build".to_string(),
+            name: None,
+            run: "echo ${{ matrix.os }}".to_string(),
+            condition: None,
+            working_dir: None,
+            strategy: Some(Strategy {
+                matrix,
+                fail_fast: None,
+            }),
+        })));
+
+        let runner = ActionRunner {
+            logger,
+            action,
+            platform,
+            artifacts,
+            expr_regex: regex,
+            expr_rctx: rctx,
+            state,
+            config,
+            fs,
+            run_ctx,
+            regex_cache,
+            package_manager,
+        };
+
+        let result = runner.execute().await;
+        assert!(result.is_ok(), "error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn step_matrix_fail_fast_true_stops_at_first_failure() {
+        let logger = Logger::mock().into_arc();
+        let mut action = Action::default();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex = Regex::new(EXPR_REGEX).unwrap();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        let mut state = MockRootState::new();
+        state.expect_update_state().returning(|_| ());
+        state.expect_set_matrix().returning(|_| ());
+        state
+            .expect_update_node_state()
+            .withf(|_, state| matches!(state, State::Running))
+            .times(1)
+            .returning(|_, _| ());
+        state
+            .expect_update_node_state()
+            .withf(|_, state| matches!(state, State::Failed { .. }))
+            .times(1)
+            .returning(|_, _| ());
+
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "n".to_string(),
+            MatrixValue::Array(vec!["1".to_string(), "2".to_string(), "3".to_string()]),
+        );
+
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "build".to_string(),
+            name: None,
+            run: "echo hello".to_string(),
+            condition: Some("${{ 1 }} ${{ 2 }}".to_string()),
+            working_dir: None,
+            strategy: Some(Strategy {
+                matrix,
+                fail_fast: None,
+            }),
+        })));
+
+        let runner = ActionRunner {
+            logger,
+            action,
+            platform,
+            artifacts,
+            expr_regex: regex,
+            expr_rctx: rctx,
+            state,
+            config,
+            fs,
+            run_ctx,
+            regex_cache,
+            package_manager,
+        };
+
+        let result = runner.execute().await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    pub async fn step_matrix_fail_fast_false_runs_all_and_aggregates() {
+        let logger = Logger::mock().into_arc();
+        let mut action = Action::default();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex = Regex::new(EXPR_REGEX).unwrap();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        let mut state = MockRootState::new();
+        state.expect_update_state().returning(|_| ());
+        state.expect_set_matrix().returning(|_| ());
+        state
+            .expect_update_node_state()
+            .withf(|_, state| matches!(state, State::Running))
+            .times(3)
+            .returning(|_, _| ());
+        state
+            .expect_update_node_state()
+            .withf(|_, state| matches!(state, State::Failed { .. }))
+            .times(3)
+            .returning(|_, _| ());
+
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "n".to_string(),
+            MatrixValue::Array(vec!["1".to_string(), "2".to_string(), "3".to_string()]),
+        );
+
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "build".to_string(),
+            name: None,
+            run: "echo hello".to_string(),
+            condition: Some("${{ 1 }} ${{ 2 }}".to_string()),
+            working_dir: None,
+            strategy: Some(Strategy {
+                matrix,
+                fail_fast: Some(FailFastValue::Bool(false)),
+            }),
+        })));
+
+        let runner = ActionRunner {
+            logger,
+            action,
+            platform,
+            artifacts,
+            expr_regex: regex,
+            expr_rctx: rctx,
+            state,
+            config,
+            fs,
+            run_ctx,
+            regex_cache,
+            package_manager,
+        };
+
+        let result = runner.execute().await;
+        assert!(result.is_err());
     }
 }

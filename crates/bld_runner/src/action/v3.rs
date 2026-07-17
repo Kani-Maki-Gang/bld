@@ -160,6 +160,15 @@ impl<'a> EvalObject<'a> for Action {
                 input.map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
+            "matrix" => {
+                let Some(part) = object_parts.next() else {
+                    bail!("expected name of matrix variable in object path");
+                };
+                let name = part.as_span().as_str();
+                wctx.get_matrix_value(name)
+                    .map(|x| ExprValue::Text(ExprText::Ref(x)))
+            }
+
             "steps" => {
                 let Some(step_id) = object_parts.next() else {
                     bail!("expected id for step in expression");
@@ -221,6 +230,7 @@ impl<'a> Validate<'a> for Action {
             ctx.append_error("Action must have at least one step defined");
         }
 
+        let job_matrix_keys = HashSet::new();
         let mut step_ids = HashSet::new();
         for step in &self.steps {
             let step_id = step.id();
@@ -230,6 +240,7 @@ impl<'a> Validate<'a> for Action {
                 ctx.pop_section();
             }
             step.validate(ctx).await;
+            step.validate_matrix(ctx, &job_matrix_keys).await;
         }
         ctx.pop_section();
     }
@@ -251,6 +262,38 @@ mod tests {
     };
 
     use super::Action;
+
+    #[test]
+    pub fn matrix_expr_eval_success() {
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let action = Action::default();
+
+        wctx.expect_get_matrix_value()
+            .with(mockall::predicate::eq("version"))
+            .returning(|_| Ok("v3"));
+
+        let exec = CommonExprExecutor::new(&action, &rctx, &wctx);
+        let actual = exec.eval("${{ matrix.version }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("v3"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
+
+    #[test]
+    pub fn matrix_undefined_expr_eval_failure() {
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let action = Action::default();
+
+        wctx.expect_get_matrix_value()
+            .with(mockall::predicate::eq("missing"))
+            .returning(|name| Err(anyhow::anyhow!("matrix value '{name}' not found")));
+
+        let exec = CommonExprExecutor::new(&action, &rctx, &wctx);
+        assert!(exec.eval("${{ matrix.missing }}").is_err());
+    }
 
     #[test]
     pub fn name_expr_eval_success() {

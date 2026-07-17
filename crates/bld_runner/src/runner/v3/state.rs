@@ -19,6 +19,7 @@ pub trait RootState: WritableRuntimeExprContext {
     fn add_node(&mut self, node_id: &str);
     fn update_node_state(&mut self, node_id: &str, state: State);
     fn get_node_state<'a>(&'a self, node_id: &str) -> Option<&'a State>;
+    fn set_matrix(&mut self, matrix: HashMap<String, String>);
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -88,6 +89,10 @@ impl WritableRuntimeExprContext for StepState {
         self.outputs = outputs;
         Ok(())
     }
+
+    fn get_matrix_value<'a>(&'a self, _name: &str) -> Result<&'a str> {
+        bail!("matrix values are not accessible from step state")
+    }
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -95,6 +100,7 @@ pub struct JobState {
     id: String,
     state: State,
     steps: HashMap<String, StepState>,
+    matrix: HashMap<String, String>,
 }
 
 impl JobState {
@@ -130,6 +136,10 @@ impl RootState for JobState {
     fn get_node_state<'a>(&'a self, node_id: &str) -> Option<&'a State> {
         self.steps.get(node_id).map(|x| &x.state)
     }
+
+    fn set_matrix(&mut self, matrix: HashMap<String, String>) {
+        self.matrix = matrix;
+    }
 }
 
 impl WritableRuntimeExprContext for JobState {
@@ -157,12 +167,20 @@ impl WritableRuntimeExprContext for JobState {
         };
         step_state.set_outputs(id, outputs)
     }
+
+    fn get_matrix_value<'a>(&'a self, name: &str) -> Result<&'a str> {
+        self.matrix
+            .get(name)
+            .map(|x| x.as_str())
+            .ok_or_else(|| anyhow!("matrix value '{name}' not found"))
+    }
 }
 
 pub struct ActionState {
     id: String,
     state: State,
     steps: HashMap<String, StepState>,
+    matrix: HashMap<String, String>,
 }
 
 impl Default for ActionState {
@@ -171,6 +189,7 @@ impl Default for ActionState {
             id: Uuid::new_v4().to_string(),
             state: State::Default,
             steps: HashMap::new(),
+            matrix: HashMap::new(),
         }
     }
 }
@@ -199,6 +218,10 @@ impl RootState for ActionState {
     fn get_node_state<'a>(&'a self, node_id: &str) -> Option<&'a State> {
         self.steps.get(node_id).map(|x| &x.state)
     }
+
+    fn set_matrix(&mut self, matrix: HashMap<String, String>) {
+        self.matrix = matrix;
+    }
 }
 
 impl WritableRuntimeExprContext for ActionState {
@@ -226,6 +249,13 @@ impl WritableRuntimeExprContext for ActionState {
         };
         step_state.set_outputs(id, outputs)
     }
+
+    fn get_matrix_value<'a>(&'a self, name: &str) -> Result<&'a str> {
+        self.matrix
+            .get(name)
+            .map(|x| x.as_str())
+            .ok_or_else(|| anyhow!("matrix value '{name}' not found"))
+    }
 }
 
 mock! {
@@ -237,6 +267,7 @@ mock! {
         fn add_node(&mut self, node_id: &str);
         fn update_node_state(&mut self, node_id: &str, state: State);
         fn get_node_state<'a>(&'a self, node_id: &str) -> Option<&'a State>;
+        fn set_matrix(&mut self, matrix: HashMap<String, String>);
     }
 
     impl WritableRuntimeExprContext for RootState {
@@ -244,6 +275,7 @@ mock! {
         fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<&'a str>;
         fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
         fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
+        fn get_matrix_value<'a>(&'a self, name: &str) -> Result<&'a str>;
     }
 }
 
@@ -366,6 +398,7 @@ mod tests {
                 id: id.clone(),
                 state: state.clone(),
                 steps: HashMap::new(),
+                matrix: HashMap::new(),
             };
             let mut actual = JobState::new(&id);
             actual.update_state(state);
@@ -400,6 +433,7 @@ mod tests {
             id: job_id.clone(),
             state: State::Default,
             steps: HashMap::new(),
+            matrix: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),
@@ -428,6 +462,7 @@ mod tests {
             id: job_id.clone(),
             state: State::Default,
             steps: HashMap::new(),
+            matrix: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),
@@ -456,6 +491,7 @@ mod tests {
             id: job_id.clone(),
             state: State::Default,
             steps: HashMap::new(),
+            matrix: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),
@@ -496,6 +532,7 @@ mod tests {
             id: action_id.clone(),
             state: State::Default,
             steps: HashMap::new(),
+            matrix: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),
@@ -524,6 +561,7 @@ mod tests {
             id: action_id.clone(),
             state: State::Default,
             steps: HashMap::new(),
+            matrix: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),
@@ -552,6 +590,7 @@ mod tests {
             id: action_id.clone(),
             state: State::Default,
             steps: HashMap::new(),
+            matrix: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),

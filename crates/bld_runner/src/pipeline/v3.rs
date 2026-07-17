@@ -230,6 +230,15 @@ impl<'a> EvalObject<'a> for Pipeline {
                     .map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
+            "matrix" => {
+                let Some(part) = object_parts.nth(1) else {
+                    bail!("expected name of matrix variable in object path");
+                };
+                let name = part.as_span().as_str();
+                wctx.get_matrix_value(name)
+                    .map(|x| ExprValue::Text(ExprText::Ref(x)))
+            }
+
             // Keywords section
             value if value == KEYWORD_BLD_DIR_V3 => {
                 Ok(ExprValue::Text(ExprText::Ref(rctx.get_root_dir())))
@@ -391,6 +400,38 @@ mod tests {
                 Ok(ExprValue::Boolean(true))
             ));
         }
+    }
+
+    #[test]
+    pub fn matrix_expr_eval_success() {
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+
+        wctx.expect_get_matrix_value()
+            .with(mockall::predicate::eq("os"))
+            .returning(|_| Ok("linux"));
+
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+        let actual = exec.eval("${{ matrix.os }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("linux"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
+
+    #[test]
+    pub fn matrix_undefined_expr_eval_failure() {
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+
+        wctx.expect_get_matrix_value()
+            .with(mockall::predicate::eq("missing"))
+            .returning(|name| Err(anyhow::anyhow!("matrix value '{name}' not found")));
+
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+        assert!(exec.eval("${{ matrix.missing }}").is_err());
     }
 
     #[test]

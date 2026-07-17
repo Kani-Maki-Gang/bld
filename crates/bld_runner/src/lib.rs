@@ -10,6 +10,7 @@ pub mod pipeline;
 pub mod registry;
 pub mod runs_on;
 pub mod step;
+pub mod strategy;
 pub mod traits;
 
 #[cfg(feature = "all")]

@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+use crate::strategy::v3::Strategy;
+
 #[cfg(feature = "all")]
 use {
     crate::{
@@ -33,6 +35,8 @@ pub struct External {
 
     #[serde(default)]
     pub env: HashMap<String, String>,
+
+    pub strategy: Option<Strategy>,
 }
 
 impl External {

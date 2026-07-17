@@ -109,17 +109,89 @@ impl<S: RootState> JobRunner<S> {
         self.options.state.update_state(State::Running);
 
         debug!("starting execution of pipeline steps");
-        for step in job.steps.iter() {
-            self.step(step).await.inspect_err(|e| {
-                self.options.state.update_state(State::Failed {
-                    error: e.to_string(),
-                });
-            })?;
-        }
+        let result = self.run_job_steps(job).await;
 
-        self.options.state.update_state(State::Completed);
+        match &result {
+            Ok(()) => self.options.state.update_state(State::Completed),
+            Err(e) => self.options.state.update_state(State::Failed {
+                error: e.to_string(),
+            }),
+        }
+        result?;
+
         self.dispose_platform(job).await?;
         Ok(self)
+    }
+
+    async fn run_job_steps(&mut self, job: &Job) -> Result<()> {
+        let Some(strategy) = job.strategy.as_ref() else {
+            self.options.state.set_matrix(HashMap::new());
+            for step in job.steps.iter() {
+                self.run_step(step, &HashMap::new()).await?;
+            }
+            return Ok(());
+        };
+
+        let exec = CommonExprExecutor::new(
+            self.options.pipeline.as_ref(),
+            self.options.expr_rctx.as_ref(),
+            &self.options.state,
+        );
+        let combinations = strategy.combinations(&exec)?;
+        let fail_fast = strategy.resolve_fail_fast(&exec)?;
+
+        let mut errors: Vec<String> = Vec::new();
+        for combination in combinations {
+            for step in job.steps.iter() {
+                if let Err(e) = self.run_step(step, &combination).await {
+                    if fail_fast {
+                        return Err(e);
+                    }
+                    errors.push(e.to_string());
+                    break;
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(anyhow!(errors.join("\n")))
+        }
+    }
+
+    async fn run_step(&mut self, step: &Step, job_matrix: &HashMap<String, String>) -> Result<()> {
+        let Some(strategy) = step.strategy() else {
+            self.options.state.set_matrix(job_matrix.clone());
+            return self.step(step).await;
+        };
+
+        let exec = CommonExprExecutor::new(
+            self.options.pipeline.as_ref(),
+            self.options.expr_rctx.as_ref(),
+            &self.options.state,
+        );
+        let combinations = strategy.combinations(&exec)?;
+        let fail_fast = strategy.resolve_fail_fast(&exec)?;
+
+        let mut errors: Vec<String> = Vec::new();
+        for combination in combinations {
+            let mut merged = job_matrix.clone();
+            merged.extend(combination);
+            self.options.state.set_matrix(merged);
+            if let Err(e) = self.step(step).await {
+                if fail_fast {
+                    return Err(e);
+                }
+                errors.push(e.to_string());
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(anyhow!(errors.join("\n")))
+        }
     }
 
     async fn info(&self, job: &Job) -> Result<()> {
@@ -487,12 +559,15 @@ mod tests {
     use bld_utils::sync::IntoArc;
     use regex::Regex;
 
+    use std::collections::HashMap;
+
     use crate::{
         expr::v3::{context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX},
         job::v3::Job,
         pipeline::v3::Pipeline,
-        runner::v3::{MockRootState, State, state::JobState},
+        runner::v3::{MockRootState, RootState, State, state::JobState},
         step::v3::{ShellCommand, Step},
+        strategy::v3::{FailFastValue, MatrixValue, Strategy},
     };
 
     use super::{JobRunner, JobRunnerOptions};
@@ -572,6 +647,8 @@ mod tests {
             .withf(|state| matches!(state, State::Running))
             .return_once(|_| ());
 
+        state.expect_set_matrix().returning(|_| ());
+
         for node_id in &data {
             let node_id_arg = node_id.clone();
             state
@@ -630,5 +707,345 @@ mod tests {
 
         // Act
         runner.run().await.unwrap();
+    }
+
+    #[tokio::test]
+    pub async fn job_level_matrix_expansion_runs_all_combinations_success() {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        let mut state = JobState::default();
+        state.add_node("build");
+
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "os".to_string(),
+            MatrixValue::Array(vec!["linux".to_string(), "windows".to_string()]),
+        );
+        matrix.insert(
+            "version".to_string(),
+            MatrixValue::Array(vec!["v2".to_string(), "v3".to_string()]),
+        );
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            job_name.clone(),
+            Job {
+                strategy: Some(Strategy {
+                    matrix,
+                    fail_fast: None,
+                }),
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "build".to_string(),
+                    run: "echo ${{ matrix.os }} ${{ matrix.version }}".to_string(),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+
+        let options = JobRunnerOptions {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline: pipeline.into_arc(),
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            package_manager,
+            artifacts,
+            is_child: false,
+            state,
+        };
+        let runner = JobRunner { options, platform };
+
+        let result = runner.run().await;
+        assert!(result.is_ok(), "error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn step_level_matrix_expansion_runs_all_combinations_success() {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        let mut state = JobState::default();
+        state.add_node("build");
+
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "os".to_string(),
+            MatrixValue::Array(vec!["linux".to_string(), "windows".to_string()]),
+        );
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            job_name.clone(),
+            Job {
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "build".to_string(),
+                    run: "echo ${{ matrix.os }}".to_string(),
+                    strategy: Some(Strategy {
+                        matrix,
+                        fail_fast: None,
+                    }),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+
+        let options = JobRunnerOptions {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline: pipeline.into_arc(),
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            package_manager,
+            artifacts,
+            is_child: false,
+            state,
+        };
+        let runner = JobRunner { options, platform };
+
+        let result = runner.run().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    pub async fn combined_job_and_step_matrix_full_cartesian_success() {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        let mut state = JobState::default();
+        state.add_node("build");
+
+        let mut job_matrix = HashMap::new();
+        job_matrix.insert(
+            "os".to_string(),
+            MatrixValue::Array(vec!["linux".to_string(), "windows".to_string()]),
+        );
+
+        let mut step_matrix = HashMap::new();
+        step_matrix.insert(
+            "version".to_string(),
+            MatrixValue::Array(vec!["v2".to_string(), "v3".to_string()]),
+        );
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            job_name.clone(),
+            Job {
+                strategy: Some(Strategy {
+                    matrix: job_matrix,
+                    fail_fast: None,
+                }),
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "build".to_string(),
+                    run: "echo ${{ matrix.os }} ${{ matrix.version }}".to_string(),
+                    strategy: Some(Strategy {
+                        matrix: step_matrix,
+                        fail_fast: None,
+                    }),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+
+        let options = JobRunnerOptions {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline: pipeline.into_arc(),
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            package_manager,
+            artifacts,
+            is_child: false,
+            state,
+        };
+        let runner = JobRunner { options, platform };
+
+        let result = runner.run().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    pub async fn job_matrix_fail_fast_true_stops_at_first_failure() {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        let mut state = MockRootState::new();
+        state.expect_update_state().returning(|_| ());
+        state.expect_set_matrix().returning(|_| ());
+        state
+            .expect_update_node_state()
+            .withf(|_, state| matches!(state, State::Running))
+            .times(1)
+            .returning(|_, _| ());
+        state
+            .expect_update_node_state()
+            .withf(|_, state| matches!(state, State::Failed { .. }))
+            .times(1)
+            .returning(|_, _| ());
+
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "n".to_string(),
+            MatrixValue::Array(vec!["1".to_string(), "2".to_string(), "3".to_string()]),
+        );
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            job_name.clone(),
+            Job {
+                strategy: Some(Strategy {
+                    matrix,
+                    fail_fast: None,
+                }),
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "build".to_string(),
+                    run: "echo hello".to_string(),
+                    condition: Some("${{ 1 }} ${{ 2 }}".to_string()),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+
+        let options = JobRunnerOptions {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline: pipeline.into_arc(),
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            package_manager,
+            artifacts,
+            is_child: false,
+            state,
+        };
+        let runner = JobRunner { options, platform };
+
+        let result = runner.run().await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    pub async fn job_matrix_fail_fast_false_runs_all_and_aggregates() {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        let mut state = MockRootState::new();
+        state.expect_update_state().returning(|_| ());
+        state.expect_set_matrix().returning(|_| ());
+        state
+            .expect_update_node_state()
+            .withf(|_, state| matches!(state, State::Running))
+            .times(3)
+            .returning(|_, _| ());
+        state
+            .expect_update_node_state()
+            .withf(|_, state| matches!(state, State::Failed { .. }))
+            .times(3)
+            .returning(|_, _| ());
+
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "n".to_string(),
+            MatrixValue::Array(vec!["1".to_string(), "2".to_string(), "3".to_string()]),
+        );
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            job_name.clone(),
+            Job {
+                strategy: Some(Strategy {
+                    matrix,
+                    fail_fast: Some(FailFastValue::Bool(false)),
+                }),
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "build".to_string(),
+                    run: "echo hello".to_string(),
+                    condition: Some("${{ 1 }} ${{ 2 }}".to_string()),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+
+        let options = JobRunnerOptions {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline: pipeline.into_arc(),
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            package_manager,
+            artifacts,
+            is_child: false,
+            state,
+        };
+        let runner = JobRunner { options, platform };
+
+        let result = runner.run().await;
+        assert!(result.is_err());
     }
 }
