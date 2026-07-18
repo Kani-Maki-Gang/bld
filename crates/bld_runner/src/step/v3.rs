@@ -105,32 +105,33 @@ impl Step {
         let step_id = self.id();
         ctx.push_section(step_id);
 
-        let own_matrix_keys: HashSet<&str> =
-            self.strategy().map(|s| s.matrix_keys()).unwrap_or_default();
+        let mut available: HashSet<&str> = job_matrix_keys.cloned().unwrap_or_default();
 
         if let Some(strategy) = self.strategy() {
             debug!("Validating step's {} strategy section", step_id);
             ctx.push_section("strategy");
             strategy.validate(ctx).await;
             ctx.pop_section();
-        }
 
-        for key in own_matrix_keys.iter() {
-            if let Some(job_matrix_keys) = job_matrix_keys
-                && job_matrix_keys.contains(key)
-            {
-                ctx.push_section("strategy");
-                ctx.push_section("matrix");
-                ctx.append_error(&format!(
-                    "Matrix key '{key}' is already defined in the job's strategy"
-                ));
-                ctx.pop_section();
-                ctx.pop_section();
+            let self_matrix_keys = strategy.matrix_keys();
+
+            if let Some(job_matrix_keys) = job_matrix_keys {
+                for conflict_key in job_matrix_keys
+                    .iter()
+                    .filter(|x| self_matrix_keys.contains(*x))
+                {
+                    ctx.push_section("strategy");
+                    ctx.push_section("matrix");
+                    ctx.append_error(&format!(
+                        "Matrix key '{conflict_key}' is already defined in the job's strategy"
+                    ));
+                    ctx.pop_section();
+                    ctx.pop_section();
+                }
             }
-        }
 
-        let mut available: HashSet<&str> = job_matrix_keys.cloned().unwrap_or_default();
-        available.extend(own_matrix_keys.iter());
+            available.extend(self_matrix_keys.iter());
+        }
 
         for value in self.expr_field_values() {
             validate_matrix_refs(ctx, value, &available);
