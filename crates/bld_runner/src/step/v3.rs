@@ -174,7 +174,6 @@ impl Step {
             Step::UploadArtifact(upload) => vec![upload.upload.as_str()],
         }
     }
-
 }
 
 #[cfg(feature = "all")]

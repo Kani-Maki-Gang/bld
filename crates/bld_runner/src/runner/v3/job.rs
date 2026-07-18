@@ -642,6 +642,8 @@ mod tests {
 
         let mut steps = vec![];
 
+        state.expect_get_exec_id().returning(|| Some("test"));
+
         state
             .expect_update_state()
             .withf(|state| matches!(state, State::Running))
@@ -722,7 +724,7 @@ mod tests {
         let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
         let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
         let package_manager = PackageManager::new(config.clone()).into_arc();
-        let mut state = JobState::default();
+        let mut state = JobState::new(&job_name);
         state.add_node("build");
 
         let mut matrix = HashMap::new();
@@ -786,7 +788,7 @@ mod tests {
         let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
         let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
         let package_manager = PackageManager::new(config.clone()).into_arc();
-        let mut state = JobState::default();
+        let mut state = JobState::new(&job_name);
         state.add_node("build");
 
         let mut matrix = HashMap::new();
@@ -846,7 +848,7 @@ mod tests {
         let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
         let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
         let package_manager = PackageManager::new(config.clone()).into_arc();
-        let mut state = JobState::default();
+        let mut state = JobState::new(&job_name);
         state.add_node("build");
 
         let mut job_matrix = HashMap::new();
