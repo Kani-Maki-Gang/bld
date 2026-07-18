@@ -25,6 +25,7 @@ use crate::{
     external::v3::External,
     runner::v3::state::{ActionState, RootState, State},
     step::v3::{ShellCommand, Step},
+    strategy::v3::Strategy,
 };
 
 use super::common::RecursiveFuture;
@@ -111,27 +112,24 @@ impl<S: RootState> ActionRunner<S> {
         debug!("starting execution of action steps");
         let action = self.action.clone();
         for step in &action.steps {
-            self.run_step(step, &HashMap::new()).await?;
+            let Some(strategy) = step.strategy() else {
+                self.run_step(step).await?;
+                continue;
+            };
+            self.run_step_with_strategy(step, strategy).await?;
         }
         Ok(())
     }
 
-    async fn run_step(&mut self, step: &Step, job_matrix: &HashMap<String, String>) -> Result<()> {
-        let Some(strategy) = step.strategy() else {
-            self.state.set_matrix(job_matrix.clone());
-            return self.dispatch_step(step).await;
-        };
-
+    async fn run_step_with_strategy(&mut self, step: &Step, strategy: &Strategy) -> Result<()> {
         let exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &self.state);
         let combinations = strategy.combinations(&exec)?;
         let fail_fast = strategy.resolve_fail_fast(&exec)?;
 
         let mut errors: Vec<String> = Vec::new();
         for combination in combinations {
-            let mut merged = job_matrix.clone();
-            merged.extend(combination);
-            self.state.set_matrix(merged);
-            if let Err(e) = self.dispatch_step(step).await {
+            self.state.set_matrix(combination);
+            if let Err(e) = self.run_step(step).await {
                 if fail_fast {
                     return Err(e);
                 }
@@ -146,7 +144,7 @@ impl<S: RootState> ActionRunner<S> {
         }
     }
 
-    async fn dispatch_step(&mut self, step: &Step) -> Result<()> {
+    async fn run_step(&mut self, step: &Step) -> Result<()> {
         self.state.update_node_state(step.id(), State::Running);
         match step {
             Step::ComplexSh(complex) => self.complex_shell(complex).await,

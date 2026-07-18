@@ -230,7 +230,6 @@ impl<'a> Validate<'a> for Action {
             ctx.append_error("Action must have at least one step defined");
         }
 
-        let job_matrix_keys = HashSet::new();
         let mut step_ids = HashSet::new();
         for step in &self.steps {
             let step_id = step.id();
@@ -240,7 +239,7 @@ impl<'a> Validate<'a> for Action {
                 ctx.pop_section();
             }
             step.validate(ctx).await;
-            step.validate_matrix(ctx, &job_matrix_keys).await;
+            step.validate_matrix(ctx, None).await;
         }
         ctx.pop_section();
     }

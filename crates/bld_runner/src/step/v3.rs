@@ -95,6 +95,86 @@ impl Step {
             Self::UploadArtifact(_) => None,
         }
     }
+
+    #[cfg(feature = "all")]
+    pub async fn validate_matrix<'a, C: ValidatorContext<'a>>(
+        &'a self,
+        ctx: &mut C,
+        job_matrix_keys: Option<&HashSet<&'a str>>,
+    ) {
+        let step_id = self.id();
+        ctx.push_section(step_id);
+
+        let own_matrix_keys: HashSet<&str> =
+            self.strategy().map(|s| s.matrix_keys()).unwrap_or_default();
+
+        if let Some(strategy) = self.strategy() {
+            debug!("Validating step's {} strategy section", step_id);
+            ctx.push_section("strategy");
+            strategy.validate(ctx).await;
+            ctx.pop_section();
+        }
+
+        for key in own_matrix_keys.iter() {
+            if let Some(job_matrix_keys) = job_matrix_keys
+                && job_matrix_keys.contains(key)
+            {
+                ctx.push_section("strategy");
+                ctx.push_section("matrix");
+                ctx.append_error(&format!(
+                    "Matrix key '{key}' is already defined in the job's strategy"
+                ));
+                ctx.pop_section();
+                ctx.pop_section();
+            }
+        }
+
+        let mut available: HashSet<&str> = job_matrix_keys.cloned().unwrap_or_default();
+        available.extend(own_matrix_keys.iter());
+
+        for value in self.expr_field_values() {
+            validate_matrix_refs(ctx, value, &available);
+        }
+
+        ctx.pop_section();
+    }
+
+    #[cfg(feature = "all")]
+    fn expr_field_values(&self) -> Vec<&str> {
+        match self {
+            Step::ComplexSh(cmd) => {
+                let mut values = vec![cmd.run.as_str()];
+                if let Some(name) = cmd.name.as_deref() {
+                    values.push(name);
+                }
+                if let Some(wd) = cmd.working_dir.as_deref() {
+                    values.push(wd);
+                }
+                if let Some(cond) = cmd.condition.as_deref() {
+                    values.push(cond);
+                }
+                values
+            }
+
+            Step::ExternalFile(ext) => {
+                let mut values = vec![ext.uses.as_str()];
+                if let Some(name) = ext.name.as_deref() {
+                    values.push(name);
+                }
+                if let Some(server) = ext.server.as_deref() {
+                    values.push(server);
+                }
+                values.extend(ext.with.values().map(|x| x.as_str()));
+                values.extend(ext.env.values().map(|x| x.as_str()));
+                values
+            }
+
+            Step::DownloadArtifact(download) => vec![download.to.as_str()],
+
+            Step::UploadArtifact(upload) => vec![upload.upload.as_str()],
+        }
+    }
+
 }
 
 #[cfg(feature = "all")]
@@ -243,84 +323,6 @@ impl<'a> Validate<'a> for Step {
                 upload.validate(ctx).await;
                 ctx.pop_section();
             }
-        }
-    }
-}
-
-#[cfg(feature = "all")]
-impl Step {
-    pub async fn validate_matrix<'a, C: ValidatorContext<'a>>(
-        &'a self,
-        ctx: &mut C,
-        job_matrix_keys: &HashSet<&'a str>,
-    ) {
-        let step_id = self.id();
-        ctx.push_section(step_id);
-
-        let own_matrix_keys: HashSet<&str> =
-            self.strategy().map(|s| s.matrix_keys()).unwrap_or_default();
-
-        if let Some(strategy) = self.strategy() {
-            debug!("Validating step's {} strategy section", step_id);
-            ctx.push_section("strategy");
-            strategy.validate(ctx).await;
-            ctx.pop_section();
-        }
-
-        for key in own_matrix_keys.iter() {
-            if job_matrix_keys.contains(key) {
-                ctx.push_section("strategy");
-                ctx.push_section("matrix");
-                ctx.append_error(&format!(
-                    "Matrix key '{key}' is already defined in the job's strategy"
-                ));
-                ctx.pop_section();
-                ctx.pop_section();
-            }
-        }
-
-        let mut available: HashSet<&str> = job_matrix_keys.clone();
-        available.extend(own_matrix_keys.iter());
-
-        for value in self.expr_field_values() {
-            validate_matrix_refs(ctx, value, &available);
-        }
-
-        ctx.pop_section();
-    }
-
-    fn expr_field_values(&self) -> Vec<&str> {
-        match self {
-            Step::ComplexSh(cmd) => {
-                let mut values = vec![cmd.run.as_str()];
-                if let Some(name) = cmd.name.as_deref() {
-                    values.push(name);
-                }
-                if let Some(wd) = cmd.working_dir.as_deref() {
-                    values.push(wd);
-                }
-                if let Some(cond) = cmd.condition.as_deref() {
-                    values.push(cond);
-                }
-                values
-            }
-
-            Step::ExternalFile(ext) => {
-                let mut values = vec![ext.uses.as_str()];
-                if let Some(name) = ext.name.as_deref() {
-                    values.push(name);
-                }
-                if let Some(server) = ext.server.as_deref() {
-                    values.push(server);
-                }
-                values.extend(ext.with.values().map(|x| x.as_str()));
-                values.extend(ext.env.values().map(|x| x.as_str()));
-                values
-            }
-
-            Step::DownloadArtifact(download) => vec![download.to.as_str()],
-
-            Step::UploadArtifact(upload) => vec![upload.upload.as_str()],
         }
     }
 }

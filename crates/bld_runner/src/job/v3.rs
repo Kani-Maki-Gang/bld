@@ -1,3 +1,5 @@
+#[cfg(feature = "all")]
+use crate::expr::v3::traits::ExprText;
 use crate::{runs_on::v3::RunsOn, step::v3::Step, strategy::v3::Strategy};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -119,6 +121,15 @@ impl<'a> EvalObject<'a> for Job {
 
             "dispose" => ExprValue::Boolean(self.dispose),
 
+            "matrix" => {
+                let Some(part) = path.next() else {
+                    bail!("expected name of matrix variable in object path");
+                };
+                let name = part.as_span().as_str();
+                wctx.get_matrix_value(name)
+                    .map(|x| ExprValue::Text(ExprText::Ref(x)))?
+            }
+
             "steps" => {
                 let Some(step_id) = path.next() else {
                     bail!("expected id for step in expression");
@@ -189,7 +200,7 @@ impl<'a> Validate<'a> for Job {
                 ctx.pop_section();
             }
             step.validate(ctx).await;
-            step.validate_matrix(ctx, &job_matrix_keys).await;
+            step.validate_matrix(ctx, Some(&job_matrix_keys)).await;
         }
         ctx.pop_section();
     }

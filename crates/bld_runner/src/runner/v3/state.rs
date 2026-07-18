@@ -95,7 +95,7 @@ impl WritableRuntimeExprContext for StepState {
     }
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct JobState {
     id: String,
     state: State,
@@ -108,6 +108,17 @@ impl JobState {
         Self {
             id: id.to_string(),
             ..Default::default()
+        }
+    }
+}
+
+impl Default for JobState {
+    fn default() -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            state: State::default(),
+            steps: HashMap::new(),
+            matrix: HashMap::new(),
         }
     }
 }
