@@ -228,9 +228,11 @@ impl<'a> EvalObject<'a> for Step {
 
         let value = match self {
             Self::ComplexSh(command) => match key {
-                "name" => command.name.as_deref().unwrap_or(""),
-                "working_dir" => command.working_dir.as_deref().unwrap_or(""),
-                "run" => &command.run,
+                "name" => ExprValue::Text(ExprText::Ref(command.name.as_deref().unwrap_or(""))),
+                "working_dir" => {
+                    ExprValue::Text(ExprText::Ref(command.working_dir.as_deref().unwrap_or("")))
+                }
+                "run" => ExprValue::Text(ExprText::Ref(&command.run)),
                 "outputs" => {
                     let Some(object) = path.next() else {
                         bail!("no output variable name provided");
@@ -255,7 +257,7 @@ impl<'a> EvalObject<'a> for Step {
             }
         };
 
-        Ok(ExprValue::Text(ExprText::Ref(value)))
+        Ok(value)
     }
 }
 

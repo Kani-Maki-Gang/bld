@@ -52,8 +52,8 @@ impl<'a> WritableRuntimeExprContext for ValidatorWritableRuntimeExprContext<'a> 
         Some(self.exec_id)
     }
 
-    fn get_output<'b>(&'b self, _id: &str, _name: &str) -> Result<&'b str> {
-        Ok("")
+    fn get_output<'b>(&'b self, _id: &str, _name: &str) -> Result<ExprValue<'b>> {
+        Ok(ExprValue::Array(vec![]))
     }
 
     fn set_output(&mut self, _id: &str, name: String, value: String) -> Result<()> {

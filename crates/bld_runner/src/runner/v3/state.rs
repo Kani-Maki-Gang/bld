@@ -4,7 +4,7 @@ use anyhow::{Result, anyhow, bail};
 use mockall::{automock, mock};
 use uuid::Uuid;
 
-use crate::expr::v3::traits::WritableRuntimeExprContext;
+use crate::expr::v3::traits::{ExprValue, WritableRuntimeExprContext};
 
 #[automock]
 pub trait NodeState {
@@ -37,7 +37,9 @@ pub enum State {
 pub struct StepState {
     id: String,
     state: State,
-    outputs: HashMap<String, String>,
+    // TECH DEBT: Change 'static lifetime to a specific lifetime.
+    // Changing this will require a lot of type annotation changes.
+    outputs: HashMap<String, ExprValue<'static>>,
 }
 
 impl StepState {
@@ -64,13 +66,13 @@ impl WritableRuntimeExprContext for StepState {
         Some(self.id.as_str())
     }
 
-    fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<&'a str> {
+    fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<ExprValue<'a>> {
         if self.id != id {
             bail!("id {id} has no outputs");
         }
         self.outputs
             .get(name)
-            .map(|x| x.as_str())
+            .cloned()
             .ok_or_else(|| anyhow!("output '{name}' not found"))
     }
 
@@ -78,7 +80,7 @@ impl WritableRuntimeExprContext for StepState {
         if self.id != id {
             bail!("target id {id} is inaccessible");
         }
-        let _ = self.outputs.insert(name, value);
+        let _ = self.outputs.insert(name, value.try_into()?);
         Ok(())
     }
 
@@ -86,7 +88,11 @@ impl WritableRuntimeExprContext for StepState {
         if self.id != id {
             bail!("target id {id} is inaccessible");
         }
-        self.outputs = outputs;
+        let mut map = HashMap::new();
+        for (k, v) in outputs {
+            map.insert(k, v.try_into()?);
+        }
+        self.outputs = map;
         Ok(())
     }
 
@@ -158,7 +164,7 @@ impl WritableRuntimeExprContext for JobState {
         Some(self.id.as_str())
     }
 
-    fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<&'a str> {
+    fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<ExprValue<'a>> {
         let Some(step_state) = self.steps.get(id) else {
             bail!("outputs for id {id} weren't found");
         };
@@ -240,7 +246,7 @@ impl WritableRuntimeExprContext for ActionState {
         Some(self.id.as_str())
     }
 
-    fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<&'a str> {
+    fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<ExprValue<'a>> {
         let Some(step_state) = self.steps.get(id) else {
             bail!("outputs for id {id} weren't found");
         };
@@ -283,7 +289,7 @@ mock! {
 
     impl WritableRuntimeExprContext for RootState {
         fn get_exec_id<'a> (&'a self) -> Option<&'a str>;
-        fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<&'a str>;
+        fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<ExprValue<'a>>;
         fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
         fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
         fn get_matrix_value<'a>(&'a self, name: &str) -> Result<&'a str>;
