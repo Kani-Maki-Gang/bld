@@ -690,7 +690,7 @@ mod tests {
                     wctx.expect_get_output()
                         .with(predicate::eq(*step), predicate::eq(*name))
                         .times(1)
-                        .returning(|_, _| Ok(value));
+                        .returning(|_, _| Ok(ExprValue::Text(ExprText::Ref(value))));
                 }
             }
         }
@@ -756,7 +756,7 @@ mod tests {
                 wctx.expect_get_output()
                     .with(predicate::eq(*step), predicate::eq(*name))
                     .times(1)
-                    .returning(|_, _| Ok(value));
+                    .returning(|_, _| Ok(ExprValue::Text(ExprText::Ref(value))));
             }
         }
 

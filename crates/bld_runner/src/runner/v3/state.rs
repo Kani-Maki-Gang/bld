@@ -303,7 +303,7 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        expr::v3::traits::WritableRuntimeExprContext,
+        expr::v3::traits::{ExprText, ExprValue, WritableRuntimeExprContext},
         runner::v3::state::{ActionState, JobState, NodeState, RootState, State, StepState},
     };
 
@@ -352,14 +352,18 @@ mod tests {
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect();
         let id = Uuid::new_v4().to_string();
+        let expr_outputs: HashMap<String, ExprValue<'static>> = outputs
+            .iter()
+            .map(|(k, v)| (k.clone(), ExprValue::Text(ExprText::Owned(v.clone()))))
+            .collect();
         let state = StepState {
             id: id.clone(),
             state: State::Default,
-            outputs: outputs.clone(),
+            outputs: expr_outputs,
         };
         for (name, expected_value) in outputs {
             let actual_value = state.get_output(&id, &name).unwrap();
-            assert_eq!(actual_value, expected_value);
+            assert_eq!(actual_value, ExprValue::Text(ExprText::Owned(expected_value)));
         }
     }
 
@@ -446,6 +450,10 @@ mod tests {
                 .collect();
         let job_id = Uuid::new_v4().to_string();
         let step_id = Uuid::new_v4().to_string();
+        let expr_outputs: HashMap<String, ExprValue<'static>> = outputs
+            .iter()
+            .map(|(k, v)| (k.clone(), ExprValue::Text(ExprText::Owned(v.clone()))))
+            .collect();
         let mut state = JobState {
             id: job_id.clone(),
             state: State::Default,
@@ -457,12 +465,12 @@ mod tests {
             StepState {
                 id: step_id.clone(),
                 state: State::Default,
-                outputs: outputs.clone(),
+                outputs: expr_outputs,
             },
         );
         for (name, expected_value) in outputs {
             let actual_value = state.get_output(&step_id, &name).unwrap();
-            assert_eq!(actual_value, expected_value);
+            assert_eq!(actual_value, ExprValue::Text(ExprText::Owned(expected_value)));
         }
     }
 
@@ -475,6 +483,10 @@ mod tests {
                 .collect();
         let job_id = Uuid::new_v4().to_string();
         let step_id = Uuid::new_v4().to_string();
+        let expr_outputs: HashMap<String, ExprValue<'static>> = outputs
+            .iter()
+            .map(|(k, v)| (k.clone(), ExprValue::Text(ExprText::Owned(v.clone()))))
+            .collect();
         let mut state = JobState {
             id: job_id.clone(),
             state: State::Default,
@@ -486,7 +498,7 @@ mod tests {
             StepState {
                 id: step_id.clone(),
                 state: State::Default,
-                outputs: outputs.clone(),
+                outputs: expr_outputs,
             },
         );
         for (name, value) in outputs {
@@ -504,6 +516,10 @@ mod tests {
                 .collect();
         let job_id = Uuid::new_v4().to_string();
         let step_id = Uuid::new_v4().to_string();
+        let expr_outputs: HashMap<String, ExprValue<'static>> = outputs
+            .iter()
+            .map(|(k, v)| (k.clone(), ExprValue::Text(ExprText::Owned(v.clone()))))
+            .collect();
         let mut state = JobState {
             id: job_id.clone(),
             state: State::Default,
@@ -515,7 +531,7 @@ mod tests {
             StepState {
                 id: step_id.clone(),
                 state: State::Default,
-                outputs: outputs.clone(),
+                outputs: expr_outputs,
             },
         );
         let result = state.set_outputs(&step_id, outputs);
@@ -545,6 +561,10 @@ mod tests {
                 .collect();
         let action_id = Uuid::new_v4().to_string();
         let step_id = Uuid::new_v4().to_string();
+        let expr_outputs: HashMap<String, ExprValue<'static>> = outputs
+            .iter()
+            .map(|(k, v)| (k.clone(), ExprValue::Text(ExprText::Owned(v.clone()))))
+            .collect();
         let mut state = ActionState {
             id: action_id.clone(),
             state: State::Default,
@@ -556,12 +576,12 @@ mod tests {
             StepState {
                 id: step_id.clone(),
                 state: State::Default,
-                outputs: outputs.clone(),
+                outputs: expr_outputs,
             },
         );
         for (name, expected_value) in outputs {
             let actual_value = state.get_output(&step_id, &name).unwrap();
-            assert_eq!(actual_value, expected_value);
+            assert_eq!(actual_value, ExprValue::Text(ExprText::Owned(expected_value)));
         }
     }
 
@@ -574,6 +594,10 @@ mod tests {
                 .collect();
         let action_id = Uuid::new_v4().to_string();
         let step_id = Uuid::new_v4().to_string();
+        let expr_outputs: HashMap<String, ExprValue<'static>> = outputs
+            .iter()
+            .map(|(k, v)| (k.clone(), ExprValue::Text(ExprText::Owned(v.clone()))))
+            .collect();
         let mut state = ActionState {
             id: action_id.clone(),
             state: State::Default,
@@ -585,7 +609,7 @@ mod tests {
             StepState {
                 id: step_id.clone(),
                 state: State::Default,
-                outputs: outputs.clone(),
+                outputs: expr_outputs,
             },
         );
         for (name, value) in outputs {
@@ -603,6 +627,10 @@ mod tests {
                 .collect();
         let action_id = Uuid::new_v4().to_string();
         let step_id = Uuid::new_v4().to_string();
+        let expr_outputs: HashMap<String, ExprValue<'static>> = outputs
+            .iter()
+            .map(|(k, v)| (k.clone(), ExprValue::Text(ExprText::Owned(v.clone()))))
+            .collect();
         let mut state = ActionState {
             id: action_id.clone(),
             state: State::Default,
@@ -614,7 +642,7 @@ mod tests {
             StepState {
                 id: step_id.clone(),
                 state: State::Default,
-                outputs: outputs.clone(),
+                outputs: expr_outputs,
             },
         );
         let result = state.set_outputs(&step_id, outputs);
