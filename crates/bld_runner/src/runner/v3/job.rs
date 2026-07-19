@@ -125,9 +125,8 @@ impl<S: RootState> JobRunner<S> {
 
     async fn run_job_steps(&mut self, job: &Job) -> Result<()> {
         let Some(strategy) = job.strategy.as_ref() else {
-            self.options.state.set_matrix(HashMap::new());
             for step in job.steps.iter() {
-                self.run_step(step, &HashMap::new()).await?;
+                self.run_step(step, None).await?;
             }
             return Ok(());
         };
@@ -143,7 +142,7 @@ impl<S: RootState> JobRunner<S> {
         let mut errors: Vec<String> = Vec::new();
         for combination in combinations {
             for step in job.steps.iter() {
-                if let Err(e) = self.run_step(step, &combination).await {
+                if let Err(e) = self.run_step(step, Some(&combination)).await {
                     if fail_fast {
                         return Err(e);
                     }
@@ -160,9 +159,15 @@ impl<S: RootState> JobRunner<S> {
         }
     }
 
-    async fn run_step(&mut self, step: &Step, job_matrix: &HashMap<String, String>) -> Result<()> {
+    async fn run_step(
+        &mut self,
+        step: &Step,
+        job_matrix: Option<&HashMap<String, String>>,
+    ) -> Result<()> {
         let Some(strategy) = step.strategy() else {
-            self.options.state.set_matrix(job_matrix.clone());
+            if let Some(job_matrix) = job_matrix {
+                self.options.state.set_matrix(job_matrix.clone());
+            }
             return self.step(step).await;
         };
 
@@ -176,7 +181,7 @@ impl<S: RootState> JobRunner<S> {
 
         let mut errors: Vec<String> = Vec::new();
         for combination in combinations {
-            let mut merged = job_matrix.clone();
+            let mut merged = job_matrix.cloned().unwrap_or_default();
             merged.extend(combination);
             self.options.state.set_matrix(merged);
             if let Err(e) = self.step(step).await {
