@@ -363,7 +363,10 @@ mod tests {
         };
         for (name, expected_value) in outputs {
             let actual_value = state.get_output(&id, &name).unwrap();
-            assert_eq!(actual_value, ExprValue::Text(ExprText::Owned(expected_value)));
+            assert_eq!(
+                actual_value,
+                ExprValue::Text(ExprText::Owned(expected_value))
+            );
         }
     }
 
@@ -470,7 +473,10 @@ mod tests {
         );
         for (name, expected_value) in outputs {
             let actual_value = state.get_output(&step_id, &name).unwrap();
-            assert_eq!(actual_value, ExprValue::Text(ExprText::Owned(expected_value)));
+            assert_eq!(
+                actual_value,
+                ExprValue::Text(ExprText::Owned(expected_value))
+            );
         }
     }
 
@@ -581,7 +587,10 @@ mod tests {
         );
         for (name, expected_value) in outputs {
             let actual_value = state.get_output(&step_id, &name).unwrap();
-            assert_eq!(actual_value, ExprValue::Text(ExprText::Owned(expected_value)));
+            assert_eq!(
+                actual_value,
+                ExprValue::Text(ExprText::Owned(expected_value))
+            );
         }
     }
 
