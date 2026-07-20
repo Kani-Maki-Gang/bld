@@ -306,6 +306,7 @@ mod tests {
             traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext},
         },
         inputs::v3::Input,
+        job::v3::Job,
     };
 
     use super::Pipeline;
@@ -391,6 +392,44 @@ mod tests {
                 Ok(ExprValue::Boolean(true))
             ));
         }
+    }
+
+    #[test]
+    pub fn matrix_expr_eval_success() {
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert("test".to_string(), Job::default());
+
+        wctx.expect_get_exec_id().returning(|| Some("test"));
+
+        wctx.expect_get_matrix_value()
+            .with(mockall::predicate::eq("os"))
+            .returning(|_| Ok("linux"));
+
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+        let actual = exec.eval("${{ matrix.os }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("linux"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
+
+    #[test]
+    pub fn matrix_undefined_expr_eval_failure() {
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert("test".to_string(), Job::default());
+
+        wctx.expect_get_exec_id().returning(|| Some("test"));
+
+        wctx.expect_get_matrix_value()
+            .with(mockall::predicate::eq("missing"))
+            .returning(|name| Err(anyhow::anyhow!("matrix value '{name}' not found")));
+
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+        assert!(exec.eval("${{ matrix.missing }}").is_err());
     }
 
     #[test]

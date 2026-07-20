@@ -1,4 +1,6 @@
-use crate::{runs_on::v3::RunsOn, step::v3::Step};
+#[cfg(feature = "all")]
+use crate::expr::v3::traits::ExprText;
+use crate::{runs_on::v3::RunsOn, step::v3::Step, strategy::v3::Strategy};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use uuid::Uuid;
@@ -13,6 +15,7 @@ use {
                 EvalObject, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
             },
         },
+        strategy::v3::validate_matrix_refs,
         validator::v3::{Validate, ValidatorContext},
     },
     anyhow::{Result, bail},
@@ -40,6 +43,7 @@ pub struct Job {
     pub needs: Option<Needs>,
     #[serde(default = "Job::default_dispose")]
     pub dispose: bool,
+    pub strategy: Option<Strategy>,
     pub steps: Vec<Step>,
 }
 
@@ -61,6 +65,7 @@ impl Default for Job {
             condition: None,
             needs: None,
             dispose: Self::default_dispose(),
+            strategy: None,
             steps: vec![],
         }
     }
@@ -116,6 +121,15 @@ impl<'a> EvalObject<'a> for Job {
 
             "dispose" => ExprValue::Boolean(self.dispose),
 
+            "matrix" => {
+                let Some(part) = path.next() else {
+                    bail!("expected name of matrix variable in object path");
+                };
+                let name = part.as_span().as_str();
+                wctx.get_matrix_value(name)
+                    .map(|x| ExprValue::Text(ExprText::Ref(x)))?
+            }
+
             "steps" => {
                 let Some(step_id) = path.next() else {
                     bail!("expected id for step in expression");
@@ -146,6 +160,19 @@ impl<'a> Validate<'a> for Job {
         self.runs_on.validate(ctx).await;
         ctx.pop_section();
 
+        let job_matrix_keys: HashSet<&str> = self
+            .strategy
+            .as_ref()
+            .map(|s| s.matrix_keys())
+            .unwrap_or_default();
+
+        if let Some(strategy) = self.strategy.as_ref() {
+            debug!("Validating job's {} strategy section", self.id);
+            ctx.push_section("strategy");
+            strategy.validate(ctx).await;
+            ctx.pop_section();
+        }
+
         if let Some(condition) = self.condition.as_ref() {
             debug!("Validating job's {} if condition", self.id);
             ctx.push_section("if");
@@ -154,6 +181,7 @@ impl<'a> Validate<'a> for Job {
             } else {
                 ctx.validate_expressions(condition);
             }
+            validate_matrix_refs(ctx, condition, &HashSet::new());
             ctx.pop_section();
         }
 
@@ -172,7 +200,147 @@ impl<'a> Validate<'a> for Job {
                 ctx.pop_section();
             }
             step.validate(ctx).await;
+            step.validate_matrix(ctx, Some(&job_matrix_keys)).await;
         }
         ctx.pop_section();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use bld_config::BldConfig;
+    use bld_core::fs::FileSystem;
+    use bld_pkg::PackageManager;
+    use bld_utils::sync::IntoArc;
+
+    use crate::{
+        expr::v3::context::CommonReadonlyRuntimeExprContext,
+        pipeline::v3::Pipeline,
+        step::v3::{ShellCommand, Step},
+        strategy::v3::{MatrixValue, Strategy},
+        validator::v3::{CommonValidator, ConsumeValidator, ValidatorWritableRuntimeExprContext},
+    };
+
+    use super::Job;
+
+    async fn validate_job(job: Job) -> anyhow::Result<()> {
+        let job_name = "main";
+        let config = BldConfig::default().into_arc();
+        let file_system = FileSystem::local(config.clone()).into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default();
+        let expr_wctx = vec![ValidatorWritableRuntimeExprContext::new(job_name)];
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(job_name.to_string(), job);
+
+        CommonValidator::new(
+            &pipeline,
+            config,
+            file_system,
+            package_manager,
+            &expr_rctx,
+            &expr_wctx,
+        )
+        .unwrap()
+        .validate()
+        .await
+    }
+
+    fn matrix_of(values: Vec<(&str, Vec<&str>)>) -> HashMap<String, MatrixValue> {
+        values
+            .into_iter()
+            .map(|(k, v)| {
+                (
+                    k.to_string(),
+                    MatrixValue::Array(v.into_iter().map(|x| x.to_string()).collect()),
+                )
+            })
+            .collect()
+    }
+
+    #[tokio::test]
+    pub async fn matrix_ref_with_job_and_step_keys_success() {
+        let job = Job {
+            strategy: Some(Strategy {
+                matrix: matrix_of(vec![("os", vec!["linux", "windows"])]),
+                fail_fast: None,
+            }),
+            steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                id: "build".to_string(),
+                run: "echo ${{ matrix.os }} ${{ matrix.version }}".to_string(),
+                strategy: Some(Strategy {
+                    matrix: matrix_of(vec![("version", vec!["v2", "v3"])]),
+                    fail_fast: None,
+                }),
+                ..Default::default()
+            }))],
+            ..Default::default()
+        };
+
+        let result = validate_job(job).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn matrix_ref_undefined_key_failure() {
+        let job = Job {
+            steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                id: "build".to_string(),
+                run: "echo ${{ matrix.missing }}".to_string(),
+                ..Default::default()
+            }))],
+            ..Default::default()
+        };
+
+        let result = validate_job(job).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    pub async fn matrix_duplicate_key_between_job_and_step_failure() {
+        let job = Job {
+            strategy: Some(Strategy {
+                matrix: matrix_of(vec![("os", vec!["linux", "windows"])]),
+                fail_fast: None,
+            }),
+            steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                id: "build".to_string(),
+                run: "echo ${{ matrix.os }}".to_string(),
+                strategy: Some(Strategy {
+                    matrix: matrix_of(vec![("os", vec!["mac"])]),
+                    fail_fast: None,
+                }),
+                ..Default::default()
+            }))],
+            ..Default::default()
+        };
+
+        let result = validate_job(job).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    pub async fn matrix_non_array_value_failure() {
+        let mut matrix = HashMap::new();
+        matrix.insert("os".to_string(), MatrixValue::Expr("${{ 5 }}".to_string()));
+
+        let job = Job {
+            strategy: Some(Strategy {
+                matrix,
+                fail_fast: None,
+            }),
+            steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                id: "build".to_string(),
+                run: "echo ${{ matrix.os }}".to_string(),
+                ..Default::default()
+            }))],
+            ..Default::default()
+        };
+
+        let result = validate_job(job).await;
+        assert!(result.is_err());
     }
 }

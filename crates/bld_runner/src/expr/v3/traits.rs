@@ -55,7 +55,7 @@ fn unescape_string_literal(value: &str) -> String {
     result
 }
 
-#[derive(Debug, Eq, Ord, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, Eq, Ord, PartialOrd, PartialEq)]
 pub enum ExprText<'a> {
     Ref(&'a str),
     Owned(String),
@@ -70,7 +70,7 @@ impl<'a> ExprText<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ExprValue<'a> {
     Boolean(bool),
     Number(f64),
@@ -169,17 +169,48 @@ impl<'b> TryFrom<&'b str> for ExprValue<'_> {
     type Error = anyhow::Error;
 
     fn try_from(value: &'b str) -> Result<Self> {
+        // Try number
         if let Ok(num) = value.parse::<f64>() {
             return Ok(ExprValue::Number(num));
         }
 
+        // Try boolean
         if let Ok(boolean) = value.parse::<bool>() {
             return Ok(ExprValue::Boolean(boolean));
         }
 
+        // Try array
+        if value.starts_with('[') && value.ends_with(']') {
+            let mut expr_type: Option<&'static str> = None;
+            let mut expr_value = vec![];
+            for entry in value[1..value.len() - 1].split(',') {
+                let entry_expr_value: ExprValue<'_> = entry.trim().try_into()?;
+                let entry_expr_type = entry_expr_value.type_as_string();
+
+                if let Some(expr_type) = expr_type
+                    && expr_type != entry_expr_value.type_as_string()
+                {
+                    bail!("Array expression contains entries of multiple types")
+                }
+
+                expr_type = Some(entry_expr_type);
+                expr_value.push(entry_expr_value);
+            }
+            return Ok(ExprValue::Array(expr_value));
+        }
+
+        // Fallback to test
         Ok(ExprValue::Text(ExprText::Owned(unescape_string_literal(
             value,
         ))))
+    }
+}
+
+impl TryFrom<String> for ExprValue<'_> {
+    type Error = anyhow::Error;
+
+    fn try_from(value: String) -> Result<Self> {
+        value.as_str().try_into()
     }
 }
 
@@ -216,9 +247,11 @@ pub trait ReadonlyRuntimeExprContext<'a> {
 pub trait WritableRuntimeExprContext {
     #[allow(clippy::needless_lifetimes)]
     fn get_exec_id<'a>(&'a self) -> Option<&'a str>;
-    fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<&'a str>;
+    fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<ExprValue<'a>>;
     fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
     fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
+    #[allow(clippy::needless_lifetimes)]
+    fn get_matrix_value<'a>(&'a self, name: &str) -> Result<&'a str>;
 }
 
 pub trait EvalObject<'a> {

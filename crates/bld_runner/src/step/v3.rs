@@ -1,6 +1,7 @@
 use crate::{
     artifacts::v3::{DownloadArtifact, UploadArtifact},
     external::v3::External,
+    strategy::v3::Strategy,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -16,6 +17,7 @@ use {
                 WritableRuntimeExprContext,
             },
         },
+        strategy::v3::validate_matrix_refs,
         validator::v3::{Validate, ValidatorContext},
     },
     anyhow::{Result, bail},
@@ -23,6 +25,7 @@ use {
     bld_pkg::PackageManager,
     bld_utils::fs::IsYaml,
     pest::iterators::Pairs,
+    std::collections::HashSet,
     std::iter::Peekable,
     tracing::debug,
 };
@@ -36,6 +39,7 @@ pub struct ShellCommand {
     pub run: String,
     #[serde(rename = "if")]
     pub condition: Option<String>,
+    pub strategy: Option<Strategy>,
 }
 
 impl ShellCommand {
@@ -52,6 +56,7 @@ impl Default for ShellCommand {
             working_dir: None,
             run: String::new(),
             condition: None,
+            strategy: None,
         }
     }
 }
@@ -79,6 +84,95 @@ impl Step {
             Self::ExternalFile(ext) => &ext.id,
             Self::DownloadArtifact(value) => &value.id,
             Self::UploadArtifact(value) => &value.id,
+        }
+    }
+
+    pub fn strategy(&self) -> Option<&Strategy> {
+        match self {
+            Self::ComplexSh(cmd) => cmd.strategy.as_ref(),
+            Self::ExternalFile(ext) => ext.strategy.as_ref(),
+            Self::DownloadArtifact(_) => None,
+            Self::UploadArtifact(_) => None,
+        }
+    }
+
+    #[cfg(feature = "all")]
+    pub async fn validate_matrix<'a, C: ValidatorContext<'a>>(
+        &'a self,
+        ctx: &mut C,
+        job_matrix_keys: Option<&HashSet<&'a str>>,
+    ) {
+        let step_id = self.id();
+        ctx.push_section(step_id);
+
+        let mut available: HashSet<&str> = job_matrix_keys.cloned().unwrap_or_default();
+
+        if let Some(strategy) = self.strategy() {
+            debug!("Validating step's {} strategy section", step_id);
+            ctx.push_section("strategy");
+            strategy.validate(ctx).await;
+            ctx.pop_section();
+
+            let self_matrix_keys = strategy.matrix_keys();
+
+            if let Some(job_matrix_keys) = job_matrix_keys {
+                for conflict_key in job_matrix_keys
+                    .iter()
+                    .filter(|x| self_matrix_keys.contains(*x))
+                {
+                    ctx.push_section("strategy");
+                    ctx.push_section("matrix");
+                    ctx.append_error(&format!(
+                        "Matrix key '{conflict_key}' is already defined in the job's strategy"
+                    ));
+                    ctx.pop_section();
+                    ctx.pop_section();
+                }
+            }
+
+            available.extend(self_matrix_keys.iter());
+        }
+
+        for value in self.expr_field_values() {
+            validate_matrix_refs(ctx, value, &available);
+        }
+
+        ctx.pop_section();
+    }
+
+    #[cfg(feature = "all")]
+    fn expr_field_values(&self) -> Vec<&str> {
+        match self {
+            Step::ComplexSh(cmd) => {
+                let mut values = vec![cmd.run.as_str()];
+                if let Some(name) = cmd.name.as_deref() {
+                    values.push(name);
+                }
+                if let Some(wd) = cmd.working_dir.as_deref() {
+                    values.push(wd);
+                }
+                if let Some(cond) = cmd.condition.as_deref() {
+                    values.push(cond);
+                }
+                values
+            }
+
+            Step::ExternalFile(ext) => {
+                let mut values = vec![ext.uses.as_str()];
+                if let Some(name) = ext.name.as_deref() {
+                    values.push(name);
+                }
+                if let Some(server) = ext.server.as_deref() {
+                    values.push(server);
+                }
+                values.extend(ext.with.values().map(|x| x.as_str()));
+                values.extend(ext.env.values().map(|x| x.as_str()));
+                values
+            }
+
+            Step::DownloadArtifact(download) => vec![download.to.as_str()],
+
+            Step::UploadArtifact(upload) => vec![upload.upload.as_str()],
         }
     }
 }
@@ -134,9 +228,11 @@ impl<'a> EvalObject<'a> for Step {
 
         let value = match self {
             Self::ComplexSh(command) => match key {
-                "name" => command.name.as_deref().unwrap_or(""),
-                "working_dir" => command.working_dir.as_deref().unwrap_or(""),
-                "run" => &command.run,
+                "name" => ExprValue::Text(ExprText::Ref(command.name.as_deref().unwrap_or(""))),
+                "working_dir" => {
+                    ExprValue::Text(ExprText::Ref(command.working_dir.as_deref().unwrap_or("")))
+                }
+                "run" => ExprValue::Text(ExprText::Ref(&command.run)),
                 "outputs" => {
                     let Some(object) = path.next() else {
                         bail!("no output variable name provided");
@@ -161,7 +257,7 @@ impl<'a> EvalObject<'a> for Step {
             }
         };
 
-        Ok(ExprValue::Text(ExprText::Ref(value)))
+        Ok(value)
     }
 }
 
@@ -264,6 +360,7 @@ mod tests {
                         working_dir: Some("some_second_working_directory".to_string()),
                         run: "second_run_command".to_string(),
                         condition: Some("second_condition".to_string()),
+                        strategy: None,
                     })),
                     Step::ComplexSh(Box::new(ShellCommand {
                         id: "third".to_string(),
@@ -271,6 +368,7 @@ mod tests {
                         working_dir: Some("some_third_working_directory".to_string()),
                         run: "third_run_command".to_string(),
                         condition: Some("third_condition".to_string()),
+                        strategy: None,
                     })),
                 ],
                 ..Default::default()
@@ -285,6 +383,7 @@ mod tests {
                     working_dir: Some("some_first_working_directory".to_string()),
                     run: "first_run_command".to_string(),
                     condition: Some("first_condition".to_string()),
+                    strategy: None,
                 }))],
                 ..Default::default()
             },
@@ -378,6 +477,7 @@ mod tests {
             working_dir: Some("some_second_working_directory".to_string()),
             run: "second_run_command".to_string(),
             condition: Some("second_condition".to_string()),
+            strategy: None,
         })));
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
             id: "third".to_string(),
@@ -385,6 +485,7 @@ mod tests {
             working_dir: Some("some_third_working_directory".to_string()),
             run: "third_run_command".to_string(),
             condition: Some("third_condition".to_string()),
+            strategy: None,
         })));
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
             id: "first".to_string(),
@@ -392,6 +493,7 @@ mod tests {
             working_dir: Some("some_first_working_directory".to_string()),
             run: "first_run_command".to_string(),
             condition: Some("first_condition".to_string()),
+            strategy: None,
         })));
 
         let exec = CommonExprExecutor::new(&action, &rctx, &wctx);
@@ -576,6 +678,7 @@ mod tests {
                         run: String::new(),
                         condition: None,
                         working_dir: None,
+                        strategy: None,
                     })));
                 }
 
@@ -587,7 +690,7 @@ mod tests {
                     wctx.expect_get_output()
                         .with(predicate::eq(*step), predicate::eq(*name))
                         .times(1)
-                        .returning(|_, _| Ok(value));
+                        .returning(|_, _| Ok(ExprValue::Text(ExprText::Ref(value))));
                 }
             }
         }
@@ -646,13 +749,14 @@ mod tests {
                     run: String::new(),
                     condition: None,
                     working_dir: None,
+                    strategy: None,
                 })));
             }
             for (name, value) in outputs.iter() {
                 wctx.expect_get_output()
                     .with(predicate::eq(*step), predicate::eq(*name))
                     .times(1)
-                    .returning(|_, _| Ok(value));
+                    .returning(|_, _| Ok(ExprValue::Text(ExprText::Ref(value))));
             }
         }
 

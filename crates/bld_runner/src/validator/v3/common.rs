@@ -11,7 +11,7 @@ use crate::expr::v3::{
     context::CommonReadonlyRuntimeExprContext,
     exec::CommonExprExecutor,
     parser::EXPR_REGEX,
-    traits::{EvalExpr, EvalObject, WritableRuntimeExprContext},
+    traits::{EvalExpr, EvalObject, ExprValue, WritableRuntimeExprContext},
 };
 
 use super::{ConsumeValidator, Validate, ValidatorContext};
@@ -52,8 +52,8 @@ impl<'a> WritableRuntimeExprContext for ValidatorWritableRuntimeExprContext<'a> 
         Some(self.exec_id)
     }
 
-    fn get_output<'b>(&'b self, _id: &str, _name: &str) -> Result<&'b str> {
-        Ok("")
+    fn get_output<'b>(&'b self, _id: &str, _name: &str) -> Result<ExprValue<'b>> {
+        Ok(ExprValue::Array(vec![]))
     }
 
     fn set_output(&mut self, _id: &str, name: String, value: String) -> Result<()> {
@@ -64,6 +64,10 @@ impl<'a> WritableRuntimeExprContext for ValidatorWritableRuntimeExprContext<'a> 
     fn set_outputs(&mut self, _id: &str, outputs: HashMap<String, String>) -> Result<()> {
         self.outputs = outputs;
         Ok(())
+    }
+
+    fn get_matrix_value<'b>(&'b self, _name: &str) -> Result<&'b str> {
+        Ok("")
     }
 }
 
@@ -175,6 +179,54 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValida
             let section = self.section_txt();
             let _ = writeln!(self.errors, "[{section}] {}", e);
         }
+    }
+
+    fn validate_array_expression(&mut self, value: &'a str) {
+        let expr_wctx = self
+            .expr_wctx
+            .iter()
+            .find(|x| x.get_exec_id() == self.current_job.as_ref().map(|x| x.inner()))
+            .or_else(|| self.expr_wctx.iter().next());
+
+        let Some(expr_wctx) = expr_wctx else { return };
+
+        let expr_exec = CommonExprExecutor::new(self.validatable, self.expr_rctx, expr_wctx);
+        for entry in self.expr_regex.find_iter(value) {
+            match expr_exec.eval(entry.as_str()) {
+                Ok(ExprValue::Array(_)) => {}
+                Ok(other) => {
+                    let section = self.section_txt();
+                    let _ = writeln!(
+                        self.errors,
+                        "[{section}] expected an array, found {}",
+                        other.type_as_string()
+                    );
+                }
+                Err(e) => {
+                    let section = self.section_txt();
+                    let _ = writeln!(self.errors, "[{section}] {}", e);
+                }
+            }
+        }
+    }
+
+    fn matrix_refs(&self, value: &str) -> Vec<String> {
+        let mut result = Vec::new();
+        for entry in self.expr_regex.find_iter(value) {
+            let mut rest = entry.as_str();
+            while let Some(pos) = rest.find("matrix.") {
+                let after = &rest[pos + "matrix.".len()..];
+                let end = after
+                    .find(|c: char| !(c.is_alphanumeric() || c == '_'))
+                    .unwrap_or(after.len());
+                let name = &after[..end];
+                if !name.is_empty() {
+                    result.push(name.to_string());
+                }
+                rest = &after[end..];
+            }
+        }
+        result
     }
 
     fn validate_file_path(&mut self, value: &'a str) {
