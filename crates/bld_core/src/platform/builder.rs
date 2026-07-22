@@ -17,6 +17,7 @@ pub enum PlatformOptions<'a> {
     Container {
         image: Image<'a>,
         docker_url: Option<&'a str>,
+        volumes: Vec<String>,
     },
     Ssh(SshConnectOptions<'a>),
     #[default]
@@ -92,7 +93,11 @@ impl<'a> PlatformBuilder<'a> {
             .ok_or_else(|| anyhow!("no logger provided for target platform builder"))?;
 
         let platform = match self.options {
-            PlatformOptions::Container { image, docker_url } => {
+            PlatformOptions::Container {
+                image,
+                docker_url,
+                volumes,
+            } => {
                 let context = PlatformContext::new(run_id, self.conn);
                 let options = ContainerOptions {
                     config,
@@ -100,6 +105,7 @@ impl<'a> PlatformBuilder<'a> {
                     image,
                     pipeline_env,
                     env,
+                    volumes,
                     logger,
                     context,
                 };

@@ -73,6 +73,30 @@ impl<S: RootState> JobRunner<S> {
                 })
             })?;
 
+        // Evaluate expression in volumes before building platform
+        let raw_volumes: Vec<String> = match &job.runs_on {
+            RunsOn::Pull { volumes, .. } | RunsOn::Build { volumes, .. } => volumes.clone(),
+            _ => Vec::new(),
+        };
+        let volumes = {
+            let exec = CommonExprExecutor::new(
+                options.pipeline.as_ref(),
+                options.expr_rctx.as_ref(),
+                &options.state,
+            );
+            let mut resolved = Vec::with_capacity(raw_volumes.len());
+            for volume in &raw_volumes {
+                let mut value = volume.to_string();
+                for entry in options.expr_regex.find_iter(volume) {
+                    let entry = entry.as_str();
+                    let evaluated = exec.eval(entry)?.to_string();
+                    value = value.replace(entry, &evaluated);
+                }
+                resolved.push(value);
+            }
+            resolved
+        };
+
         let platform = build_platform(
             job,
             options.pipeline.clone(),
@@ -80,6 +104,7 @@ impl<S: RootState> JobRunner<S> {
             options.logger.clone(),
             options.run_ctx.clone(),
             options.expr_rctx.clone(),
+            volumes,
         )
         .await?;
 
@@ -453,6 +478,7 @@ pub async fn build_platform(
     logger: Arc<Logger>,
     run_ctx: Arc<Context>,
     expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
+    volumes: Vec<String>,
 ) -> Result<Arc<Platform>> {
     let options = match &job.runs_on {
         RunsOn::ContainerOrMachine(image) if image == "machine" => PlatformOptions::Machine,
@@ -460,6 +486,7 @@ pub async fn build_platform(
         RunsOn::ContainerOrMachine(image) => PlatformOptions::Container {
             image: Image::Use(image),
             docker_url: None,
+            volumes,
         },
 
         RunsOn::Pull {
@@ -467,6 +494,7 @@ pub async fn build_platform(
             pull,
             docker_url,
             registry,
+            volumes: _,
         } => {
             let image = if pull.unwrap_or_default() {
                 match registry.as_ref() {
@@ -480,6 +508,7 @@ pub async fn build_platform(
             PlatformOptions::Container {
                 docker_url: docker_url.as_deref(),
                 image,
+                volumes,
             }
         }
 
@@ -488,9 +517,11 @@ pub async fn build_platform(
             tag,
             dockerfile,
             docker_url,
+            volumes: _,
         } => PlatformOptions::Container {
             image: Image::build(name, dockerfile, tag),
             docker_url: docker_url.as_deref(),
+            volumes,
         },
 
         RunsOn::SshFromGlobalConfig { ssh_config } => {

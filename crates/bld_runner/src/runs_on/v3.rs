@@ -35,12 +35,16 @@ pub enum RunsOn {
         registry: Option<Registry>,
         pull: Option<bool>,
         docker_url: Option<String>,
+        #[serde(default)]
+        volumes: Vec<String>,
     },
     Build {
         name: String,
         tag: String,
         dockerfile: String,
         docker_url: Option<String>,
+        #[serde(default)]
+        volumes: Vec<String>,
     },
     Ssh(SshConfig),
     SshFromGlobalConfig {
@@ -114,6 +118,7 @@ impl<'a> EvalObject<'a> for RunsOn {
                 registry,
                 pull,
                 docker_url,
+                ..
             } => {
                 let Some(next) = path.next() else {
                     bail!("expected a path for evaluating runs_on",);
@@ -140,6 +145,7 @@ impl<'a> EvalObject<'a> for RunsOn {
                 tag,
                 dockerfile,
                 docker_url,
+                ..
             } => {
                 let Some(next) = path.next() else {
                     bail!("expected a path for evaluating runs_on",);
@@ -288,6 +294,7 @@ impl<'a> Validate<'a> for RunsOn {
                 tag,
                 dockerfile,
                 docker_url,
+                volumes,
             } => {
                 ctx.push_section("name");
                 ctx.validate_expressions(name);
@@ -305,6 +312,8 @@ impl<'a> Validate<'a> for RunsOn {
                 if let Some(docker_url) = docker_url {
                     validate_docker_url(ctx, docker_url);
                 }
+
+                validate_volumes(ctx, volumes);
             }
 
             RunsOn::Pull {
@@ -312,6 +321,7 @@ impl<'a> Validate<'a> for RunsOn {
                 docker_url,
                 pull: _pull,
                 registry,
+                volumes,
             } => {
                 ctx.push_section("image");
                 ctx.validate_expressions(image);
@@ -323,6 +333,8 @@ impl<'a> Validate<'a> for RunsOn {
                 if let Some(registry) = registry.as_ref() {
                     validate_registry(ctx, registry);
                 }
+
+                validate_volumes(ctx, volumes);
             }
 
             RunsOn::ContainerOrMachine(value) => ctx.validate_expressions(value),
@@ -382,6 +394,26 @@ impl<'a> Validate<'a> for RunsOn {
             }
         }
     }
+}
+
+#[cfg(feature = "all")]
+fn validate_volumes<'a, C: ValidatorContext<'a>>(ctx: &mut C, volumes: &'a [String]) {
+    ctx.push_section("volumes");
+
+    for volume in volumes {
+        ctx.validate_expressions(volume);
+
+        // A volume entry must be of the form `host_path:container_path` (optionally
+        // followed by `:ro`/`:rw` etc.). We only check that a separator is present;
+        // the concrete paths may still contain expressions resolved at runtime.
+        if !ctx.contains_expressions(volume) && !volume.contains(':') {
+            ctx.append_error(&format!(
+                "'{volume}' is not a valid volume, expected 'host_path:container_path'"
+            ));
+        }
+    }
+
+    ctx.pop_section();
 }
 
 #[cfg(feature = "all")]
@@ -484,6 +516,40 @@ mod tests {
     use super::RunsOn;
 
     #[test]
+    pub fn runs_on_pull_deserializes_volumes() {
+        let yaml = r#"
+image: my-image:latest
+pull: true
+volumes:
+  - /host/.claude:/home/rust/.claude
+  - ${{ inputs.worktree_dir }}:${{ inputs.worktree_dir }}
+"#;
+        let runs_on: RunsOn = serde_yaml_ng::from_str(yaml).unwrap();
+        match runs_on {
+            RunsOn::Pull { image, volumes, .. } => {
+                assert_eq!(image, "my-image:latest");
+                assert_eq!(
+                    volumes,
+                    vec![
+                        "/host/.claude:/home/rust/.claude".to_string(),
+                        "${{ inputs.worktree_dir }}:${{ inputs.worktree_dir }}".to_string(),
+                    ]
+                );
+            }
+            other => panic!("expected a Pull runs_on, got {other:?}"),
+        }
+    }
+
+    #[test]
+    pub fn runs_on_pull_volumes_default_empty() {
+        let runs_on: RunsOn = serde_yaml_ng::from_str("image: my-image:latest").unwrap();
+        match runs_on {
+            RunsOn::Pull { volumes, .. } => assert!(volumes.is_empty()),
+            other => panic!("expected a Pull runs_on, got {other:?}"),
+        }
+    }
+
+    #[test]
     pub fn runs_on_machine_expr_eval_success() {
         let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
@@ -558,6 +624,7 @@ mod tests {
                     registry: Some(Registry::FromConfig("registry-config".to_string())),
                     pull: Some(true),
                     docker_url: Some("docker-url".to_string()),
+                    volumes: vec![],
                 },
                 ..Default::default()
             },
@@ -604,6 +671,7 @@ mod tests {
                     tag: "1.3.4".to_string(),
                     dockerfile: "path-to-dockerfile".to_string(),
                     docker_url: Some("docker-url".to_string()),
+                    volumes: vec![],
                 },
                 ..Default::default()
             },
