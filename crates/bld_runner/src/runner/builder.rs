@@ -209,6 +209,7 @@ impl<'a> RunnerBuilder<'a> {
                     image => PlatformOptions::Container {
                         image: Image::Use(image),
                         docker_url: None,
+                        volumes: Vec::new(),
                     },
                 };
 

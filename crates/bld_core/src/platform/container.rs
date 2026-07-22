@@ -10,6 +10,7 @@ use bollard::{
         StartContainerOptions, UploadToContainerOptions,
     },
     exec::{CreateExecOptions, StartExecResults},
+    service::HostConfig,
 };
 use futures::StreamExt;
 use tar::{Archive, Builder};
@@ -26,6 +27,7 @@ pub struct ContainerOptions<'a> {
     pub image: Image<'a>,
     pub pipeline_env: &'a HashMap<String, String>,
     pub env: Arc<HashMap<String, String>>,
+    pub volumes: Vec<String>,
     pub logger: Arc<Logger>,
     pub context: PlatformContext,
 }
@@ -41,16 +43,30 @@ pub struct Container {
 }
 
 impl Container {
-    async fn create(client: &Docker, image: &str, env: Vec<&str>) -> Result<(String, String)> {
+    async fn create(
+        client: &Docker,
+        image: &str,
+        env: Vec<&str>,
+        volumes: Vec<String>,
+    ) -> Result<(String, String)> {
         let name = Uuid::new_v4().to_string();
         let options = CreateContainerOptions {
             name: &name,
             platform: None,
         };
+        let host_config = if volumes.is_empty() {
+            None
+        } else {
+            Some(HostConfig {
+                binds: Some(volumes),
+                ..Default::default()
+            })
+        };
         let config = ContainerConfig {
             image: Some(image),
             tty: Some(true),
             env: Some(env),
+            host_config,
             ..Default::default()
         };
 
@@ -88,7 +104,13 @@ impl Container {
             .image
             .create(&client, options.logger.as_ref())
             .await?;
-        let (id, name) = Container::create(&client, options.image.name(), container_env).await?;
+        let (id, name) = Container::create(
+            &client,
+            options.image.name(),
+            container_env,
+            options.volumes,
+        )
+        .await?;
 
         options.context.add(&id).await?;
 

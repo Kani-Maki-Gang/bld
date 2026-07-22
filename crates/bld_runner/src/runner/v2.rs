@@ -303,6 +303,7 @@ impl Runner {
             RunsOn::ContainerOrMachine(image) => PlatformOptions::Container {
                 image: Image::Use(image),
                 docker_url: None,
+                volumes: Vec::new(),
             },
 
             RunsOn::Pull {
@@ -325,6 +326,7 @@ impl Runner {
                 PlatformOptions::Container {
                     docker_url: docker_url.as_deref(),
                     image,
+                    volumes: Vec::new(),
                 }
             }
 
@@ -336,6 +338,7 @@ impl Runner {
             } => PlatformOptions::Container {
                 image: Image::build(name, dockerfile, tag),
                 docker_url: docker_url.as_deref(),
+                volumes: Vec::new(),
             },
 
             RunsOn::SshFromGlobalConfig { ssh_config } => {
