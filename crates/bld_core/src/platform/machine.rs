@@ -103,11 +103,14 @@ impl Machine {
             bail!("command finished with {}", process.status);
         }
 
-        let output_content = read_to_string(&outputs_file).await?;
-        let outputs = parse_variables_iter(output_content.lines());
+        let mut outputs = HashMap::new();
+        if outputs_file.exists() {
+            let output_content = read_to_string(&outputs_file).await?;
+            outputs = parse_variables_iter(output_content.lines());
 
-        if outputs.is_empty() {
-            debug!("the executed command created {} outputs", outputs.len());
+            if outputs.is_empty() {
+                debug!("the executed command created {} outputs", outputs.len());
+            }
         }
 
         Ok(outputs)

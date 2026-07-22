@@ -24,11 +24,11 @@ jobs:
         run: git clone -b ${{ inputs.branch }} https://github.com/Kani-Maki-Gang/bld.git
 
       - id: build
-        name: Build and push dev agent image
+        name: Build dev agent image
         working_dir: bld
         run: >-
           podman build
           -t ${{ inputs.registry }}/${{ env.image_name }}:${{ inputs.sha }}
           -t ${{ inputs.registry }}/${{ env.image_name }}:latest
-          -f ${{ bld_root_dir }}/dockerfiles/Dockerfile.dev-agent
+          -f ${{ bld_root_dir }}/images/Dockerfile.dev-agent
           .
