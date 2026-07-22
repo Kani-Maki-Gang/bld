@@ -18,11 +18,11 @@
 # CI CD
 /.bld/**/*
 !/.bld/config.yaml
-!/.bld/pipelines
-!/.bld/pipelines/**/*
+!/.bld/ci
+!/.bld/ci/**/*
 !/.bld/dev
 !/.bld/dev/**/*
 !/.bld/actions
 !/.bld/actions/**/*
-!/.bld/dockerfiles
-!/.bld/dockerfiles/**/*
+!/.bld/images
+!/.bld/images/**/*
