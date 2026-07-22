@@ -7,10 +7,6 @@ inputs:
   ticket_file:
     description: Path to a file with the raw requirements for a new feature
     required: true
-  output_dir:
-    description: Directory the generated ticket markdown file is written to
-    default: tickets
-    required: false
 
 jobs:
   discover:
@@ -18,6 +14,7 @@ jobs:
     steps:
       - id: discover
         name: Review requirements and draft the ticket
+        working_dir: ${{ bld_project_dir }}
         run: |
           set -euo pipefail
 

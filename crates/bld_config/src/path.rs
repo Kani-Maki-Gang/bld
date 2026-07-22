@@ -32,6 +32,10 @@ fn is_linux() -> bool {
     if deb_path.is_file() {
         return true;
     }
+    let os_release_path = path!["/", "etc", "os-release"];
+    if os_release_path.is_file() {
+        return true;
+    }
     false
 }
 

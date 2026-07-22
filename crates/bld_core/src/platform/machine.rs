@@ -80,6 +80,7 @@ impl Machine {
         } else {
             current_dir
         };
+        debug!("resolved working directory to {current_dir}");
 
         let mut shell = get_shell(&mut vec![input])?;
         shell.envs(&self.env);

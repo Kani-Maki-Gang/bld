@@ -395,6 +395,7 @@ impl<S: RootState> JobRunner<S> {
         let command = self.eval_all_expr(command)?;
         let working_dir = self.resolve_working_dir(working_dir)?;
 
+        debug!("sending command to platform");
         let outputs = self
             .platform
             .shell(self.options.logger.clone(), &working_dir, &command)
