@@ -1,0 +1,69 @@
+version: 3
+type: pipeline
+
+name: Implement a single GitHub project item
+
+inputs:
+  item:
+    description: GitHub issue/project item number being implemented
+    required: true
+  branch:
+    description: Branch name already checked out in the worktree
+    required: true
+  worktree_dir:
+    description: Absolute host path to the git worktree for this item (bind-mounted into the container at the same path)
+    required: true
+  claude_dir:
+    description: Absolute host path to the user's ~/.claude directory (bind-mounted so Claude Code is authenticated inside the container)
+    required: true
+  gh_config_dir:
+    description: Absolute host path to the user's gh config directory, e.g. ~/.config/gh (bind-mounted so the GitHub CLI is authenticated inside the container)
+    required: true
+
+jobs:
+  implement:
+    # Run on the dev agent image with the volumes the goal requires:
+    #   - the user's ~/.claude (auth/config/sessions)
+    #   - the git worktree, mounted at the same absolute path so paths line up
+    # plus the gh config dir so `gh issue view` is authenticated in the container.
+    runs_on:
+      image: ghcr.io/kani-maki-gang/bld-dev-agent:latest
+      pull: true
+      volumes:
+        - ${{ inputs.claude_dir }}:/home/rust/.claude
+        - ${{ inputs.gh_config_dir }}:/home/rust/.config/gh
+        - ${{ inputs.worktree_dir }}:${{ inputs.worktree_dir }}
+    steps:
+      - id: implement
+        name: Implementation agent (Sonnet 5, medium effort)
+        uses: actions/claude-agent.yaml
+        with:
+          worktree_dir: ${{ inputs.worktree_dir }}
+          model: claude-sonnet-5
+          effort: medium
+          session_key: implement
+          prompt: >-
+            You are working on GitHub issue #${{ inputs.item }} on branch
+            ${{ inputs.branch }}. Read the issue content with `gh issue view
+            ${{ inputs.item }}`, implement the requested change in this
+            repository, keep commits unstaged (do not commit), run the
+            relevant tests/lints locally, and stop once the implementation
+            is complete and ready for review.
+
+      - id: review
+        name: Review agent (Opus 4.8, high effort)
+        uses: actions/claude-agent.yaml
+        with:
+          worktree_dir: ${{ inputs.worktree_dir }}
+          model: claude-opus-4-8
+          effort: high
+          session_key: review
+          prompt: >-
+            Review the uncommitted changes in this worktree against GitHub
+            issue #${{ inputs.item }} (`gh issue view ${{ inputs.item }}`).
+            If you find issues you can confidently fix, make the changes
+            directly. When you are done, write a file named
+            .bld_review_status in the current directory: write `OK` on its
+            own if the implementation is acceptable, or `NEEDS_HUMAN: <a
+            short explanation of what an engineer should check or decide>`
+            if you cannot confidently make that call yourself.

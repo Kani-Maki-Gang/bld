@@ -1,0 +1,112 @@
+version: 3
+type: pipeline
+
+name: Development workflow orchestrator
+
+inputs:
+  project_owner:
+    description: Owner (org or user) of the GitHub project to query
+    required: false
+    default: Kani-Maki-Gang
+  project_number:
+    description: GitHub project number to query
+    required: false
+    default: "7"
+  ready_status_field:
+    description: Project field name that marks an item ready for development
+    default: Status
+    required: false
+  ready_status_value:
+    description: Field value that marks an item ready for development
+    default: Ready
+    required: false
+  worktree_root:
+    description: Directory under which per-item git worktrees are created
+    default: ${{ bld_project_dir}}/../worktrees/bld
+    required: false
+
+jobs:
+  dispatch:
+    runs_on: machine
+    steps:
+      - id: fetch
+        name: Fetch items ready for development
+        run: |
+          set -euo pipefail
+
+          field="$(echo "${{ inputs.ready_status_field }}" | tr '[:upper:]' '[:lower:]')"
+          value="${{ inputs.ready_status_value }}"
+
+          items="$(gh project item-list ${{ inputs.project_number }} --owner ${{ inputs.project_owner }} --format json --limit 200 \
+            | jq -c --arg field "$field" --arg value "$value" \
+                '[.items[] | select((.[$field] // "") == $value) | (.content.number // empty)]')"
+
+          # A matrix expression must resolve to a non-empty array (see
+          # strategy/v3.rs), so fail with a clear message rather than a cryptic
+          # matrix error when nothing is ready for development.
+          if [ "$items" = "[]" ] || [ -z "$items" ]; then
+            echo "No items in '${{ inputs.ready_status_value }}' status - nothing to implement."
+            exit 1
+          fi
+
+          echo "items=$items" >> $BLD_OUTPUTS
+          # Host paths bind-mounted into the implementation container so Claude Code
+          # and the GitHub CLI are authenticated inside it.
+          echo "claude_dir=${CLAUDE_CONFIG_DIR:-$HOME/.claude}" >> $BLD_OUTPUTS
+          echo "gh_config_dir=${GH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/gh}" >> $BLD_OUTPUTS
+
+      - id: branch
+        name: Create branch and worktree per item
+        uses: actions/git-worktree.yaml
+        strategy:
+          fail_fast: false
+          matrix:
+            item: ${{ steps.fetch.outputs.items }}
+        with:
+          item: ${{ matrix.item }}
+          worktree_root: ${{ inputs.worktree_root }}
+
+      - id: implement
+        name: Run the implementation pipeline per item
+        uses: dev/implementation.yaml
+        strategy:
+          fail_fast: false
+          matrix:
+            item: ${{ steps.fetch.outputs.items }}
+        with:
+          item: ${{ matrix.item }}
+          branch: item-${{ matrix.item }}
+          worktree_dir: ${{ inputs.worktree_root }}/item-${{ matrix.item }}
+          claude_dir: ${{ steps.fetch.outputs.claude_dir }}
+          gh_config_dir: ${{ steps.fetch.outputs.gh_config_dir }}
+
+      - id: commit
+        name: Commit and push each item's changes
+        strategy:
+          fail_fast: false
+          matrix:
+            item: ${{ steps.fetch.outputs.items }}
+        working_dir: ${{ inputs.worktree_root }}/item-${{ matrix.item }}
+        run: |
+          set -euo pipefail
+
+          status_file=".bld_review_status"
+          branch="item-${{ matrix.item }}"
+
+          if [ ! -f "$status_file" ] || ! grep -q '^OK' "$status_file"; then
+            echo "Item ${{ matrix.item }}: review did not confirm OK, skipping commit."
+            echo "Review status:"
+            cat "$status_file" 2>/dev/null || echo "(no .bld_review_status file found)"
+            exit 0
+          fi
+
+          # Exclude bld's own worktree helper files (.bld_claude_session_*,
+          # .bld_last_output_*.md, .bld_review_status) from the commit.
+          git add -A -- . ':!.bld_*'
+          if git diff --cached --quiet; then
+            echo "Item ${{ matrix.item }}: no changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Implement item ${{ matrix.item }}"
+          git push -u origin "$branch"

@@ -1,0 +1,35 @@
+version: 3
+type: action
+
+name: Create a branch and git worktree for a GitHub project item
+
+inputs:
+  item:
+    description: GitHub issue/project item number to work on
+    required: true
+  worktree_root:
+    description: Directory under which per-item worktrees are created
+    required: true
+
+steps:
+  - id: create
+    name: Create branch and worktree for the item
+    run: |
+      set -euo pipefail
+
+      branch="item-${{ inputs.item }}"
+      worktree_dir="${{ inputs.worktree_root }}/item-${{ inputs.item }}"
+
+      mkdir -p "${{ inputs.worktree_root }}"
+      git fetch origin
+
+      if [ -d "$worktree_dir" ]; then
+        echo "Worktree for item ${{ inputs.item }} already exists at $worktree_dir"
+        exit 0
+      fi
+
+      if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+        git worktree add "$worktree_dir" "$branch"
+      else
+        git worktree add "$worktree_dir" -b "$branch" origin/master
+      fi

@@ -20,5 +20,9 @@
 !/.bld/config.yaml
 !/.bld/pipelines
 !/.bld/pipelines/**/*
+!/.bld/dev
+!/.bld/dev/**/*
+!/.bld/actions
+!/.bld/actions/**/*
 !/.bld/dockerfiles
 !/.bld/dockerfiles/**/*

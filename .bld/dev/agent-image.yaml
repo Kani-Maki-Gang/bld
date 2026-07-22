@@ -1,0 +1,34 @@
+version: 3
+type: pipeline
+
+name: Build and push the dev agent image
+
+inputs:
+  branch:
+    default: master
+    required: false
+  sha:
+    required: true
+  registry:
+    required: true
+
+env:
+  image_name: bld-dev-agent
+
+jobs:
+  build:
+    runs_on: machine
+    steps:
+      - id: clone
+        name: Clone repository
+        run: git clone -b ${{ inputs.branch }} https://github.com/Kani-Maki-Gang/bld.git
+
+      - id: build
+        name: Build and push dev agent image
+        working_dir: bld
+        run: >-
+          podman build
+          -t ${{ inputs.registry }}/${{ env.image_name }}:${{ inputs.sha }}
+          -t ${{ inputs.registry }}/${{ env.image_name }}:latest
+          -f ${{ bld_root_dir }}/dockerfiles/Dockerfile.dev-agent
+          .

@@ -1,0 +1,63 @@
+version: 3
+type: action
+
+name: Run Claude Code against a worktree
+
+# This action runs *inside* the caller job's container platform (see
+# dev/implementation.yaml, whose `implement` job sets `runs_on` to the dev agent
+# image with the worktree and ~/.claude bind-mounted). It therefore just invokes
+# the `claude` CLI directly - the container tooling and volume mounts are provided
+# by the job, not by this action.
+
+inputs:
+  worktree_dir:
+    description: Absolute path to the git worktree Claude Code works in (bind-mounted into the job container at the same path)
+    required: true
+  model:
+    description: Full Claude model id, e.g. claude-sonnet-5 or claude-opus-4-8
+    required: true
+  effort:
+    description: Reasoning effort level (low, medium, high, xhigh, max)
+    default: medium
+    required: false
+  prompt:
+    description: The prompt to send to Claude Code
+    required: true
+  permission_mode:
+    description: Claude Code --permission-mode value for this run
+    default: bypassPermissions
+    required: false
+  session_key:
+    description: >-
+      Identifies an independent Claude session within the worktree (e.g.
+      "implement" vs "review"). Two steps using different keys get separate
+      sessions; reusing a key across runs resumes that session.
+    required: true
+
+steps:
+  - id: run
+    name: Invoke Claude Code
+    working_dir: ${{ inputs.worktree_dir }}
+    run: |
+      set -euo pipefail
+
+      session_file=".bld_claude_session_${{ inputs.session_key }}"
+      resume_args=()
+      if [ -f "$session_file" ]; then
+        resume_args=(--resume "$(cat "$session_file")")
+      fi
+
+      result_file="$(mktemp)"
+
+      # NOTE: verify `--bare` and `--effort` are supported by the Claude Code CLI
+      # build installed in the dev agent image (dockerfiles/Dockerfile.dev-agent).
+      claude --bare -p "${{ inputs.prompt }}" \
+        --model "${{ inputs.model }}" \
+        --effort "${{ inputs.effort }}" \
+        --permission-mode "${{ inputs.permission_mode }}" \
+        --output-format json \
+        "${resume_args[@]}" > "$result_file"
+
+      jq -r '.session_id' "$result_file" > "$session_file"
+      jq -r '.result' "$result_file" > ".bld_last_output_${{ inputs.session_key }}.md"
+      rm -f "$result_file"
