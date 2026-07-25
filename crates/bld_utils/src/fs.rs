@@ -16,7 +16,7 @@ impl IsYaml for Path {
     fn valid_path(&self) -> bool {
         match self.extension() {
             Some(ext) => {
-                if ext != "yaml" {
+                if ext != "yaml" && ext != "yml" {
                     return false;
                 }
             }
@@ -25,7 +25,10 @@ impl IsYaml for Path {
 
         match self.file_name() {
             Some(name) => {
-                if name.to_string_lossy() == format!("{TOOL_DEFAULT_CONFIG}.yaml") {
+                let name = name.to_string_lossy();
+                if name == format!("{TOOL_DEFAULT_CONFIG}.yaml")
+                    || name == format!("{TOOL_DEFAULT_CONFIG}.yml")
+                {
                     return false;
                 }
             }
@@ -56,7 +59,9 @@ impl IsYaml for DirEntry {
     fn valid_path(&self) -> bool {
         let name = self.file_name();
         let name = name.to_string_lossy();
-        name.ends_with(".yaml") && name != format!("{TOOL_DEFAULT_CONFIG}.yaml")
+        (name.ends_with(".yaml") || name.ends_with(".yml"))
+            && name != format!("{TOOL_DEFAULT_CONFIG}.yaml")
+            && name != format!("{TOOL_DEFAULT_CONFIG}.yml")
     }
 
     fn is_yaml(&self) -> bool {
@@ -87,4 +92,41 @@ pub async fn write_tokens<T: Serialize>(path: &Path, tokens: T) -> Result<()> {
     let data = serde_json::to_vec(&tokens)?;
     File::create(path).await?.write_all(&data).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    pub fn valid_path_accepts_both_yaml_extensions() {
+        for name in ["pipeline.yaml", "pipeline.yml", "nested/pipeline.yml"] {
+            assert!(Path::new(name).valid_path(), "{name} should be valid");
+        }
+    }
+
+    #[test]
+    pub fn valid_path_rejects_other_extensions() {
+        for name in ["pipeline.json", "pipeline.toml", "pipeline", "pipeline.ym"] {
+            assert!(!Path::new(name).valid_path(), "{name} should be invalid");
+        }
+    }
+
+    #[test]
+    pub fn valid_path_rejects_config_files() {
+        for name in ["config.yaml", "config.yml"] {
+            assert!(!Path::new(name).valid_path(), "{name} should be invalid");
+        }
+    }
+
+    #[test]
+    pub fn valid_path_is_case_sensitive() {
+        for name in ["Config.yaml", "Config.yml", "CONFIG.yml"] {
+            assert!(Path::new(name).valid_path(), "{name} should be valid");
+        }
+
+        for name in ["pipeline.YAML", "pipeline.YML"] {
+            assert!(!Path::new(name).valid_path(), "{name} should be invalid");
+        }
+    }
 }
