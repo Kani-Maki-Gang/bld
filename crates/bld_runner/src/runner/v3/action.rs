@@ -88,6 +88,13 @@ impl<S: RootState> ActionRunner<S> {
         Ok(matches!(value, ExprValue::Boolean(true)))
     }
 
+    fn resolve_working_dir(&mut self, working_dir: &Option<String>) -> Result<Option<String>> {
+        working_dir
+            .as_deref()
+            .map(|wd| self.eval_all_expr(wd))
+            .transpose()
+    }
+
     async fn shell(
         &mut self,
         step_id: &str,
@@ -98,9 +105,10 @@ impl<S: RootState> ActionRunner<S> {
         debug!("executing shell command {}", command);
 
         let cmd = self.eval_all_expr(command)?;
+        let working_dir = self.resolve_working_dir(working_dir)?;
         let outputs = self
             .platform
-            .shell(self.logger.clone(), working_dir, &cmd)
+            .shell(self.logger.clone(), &working_dir, &cmd)
             .await?;
 
         self.state.set_outputs(step_id, outputs)?;
@@ -352,6 +360,7 @@ mod tests {
     use crate::{
         action::v3::Action,
         expr::v3::{context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX},
+        inputs::v3::Input,
         runner::v3::{ActionRunner, RootState, State, state::MockRootState},
         step::v3::{ShellCommand, Step},
         strategy::v3::{FailFastValue, MatrixValue, Strategy},
@@ -402,6 +411,50 @@ mod tests {
             runner
                 .condition(Some("hello world ${{ true == \"James\" }}"))
                 .is_err()
+        );
+    }
+
+    #[test]
+    pub fn resolve_working_dir_evaluates_expressions() {
+        let logger = Logger::mock().into_arc();
+        let mut action = Action::default();
+        action.inputs.insert(
+            "worktree_dir".to_string(),
+            Input::Simple("/tmp/some-worktree".to_string()),
+        );
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex = Regex::new(EXPR_REGEX).unwrap();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let state = MockRootState::new();
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        let mut runner = ActionRunner {
+            logger,
+            action,
+            platform,
+            artifacts,
+            expr_regex: regex,
+            expr_rctx: rctx,
+            state,
+            config,
+            fs,
+            run_ctx,
+            regex_cache,
+            package_manager,
+        };
+
+        assert_eq!(runner.resolve_working_dir(&None).unwrap(), None);
+
+        assert_eq!(
+            runner
+                .resolve_working_dir(&Some("${{ inputs.worktree_dir }}".to_string()))
+                .unwrap(),
+            Some("/tmp/some-worktree".to_string())
         );
     }
 

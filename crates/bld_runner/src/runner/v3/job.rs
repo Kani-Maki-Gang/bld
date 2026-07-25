@@ -376,6 +376,13 @@ impl<S: RootState> JobRunner<S> {
         Ok(result)
     }
 
+    fn resolve_working_dir(&mut self, working_dir: &Option<String>) -> Result<Option<String>> {
+        working_dir
+            .as_deref()
+            .map(|wd| self.eval_all_expr(wd))
+            .transpose()
+    }
+
     async fn shell(
         &mut self,
         step_id: &str,
@@ -386,10 +393,11 @@ impl<S: RootState> JobRunner<S> {
         debug!("executing shell command {}", command);
 
         let command = self.eval_all_expr(command)?;
+        let working_dir = self.resolve_working_dir(working_dir)?;
 
         let outputs = self
             .platform
-            .shell(self.options.logger.clone(), working_dir, &command)
+            .shell(self.options.logger.clone(), &working_dir, &command)
             .await?;
 
         self.options.state.set_outputs(step_id, outputs)?;
@@ -599,6 +607,7 @@ mod tests {
 
     use crate::{
         expr::v3::{context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX},
+        inputs::v3::Input,
         job::v3::Job,
         pipeline::v3::Pipeline,
         runner::v3::{MockRootState, RootState, State, state::JobState},
@@ -655,6 +664,53 @@ mod tests {
         assert!(
             job.condition(Some("hello world ${{ true == \"James\" }}"))
                 .is_err()
+        );
+    }
+
+    #[test]
+    pub fn resolve_working_dir_evaluates_expressions() {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let state = JobState::default();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        let mut pipeline = Pipeline::default();
+        pipeline.inputs.insert(
+            "worktree_dir".to_string(),
+            Input::Simple("/tmp/some-worktree".to_string()),
+        );
+        let pipeline = pipeline.into_arc();
+
+        let options = JobRunnerOptions {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline,
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            package_manager,
+            artifacts,
+            is_child: false,
+            state,
+        };
+        let mut job = JobRunner { options, platform };
+
+        assert_eq!(job.resolve_working_dir(&None).unwrap(), None);
+
+        assert_eq!(
+            job.resolve_working_dir(&Some("${{ inputs.worktree_dir }}".to_string()))
+                .unwrap(),
+            Some("/tmp/some-worktree".to_string())
         );
     }
 
