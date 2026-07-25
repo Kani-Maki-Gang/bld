@@ -73,32 +73,11 @@ impl<S: RootState> JobRunner<S> {
                 })
             })?;
 
-        // Evaluate expression in volumes before building platform
-        let raw_volumes: Vec<String> = match &job.runs_on {
-            RunsOn::Pull { volumes, .. } | RunsOn::Build { volumes, .. } => volumes.clone(),
-            _ => Vec::new(),
-        };
-        let volumes = {
-            let exec = CommonExprExecutor::new(
-                options.pipeline.as_ref(),
-                options.expr_rctx.as_ref(),
-                &options.state,
-            );
-            let mut resolved = Vec::with_capacity(raw_volumes.len());
-            for volume in &raw_volumes {
-                let mut value = volume.to_string();
-                for entry in options.expr_regex.find_iter(volume) {
-                    let entry = entry.as_str();
-                    let evaluated = exec.eval(entry)?.to_string();
-                    value = value.replace(entry, &evaluated);
-                }
-                resolved.push(value);
-            }
-            resolved
-        };
+        // Evaluate expressions in volumes and image related fields before building platform
+        let (volumes, resolved_runs_on) = Self::resolve_runs_on(job, &options)?;
 
         let platform = build_platform(
-            job,
+            &resolved_runs_on,
             options.pipeline.clone(),
             options.config.clone(),
             options.logger.clone(),
@@ -109,6 +88,69 @@ impl<S: RootState> JobRunner<S> {
         .await?;
 
         Ok(JobRunner { options, platform })
+    }
+
+    fn resolve_runs_on(job: &Job, options: &JobRunnerOptions<S>) -> Result<(Vec<String>, RunsOn)> {
+        let raw_volumes: Vec<String> = match &job.runs_on {
+            RunsOn::Pull { volumes, .. } | RunsOn::Build { volumes, .. } => volumes.clone(),
+            _ => Vec::new(),
+        };
+
+        let exec = CommonExprExecutor::new(
+            options.pipeline.as_ref(),
+            options.expr_rctx.as_ref(),
+            &options.state,
+        );
+        let eval_str = |value: &str| -> Result<String> {
+            let mut result = value.to_string();
+            for entry in options.expr_regex.find_iter(value) {
+                let entry = entry.as_str();
+                let evaluated = exec.eval(entry)?.to_string();
+                result = result.replace(entry, &evaluated);
+            }
+            Ok(result)
+        };
+
+        let volumes = raw_volumes
+            .iter()
+            .map(|volume| eval_str(volume))
+            .collect::<Result<Vec<_>>>()?;
+
+        let resolved_runs_on = match &job.runs_on {
+            RunsOn::ContainerOrMachine(image) => RunsOn::ContainerOrMachine(eval_str(image)?),
+
+            RunsOn::Pull {
+                image,
+                registry,
+                pull,
+                docker_url,
+                ..
+            } => RunsOn::Pull {
+                image: eval_str(image)?,
+                registry: registry.clone(),
+                pull: *pull,
+                docker_url: docker_url.as_deref().map(eval_str).transpose()?,
+                volumes: Vec::new(),
+            },
+
+            RunsOn::Build {
+                name,
+                tag,
+                dockerfile,
+                docker_url,
+                ..
+            } => RunsOn::Build {
+                name: eval_str(name)?,
+                tag: eval_str(tag)?,
+                dockerfile: eval_str(dockerfile)?,
+                docker_url: docker_url.as_deref().map(eval_str).transpose()?,
+                volumes: Vec::new(),
+            },
+
+            other => other.clone(),
+        };
+
+        Ok((volumes, resolved_runs_on))
     }
 
     pub async fn run(mut self) -> Result<Self> {
@@ -481,7 +523,7 @@ impl RunningJob {
 }
 
 pub async fn build_platform(
-    job: &Job,
+    runs_on: &RunsOn,
     pipeline: Arc<Pipeline>,
     config: Arc<BldConfig>,
     logger: Arc<Logger>,
@@ -489,7 +531,7 @@ pub async fn build_platform(
     expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
     volumes: Vec<String>,
 ) -> Result<Arc<Platform>> {
-    let options = match &job.runs_on {
+    let options = match runs_on {
         RunsOn::ContainerOrMachine(image) if image == "machine" => PlatformOptions::Machine,
 
         RunsOn::ContainerOrMachine(image) => PlatformOptions::Container {
@@ -612,6 +654,7 @@ mod tests {
         job::v3::Job,
         pipeline::v3::Pipeline,
         runner::v3::{MockRootState, RootState, State, state::JobState},
+        runs_on::v3::RunsOn,
         step::v3::{ShellCommand, Step},
         strategy::v3::{FailFastValue, MatrixValue, Strategy},
     };
@@ -713,6 +756,144 @@ mod tests {
                 .unwrap(),
             Some("/tmp/some-worktree".to_string())
         );
+    }
+
+    #[test]
+    pub fn resolve_runs_on_evaluates_container_image_expr_success() {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+
+        let inputs: HashMap<String, String> = [("image".to_string(), "ubuntu:22.04".to_string())]
+            .into_iter()
+            .collect();
+        let expr_rctx = CommonReadonlyRuntimeExprContext {
+            inputs: inputs.into_arc(),
+            ..Default::default()
+        }
+        .into_arc();
+
+        let state = JobState::default();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            job_name.clone(),
+            Job {
+                runs_on: RunsOn::ContainerOrMachine("${{ inputs.image }}".to_string()),
+                ..Default::default()
+            },
+        );
+        let pipeline = pipeline.into_arc();
+        let job = pipeline.jobs.get(&job_name).unwrap().clone();
+
+        let options = JobRunnerOptions {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline,
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            package_manager,
+            artifacts,
+            is_child: false,
+            state,
+        };
+
+        let (volumes, resolved) = JobRunner::resolve_runs_on(&job, &options).unwrap();
+
+        assert!(volumes.is_empty());
+        match resolved {
+            RunsOn::ContainerOrMachine(image) => assert_eq!(image, "ubuntu:22.04"),
+            other => panic!("expected ContainerOrMachine, got {other:?}"),
+        }
+    }
+
+    #[test]
+    pub fn resolve_runs_on_evaluates_pull_fields_and_volumes_expr_success() {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+
+        let inputs: HashMap<String, String> = [
+            (
+                "image".to_string(),
+                "my-registry/my-image:latest".to_string(),
+            ),
+            (
+                "worktree_dir".to_string(),
+                "/home/user/worktree".to_string(),
+            ),
+        ]
+        .into_iter()
+        .collect();
+        let expr_rctx = CommonReadonlyRuntimeExprContext {
+            inputs: inputs.into_arc(),
+            ..Default::default()
+        }
+        .into_arc();
+
+        let state = JobState::default();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            job_name.clone(),
+            Job {
+                runs_on: RunsOn::Pull {
+                    image: "${{ inputs.image }}".to_string(),
+                    registry: None,
+                    pull: Some(true),
+                    docker_url: None,
+                    volumes: vec![
+                        "${{ inputs.worktree_dir }}:${{ inputs.worktree_dir }}".to_string(),
+                    ],
+                },
+                ..Default::default()
+            },
+        );
+        let pipeline = pipeline.into_arc();
+        let job = pipeline.jobs.get(&job_name).unwrap().clone();
+
+        let options = JobRunnerOptions {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline,
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            package_manager,
+            artifacts,
+            is_child: false,
+            state,
+        };
+
+        let (volumes, resolved) = JobRunner::resolve_runs_on(&job, &options).unwrap();
+
+        assert_eq!(
+            volumes,
+            vec!["/home/user/worktree:/home/user/worktree".to_string()]
+        );
+        match resolved {
+            RunsOn::Pull { image, .. } => assert_eq!(image, "my-registry/my-image:latest"),
+            other => panic!("expected Pull, got {other:?}"),
+        }
     }
 
     #[tokio::test]

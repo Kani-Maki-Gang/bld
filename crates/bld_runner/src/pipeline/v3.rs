@@ -11,6 +11,7 @@ use {
     crate::{
         deps::v3::{Dependencies, Dependency},
         expr::v3::{
+            exec::eval_nested_expressions,
             parser::Rule,
             traits::{
                 EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext,
@@ -225,14 +226,18 @@ impl<'a> EvalObject<'a> for Pipeline {
                 };
                 let name = part.as_span().as_str();
 
-                let input = rctx.get_input(name).or_else(|_| {
-                    self.inputs
-                        .get(name)
-                        .ok_or_else(|| anyhow!("input '{name}' not found"))
-                        .and_then(|x| x.try_into())
-                });
+                if let Ok(value) = rctx.get_input(name) {
+                    return Ok(ExprValue::Text(ExprText::Ref(value)));
+                }
 
-                input.map(|x| ExprValue::Text(ExprText::Ref(x)))
+                let default: &str = self
+                    .inputs
+                    .get(name)
+                    .ok_or_else(|| anyhow!("input '{name}' not found"))
+                    .and_then(|x| x.try_into())?;
+
+                let evaluated = eval_nested_expressions(self, rctx, wctx, default)?;
+                Ok(ExprValue::Text(evaluated))
             }
 
             "env" => {
@@ -584,6 +589,61 @@ mod tests {
                 Ok(ExprValue::Boolean(true))
             ));
         }
+    }
+
+    #[test]
+    pub fn inputs_default_with_expr_eval_success() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .env
+            .insert("PROJECT_DIR".to_string(), "/home/user/project".to_string());
+        pipeline.inputs.insert(
+            "worktree_root".to_string(),
+            Input::Complex {
+                default: Some("${{ env.PROJECT_DIR }}/../worktrees/bld".to_string()),
+                description: None,
+                required: false,
+            },
+        );
+
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let actual = exec.eval("${{ inputs.worktree_root }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Owned(
+                "/home/user/project/../worktrees/bld".to_string()
+            ))),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
+
+    #[test]
+    pub fn inputs_default_with_cyclic_expr_eval_failure() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        pipeline.inputs.insert(
+            "first".to_string(),
+            Input::Complex {
+                default: Some("${{ inputs.second }}".to_string()),
+                description: None,
+                required: false,
+            },
+        );
+        pipeline.inputs.insert(
+            "second".to_string(),
+            Input::Complex {
+                default: Some("${{ inputs.first }}".to_string()),
+                description: None,
+                required: false,
+            },
+        );
+
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        assert!(exec.eval("${{ inputs.first }}").is_err());
     }
 
     #[test]

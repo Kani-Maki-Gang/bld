@@ -12,6 +12,7 @@ use {
     crate::{
         deps::v3::{Dependencies, Dependency},
         expr::v3::{
+            exec::eval_nested_expressions,
             parser::Rule,
             traits::{
                 EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext,
@@ -150,14 +151,18 @@ impl<'a> EvalObject<'a> for Action {
                 };
                 let name = part.as_span().as_str();
 
-                let input = rctx.get_input(name).or_else(|_| {
-                    self.inputs
-                        .get(name)
-                        .ok_or_else(|| anyhow!("input '{name}' not found"))
-                        .and_then(|x| x.try_into())
-                });
+                if let Ok(value) = rctx.get_input(name) {
+                    return Ok(ExprValue::Text(ExprText::Ref(value)));
+                }
 
-                input.map(|x| ExprValue::Text(ExprText::Ref(x)))
+                let default: &str = self
+                    .inputs
+                    .get(name)
+                    .ok_or_else(|| anyhow!("input '{name}' not found"))
+                    .and_then(|x| x.try_into())?;
+
+                let evaluated = eval_nested_expressions(self, rctx, wctx, default)?;
+                Ok(ExprValue::Text(evaluated))
             }
 
             "matrix" => {
@@ -369,6 +374,32 @@ mod tests {
                 Ok(ExprValue::Boolean(true))
             ));
         }
+    }
+
+    #[test]
+    pub fn inputs_default_with_expr_eval_success() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut action = Action::default();
+        action.inputs.insert(
+            "greeting".to_string(),
+            Input::Complex {
+                default: Some("hello ${{ inputs.name }}".to_string()),
+                description: None,
+                required: false,
+            },
+        );
+        action
+            .inputs
+            .insert("name".to_string(), Input::Simple("john".to_string()));
+
+        let exec = CommonExprExecutor::new(&action, &rctx, &wctx);
+
+        let actual = exec.eval("${{ inputs.greeting }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Owned("hello john".to_string()))),
+            Ok(ExprValue::Boolean(true))
+        ));
     }
 
     #[test]
