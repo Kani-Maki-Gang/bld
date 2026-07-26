@@ -13,14 +13,13 @@ RUN apt-get update && \
         pkgconf \
         libssl-dev \
         libsqlite3-dev \
+        jq \
         sudo \
         unzip \
         ca-certificates \
         gnupg \
         && \
-    apt-get clean && rm -rf /var/lib/apt/lists/* && \
-    useradd rust --user-group --create-home --shell /bin/bash --groups sudo && \
-    echo '%sudo   ALL=(ALL:ALL) NOPASSWD:ALL' > /etc/sudoers.d/nopasswd
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Adding rustfmt and clippy
 RUN rustup component add rustfmt
@@ -42,12 +41,15 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o 
 # Adding the Claude Code CLI
 RUN npm install -g @anthropic-ai/claude-code
 
-# Mount points for the two volumes the implementation pipeline binds at `docker run` time:
+# Mount points for the volumes the implementation pipeline binds at `docker run` time:
 # - the Claude Code user config/auth/session directory
 # - the git worktree being worked on (bind-mounted at the same absolute path
 #   inside and outside the container, so it is declared dynamically per-run
 #   rather than at a single fixed path here)
-VOLUME ["/home/rust/.claude"]
+VOLUME ["/root/.claude"]
 
-USER rust
-WORKDIR /home/rust
+# The container deliberately stays on root: under rootless docker/podman the host
+# user that starts the run is mapped to uid 0 inside the container, so root is the
+# only uid that can read and write the bind-mounted worktree and ~/.claude. Any
+# other in-container user sees those mounts as owned by root without write access.
+WORKDIR /root
