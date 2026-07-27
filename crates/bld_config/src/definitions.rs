@@ -25,6 +25,7 @@ pub const TOOL_DEFAULT_PIPELINE: &str = "default";
 pub const TOOL_DEFAULT_PIPELINE_FILE: &str = "default.yaml";
 pub const TOOL_DEFAULT_CONFIG: &str = "config";
 pub const TOOL_DEFAULT_CONFIG_FILE: &str = "config.yaml";
+pub const TOOL_DEFAULT_CONFIG_FILE_YML: &str = "config.yml";
 
 pub const LOCAL_SERVER_HOST: &str = "127.0.0.1";
 pub const LOCAL_SERVER_PORT: i64 = 6080;

@@ -22,14 +22,14 @@ pub use tls::*;
 
 use crate::definitions::{
     LOCAL_DEFAULT_DB_DIR, LOCAL_DEFAULT_DB_NAME, LOCAL_MACHINE_TMP_DIR, LOCAL_SERVER_HOST,
-    LOCAL_SERVER_PORT, REMOTE_SERVER_AUTH, TOOL_DEFAULT_CONFIG_FILE, TOOL_DIR,
-    WEB_CLIENT_DEBUG_ORIGIN,
+    LOCAL_SERVER_PORT, REMOTE_SERVER_AUTH, TOOL_DEFAULT_CONFIG_FILE, TOOL_DEFAULT_CONFIG_FILE_YML,
+    TOOL_DIR, WEB_CLIENT_DEBUG_ORIGIN,
 };
 use anyhow::{Error, Result, anyhow};
 use openidconnect::core::CoreClient;
 use serde::{Deserialize, Serialize};
 use std::env::current_dir;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[cfg(feature = "tokio")]
 use tokio::fs::read_to_string;
@@ -61,24 +61,42 @@ pub struct BldConfig {
 }
 
 impl BldConfig {
+    fn config_file_in_dir(dir: &Path) -> Option<PathBuf> {
+        let yaml = path![dir, TOOL_DEFAULT_CONFIG_FILE];
+        let yml = path![dir, TOOL_DEFAULT_CONFIG_FILE_YML];
+
+        if yaml.is_file() && yml.is_file() {
+            eprintln!(
+                "warning: both {TOOL_DEFAULT_CONFIG_FILE} and {TOOL_DEFAULT_CONFIG_FILE_YML} found in {}, loading {TOOL_DEFAULT_CONFIG_FILE}",
+                dir.display()
+            );
+            return Some(yaml);
+        }
+
+        if yaml.is_file() {
+            return Some(yaml);
+        }
+
+        if yml.is_file() {
+            return Some(yml);
+        }
+
+        None
+    }
+
     pub fn path() -> Result<PathBuf> {
         let mut current = current_dir()?;
         loop {
-            let cfg_file = path![
-                &current,
-                definitions::TOOL_DIR,
-                format!("{}.yaml", definitions::TOOL_DEFAULT_CONFIG)
-            ];
+            let bld_dir = path![&current, TOOL_DIR];
 
-            if !cfg_file.exists() {
-                current = current
-                    .parent()
-                    .map(|p| p.to_path_buf())
-                    .ok_or_else(|| anyhow!(".bld directory not found"))?;
-                continue;
+            if let Some(cfg_file) = Self::config_file_in_dir(&bld_dir) {
+                return Ok(cfg_file);
             }
 
-            return Ok(cfg_file);
+            current = current
+                .parent()
+                .map(|p| p.to_path_buf())
+                .ok_or_else(|| anyhow!(".bld directory not found"))?;
         }
     }
 
@@ -207,7 +225,8 @@ impl BldConfig {
     }
 
     pub fn config_full_path(&self) -> PathBuf {
-        path![&self.root_dir, TOOL_DEFAULT_CONFIG_FILE]
+        Self::config_file_in_dir(Path::new(&self.root_dir))
+            .unwrap_or_else(|| path![&self.root_dir, TOOL_DEFAULT_CONFIG_FILE])
     }
 
     pub fn full_path(&self, name: &str) -> PathBuf {
@@ -224,5 +243,64 @@ impl BldConfig {
 
     pub fn artifact_full_path(&self, run_id: &str, name: &str) -> PathBuf {
         path![self.artifacts_run_dir(run_id), format!("{name}.tar.gz")]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::{File, create_dir_all, remove_dir_all};
+
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new(name: &str) -> Self {
+            let path = path![std::env::temp_dir(), format!("bld_config_test_{name}")];
+            let _ = remove_dir_all(&path);
+            create_dir_all(&path).expect("unable to create temp dir");
+            Self(path)
+        }
+
+        fn touch(&self, name: &str) -> PathBuf {
+            let path = path![&self.0, name];
+            File::create(&path).expect("unable to create file");
+            path
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn config_file_in_dir_finds_yaml() {
+        let dir = TempDir::new("finds_yaml");
+        let expected = dir.touch(TOOL_DEFAULT_CONFIG_FILE);
+        assert_eq!(BldConfig::config_file_in_dir(&dir.0), Some(expected));
+    }
+
+    #[test]
+    fn config_file_in_dir_finds_yml() {
+        let dir = TempDir::new("finds_yml");
+        let expected = dir.touch(TOOL_DEFAULT_CONFIG_FILE_YML);
+        assert_eq!(BldConfig::config_file_in_dir(&dir.0), Some(expected));
+    }
+
+    #[test]
+    fn config_file_in_dir_prefers_yaml_over_yml() {
+        let dir = TempDir::new("prefers_yaml");
+        let expected = dir.touch(TOOL_DEFAULT_CONFIG_FILE);
+        dir.touch(TOOL_DEFAULT_CONFIG_FILE_YML);
+        assert_eq!(BldConfig::config_file_in_dir(&dir.0), Some(expected));
+    }
+
+    #[test]
+    fn config_file_in_dir_ignores_other_files() {
+        let dir = TempDir::new("ignores_others");
+        dir.touch("config.json");
+        dir.touch("default.yaml");
+        assert_eq!(BldConfig::config_file_in_dir(&dir.0), None);
     }
 }
