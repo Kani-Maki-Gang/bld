@@ -65,18 +65,23 @@ impl BldConfig {
         let yaml = path![dir, TOOL_DEFAULT_CONFIG_FILE];
         let yml = path![dir, TOOL_DEFAULT_CONFIG_FILE_YML];
 
-        match (yaml.is_file(), yml.is_file()) {
-            (true, true) => {
-                eprintln!(
-                    "warning: both {TOOL_DEFAULT_CONFIG_FILE} and {TOOL_DEFAULT_CONFIG_FILE_YML} found in {}, loading {TOOL_DEFAULT_CONFIG_FILE}",
-                    dir.display()
-                );
-                Some(yaml)
-            }
-            (true, false) => Some(yaml),
-            (false, true) => Some(yml),
-            (false, false) => None,
+        if yaml.is_file() && yml.is_file() {
+            eprintln!(
+                "warning: both {TOOL_DEFAULT_CONFIG_FILE} and {TOOL_DEFAULT_CONFIG_FILE_YML} found in {}, loading {TOOL_DEFAULT_CONFIG_FILE}",
+                dir.display()
+            );
+            return Some(yaml);
         }
+
+        if yaml.is_file() {
+            return Some(yaml);
+        }
+
+        if yml.is_file() {
+            return Some(yml);
+        }
+
+        None
     }
 
     pub fn path() -> Result<PathBuf> {
