@@ -1,10 +1,14 @@
 use std::{path::Path, sync::Arc};
 
 use anyhow::{Result, anyhow, bail};
-use bld_config::{BldConfig, SshUserAuth, definitions::PACKAGE_ACTION_FILE_NAME, path};
+use bld_config::{BldConfig, SshConfig, SshUserAuth, definitions::PACKAGE_ACTION_FILE_NAME, path};
 use git2::{Cred, FetchOptions, RemoteCallbacks, Repository, build::RepoBuilder};
 use std::path::PathBuf;
-use tokio::{fs::File, io::AsyncReadExt, task::spawn_blocking};
+use tokio::{
+    fs::{File, remove_dir_all},
+    io::AsyncReadExt,
+    task::spawn_blocking,
+};
 use tracing::{error, warn};
 
 #[derive(Clone)]
@@ -44,12 +48,25 @@ impl PackageManager {
         Self { config }
     }
 
+    fn validate_path_segment(segment: &str) -> Result<()> {
+        if segment.is_empty()
+            || segment == "."
+            || segment == ".."
+            || segment.contains('/')
+            || segment.contains('\\')
+        {
+            bail!("Invalid or unsafe package reference segment '{segment}'");
+        }
+        Ok(())
+    }
+
     fn repo_info(&self, source: &str) -> Result<RepositoryInfo> {
         let mut branch: Option<RepositoryBranch> = None;
         let mut url = source.to_string();
 
         if let Some((left, right)) = source.rsplit_once(".git@") {
             let name = right.to_string();
+            Self::validate_path_segment(&name)?;
             let refname = format!("refs/remotes/origin/{name}");
             let head = format!("refs/heads/{name}");
             branch = Some(RepositoryBranch {
@@ -64,6 +81,7 @@ impl PackageManager {
             .rsplit_once("/")
             .ok_or_else(|| anyhow!("Unable to deduce repository name for package {source}"))?;
         let name = name.to_string();
+        Self::validate_path_segment(&name)?;
 
         let repo_url = if url.starts_with("git@") {
             let host = url
@@ -93,6 +111,22 @@ impl PackageManager {
         path![&self.config.local.packages.cache, dir]
     }
 
+    fn ssh_credentials(ssh_config: &SshConfig, user: &str) -> Result<Cred, git2::Error> {
+        match &ssh_config.userauth {
+            SshUserAuth::Keys {
+                private_key,
+                public_key,
+            } => Cred::ssh_key(
+                user,
+                public_key.as_deref().map(Path::new),
+                Path::new(&private_key),
+                None,
+            ),
+            SshUserAuth::Password { password } => Cred::userpass_plaintext(user, password),
+            SshUserAuth::Agent => Cred::ssh_key_from_agent(user),
+        }
+    }
+
     fn repo_fetch_options<'a>(
         config: Arc<BldConfig>,
         info: &'a RepositoryInfo,
@@ -110,20 +144,7 @@ impl PackageManager {
                     return Cred::default();
                 };
 
-                let SshUserAuth::Keys {
-                    private_key,
-                    public_key,
-                } = &ssh_config.userauth
-                else {
-                    return Cred::default();
-                };
-
-                Cred::ssh_key(
-                    user,
-                    public_key.as_deref().map(Path::new),
-                    Path::new(&private_key),
-                    None,
-                )
+                Self::ssh_credentials(ssh_config, user)
             } else {
                 Cred::username(user)
             }
@@ -171,6 +192,11 @@ impl PackageManager {
     pub async fn get(&self, source: &str) -> Result<()> {
         let info = self.repo_info(source)?;
         let path = self.repo_path(&info);
+
+        if path.exists() {
+            remove_dir_all(&path).await?;
+        }
+
         let info_clone = info.clone();
         let config = self.config.clone();
         let repository =
@@ -348,5 +374,160 @@ impl PackageManager {
         let mut content = String::new();
         handle.read_to_string(&mut content).await?;
         Ok(content)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bld_config::{BldPackages, SshConfig, SshUserAuth};
+
+    fn test_manager(cache: &str) -> PackageManager {
+        let mut config = BldConfig::default();
+        config.local.packages = BldPackages {
+            cache: cache.to_string(),
+            strict_sync: false,
+        };
+        PackageManager::new(Arc::new(config))
+    }
+
+    #[test]
+    fn repo_info_parses_https_url_without_ref() {
+        let manager = test_manager("/tmp/bld_pkg_cache");
+        let info = manager
+            .repo_info("https://example.com/org/repo.git")
+            .unwrap();
+        assert_eq!(info.name, "repo.git");
+        assert!(info.branch.is_none());
+        assert!(matches!(info.url, RepositoryUrl::Http { .. }));
+    }
+
+    #[test]
+    fn repo_info_parses_https_url_with_branch_ref() {
+        let manager = test_manager("/tmp/bld_pkg_cache");
+        let info = manager
+            .repo_info("https://example.com/org/repo.git@main")
+            .unwrap();
+        assert_eq!(info.name, "repo.git");
+        let branch = info.branch.unwrap();
+        assert_eq!(branch.name, "main");
+        assert_eq!(branch.refname, "refs/remotes/origin/main");
+        assert_eq!(branch.head, "refs/heads/main");
+    }
+
+    #[test]
+    fn repo_info_parses_ssh_url_and_extracts_host() {
+        let manager = test_manager("/tmp/bld_pkg_cache");
+        let info = manager
+            .repo_info("git@github.com:org/repo.git@v1.0.0")
+            .unwrap();
+        assert_eq!(info.name, "repo.git");
+        match info.url {
+            RepositoryUrl::Ssh { host, .. } => assert_eq!(host, "github.com"),
+            _ => panic!("expected ssh url"),
+        }
+    }
+
+    #[test]
+    fn repo_info_rejects_path_traversal_in_ref() {
+        let manager = test_manager("/tmp/bld_pkg_cache");
+        let result = manager.repo_info("https://example.com/org/repo.git@../../../etc");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn repo_info_rejects_path_separator_in_ref() {
+        let manager = test_manager("/tmp/bld_pkg_cache");
+        let result = manager.repo_info("https://example.com/org/repo.git@feature/foo");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn repo_info_rejects_empty_repo_name() {
+        let manager = test_manager("/tmp/bld_pkg_cache");
+        let result = manager.repo_info("https://example.com/org/");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn repo_path_without_branch_uses_repo_name() {
+        let manager = test_manager("/tmp/bld_pkg_cache");
+        let info = manager
+            .repo_info("https://example.com/org/repo.git")
+            .unwrap();
+        let path = manager.repo_path(&info);
+        assert_eq!(path, PathBuf::from("/tmp/bld_pkg_cache/repo.git"));
+    }
+
+    #[test]
+    fn repo_path_with_branch_includes_branch_name() {
+        let manager = test_manager("/tmp/bld_pkg_cache");
+        let info = manager
+            .repo_info("https://example.com/org/repo.git@main")
+            .unwrap();
+        let path = manager.repo_path(&info);
+        assert_eq!(path, PathBuf::from("/tmp/bld_pkg_cache/repo.git@main"));
+    }
+
+    #[test]
+    fn is_package_true_for_valid_source() {
+        let manager = test_manager("/tmp/bld_pkg_cache");
+        assert!(manager.is_package("https://example.com/org/repo.git"));
+    }
+
+    #[test]
+    fn is_package_false_for_traversal_attempt() {
+        let manager = test_manager("/tmp/bld_pkg_cache");
+        assert!(!manager.is_package("https://example.com/org/repo.git@../../etc"));
+    }
+
+    #[test]
+    fn exists_false_for_unknown_package() {
+        let manager = test_manager("/tmp/bld_pkg_cache_nonexistent_xyz");
+        assert!(!manager.exists("https://example.com/org/repo.git"));
+    }
+
+    #[test]
+    fn ssh_credentials_agent_variant() {
+        let ssh_config = SshConfig {
+            host: "example.com".to_string(),
+            port: SshConfig::default_port(),
+            user: "git".to_string(),
+            userauth: SshUserAuth::Agent,
+        };
+        let cred = PackageManager::ssh_credentials(&ssh_config, "git").unwrap();
+        assert!(git2::CredentialType::from_bits_truncate(cred.credtype() as u32).is_ssh_key());
+    }
+
+    #[test]
+    fn ssh_credentials_password_variant() {
+        let ssh_config = SshConfig {
+            host: "example.com".to_string(),
+            port: SshConfig::default_port(),
+            user: "git".to_string(),
+            userauth: SshUserAuth::Password {
+                password: "secret".to_string(),
+            },
+        };
+        let cred = PackageManager::ssh_credentials(&ssh_config, "git").unwrap();
+        assert!(
+            git2::CredentialType::from_bits_truncate(cred.credtype() as u32)
+                .is_user_pass_plaintext()
+        );
+    }
+
+    #[test]
+    fn ssh_credentials_keys_variant() {
+        let ssh_config = SshConfig {
+            host: "example.com".to_string(),
+            port: SshConfig::default_port(),
+            user: "git".to_string(),
+            userauth: SshUserAuth::Keys {
+                public_key: None,
+                private_key: "/tmp/does-not-need-to-exist".to_string(),
+            },
+        };
+        let cred = PackageManager::ssh_credentials(&ssh_config, "git").unwrap();
+        assert!(git2::CredentialType::from_bits_truncate(cred.credtype() as u32).is_ssh_key());
     }
 }
