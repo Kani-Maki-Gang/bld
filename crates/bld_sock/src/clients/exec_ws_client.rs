@@ -45,9 +45,10 @@ impl ExecClient {
         debug!("sending message to socket: {:?}", message);
         self.sock.text(&message).await?;
 
-        loop {
-            let Ok(frame) = self.sock.next().await else {
-                break;
+        let result = loop {
+            let frame = match self.sock.next().await {
+                Ok(frame) => frame,
+                Err(e) => break Err(e),
             };
             match frame {
                 Frame::Text(bt) => {
@@ -57,10 +58,10 @@ impl ExecClient {
                         .await
                         .map_err(|e| error!("{e}"));
                 }
-                Frame::Close(_) => break,
+                Frame::Close(_) => break Ok(()),
                 _ => {}
             }
-        }
+        };
 
         if let Some(run_id) = &self.run_id {
             let _ = self
@@ -70,7 +71,7 @@ impl ExecClient {
                 .map_err(|e| error!("{e}"));
         }
 
-        Ok(())
+        result
     }
 
     async fn handle_server_message(&mut self, message: &str) -> Result<()> {

@@ -84,19 +84,15 @@ impl ExecWebsocket {
             }
             Ok(run) if run.state == PR_STATE_QUEUED => {
                 debug!("run is in a {} state", PR_STATE_QUEUED);
-                let message = format!(
+                let content = format!(
                     "run with id {run_id} has been queued, use the monit command to see the output when it's started"
                 );
-                if let Err(e) = session.text(message.as_str()).await {
-                    error!("{e}");
-                }
+                send_log(session, content).await;
                 false
             }
             Err(e) => {
                 debug!("run encountered error {e}");
-                if let Err(e) = session.text("internal server error").await {
-                    error!("{e}");
-                }
+                send_log(session, "internal server error".to_string()).await;
                 false
             }
             _ => true,
@@ -120,6 +116,38 @@ impl ExecWebsocket {
             session.text(data).await?;
         }
         Ok(())
+    }
+}
+
+fn encode_log(content: String) -> Result<String> {
+    let message = ExecServerMessage::Log { content };
+    serde_json::to_string(&message).map_err(Into::into)
+}
+
+async fn send_log(session: &mut Session, content: String) {
+    match encode_log(content) {
+        Ok(data) => {
+            if let Err(e) = session.text(data).await {
+                error!("{e}");
+            }
+        }
+        Err(e) => error!("{e}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::encode_log;
+    use bld_models::dtos::ExecServerMessage;
+
+    #[test]
+    fn encode_log_round_trips_as_exec_server_message() {
+        let data = encode_log("hello world".to_string()).unwrap();
+        let message: ExecServerMessage = serde_json::from_str(&data).unwrap();
+        match message {
+            ExecServerMessage::Log { content } => assert_eq!(content, "hello world"),
+            _ => panic!("expected ExecServerMessage::Log variant"),
+        }
     }
 }
 
@@ -149,7 +177,7 @@ pub async fn ws(
                             let session = handler.session();
                             if let Err(e) = socket.handle_message(session, &txt).await {
                                 error!("handling message error. {e}");
-                                let _ = session.text(e.to_string()).await.inspect_err(|e| error!("{e}"));
+                                send_log(session, e.to_string()).await;
                                 handler.error();
                                 break;
                             }

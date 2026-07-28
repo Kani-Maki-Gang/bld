@@ -29,6 +29,53 @@ async fn handle_message(bytes: &Bytes, worker_pid: &mut Option<u32>) -> Result<b
     Ok(completed)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::handle_message;
+    use actix_web::web::Bytes;
+    use bld_models::dtos::WorkerMessages;
+
+    fn to_bytes(msg: &WorkerMessages) -> Bytes {
+        Bytes::from(serde_json::to_vec(msg).unwrap())
+    }
+
+    #[tokio::test]
+    async fn handle_message_ack_does_not_set_pid_and_is_not_completed() {
+        let mut pid = None;
+        let completed = handle_message(&to_bytes(&WorkerMessages::Ack), &mut pid)
+            .await
+            .unwrap();
+        assert!(!completed);
+        assert_eq!(pid, None);
+    }
+
+    #[tokio::test]
+    async fn handle_message_who_am_i_sets_pid() {
+        let mut pid = None;
+        let completed = handle_message(&to_bytes(&WorkerMessages::WhoAmI { pid: 42 }), &mut pid)
+            .await
+            .unwrap();
+        assert!(!completed);
+        assert_eq!(pid, Some(42));
+    }
+
+    #[tokio::test]
+    async fn handle_message_completed_signals_completion() {
+        let mut pid = None;
+        let completed = handle_message(&to_bytes(&WorkerMessages::Completed), &mut pid)
+            .await
+            .unwrap();
+        assert!(completed);
+    }
+
+    #[tokio::test]
+    async fn handle_message_invalid_payload_errors() {
+        let mut pid = None;
+        let result = handle_message(&Bytes::from_static(b"not json"), &mut pid).await;
+        assert!(result.is_err());
+    }
+}
+
 pub async fn ws(
     req: HttpRequest,
     body: web::Payload,
@@ -54,6 +101,7 @@ pub async fn ws(
                                 .inspect_err(|e| error!("{e}"));
                             error!("handling message error. {e}");
                             handler.error();
+                            break;
                         }
                     }
                 }
