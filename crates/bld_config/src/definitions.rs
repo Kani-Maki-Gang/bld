@@ -1,4 +1,4 @@
-pub const VERSION: &str = "0.4.0";
+pub const VERSION: &str = "0.5.0-rc";
 pub const TOOL_DIR: &str = ".bld";
 pub const PUSH: &str = "push";
 pub const GET: &str = "get";
