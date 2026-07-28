@@ -55,6 +55,14 @@ impl Job {
     pub fn default_dispose() -> bool {
         true
     }
+
+    pub fn needs_iter(&self) -> Box<dyn Iterator<Item = &str> + '_> {
+        match self.needs.as_ref() {
+            Some(Needs::Single(need)) => Box::new(std::iter::once(need.as_str())),
+            Some(Needs::Multiple(needs)) => Box::new(needs.iter().map(String::as_str)),
+            None => Box::new(std::iter::empty()),
+        }
+    }
 }
 
 impl Default for Job {
@@ -188,7 +196,7 @@ impl<'a> Validate<'a> for Job {
         debug!("Validating job's {} steps", self.id);
         ctx.push_section("steps");
         if self.steps.is_empty() {
-            ctx.append_error("Pipeline must have at least one job defined");
+            ctx.append_error("Job must have at least one step defined");
         }
 
         let mut step_ids = HashSet::new();
@@ -209,6 +217,7 @@ impl<'a> Validate<'a> for Job {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::collections::HashSet;
 
     use bld_config::BldConfig;
     use bld_core::fs::FileSystem;
@@ -223,7 +232,7 @@ mod tests {
         validator::v3::{CommonValidator, ConsumeValidator, ValidatorWritableRuntimeExprContext},
     };
 
-    use super::Job;
+    use super::{Job, Needs};
 
     async fn validate_job(job: Job) -> anyhow::Result<()> {
         let job_name = "main";
@@ -342,5 +351,37 @@ mod tests {
 
         let result = validate_job(job).await;
         assert!(result.is_err());
+    }
+
+    #[test]
+    pub fn needs_iter_returns_nothing_when_needs_not_set() {
+        let job = Job::default();
+        assert_eq!(job.needs_iter().count(), 0);
+    }
+
+    #[test]
+    pub fn needs_iter_returns_single_need() {
+        let job = Job {
+            needs: Some(Needs::Single("a".to_string())),
+            ..Job::default()
+        };
+        let needs: Vec<&str> = job.needs_iter().collect();
+        assert_eq!(needs, vec!["a"]);
+    }
+
+    #[test]
+    pub fn needs_iter_returns_all_multiple_needs() {
+        let job = Job {
+            needs: Some(Needs::Multiple(
+                ["a", "b", "c"]
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<HashSet<_>>(),
+            )),
+            ..Job::default()
+        };
+        let mut needs: Vec<&str> = job.needs_iter().collect();
+        needs.sort();
+        assert_eq!(needs, vec!["a", "b", "c"]);
     }
 }
