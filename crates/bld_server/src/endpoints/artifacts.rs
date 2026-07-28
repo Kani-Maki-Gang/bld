@@ -50,10 +50,46 @@ pub async fn download(
             .content_type("application/gzip")
             .insert_header((
                 header::CONTENT_DISPOSITION,
-                format!("attachment; filename=\"{}.tar.gz\"", artifact.name),
+                format!(
+                    "attachment; filename=\"{}.tar.gz\"",
+                    escape_content_disposition_filename(&artifact.name)
+                ),
             ))
             .body(bytes),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    }
+}
+
+fn escape_content_disposition_filename(name: &str) -> String {
+    name.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::escape_content_disposition_filename;
+
+    #[test]
+    fn escape_content_disposition_filename_plain() {
+        assert_eq!(
+            escape_content_disposition_filename("my-artifact"),
+            "my-artifact"
+        );
+    }
+
+    #[test]
+    fn escape_content_disposition_filename_escapes_quotes() {
+        assert_eq!(
+            escape_content_disposition_filename("foo\"bar"),
+            "foo\\\"bar"
+        );
+    }
+
+    #[test]
+    fn escape_content_disposition_filename_escapes_backslashes() {
+        assert_eq!(
+            escape_content_disposition_filename("foo\\bar"),
+            "foo\\\\bar"
+        );
     }
 }
 

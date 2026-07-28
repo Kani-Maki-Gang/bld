@@ -4,6 +4,7 @@ use uuid::Uuid;
 #[cfg(feature = "all")]
 use {
     crate::validator::v3::{Validate, ValidatorContext},
+    bld_core::artifacts::validate_artifact_name,
     tracing::debug,
 };
 
@@ -45,6 +46,8 @@ impl<'a> Validate<'a> for UploadArtifact {
         ctx.push_section("name");
         if ctx.contains_expressions(&self.name) {
             ctx.append_error("Expressions not supported");
+        } else if let Err(e) = validate_artifact_name(&self.name) {
+            ctx.append_error(&e.to_string());
         }
         ctx.pop_section();
     }
