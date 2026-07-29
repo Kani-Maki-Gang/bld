@@ -424,6 +424,9 @@ mod tests {
     }
 
     fn with_single_job(mut pipeline: Pipeline) -> Pipeline {
+        if !pipeline.jobs.is_empty() {
+            return pipeline;
+        }
         pipeline.jobs.insert(
             "main".to_string(),
             Job {
@@ -456,32 +459,63 @@ mod tests {
             "worktree_root".to_string(),
             complex_input("${{ bld_project_dir }}/../worktrees"),
         );
-        pipeline.inputs.insert(
-            "logs_dir".to_string(),
-            complex_input("${{ inputs.worktree_root }}/logs"),
+        pipeline.env.insert(
+            "LOGS".to_string(),
+            "${{ inputs.worktree_root }}/logs".to_string(),
         );
-        pipeline
-            .env
-            .insert("LOGS".to_string(), "${{ inputs.logs_dir }}".to_string());
+
+        let result = validate_pipeline(pipeline).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    /// A required input has no value until a run supplies one, so validation stands in an
+    /// empty value rather than reporting every use of it as an error.
+    #[tokio::test]
+    pub async fn required_input_without_default_validation_success() {
+        let mut pipeline = Pipeline::default();
+        pipeline.inputs.insert(
+            "worktree_dir".to_string(),
+            Input::Complex {
+                description: None,
+                default: None,
+                required: true,
+            },
+        );
+        pipeline.jobs.insert(
+            "main".to_string(),
+            Job {
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "build".to_string(),
+                    run: "echo ${{ inputs.worktree_dir }}".to_string(),
+                    working_dir: Some("${{ inputs.worktree_dir }}".to_string()),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
 
         let result = validate_pipeline(pipeline).await;
         assert!(result.is_ok(), "unexpected error: {:?}", result.err());
     }
 
     #[tokio::test]
-    pub async fn cyclic_input_defaults_validation_failure() {
+    pub async fn input_default_referencing_another_default_validation_failure() {
         let mut pipeline = Pipeline::default();
         pipeline
             .inputs
-            .insert("first".to_string(), complex_input("${{ inputs.second }}"));
-        pipeline
-            .inputs
-            .insert("second".to_string(), complex_input("${{ inputs.first }}"));
+            .insert("first".to_string(), complex_input("/root"));
+        pipeline.inputs.insert(
+            "second".to_string(),
+            complex_input("${{ inputs.first }}/sub"),
+        );
 
         let Err(e) = validate_pipeline(pipeline).await else {
-            panic!("expected a validation error for cyclic input defaults");
+            panic!("expected a validation error for a default referencing another default");
         };
-        assert!(e.to_string().contains("cyclic"), "{e}");
+        assert!(
+            e.to_string().contains("unable to resolve inputs.second"),
+            "{e}"
+        );
     }
 
     #[tokio::test]

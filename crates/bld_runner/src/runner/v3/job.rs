@@ -693,12 +693,10 @@ mod tests {
         let artifacts = Artifacts::mock().into_arc();
         let regex_cache = RegexCache::mock().into_arc();
         let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
-        let inputs: HashMap<String, String> = [(
-            "worktree_dir".to_string(),
-            "/tmp/some-worktree".to_string(),
-        )]
-        .into_iter()
-        .collect();
+        let inputs: HashMap<String, String> =
+            [("worktree_dir".to_string(), "/tmp/some-worktree".to_string())]
+                .into_iter()
+                .collect();
         let expr_rctx = CommonReadonlyRuntimeExprContext {
             inputs: inputs.into_arc(),
             ..Default::default()

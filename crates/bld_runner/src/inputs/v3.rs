@@ -14,6 +14,7 @@ pub enum Input {
     Complex {
         description: Option<String>,
         default: Option<String>,
+        #[serde(default)]
         required: bool,
     },
 }
@@ -64,5 +65,24 @@ impl<'a> Validate<'a> for Input {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Input;
+
+    #[test]
+    pub fn complex_input_deserializes_without_required() {
+        let input: Input = serde_yaml_ng::from_str("default: ubuntu:22.04").unwrap();
+
+        assert!(matches!(
+            input,
+            Input::Complex {
+                default: Some(default),
+                required: false,
+                ..
+            } if default == "ubuntu:22.04"
+        ));
     }
 }

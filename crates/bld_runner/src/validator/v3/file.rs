@@ -9,10 +9,11 @@ use bld_utils::sync::IntoArc;
 use crate::{
     expr::v3::{context::CommonReadonlyRuntimeExprContext, startup::resolve_start_of_run_context},
     files::v3::RunnerFile,
+    inputs::v3::Input,
     validator::v3::ValidatorWritableRuntimeExprContext,
 };
 
-use super::{CommonValidator, ConsumeValidator};
+use super::{CommonValidator, ConsumeValidator, input_placeholders};
 
 pub struct RunnerFileValidator<'a> {
     file: &'a RunnerFile,
@@ -51,13 +52,10 @@ impl<'a> RunnerFileValidator<'a> {
         })
     }
 
-    /// Validation uses the same start of run values as an actual run, so that expressions
-    /// referring to them are checked against what they will really hold. Files whose values
-    /// can't be resolved fall back to the ones declared in them, letting the rest of the
-    /// validation run and report the failure through `validate_start_of_run_values`.
     fn expr_rctx(file: &RunnerFile, config: Arc<BldConfig>) -> CommonReadonlyRuntimeExprContext {
-        let supplied = || CommonReadonlyRuntimeExprContext {
+        let supplied = |inputs: &HashMap<String, Input>| CommonReadonlyRuntimeExprContext {
             config: config.clone(),
+            inputs: input_placeholders(inputs).into_arc(),
             ..Default::default()
         };
         let resolved = match file {
@@ -65,13 +63,13 @@ impl<'a> RunnerFileValidator<'a> {
                 pipeline.as_ref(),
                 &pipeline.inputs,
                 &pipeline.env,
-                supplied(),
+                supplied(&pipeline.inputs),
             ),
             RunnerFile::ActionFileType(action) => resolve_start_of_run_context(
                 action.as_ref(),
                 &action.inputs,
                 &HashMap::new(),
-                supplied(),
+                supplied(&action.inputs),
             ),
         };
 

@@ -4,6 +4,7 @@ use anyhow::{Result, bail};
 use bld_config::{BldConfig, path};
 use bld_core::fs::FileSystem;
 use bld_pkg::PackageManager;
+use bld_utils::sync::IntoArc;
 use regex::Regex;
 use tracing::debug;
 
@@ -11,7 +12,7 @@ use crate::{
     expr::v3::{
         context::{CommonReadonlyRuntimeExprContext, START_OF_RUN_WCTX},
         exec::CommonExprExecutor,
-        parser::EXPR_REGEX,
+        parser,
         startup::resolve_start_of_run_context,
         traits::{EvalExpr, EvalObject, ExprValue, WritableRuntimeExprContext},
     },
@@ -20,8 +21,14 @@ use crate::{
 
 use super::{ConsumeValidator, ExprScope, Validate, ValidatorContext};
 
-pub fn create_expression_regex() -> Result<Regex> {
-    Ok(Regex::new(EXPR_REGEX)?)
+/// An input with no default is only known once a run supplies it, so validation stands in
+/// an empty value for it rather than reporting it as missing.
+pub fn input_placeholders(inputs: &HashMap<String, Input>) -> HashMap<String, String> {
+    inputs
+        .iter()
+        .filter(|(_, x)| x.default_value().is_none())
+        .map(|(name, _)| (name.to_owned(), String::new()))
+        .collect()
 }
 
 enum Section<'a> {
@@ -102,7 +109,7 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
             config,
             file_system,
             package_manager,
-            expr_regex: create_expression_regex()?,
+            expr_regex: parser::new_regex()?,
             expr_rctx,
             expr_wctx,
             section: Vec::new(),
@@ -119,8 +126,6 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
             .join(" > ")
     }
 
-    /// The writable context of the job being validated, or of any job when validating a
-    /// section that isn't under one.
     fn runtime_wctx(&self) -> Option<&'a ValidatorWritableRuntimeExprContext<'a>> {
         self.expr_wctx
             .iter()
@@ -250,12 +255,13 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for Comm
             env,
             CommonReadonlyRuntimeExprContext {
                 config: self.config.clone(),
+                inputs: input_placeholders(inputs).into_arc(),
                 ..Default::default()
             },
         );
 
         if let Err(e) = result {
-            self.append_error(&e.to_string());
+            self.append_error(&format!("{e:#}"));
         }
     }
 

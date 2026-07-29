@@ -1,44 +1,23 @@
 use std::collections::HashMap;
 
-use anyhow::{Error, Result, bail};
+use anyhow::{Context, Result};
 use bld_utils::sync::IntoArc;
-use regex::Regex;
 
-use crate::inputs::v3::Input;
+use crate::{expr::v3::parser, inputs::v3::Input};
 
 use super::{
     context::{CommonReadonlyRuntimeExprContext, START_OF_RUN_WCTX},
     exec::{CommonExprExecutor, eval_all_expressions},
-    parser::EXPR_REGEX,
     traits::EvalObject,
 };
-
-/// A declared value that is resolved before the run starts.
-struct Pending<'a> {
-    is_input: bool,
-    name: &'a str,
-    raw: &'a str,
-}
-
-impl Pending<'_> {
-    fn symbol(&self) -> String {
-        if self.is_input {
-            format!("inputs.{}", self.name)
-        } else {
-            format!("env.{}", self.name)
-        }
-    }
-}
 
 /// Resolves the values that must be known before a run starts, meaning the defaults of any
 /// input that wasn't supplied and the file's env values, and returns `supplied` extended
 /// with them.
 ///
-/// Expressions in those values can only use symbols backed by the readonly context, which
-/// includes other inputs and env values. Since these can be defined in any order, resolution
-/// is done in passes until no more values can be resolved. Values left unresolved after a
-/// pass that made no progress are either cyclic or use symbols that only exist once the run
-/// is under way.
+/// Expressions in those values can only use symbols backed by the readonly context. Inputs
+/// are resolved first, against the supplied values alone, so an env value can refer to an
+/// input but a default cannot refer to another default.
 pub fn resolve_start_of_run_context<T>(
     obj: &T,
     declared_inputs: &HashMap<String, Input>,
@@ -48,80 +27,48 @@ pub fn resolve_start_of_run_context<T>(
 where
     T: for<'x> EvalObject<'x>,
 {
-    let regex = Regex::new(EXPR_REGEX)?;
+    let regex = parser::new_regex()?;
     let config = supplied.config;
     let run_id = supplied.run_id;
     let run_start_time = supplied.run_start_time;
     let mut inputs = (*supplied.inputs).clone();
     let mut env = (*supplied.env).clone();
 
+    let resolve = |rctx: &CommonReadonlyRuntimeExprContext, symbol: String, raw: &str| {
+        let exec = CommonExprExecutor::new(obj, rctx, &START_OF_RUN_WCTX);
+        eval_all_expressions(&exec, &regex, raw)
+            .with_context(|| format!("unable to resolve {symbol} at the start of the run"))
+    };
+
     // Supplied values always take precedence over the ones declared in the file.
-    let mut pending: Vec<Pending> = declared_inputs
-        .iter()
-        .filter(|(name, _)| !inputs.contains_key(*name))
-        .filter_map(|(name, input)| {
-            input.default_value().map(|raw| Pending {
-                is_input: true,
-                name,
-                raw,
-            })
-        })
-        .chain(
-            declared_env
-                .iter()
-                .filter(|(name, _)| !env.contains_key(*name))
-                .map(|(name, raw)| Pending {
-                    is_input: false,
-                    name,
-                    raw,
-                }),
-        )
-        .collect();
+    let rctx = CommonReadonlyRuntimeExprContext::new(
+        config.clone(),
+        inputs.clone().into_arc(),
+        env.clone().into_arc(),
+        run_id.clone(),
+        run_start_time.clone(),
+    );
+    for (name, input) in declared_inputs {
+        let Some(raw) = input.default_value().filter(|_| !inputs.contains_key(name)) else {
+            continue;
+        };
+        let value = resolve(&rctx, format!("inputs.{name}"), raw)?;
+        inputs.insert(name.to_string(), value);
+    }
 
-    let mut last_error: Option<Error> = None;
-
-    while !pending.is_empty() {
-        let rctx = CommonReadonlyRuntimeExprContext::new(
-            config.clone(),
-            inputs.clone().into_arc(),
-            env.clone().into_arc(),
-            run_id.clone(),
-            run_start_time.clone(),
-        );
-        let exec = CommonExprExecutor::new(obj, &rctx, &START_OF_RUN_WCTX);
-
-        let mut resolved = Vec::new();
-        let mut remaining = Vec::new();
-
-        for entry in pending {
-            match eval_all_expressions(&exec, &regex, entry.raw) {
-                Ok(value) => resolved.push((entry, value)),
-                Err(e) => {
-                    last_error = Some(e);
-                    remaining.push(entry);
-                }
-            }
+    let rctx = CommonReadonlyRuntimeExprContext::new(
+        config.clone(),
+        inputs.clone().into_arc(),
+        env.clone().into_arc(),
+        run_id.clone(),
+        run_start_time.clone(),
+    );
+    for (name, raw) in declared_env {
+        if env.contains_key(name) {
+            continue;
         }
-
-        if resolved.is_empty() {
-            let mut symbols: Vec<String> = remaining.iter().map(|x| x.symbol()).collect();
-            symbols.sort();
-            let error = last_error.map(|e| format!(": {e}")).unwrap_or_default();
-            bail!(
-                "unable to resolve {} at the start of the run, check for cyclic references between them{error}",
-                symbols.join(", ")
-            );
-        }
-
-        for (entry, value) in resolved {
-            if entry.is_input {
-                inputs.insert(entry.name.to_string(), value);
-            } else {
-                env.insert(entry.name.to_string(), value);
-            }
-        }
-
-        pending = remaining;
+        let value = resolve(&rctx, format!("env.{name}"), raw)?;
+        env.insert(name.to_string(), value);
     }
 
     Ok(CommonReadonlyRuntimeExprContext::new(
@@ -193,31 +140,43 @@ mod tests {
     }
 
     #[test]
-    pub fn input_default_referencing_other_values_resolve_success() {
+    pub fn env_referencing_input_resolve_success() {
         let mut pipeline = Pipeline::default();
         pipeline.inputs.insert(
             "repo_dir".to_string(),
-            complex_input("${{ env.ROOT }}/repo"),
+            complex_input("${{ bld_project_dir }}/repo"),
         );
-        pipeline.inputs.insert(
-            "logs_dir".to_string(),
-            complex_input("${{ inputs.repo_dir }}/logs"),
+        pipeline.env.insert(
+            "LOGS".to_string(),
+            "${{ inputs.repo_dir }}/logs".to_string(),
         );
-        pipeline
-            .env
-            .insert("ROOT".to_string(), "${{ bld_project_dir }}".to_string());
 
         let rctx = resolve(&pipeline, vec![]).unwrap();
 
-        assert_eq!(rctx.get_env("ROOT").unwrap(), "/home/user/project");
         assert_eq!(
             rctx.get_input("repo_dir").unwrap(),
             "/home/user/project/repo"
         );
         assert_eq!(
-            rctx.get_input("logs_dir").unwrap(),
+            rctx.get_env("LOGS").unwrap(),
             "/home/user/project/repo/logs"
         );
+    }
+
+    #[test]
+    pub fn input_default_referencing_another_default_resolve_failure() {
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .inputs
+            .insert("first".to_string(), complex_input("/root"));
+        pipeline.inputs.insert(
+            "second".to_string(),
+            complex_input("${{ inputs.first }}/sub"),
+        );
+
+        let error = format!("{:#}", resolve(&pipeline, vec![]).unwrap_err());
+
+        assert!(error.contains("unable to resolve inputs.second"), "{error}");
     }
 
     #[test]
@@ -252,22 +211,6 @@ mod tests {
     }
 
     #[test]
-    pub fn cyclic_input_defaults_resolve_failure() {
-        let mut pipeline = Pipeline::default();
-        pipeline
-            .inputs
-            .insert("first".to_string(), complex_input("${{ inputs.second }}"));
-        pipeline
-            .inputs
-            .insert("second".to_string(), complex_input("${{ inputs.first }}"));
-
-        let error = resolve(&pipeline, vec![]).unwrap_err().to_string();
-
-        assert!(error.contains("inputs.first, inputs.second"), "{error}");
-        assert!(error.contains("cyclic"), "{error}");
-    }
-
-    #[test]
     pub fn runtime_expr_in_start_of_run_values_resolve_failure() {
         let data = [
             "${{ steps.build.outputs.image }}",
@@ -281,7 +224,7 @@ mod tests {
                 .inputs
                 .insert("image".to_string(), complex_input(value));
 
-            let error = resolve(&pipeline, vec![]).unwrap_err().to_string();
+            let error = format!("{:#}", resolve(&pipeline, vec![]).unwrap_err());
 
             assert!(
                 error.contains("is not available at the start of a run"),

@@ -413,12 +413,10 @@ mod tests {
         let platform = Platform::mock().into_arc();
         let artifacts = Artifacts::mock().into_arc();
         let regex = Regex::new(EXPR_REGEX).unwrap();
-        let inputs: HashMap<String, String> = [(
-            "worktree_dir".to_string(),
-            "/tmp/some-worktree".to_string(),
-        )]
-        .into_iter()
-        .collect();
+        let inputs: HashMap<String, String> =
+            [("worktree_dir".to_string(), "/tmp/some-worktree".to_string())]
+                .into_iter()
+                .collect();
         let rctx = CommonReadonlyRuntimeExprContext {
             inputs: inputs.into_arc(),
             ..Default::default()

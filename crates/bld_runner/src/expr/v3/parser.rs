@@ -1,12 +1,18 @@
 #![allow(dead_code)]
 
+use anyhow::Result;
 use pest_derive::Parser;
+use regex::Regex;
 
 pub const EXPR_REGEX: &str = r"\$\{\{\s*.*?\s*\}\}";
 
 #[derive(Parser)]
 #[grammar = "grammar/expr_v3.pest"]
 pub struct ExprParser;
+
+pub fn new_regex() -> Result<Regex> {
+    Ok(Regex::new(EXPR_REGEX)?)
+}
 
 #[cfg(test)]
 mod tests {
