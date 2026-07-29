@@ -149,9 +149,6 @@ impl<'a> EvalObject<'a> for Action {
                     bail!("expected name of input in object path");
                 };
                 let name = part.as_span().as_str();
-
-                // Inputs are resolved into the readonly context before the run starts, so
-                // it is the only place holding their values.
                 rctx.get_input(name)
                     .map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
