@@ -28,6 +28,6 @@ jobs:
       - name: Run bld pipeline
         uses: Kani-Maki-Gang/bld-github-action@v0.3.1-alpha
         with:
-          pipeline: 'pipelines/pr.yaml'
+          pipeline: 'ci/pr.yaml'
           variables: |-
             branch=${{ steps.get_branch_name.outputs.branch }}

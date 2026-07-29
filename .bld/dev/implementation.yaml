@@ -1,0 +1,162 @@
+version: 3
+type: pipeline
+
+name: Implement a single GitHub project item
+
+inputs:
+  item:
+    description: GitHub issue/project item number being implemented
+    required: true
+  branch:
+    description: Branch name already checked out in the worktree
+    required: true
+  worktree_dir:
+    description: Absolute host path to the git worktree for this item (bind-mounted into the container at the same path)
+    required: true
+  repo_dir:
+    description: >-
+      Absolute host path to the main repository clone. A linked worktree keeps its
+      git directory under the main clone's .git/worktrees, so the main clone has to
+      be visible at the same path inside the container for git to work there. Pass
+      ${{ bld_project_dir }} from the caller; it cannot be an input default, since
+      defaults are used verbatim instead of being evaluated.
+    required: true
+  claude_dir:
+    description: Absolute host path to the user's ~/.claude directory (bind-mounted so Claude Code is authenticated inside the container)
+    required: true
+  claude_config_file:
+    description: >-
+      Absolute host path to the user's ~/.claude.json. Claude Code keeps the logged
+      in account there rather than in ~/.claude, so without it the CLI reports
+      "Not logged in" inside the container. It is mounted read only and copied into
+      the container's own home, since the CLI rewrites that file as it runs.
+    required: true
+  gh_config_dir:
+    description: Absolute host path to the user's gh config directory, e.g. ~/.config/gh (bind-mounted so the GitHub CLI is authenticated inside the container)
+    required: true
+env:
+  # Optional headless credentials for Claude Code, for when the mounted ~/.claude
+  # does not hold a usable login (a fresh CI machine, or a host that keeps its
+  # login outside the config directory). Supply one on the command line, e.g.
+  #   bld run dev/implementation.yaml -e CLAUDE_CODE_OAUTH_TOKEN=$(claude setup-token)
+  # Empty values are dropped again by actions/claude-agent.yaml.
+  CLAUDE_CODE_OAUTH_TOKEN: ""
+  ANTHROPIC_API_KEY: ""
+
+jobs:
+  implement:
+    # Run on the dev agent image with the volumes the goal requires:
+    #   - the user's ~/.claude (auth/config/sessions)
+    #   - the git worktree, mounted at the same absolute path so paths line up
+    # plus the main clone (which holds the worktree's git dir), the user's
+    # ~/.claude.json and the gh config dir so `gh issue view` is authenticated.
+    #
+    # The `:z` suffix on every bind is needed on SELinux hosts (Fedora and
+    # friends), otherwise the container is denied access to the mounted paths.
+    #
+    # `pull` stays false so the locally built image is used; the ghcr copy is not
+    # publicly pullable at the moment. Flip it to true once the image is published.
+    # The image is spelled out because the runner only evaluates expressions in the
+    # `volumes` list of runs_on, not in `image`.
+    runs_on:
+      image: ghcr.io/kani-maki-gang/bld-dev-agent:latest
+      pull: false
+      volumes:
+        - ${{ inputs.claude_dir }}:/root/.claude:z
+        - ${{ inputs.claude_config_file }}:/root/.bld_claude_config.json:z,ro
+        - ${{ inputs.gh_config_dir }}:/root/.config/gh:z
+        - ${{ inputs.repo_dir }}:${{ inputs.repo_dir }}:z
+        - ${{ inputs.worktree_dir }}:${{ inputs.worktree_dir }}:z
+    steps:
+      - id: setup
+        name: Prepare the agent environment
+        working_dir: ${{ inputs.worktree_dir }}
+        run: |
+          set -euo pipefail
+
+          # Claude Code replaces ~/.claude.json through a rename as it runs, which a
+          # bind mounted file cannot support, so seed a real file in the container's
+          # home from the read only mount.
+          if [ -f /root/.bld_claude_config.json ]; then
+            cp /root/.bld_claude_config.json /root/.claude.json
+            chmod 600 /root/.claude.json
+          fi
+
+          # The agents read the issue from this file instead of calling gh: the host
+          # keeps its GitHub token in the OS keyring, so the mounted gh config
+          # directory alone does not authenticate gh inside the container. The
+          # orchestrator writes the file; a manual run can either drop it in the
+          # worktree by hand or export GH_TOKEN for the fallback below.
+          if [ ! -f .bld_issue.md ]; then
+            echo ".bld_issue.md not found, trying gh instead."
+            gh issue view ${{ inputs.item }} --repo Kani-Maki-Gang/bld \
+              --json number,title,body,labels,url \
+              | jq -r '"# Issue #\(.number): \(.title)\n\nURL: \(.url)\nLabels: \([.labels[].name] | join(", "))\n\n\(.body)"' \
+              > .bld_issue.md \
+              || {
+                echo "Could not read issue ${{ inputs.item }}. Run dev/orchestrator.yaml, or"
+                echo "write the issue content to $(pwd)/.bld_issue.md, or export GH_TOKEN."
+                exit 1
+              }
+          fi
+
+          echo "Item      : ${{ inputs.item }}"
+          echo "Branch    : $(git rev-parse --abbrev-ref HEAD)"
+          echo "Worktree  : $(pwd)"
+          echo "Issue file: $(wc -l < .bld_issue.md) lines"
+
+      - id: implement
+        name: Implementation agent (Sonnet 5, medium effort)
+        uses: actions/claude-agent.yaml
+        with:
+          worktree_dir: ${{ inputs.worktree_dir }}
+          model: claude-sonnet-5
+          effort: medium
+          session_key: implement
+          prompt: >-
+            You are working on GitHub issue #${{ inputs.item }} of the
+            Kani-Maki-Gang/bld repository, on branch ${{ inputs.branch }}. The issue
+            content is in the file .bld_issue.md in the root of this worktree - read
+            it first. Implement the requested change in this repository, leave every
+            change uncommitted (do not run git commit), run the relevant tests and
+            lints locally (cargo build, cargo test, and cargo fmt plus cargo clippy
+            for the crates you touched), and stop once the implementation is
+            complete and ready for review.
+
+      - id: review
+        name: Review agent (Opus 5, high effort)
+        uses: actions/claude-agent.yaml
+        with:
+          worktree_dir: ${{ inputs.worktree_dir }}
+          model: claude-opus-5
+          effort: high
+          session_key: review
+          prompt: >-
+            Review the uncommitted changes in this worktree against GitHub issue
+            #${{ inputs.item }} of the Kani-Maki-Gang/bld repository, whose content
+            is in the file .bld_issue.md in the root of this worktree. Ignore files
+            whose name starts with .bld_ - those are scratch files of the pipeline
+            itself and are not part of the implementation under review. If
+            you find issues you can confidently fix, make the changes directly and
+            re-run the relevant tests. When you are done, write a file named
+            .bld_review_status in the root of the worktree: write `OK` on its own if
+            the implementation is acceptable, or `NEEDS_HUMAN: <a short explanation
+            of what an engineer should check or decide>` if you cannot confidently
+            make that call yourself.
+
+      - id: outcome
+        name: Report the review outcome
+        working_dir: ${{ inputs.worktree_dir }}
+        run: |
+          set -euo pipefail
+
+          if [ ! -f .bld_review_status ]; then
+            echo "Item ${{ inputs.item }}: the review agent left no .bld_review_status file."
+            exit 1
+          fi
+
+          echo "Item ${{ inputs.item }} review status:"
+          cat .bld_review_status
+
+          # A NEEDS_HUMAN verdict is not a pipeline failure. The message above is
+          # what the engineer picks up and the commit step leaves the item alone.

@@ -1,0 +1,55 @@
+FROM docker.io/library/rust:1.96-trixie
+
+LABEL org.opencontainers.image.source=https://github.com/Kani-Maki-Gang/bld
+LABEL org.opencontainers.image.description="Rust dev tooling + GitHub CLI + Claude Code, for bld's automated development workflow."
+
+RUN apt-get update && \
+    export DEBIAN_FRONTEND=noninteractive && \
+    apt-get install -yq \
+        build-essential \
+        curl \
+        file \
+        git \
+        pkgconf \
+        libssl-dev \
+        libsqlite3-dev \
+        jq \
+        sudo \
+        unzip \
+        ca-certificates \
+        gnupg \
+        && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Adding rustfmt and clippy
+RUN rustup component add rustfmt
+RUN rustup component add clippy
+
+# Adding node and npm (required to install the Claude Code CLI)
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x -o nodesource_setup.sh && \
+    bash nodesource_setup.sh && \
+    apt-get install -y nodejs && \
+    rm nodesource_setup.sh
+
+# Adding the GitHub CLI
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /usr/share/keyrings/githubcli-archive-keyring.gpg && \
+    chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list && \
+    apt-get update && apt-get install -yq gh && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Adding the Claude Code CLI
+RUN npm install -g @anthropic-ai/claude-code
+
+# Mount points for the volumes the implementation pipeline binds at `docker run` time:
+# - the Claude Code user config/auth/session directory
+# - the git worktree being worked on (bind-mounted at the same absolute path
+#   inside and outside the container, so it is declared dynamically per-run
+#   rather than at a single fixed path here)
+VOLUME ["/root/.claude"]
+
+# The container deliberately stays on root: under rootless docker/podman the host
+# user that starts the run is mapped to uid 0 inside the container, so root is the
+# only uid that can read and write the bind-mounted worktree and ~/.claude. Any
+# other in-container user sees those mounts as owned by root without write access.
+WORKDIR /root

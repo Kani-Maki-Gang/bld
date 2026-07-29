@@ -1,0 +1,55 @@
+version: 3
+type: action
+
+name: Create a branch and git worktree for a GitHub project item
+
+inputs:
+  item:
+    description: GitHub issue/project item number to work on
+    required: true
+  worktree_root:
+    description: Directory under which per-item worktrees are created
+    required: true
+  repo_dir:
+    description: >-
+      The main repository clone the worktree is created from. Pass
+      ${{ bld_project_dir }} from the caller - it cannot be an input default here,
+      since defaults are used verbatim instead of being evaluated.
+    required: true
+  base_branch:
+    description: Branch the new item branch starts from
+    default: master
+    required: false
+
+steps:
+  - id: create
+    name: Create branch and worktree for the item
+    # Machine steps default to bld's own tmp directory, so point git at the clone.
+    # The cd lives in the script because expressions in an action step's
+    # `working_dir` are not evaluated by the runner (see runner/v3/action.rs).
+    run: |
+      set -euo pipefail
+
+      cd "${{ inputs.repo_dir }}"
+
+      branch="item-${{ inputs.item }}"
+      worktree_dir="${{ inputs.worktree_root }}/item-${{ inputs.item }}"
+      base="${{ inputs.base_branch }}"
+
+      mkdir -p "${{ inputs.worktree_root }}"
+      git fetch origin
+
+      if [ -d "$worktree_dir" ]; then
+        echo "Worktree for item ${{ inputs.item }} already exists at $worktree_dir"
+        exit 0
+      fi
+
+      if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+        git worktree add "$worktree_dir" "$branch"
+      elif git show-ref --verify --quiet "refs/heads/$branch"; then
+        git worktree add "$worktree_dir" "$branch"
+      else
+        git worktree add "$worktree_dir" -b "$branch" "origin/$base"
+      fi
+
+      echo "Worktree for item ${{ inputs.item }} ready at $worktree_dir on $branch"

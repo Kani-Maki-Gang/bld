@@ -1,0 +1,126 @@
+version: 3
+type: action
+
+name: Run Claude Code against a worktree
+
+# This action runs *inside* the caller job's container platform (see
+# dev/implementation.yaml, whose `implement` job sets `runs_on` to the dev agent
+# image with the worktree and ~/.claude bind-mounted). It therefore just invokes
+# the `claude` CLI directly - the container tooling and volume mounts are provided
+# by the job, not by this action.
+
+inputs:
+  worktree_dir:
+    description: Absolute path to the git worktree Claude Code works in (bind-mounted into the job container at the same path)
+    required: true
+  model:
+    description: Full Claude model id, e.g. claude-sonnet-5 or claude-opus-5
+    required: true
+  effort:
+    description: Reasoning effort level (low, medium, high, xhigh, max)
+    default: medium
+    required: false
+  prompt:
+    description: The prompt to send to Claude Code
+    required: true
+  permission_mode:
+    description: >-
+      Claude Code --permission-mode value for this run. bypassPermissions is
+      refused by the CLI when it runs as root, which is the case inside the dev
+      agent container, so the default is acceptEdits combined with the explicit
+      allowed_tools list below.
+    default: acceptEdits
+    required: false
+  allowed_tools:
+    description: Comma separated list of tools pre-approved for the run, passed to --allowedTools
+    default: Bash,Edit,Write,Read,Glob,Grep,TodoWrite
+    required: false
+  session_key:
+    description: >-
+      Identifies an independent Claude session within the worktree (e.g.
+      "implement" vs "review"). Two steps using different keys get separate
+      sessions; reusing a key across runs resumes that session.
+    required: true
+
+steps:
+  - id: run
+    name: Invoke Claude Code
+    # The working directory is entered by the script itself instead of through the
+    # step's `working_dir` key: expressions in an action step's `working_dir` are
+    # not evaluated by the runner (see runner/v3/action.rs, which evaluates the
+    # command but forwards working_dir untouched), so bash would receive the raw
+    # `${{ ... }}` text.
+    run: |
+      set -euo pipefail
+
+      cd "${{ inputs.worktree_dir }}"
+
+      session_file=".bld_claude_session_${{ inputs.session_key }}"
+      prompt_file=".bld_claude_prompt_${{ inputs.session_key }}.md"
+      result_file=".bld_claude_result_${{ inputs.session_key }}.json"
+      output_file=".bld_last_output_${{ inputs.session_key }}.md"
+
+      # The prompt goes through a quoted heredoc so shell metacharacters in it
+      # (e.g. the backticks around `gh issue view`) reach Claude Code verbatim
+      # instead of being expanded by bash first.
+      cat > "$prompt_file" <<'BLD_CLAUDE_PROMPT_EOF'
+      ${{ inputs.prompt }}
+      BLD_CLAUDE_PROMPT_EOF
+
+      resume_args=()
+      if [ -f "$session_file" ]; then
+        resume_args=(--resume "$(cat "$session_file")")
+      fi
+
+      # The caller declares these so they can be supplied for headless runs, which
+      # means they arrive empty when the run relies on the mounted ~/.claude login
+      # instead. An empty value is worse than an absent one for the CLI, so drop it.
+      [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || unset CLAUDE_CODE_OAUTH_TOKEN
+      [ -n "${ANTHROPIC_API_KEY:-}" ] || unset ANTHROPIC_API_KEY
+
+      # The exit code is captured instead of letting `set -e` abort here, so that a
+      # failed run still gets its json result reported below rather than failing
+      # the step silently.
+      # Not `--bare`: that mode skips loading the stored login, so the CLI reports
+      # "Not logged in" even with a perfectly good ~/.claude mounted.
+      exit_code=0
+      claude -p "$(cat "$prompt_file")" \
+        --model "${{ inputs.model }}" \
+        --effort "${{ inputs.effort }}" \
+        --permission-mode "${{ inputs.permission_mode }}" \
+        --allowedTools "${{ inputs.allowed_tools }}" \
+        --output-format json \
+        "${resume_args[@]}" > "$result_file" || exit_code=$?
+
+      if ! jq -e . "$result_file" > /dev/null 2>&1; then
+        echo "Claude Code produced no parseable json (exit code $exit_code):"
+        cat "$result_file"
+        exit 1
+      fi
+
+      jq -r '.result' "$result_file" > "$output_file"
+
+      # Surface the agent's summary in the pipeline log and fail the step when the
+      # CLI itself reported an error, so a failed run isn't mistaken for a finished
+      # implementation by the steps that follow.
+      echo "----- claude (${{ inputs.session_key }}) -----"
+      cat "$output_file"
+      echo "---------------------------------------------"
+
+      if [ "$exit_code" != "0" ] || [ "$(jq -r '.is_error' "$result_file")" = "true" ]; then
+        # No session file on failure: a session that never got off the ground cannot
+        # be resumed, and a stale id would make the next run fail on --resume.
+        rm -f "$session_file"
+        echo "Claude Code reported an error for the ${{ inputs.session_key }} run (exit code $exit_code)."
+        if grep -qi "not logged in" "$output_file"; then
+          echo
+          echo "Claude Code is not authenticated inside the container. Either log in on"
+          echo "the host so the mounted config carries a valid login (run 'claude' and"
+          echo "/login), or pass a headless credential to the run, e.g."
+          echo "  bld run dev/implementation.yaml -e CLAUDE_CODE_OAUTH_TOKEN=\$(claude setup-token)"
+        fi
+        exit 1
+      fi
+
+      # Only a completed run leaves a resumable session behind.
+      jq -r '.session_id' "$result_file" > "$session_file"

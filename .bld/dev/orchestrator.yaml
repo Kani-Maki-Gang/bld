@@ -1,0 +1,174 @@
+version: 3
+type: pipeline
+
+name: Development workflow orchestrator
+
+inputs:
+  project_owner:
+    description: Owner (org or user) of the GitHub project to query
+    required: false
+    default: Kani-Maki-Gang
+  project_number:
+    description: GitHub project number to query
+    required: false
+    default: "7"
+  repo:
+    description: Repository the project items are issues of, in owner/name form
+    default: Kani-Maki-Gang/bld
+    required: false
+  ready_status_field:
+    description: Project field name that marks an item ready for development
+    default: Status
+    required: false
+  ready_status_value:
+    description: Field value that marks an item ready for development
+    default: Ready
+    required: false
+  worktree_root:
+    description: >-
+      Directory under which per-item git worktrees are created. Defaults to
+      <project dir>/../worktrees/bld, resolved by the fetch step below - input
+      defaults are used verbatim by the runner, so an expression cannot be put here.
+    default: ""
+    required: false
+
+jobs:
+  dispatch:
+    runs_on: machine
+    steps:
+      - id: fetch
+        name: Fetch items ready for development
+        run: |
+          set -euo pipefail
+
+          field="$(echo "${{ inputs.ready_status_field }}" | tr '[:upper:]' '[:lower:]')"
+          value="${{ inputs.ready_status_value }}"
+
+          items="$(gh project item-list ${{ inputs.project_number }} --owner ${{ inputs.project_owner }} --format json --limit 200 \
+            | jq -c --arg field "$field" --arg value "$value" \
+                '[.items[] | select((.[$field] // "") == $value) | (.content.number // empty)]')"
+
+          # A matrix expression must resolve to a non-empty array (see
+          # strategy/v3.rs), so fail with a clear message rather than a cryptic
+          # matrix error when nothing is ready for development.
+          if [ "$items" = "[]" ] || [ -z "$items" ]; then
+            echo "No items in '${{ inputs.ready_status_value }}' status - nothing to implement."
+            exit 1
+          fi
+
+          echo "items=$items" >> $BLD_OUTPUTS
+          # Host paths bind-mounted into the implementation container so Claude Code
+          # and the GitHub CLI are authenticated inside it.
+          if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
+            claude_dir="$CLAUDE_CONFIG_DIR"
+            claude_config_file="$CLAUDE_CONFIG_DIR/.claude.json"
+          else
+            claude_dir="$HOME/.claude"
+            claude_config_file="$HOME/.claude.json"
+          fi
+
+          # Both paths are bind mount sources, so bail out instead of letting the
+          # container engine create an empty directory in their place.
+          for path in "$claude_dir" "$claude_config_file"; do
+            if [ ! -e "$path" ]; then
+              echo "Expected Claude Code path $path does not exist - run claude once on this machine first."
+              exit 1
+            fi
+          done
+
+          echo "claude_dir=$claude_dir" >> $BLD_OUTPUTS
+          echo "claude_config_file=$claude_config_file" >> $BLD_OUTPUTS
+          echo "gh_config_dir=${GH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/gh}" >> $BLD_OUTPUTS
+
+          # Resolved here rather than as an input default: defaults are taken
+          # verbatim, so an expression in one would reach the shell unevaluated.
+          worktree_root="${{ inputs.worktree_root }}"
+          if [ -z "$worktree_root" ]; then
+            worktree_root="${{ bld_project_dir }}/../worktrees/bld"
+          fi
+          worktree_root="$(realpath -m "$worktree_root")"
+          echo "worktree_root=$worktree_root" >> $BLD_OUTPUTS
+          echo "Worktrees under $worktree_root"
+
+      - id: branch
+        name: Create branch and worktree per item
+        uses: actions/git-worktree.yaml
+        strategy:
+          fail_fast: false
+          matrix:
+            item: ${{ steps.fetch.outputs.items }}
+        with:
+          item: ${{ matrix.item }}
+          worktree_root: ${{ steps.fetch.outputs.worktree_root }}
+          repo_dir: ${{ bld_project_dir }}
+
+      - id: issue
+        name: Write each item's issue content into its worktree
+        strategy:
+          fail_fast: false
+          matrix:
+            item: ${{ steps.fetch.outputs.items }}
+        working_dir: ${{ steps.fetch.outputs.worktree_root }}/item-${{ matrix.item }}
+        run: |
+          set -euo pipefail
+
+          # The issue is fetched here, on the machine, rather than by the agents in
+          # the container: the host keeps its GitHub token in the OS keyring, which
+          # the mounted gh config directory does not carry, so gh is not
+          # authenticated inside the container.
+          gh issue view ${{ matrix.item }} --repo ${{ inputs.repo }} \
+            --json number,title,body,labels,url \
+            | jq -r '"# Issue #\(.number): \(.title)\n\nURL: \(.url)\nLabels: \([.labels[].name] | join(", "))\n\n\(.body)"' \
+            > .bld_issue.md
+
+          echo "Item ${{ matrix.item }}: wrote $(wc -l < .bld_issue.md) lines of issue content to .bld_issue.md"
+
+      - id: implement
+        name: Run the implementation pipeline per item
+        uses: dev/implementation.yaml
+        strategy:
+          fail_fast: false
+          matrix:
+            item: ${{ steps.fetch.outputs.items }}
+        with:
+          item: ${{ matrix.item }}
+          branch: item-${{ matrix.item }}
+          worktree_dir: ${{ steps.fetch.outputs.worktree_root }}/item-${{ matrix.item }}
+          repo_dir: ${{ bld_project_dir }}
+          claude_dir: ${{ steps.fetch.outputs.claude_dir }}
+          claude_config_file: ${{ steps.fetch.outputs.claude_config_file }}
+          gh_config_dir: ${{ steps.fetch.outputs.gh_config_dir }}
+
+      - id: commit
+        name: Commit and push each item's changes
+        strategy:
+          fail_fast: false
+          matrix:
+            item: ${{ steps.fetch.outputs.items }}
+        working_dir: ${{ steps.fetch.outputs.worktree_root }}/item-${{ matrix.item }}
+        run: |
+          set -euo pipefail
+
+          status_file=".bld_review_status"
+          branch="item-${{ matrix.item }}"
+
+          if [ ! -f "$status_file" ] || ! grep -q '^OK' "$status_file"; then
+            echo "Item ${{ matrix.item }}: review did not confirm OK, skipping commit."
+            echo "Review status:"
+            cat "$status_file" 2>/dev/null || echo "(no .bld_review_status file found)"
+            exit 0
+          fi
+
+          # Exclude bld's own worktree helper files (.bld_claude_session_*,
+          # .bld_last_output_*.md, .bld_review_status) from the commit.
+          git add -A -- . ':!.bld_*'
+          if git diff --cached --quiet; then
+            echo "Item ${{ matrix.item }}: no changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Implement item ${{ matrix.item }}"
+
+          echo "Item ${{ matrix.item }}: committed on $branch."
+          echo "Push it once an engineer has looked at the branch:"
+          echo "  git -C \"$(pwd)\" push -u origin $branch"
