@@ -7,13 +7,14 @@ use bld_pkg::PackageManager;
 use bld_utils::sync::IntoArc;
 
 use crate::{
-    expr::v3::{context::CommonReadonlyRuntimeExprContext, startup::resolve_start_of_run_context},
+    expr::v3::context::{
+        CommonReadonlyRuntimeExprContext, CommonReadonlyRuntimeExprContextOptions, expr_rctx,
+    },
     files::v3::RunnerFile,
-    inputs::v3::Input,
     validator::v3::ValidatorWritableRuntimeExprContext,
 };
 
-use super::{CommonValidator, ConsumeValidator, input_placeholders};
+use super::{CommonValidator, ConsumeValidator, EMPTY_ENV, input_placeholders};
 
 pub struct RunnerFileValidator<'a> {
     file: &'a RunnerFile,
@@ -53,24 +54,31 @@ impl<'a> RunnerFileValidator<'a> {
     }
 
     fn expr_rctx(file: &RunnerFile, config: Arc<BldConfig>) -> CommonReadonlyRuntimeExprContext {
-        let supplied = |inputs: &HashMap<String, Input>| CommonReadonlyRuntimeExprContext {
-            config: config.clone(),
-            inputs: input_placeholders(inputs).into_arc(),
-            ..Default::default()
-        };
         let resolved = match file {
-            RunnerFile::PipelineFileType(pipeline) => resolve_start_of_run_context(
-                pipeline.as_ref(),
-                &pipeline.inputs,
-                &pipeline.env,
-                supplied(&pipeline.inputs),
-            ),
-            RunnerFile::ActionFileType(action) => resolve_start_of_run_context(
-                action.as_ref(),
-                &action.inputs,
-                &HashMap::new(),
-                supplied(&action.inputs),
-            ),
+            RunnerFile::PipelineFileType(pipeline) => {
+                expr_rctx(CommonReadonlyRuntimeExprContextOptions {
+                    obj: pipeline.as_ref(),
+                    config: config.clone(),
+                    inputs: input_placeholders(&pipeline.inputs).into_arc(),
+                    declared_inputs: &pipeline.inputs,
+                    env: HashMap::new().into_arc(),
+                    declared_env: &pipeline.env,
+                    run_id: String::new(),
+                    run_start_time: String::new(),
+                })
+            }
+            RunnerFile::ActionFileType(action) => {
+                expr_rctx(CommonReadonlyRuntimeExprContextOptions {
+                    obj: action.as_ref(),
+                    config: config.clone(),
+                    inputs: input_placeholders(&action.inputs).into_arc(),
+                    declared_inputs: &action.inputs,
+                    env: HashMap::new().into_arc(),
+                    declared_env: &EMPTY_ENV,
+                    run_id: String::new(),
+                    run_start_time: String::new(),
+                })
+            }
         };
 
         resolved.unwrap_or_else(|_| {

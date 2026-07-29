@@ -8,7 +8,6 @@ use anyhow::{Result, anyhow, bail};
 use pest::{Parser, iterators::Pair};
 use regex::Regex;
 
-/// Replaces every `${{ ... }}` occurrence found in `value` with its evaluated result.
 pub fn eval_all_expressions<'a, E: EvalExpr<'a>>(
     exec: &E,
     regex: &Regex,

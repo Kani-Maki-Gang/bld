@@ -10,10 +10,12 @@ use tracing::debug;
 
 use crate::{
     expr::v3::{
-        context::{CommonReadonlyRuntimeExprContext, START_OF_RUN_WCTX},
+        context::{
+            CommonReadonlyRuntimeExprContext, CommonReadonlyRuntimeExprContextOptions,
+            START_OF_RUN_WCTX, expr_rctx,
+        },
         exec::CommonExprExecutor,
         parser,
-        startup::resolve_start_of_run_context,
         traits::{EvalExpr, EvalObject, ExprValue, WritableRuntimeExprContext},
     },
     inputs::v3::Input,
@@ -249,16 +251,16 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for Comm
         inputs: &'a HashMap<String, Input>,
         env: &'a HashMap<String, String>,
     ) {
-        let result = resolve_start_of_run_context(
-            self.validatable,
-            inputs,
-            env,
-            CommonReadonlyRuntimeExprContext {
-                config: self.config.clone(),
-                inputs: input_placeholders(inputs).into_arc(),
-                ..Default::default()
-            },
-        );
+        let result = expr_rctx(CommonReadonlyRuntimeExprContextOptions {
+            obj: self.validatable,
+            config: self.config.clone(),
+            inputs: input_placeholders(inputs).into_arc(),
+            declared_inputs: inputs,
+            env: HashMap::new().into_arc(),
+            declared_env: env,
+            run_id: String::new(),
+            run_start_time: String::new(),
+        });
 
         if let Err(e) = result {
             self.append_error(&format!("{e:#}"));

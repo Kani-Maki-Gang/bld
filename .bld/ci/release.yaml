@@ -16,7 +16,7 @@ jobs:
       exec:
         - rm -r ${{ bld_project_dir }}/dist || true
 
-    - ext: pipelines/build.yaml
+    - ext: ci/build.yaml
 
     - name: Create tarball for linux
       working_dir: ${{ bld_project_dir }}/dist
