@@ -19,10 +19,10 @@ use {
                 WritableRuntimeExprContext,
             },
         },
-        validator::v3::{Validate, ValidatorContext},
+        validator::v3::{ExprScope, Validate, ValidatorContext},
     },
     anyhow::Result,
-    bld_config::{DockerUrl, SshUserAuth},
+    bld_config::{DockerUrl, RegistryConfig, SshUserAuth},
     pest::iterators::Pairs,
 };
 
@@ -94,6 +94,99 @@ impl RunsOn {
             } => config.username.as_deref(),
             _ => None,
         }
+    }
+
+    pub fn volumes(&self) -> &[String] {
+        match self {
+            RunsOn::Pull { volumes, .. } | RunsOn::Build { volumes, .. } => volumes,
+            _ => &[],
+        }
+    }
+
+    /// Returns a copy of the current instance with every expression replaced by its value.
+    /// All of the fields here are consumed when the platform of a job is built, before any
+    /// step has run, so `eval` is expected to only support the start of run expressions.
+    #[cfg(feature = "all")]
+    pub fn resolve<F: Fn(&str) -> Result<String>>(&self, eval: F) -> Result<Self> {
+        let eval_opt = |value: &Option<String>| -> Result<Option<String>> {
+            value.as_deref().map(&eval).transpose()
+        };
+        let eval_all =
+            |values: &[String]| -> Result<Vec<String>> { values.iter().map(|x| eval(x)).collect() };
+
+        let value = match self {
+            Self::ContainerOrMachine(image) => Self::ContainerOrMachine(eval(image)?),
+
+            Self::Pull {
+                image,
+                registry,
+                pull,
+                docker_url,
+                volumes,
+            } => Self::Pull {
+                image: eval(image)?,
+                registry: registry.as_ref().map(|x| x.resolve(&eval)).transpose()?,
+                pull: *pull,
+                docker_url: eval_opt(docker_url)?,
+                volumes: eval_all(volumes)?,
+            },
+
+            Self::Build {
+                name,
+                tag,
+                dockerfile,
+                docker_url,
+                volumes,
+            } => Self::Build {
+                name: eval(name)?,
+                tag: eval(tag)?,
+                dockerfile: eval(dockerfile)?,
+                docker_url: eval_opt(docker_url)?,
+                volumes: eval_all(volumes)?,
+            },
+
+            Self::Ssh(config) => Self::Ssh(SshConfig {
+                host: eval(&config.host)?,
+                port: eval(&config.port)?,
+                user: eval(&config.user)?,
+                userauth: match &config.userauth {
+                    SshUserAuth::Agent => SshUserAuth::Agent,
+                    SshUserAuth::Password { password } => SshUserAuth::Password {
+                        password: eval(password)?,
+                    },
+                    SshUserAuth::Keys {
+                        public_key,
+                        private_key,
+                    } => SshUserAuth::Keys {
+                        public_key: eval_opt(public_key)?,
+                        private_key: eval(private_key)?,
+                    },
+                },
+            }),
+
+            Self::SshFromGlobalConfig { ssh_config } => Self::SshFromGlobalConfig {
+                ssh_config: eval(ssh_config)?,
+            },
+        };
+
+        Ok(value)
+    }
+}
+
+#[cfg(feature = "all")]
+impl Registry {
+    fn resolve<F: Fn(&str) -> Result<String>>(&self, eval: F) -> Result<Self> {
+        let value = match self {
+            Self::FromConfig(config) => Self::FromConfig(eval(config)?),
+
+            Self::Full(config) => Self::Full(RegistryConfig {
+                url: eval(&config.url)?,
+                username: config.username.as_deref().map(&eval).transpose()?,
+                password: config.password.as_deref().map(&eval).transpose()?,
+            }),
+        };
+
+        Ok(value)
     }
 }
 
@@ -297,15 +390,15 @@ impl<'a> Validate<'a> for RunsOn {
                 volumes,
             } => {
                 ctx.push_section("name");
-                ctx.validate_expressions(name);
+                ctx.validate_expressions(name, ExprScope::StartOfRun);
                 ctx.pop_section();
 
                 ctx.push_section("tag");
-                ctx.validate_expressions(tag);
+                ctx.validate_expressions(tag, ExprScope::StartOfRun);
                 ctx.pop_section();
 
                 ctx.push_section("dockerfile");
-                ctx.validate_expressions(dockerfile);
+                ctx.validate_expressions(dockerfile, ExprScope::StartOfRun);
                 ctx.validate_file_path(dockerfile);
                 ctx.pop_section();
 
@@ -324,7 +417,7 @@ impl<'a> Validate<'a> for RunsOn {
                 volumes,
             } => {
                 ctx.push_section("image");
-                ctx.validate_expressions(image);
+                ctx.validate_expressions(image, ExprScope::StartOfRun);
                 ctx.pop_section();
 
                 if let Some(docker_url) = docker_url {
@@ -337,7 +430,9 @@ impl<'a> Validate<'a> for RunsOn {
                 validate_volumes(ctx, volumes);
             }
 
-            RunsOn::ContainerOrMachine(value) => ctx.validate_expressions(value),
+            RunsOn::ContainerOrMachine(value) => {
+                ctx.validate_expressions(value, ExprScope::StartOfRun)
+            }
 
             RunsOn::SshFromGlobalConfig { ssh_config } => {
                 validate_global_ssh_config(ctx, ssh_config);
@@ -345,12 +440,12 @@ impl<'a> Validate<'a> for RunsOn {
 
             RunsOn::Ssh(config) => {
                 ctx.push_section("host");
-                ctx.validate_expressions(&config.host);
+                ctx.validate_expressions(&config.host, ExprScope::StartOfRun);
                 ctx.pop_section();
 
                 ctx.push_section("port");
                 if ctx.contains_expressions(&config.port) {
-                    ctx.validate_expressions(&config.port);
+                    ctx.validate_expressions(&config.port, ExprScope::StartOfRun);
                 } else if config.port.parse::<u16>().is_err() {
                     ctx.append_error(&format!(
                         "'{}' is not a valid port number (must be 0-65535)",
@@ -360,7 +455,7 @@ impl<'a> Validate<'a> for RunsOn {
                 ctx.pop_section();
 
                 ctx.push_section("user");
-                ctx.validate_expressions(&config.user);
+                ctx.validate_expressions(&config.user, ExprScope::StartOfRun);
                 ctx.pop_section();
 
                 ctx.push_section("auth");
@@ -373,20 +468,20 @@ impl<'a> Validate<'a> for RunsOn {
                     } => {
                         if let Some(pubkey) = public_key {
                             ctx.push_section("public_key");
-                            ctx.validate_expressions(pubkey);
+                            ctx.validate_expressions(pubkey, ExprScope::StartOfRun);
                             ctx.validate_file_path(pubkey);
                             ctx.pop_section();
                         }
 
                         ctx.push_section("private_key");
-                        ctx.validate_expressions(private_key);
+                        ctx.validate_expressions(private_key, ExprScope::StartOfRun);
                         ctx.validate_file_path(private_key);
                         ctx.pop_section();
                     }
 
                     SshUserAuth::Password { password } => {
                         ctx.push_section("password");
-                        ctx.validate_expressions(password);
+                        ctx.validate_expressions(password, ExprScope::StartOfRun);
                         ctx.pop_section();
                     }
                 }
@@ -401,7 +496,7 @@ fn validate_volumes<'a, C: ValidatorContext<'a>>(ctx: &mut C, volumes: &'a [Stri
     ctx.push_section("volumes");
 
     for volume in volumes {
-        ctx.validate_expressions(volume);
+        ctx.validate_expressions(volume, ExprScope::StartOfRun);
 
         // A volume entry must be of the form `host_path:container_path` (optionally
         // followed by `:ro`/`:rw` etc.). We only check that a separator is present;
@@ -421,7 +516,7 @@ fn validate_docker_url<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &'a str)
     ctx.push_section("docker_url");
 
     if ctx.contains_expressions(value) {
-        ctx.validate_expressions(value);
+        ctx.validate_expressions(value, ExprScope::StartOfRun);
     } else {
         let config = ctx.get_config();
         match &config.local.docker_url {
@@ -450,18 +545,18 @@ fn validate_registry<'a, C: ValidatorContext<'a>>(ctx: &mut C, registry: &'a Reg
         }
         Registry::Full(config) => {
             ctx.push_section("url");
-            ctx.validate_expressions(&config.url);
+            ctx.validate_expressions(&config.url, ExprScope::StartOfRun);
             ctx.pop_section();
 
             if let Some(username) = &config.username {
                 ctx.push_section("username");
-                ctx.validate_expressions(username);
+                ctx.validate_expressions(username, ExprScope::StartOfRun);
                 ctx.pop_section();
             }
 
             if let Some(password) = &config.password {
                 ctx.push_section("password");
-                ctx.validate_expressions(password);
+                ctx.validate_expressions(password, ExprScope::StartOfRun);
                 ctx.pop_section();
             }
         }
@@ -473,7 +568,7 @@ fn validate_registry<'a, C: ValidatorContext<'a>>(ctx: &mut C, registry: &'a Reg
 #[cfg(feature = "all")]
 fn validate_global_registry_config<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &'a str) {
     if ctx.contains_expressions(value) {
-        ctx.validate_expressions(value);
+        ctx.validate_expressions(value, ExprScope::StartOfRun);
     } else {
         let config = ctx.get_config();
         if config.registry(value).is_none() {
@@ -487,7 +582,7 @@ fn validate_global_ssh_config<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &
     ctx.push_section("ssh_config");
 
     if ctx.contains_expressions(value) {
-        ctx.validate_expressions(value);
+        ctx.validate_expressions(value, ExprScope::StartOfRun);
     } else {
         let config = ctx.get_config();
         if let Err(e) = config.ssh(value) {
@@ -500,7 +595,10 @@ fn validate_global_ssh_config<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &
 
 #[cfg(test)]
 mod tests {
-    use bld_config::{SshConfig, SshUserAuth};
+    use bld_config::{BldConfig, SshConfig, SshUserAuth};
+    use bld_core::fs::FileSystem;
+    use bld_pkg::PackageManager;
+    use bld_utils::sync::IntoArc;
 
     use crate::{
         expr::v3::{
@@ -511,9 +609,85 @@ mod tests {
         job::v3::Job,
         pipeline::v3::Pipeline,
         registry::v3::Registry,
+        step::v3::{ShellCommand, Step},
+        validator::v3::{CommonValidator, ConsumeValidator, ValidatorWritableRuntimeExprContext},
     };
 
     use super::RunsOn;
+
+    async fn validate_runs_on(runs_on: RunsOn) -> anyhow::Result<()> {
+        let job_name = "main";
+        let config = BldConfig::default().into_arc();
+        let file_system = FileSystem::local(config.clone()).into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default();
+        let expr_wctx = vec![ValidatorWritableRuntimeExprContext::new(job_name)];
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            job_name.to_string(),
+            Job {
+                runs_on,
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "build".to_string(),
+                    run: "echo hello".to_string(),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+
+        CommonValidator::new(
+            &pipeline,
+            config,
+            file_system,
+            package_manager,
+            &expr_rctx,
+            &expr_wctx,
+        )
+        .unwrap()
+        .validate()
+        .await
+    }
+
+    #[tokio::test]
+    pub async fn runs_on_with_runtime_expr_validation_failure() {
+        let data = vec![
+            RunsOn::ContainerOrMachine("${{ steps.build.outputs.image }}".to_string()),
+            RunsOn::Pull {
+                image: "${{ matrix.image }}".to_string(),
+                registry: None,
+                pull: Some(true),
+                docker_url: None,
+                volumes: vec![],
+            },
+            RunsOn::Pull {
+                image: "ubuntu:22.04".to_string(),
+                registry: None,
+                pull: Some(true),
+                docker_url: None,
+                volumes: vec!["${{ matrix.dir }}:/work".to_string()],
+            },
+            RunsOn::Build {
+                name: "${{ steps.build.outputs.name }}".to_string(),
+                tag: "latest".to_string(),
+                dockerfile: "Dockerfile".to_string(),
+                docker_url: None,
+                volumes: vec![],
+            },
+        ];
+
+        for runs_on in data {
+            let Err(e) = validate_runs_on(runs_on).await else {
+                panic!("expected a validation error for a runtime expression");
+            };
+            assert!(
+                e.to_string()
+                    .contains("is not available at the start of a run"),
+                "{e}"
+            );
+        }
+    }
 
     #[test]
     pub fn runs_on_pull_deserializes_volumes() {

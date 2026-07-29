@@ -1,7 +1,43 @@
-use super::traits::ReadonlyRuntimeExprContext;
-use anyhow::{Result, anyhow};
+use super::traits::{ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext};
+use anyhow::{Error, Result, anyhow};
 use bld_config::BldConfig;
+use bld_config::definitions::{
+    KEYWORD_BLD_DIR_V3, KEYWORD_PROJECT_DIR_V3, KEYWORD_RUN_PROPS_ID_V3,
+    KEYWORD_RUN_PROPS_START_TIME_V3,
+};
 use std::{collections::HashMap, sync::Arc};
+
+pub struct StartOfRunWritableExprContext;
+
+pub static START_OF_RUN_WCTX: StartOfRunWritableExprContext = StartOfRunWritableExprContext;
+
+pub fn out_of_scope(symbol: &str) -> Error {
+    anyhow!(
+        "'{symbol}' is not available at the start of a run, only inputs, env, {KEYWORD_BLD_DIR_V3}, {KEYWORD_PROJECT_DIR_V3}, {KEYWORD_RUN_PROPS_ID_V3} and {KEYWORD_RUN_PROPS_START_TIME_V3} can be used here"
+    )
+}
+
+impl WritableRuntimeExprContext for StartOfRunWritableExprContext {
+    fn get_exec_id(&self) -> Option<&str> {
+        None
+    }
+
+    fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<ExprValue<'a>> {
+        Err(out_of_scope(&format!("steps.{id}.outputs.{name}")))
+    }
+
+    fn set_output(&mut self, _id: &str, name: String, _value: String) -> Result<()> {
+        Err(out_of_scope(&format!("outputs.{name}")))
+    }
+
+    fn set_outputs(&mut self, _id: &str, _outputs: HashMap<String, String>) -> Result<()> {
+        Err(out_of_scope("outputs"))
+    }
+
+    fn get_matrix_value<'a>(&'a self, name: &str) -> Result<&'a str> {
+        Err(out_of_scope(&format!("matrix.{name}")))
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct CommonReadonlyRuntimeExprContext {

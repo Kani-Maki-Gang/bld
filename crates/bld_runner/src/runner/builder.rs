@@ -288,13 +288,18 @@ impl<'a> RunnerBuilder<'a> {
 
                 let pipeline = (*pipeline).into_arc();
 
-                let expr_rctx = expr::v3::context::CommonReadonlyRuntimeExprContext::new(
-                    config.clone(),
-                    inputs,
-                    env,
-                    self.run_id,
-                    self.run_start_time,
-                )
+                let expr_rctx = expr::v3::startup::resolve_start_of_run_context(
+                    pipeline.as_ref(),
+                    &pipeline.inputs,
+                    &pipeline.env,
+                    expr::v3::context::CommonReadonlyRuntimeExprContext::new(
+                        config.clone(),
+                        inputs,
+                        env,
+                        self.run_id,
+                        self.run_start_time,
+                    ),
+                )?
                 .into_arc();
 
                 let expr_regex = Regex::new(expr::v3::parser::EXPR_REGEX)?.into_arc();
@@ -326,13 +331,18 @@ impl<'a> RunnerBuilder<'a> {
 
                 let expr_regex = Regex::new(expr::v3::parser::EXPR_REGEX)?;
 
-                let expr_rctx = expr::v3::context::CommonReadonlyRuntimeExprContext::new(
-                    config.clone(),
-                    inputs,
-                    env,
-                    self.run_id,
-                    self.run_start_time,
-                );
+                let expr_rctx = expr::v3::startup::resolve_start_of_run_context(
+                    action.as_ref(),
+                    &action.inputs,
+                    &HashMap::new(),
+                    expr::v3::context::CommonReadonlyRuntimeExprContext::new(
+                        config.clone(),
+                        inputs,
+                        env,
+                        self.run_id,
+                        self.run_start_time,
+                    ),
+                )?;
 
                 let platform = self
                     .platform

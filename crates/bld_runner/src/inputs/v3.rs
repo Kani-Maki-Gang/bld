@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "all")]
 use {
-    crate::validator::v3::{Validate, ValidatorContext},
+    crate::validator::v3::{ExprScope, Validate, ValidatorContext},
     anyhow::{Error, Result, anyhow},
     tracing::debug,
 };
@@ -23,6 +23,13 @@ impl Input {
         match self {
             Input::Simple(_) => false,
             Input::Complex { required, .. } => *required,
+        }
+    }
+
+    pub fn default_value(&self) -> Option<&str> {
+        match self {
+            Input::Simple(v) => Some(v),
+            Input::Complex { default, .. } => default.as_deref(),
         }
     }
 }
@@ -47,12 +54,12 @@ impl<'a> Validate<'a> for Input {
         match self {
             Input::Simple(v) => {
                 debug!("Validating input: {}", v);
-                ctx.validate_expressions(v);
+                ctx.validate_expressions(v, ExprScope::StartOfRun);
             }
             Input::Complex { default, .. } => {
                 if let Some(v) = default {
                     ctx.push_section("default");
-                    ctx.validate_expressions(v);
+                    ctx.validate_expressions(v, ExprScope::StartOfRun);
                     ctx.pop_section();
                 }
             }

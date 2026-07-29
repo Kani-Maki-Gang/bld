@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 #[cfg(feature = "all")]
 use {
-    crate::validator::v3::{Validate, ValidatorContext},
+    crate::validator::v3::{ExprScope, Validate, ValidatorContext},
     bld_core::artifacts::validate_artifact_name,
     tracing::debug,
 };
@@ -39,7 +39,7 @@ impl<'a> Validate<'a> for UploadArtifact {
 
         debug!("Validating artifact's upload");
         ctx.push_section("upload");
-        ctx.validate_expressions(&self.upload);
+        ctx.validate_expressions(&self.upload, ExprScope::Runtime);
         ctx.pop_section();
 
         debug!("Validating artifact's name");

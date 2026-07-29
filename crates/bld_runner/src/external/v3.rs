@@ -14,7 +14,7 @@ use {
                 WritableRuntimeExprContext,
             },
         },
-        validator::v3::{Validate, ValidatorContext},
+        validator::v3::{ExprScope, Validate, ValidatorContext},
     },
     anyhow::{Result, bail},
     pest::iterators::Pairs,
@@ -107,7 +107,7 @@ impl<'a> Validate<'a> for External {
         if let Some(name) = self.name.as_deref() {
             debug!("Validating external's name value");
             ctx.push_section("name");
-            ctx.validate_expressions(name);
+            ctx.validate_expressions(name, ExprScope::Runtime);
             ctx.pop_section();
         };
 
@@ -128,7 +128,7 @@ impl<'a> Validate<'a> for External {
 
         debug!("Validating external's env section");
         ctx.push_section("env");
-        ctx.validate_env(&self.env);
+        ctx.validate_env(&self.env, ExprScope::Runtime);
         ctx.pop_section();
     }
 }
@@ -138,7 +138,7 @@ async fn validate_external_file<'a, C: ValidatorContext<'a>>(ctx: &mut C, uses: 
     use crate::VersionedFileLoader;
 
     if ctx.contains_expressions(uses) {
-        ctx.validate_expressions(uses);
+        ctx.validate_expressions(uses, ExprScope::Runtime);
         return;
     }
 
@@ -159,7 +159,7 @@ fn validate_external_server<'a, C: ValidatorContext<'a>>(ctx: &mut C, server: Op
     };
 
     if ctx.contains_expressions(server) {
-        ctx.validate_expressions(server);
+        ctx.validate_expressions(server, ExprScope::Runtime);
     } else {
         let config = ctx.get_config();
         if config.server(server).is_err() {
@@ -205,7 +205,7 @@ async fn validate_external_with<'a, C: ValidatorContext<'a>>(
     for (name, input) in with.iter() {
         debug!("Validating input: {}", name);
         ctx.push_section(name);
-        ctx.validate_expressions(input);
+        ctx.validate_expressions(input, ExprScope::Runtime);
         ctx.pop_section();
     }
 }

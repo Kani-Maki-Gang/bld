@@ -12,16 +12,15 @@ use {
     crate::{
         deps::v3::{Dependencies, Dependency},
         expr::v3::{
-            exec::eval_nested_expressions,
             parser::Rule,
             traits::{
                 EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext,
                 WritableRuntimeExprContext,
             },
         },
-        validator::v3::{Validate, ValidatorContext},
+        validator::v3::{EMPTY_ENV, ExprScope, Validate, ValidatorContext},
     },
-    anyhow::{Result, anyhow, bail},
+    anyhow::{Result, bail},
     bld_config::definitions::{
         KEYWORD_BLD_DIR_V3, KEYWORD_PROJECT_DIR_V3, KEYWORD_RUN_PROPS_ID_V3,
         KEYWORD_RUN_PROPS_START_TIME_V3,
@@ -151,18 +150,10 @@ impl<'a> EvalObject<'a> for Action {
                 };
                 let name = part.as_span().as_str();
 
-                if let Ok(value) = rctx.get_input(name) {
-                    return Ok(ExprValue::Text(ExprText::Ref(value)));
-                }
-
-                let default: &str = self
-                    .inputs
-                    .get(name)
-                    .ok_or_else(|| anyhow!("input '{name}' not found"))
-                    .and_then(|x| x.try_into())?;
-
-                let evaluated = eval_nested_expressions(self, rctx, wctx, default)?;
-                Ok(ExprValue::Text(evaluated))
+                // Inputs are resolved into the readonly context before the run starts, so
+                // it is the only place holding their values.
+                rctx.get_input(name)
+                    .map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
             "matrix" => {
@@ -216,7 +207,7 @@ impl<'a> Validate<'a> for Action {
 
         debug!("Validating action's name value");
         ctx.push_section("name");
-        ctx.validate_expressions(&self.name);
+        ctx.validate_expressions(&self.name, ExprScope::StartOfRun);
         ctx.pop_section();
 
         debug!("Validating action's inputs section");
@@ -228,6 +219,9 @@ impl<'a> Validate<'a> for Action {
             ctx.pop_section();
         }
         ctx.pop_section();
+
+        debug!("Validating that the action's inputs can be resolved");
+        ctx.validate_start_of_run_values(&self.inputs, &EMPTY_ENV);
 
         debug!("Validating action's steps");
         ctx.push_section("steps");
@@ -256,13 +250,10 @@ mod tests {
 
     use bld_utils::sync::IntoArc;
 
-    use crate::{
-        expr::v3::{
-            context::CommonReadonlyRuntimeExprContext,
-            exec::CommonExprExecutor,
-            traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext},
-        },
-        inputs::v3::Input,
+    use crate::expr::v3::{
+        context::CommonReadonlyRuntimeExprContext,
+        exec::CommonExprExecutor,
+        traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext},
     };
 
     use super::Action;
@@ -321,85 +312,6 @@ mod tests {
                 Ok(ExprValue::Boolean(true))
             ));
         }
-    }
-
-    #[test]
-    pub fn inputs_expr_eval_success() {
-        let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut action = Action::default();
-        action
-            .inputs
-            .insert("name".to_string(), Input::Simple("john".to_string()));
-        action
-            .inputs
-            .insert("surname".to_string(), Input::Simple("doe".to_string()));
-        action
-            .inputs
-            .insert("age".to_string(), Input::Simple("30".to_string()));
-        action.inputs.insert(
-            "address".to_string(),
-            Input::Complex {
-                default: Some("highway".to_string()),
-                description: None,
-                required: false,
-            },
-        );
-        action.inputs.insert(
-            "taxId".to_string(),
-            Input::Complex {
-                default: Some("999999999".to_string()),
-                description: Some("a test input".to_string()),
-                required: true,
-            },
-        );
-
-        let exec = CommonExprExecutor::new(&action, &rctx, &wctx);
-
-        for (k, v) in &action.inputs {
-            let expr = format!("{} inputs.{k} {}", "${{", "}}");
-            let Ok(value) = exec.eval(&expr) else {
-                panic!("result is an error during expression evaluation");
-            };
-            let expected = match v {
-                Input::Simple(value) => ExprValue::Text(ExprText::Ref(value)),
-                Input::Complex {
-                    default: Some(default),
-                    ..
-                } => ExprValue::Text(ExprText::Ref(default)),
-                _ => panic!("no value defined"),
-            };
-            assert!(matches!(
-                value.try_eq(&expected),
-                Ok(ExprValue::Boolean(true))
-            ));
-        }
-    }
-
-    #[test]
-    pub fn inputs_default_with_expr_eval_success() {
-        let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut action = Action::default();
-        action.inputs.insert(
-            "greeting".to_string(),
-            Input::Complex {
-                default: Some("hello ${{ inputs.name }}".to_string()),
-                description: None,
-                required: false,
-            },
-        );
-        action
-            .inputs
-            .insert("name".to_string(), Input::Simple("john".to_string()));
-
-        let exec = CommonExprExecutor::new(&action, &rctx, &wctx);
-
-        let actual = exec.eval("${{ inputs.greeting }}").unwrap();
-        assert!(matches!(
-            actual.try_eq(&ExprValue::Text(ExprText::Owned("hello john".to_string()))),
-            Ok(ExprValue::Boolean(true))
-        ));
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use crate::expr::v3::parser::{EXPR_REGEX, ExprParser, Rule};
+use crate::expr::v3::parser::{ExprParser, Rule};
 
 use super::traits::{
     EvalExpr, EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext,
@@ -7,76 +7,20 @@ use super::traits::{
 use anyhow::{Result, anyhow, bail};
 use pest::{Parser, iterators::Pair};
 use regex::Regex;
-use std::{cell::Cell, sync::LazyLock};
-
-static EXPR_MATCHER: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(EXPR_REGEX).expect("expr regex is valid"));
-
-/// Nesting an expression inside a value that is itself the result of an expression can
-/// cycle, e.g. an input default of `${{ inputs.x }}` for the input `x`. Evaluation is
-/// synchronous so a thread local depth counter is enough to break such cycles with an
-/// error instead of letting them overflow the stack.
-const MAX_NESTED_EXPR_DEPTH: usize = 32;
-
-thread_local! {
-    static NESTED_EXPR_DEPTH: Cell<usize> = const { Cell::new(0) };
-}
-
-struct NestedExprDepthGuard;
-
-impl NestedExprDepthGuard {
-    fn enter() -> Result<Self> {
-        let depth = NESTED_EXPR_DEPTH.with(|depth| {
-            depth.set(depth.get() + 1);
-            depth.get()
-        });
-
-        if depth > MAX_NESTED_EXPR_DEPTH {
-            NESTED_EXPR_DEPTH.with(|depth| depth.set(depth.get() - 1));
-            bail!(
-                "maximum nested expression depth of {MAX_NESTED_EXPR_DEPTH} exceeded, check for cyclic references between values such as input defaults"
-            );
-        }
-
-        Ok(Self)
-    }
-}
-
-impl Drop for NestedExprDepthGuard {
-    fn drop(&mut self) {
-        NESTED_EXPR_DEPTH.with(|depth| depth.set(depth.get() - 1));
-    }
-}
 
 /// Replaces every `${{ ... }}` occurrence found in `value` with its evaluated result.
-/// Used to resolve expressions nested inside another expression's resolved value, such
-/// as an input's default containing `${{ bld_project_dir }}`. Values without any
-/// embedded expression are returned as a `Ref` so callers that rely on borrowing the
-/// original text (e.g. indexing into an array literal default) keep working.
-pub fn eval_nested_expressions<'a, T, RCtx, WCtx>(
-    obj: &'a T,
-    rctx: &'a RCtx,
-    wctx: &'a WCtx,
+pub fn eval_all_expressions<'a, E: EvalExpr<'a>>(
+    exec: &E,
+    regex: &Regex,
     value: &'a str,
-) -> Result<ExprText<'a>>
-where
-    T: EvalObject<'a>,
-    RCtx: ReadonlyRuntimeExprContext<'a>,
-    WCtx: WritableRuntimeExprContext,
-{
-    if !EXPR_MATCHER.is_match(value) {
-        return Ok(ExprText::Ref(value));
-    }
-
-    let _guard = NestedExprDepthGuard::enter()?;
-    let exec = CommonExprExecutor::new(obj, rctx, wctx);
+) -> Result<String> {
     let mut result = value.to_string();
-    for entry in EXPR_MATCHER.find_iter(value) {
+    for entry in regex.find_iter(value) {
         let entry = entry.as_str();
         let evaluated = exec.eval(entry)?.to_string();
         result = result.replace(entry, &evaluated);
     }
-    Ok(ExprText::Owned(result))
+    Ok(result)
 }
 
 pub struct CommonExprExecutor<
@@ -388,12 +332,31 @@ mod tests {
             context::CommonReadonlyRuntimeExprContext,
             traits::{ExprText, MockWritableRuntimeExprContext},
         },
-        inputs::v3::Input,
         pipeline::v3::Pipeline,
     };
     use anyhow::Result;
+    use bld_utils::sync::IntoArc;
+    use std::collections::HashMap;
 
     use super::*;
+
+    fn rctx_with(
+        inputs: Vec<(&str, &str)>,
+        env: Vec<(&str, &str)>,
+    ) -> CommonReadonlyRuntimeExprContext {
+        let owned = |values: Vec<(&str, &str)>| -> HashMap<String, String> {
+            values
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect()
+        };
+
+        CommonReadonlyRuntimeExprContext {
+            inputs: owned(inputs).into_arc(),
+            env: owned(env).into_arc(),
+            ..Default::default()
+        }
+    }
 
     #[test]
     pub fn number_eval_success() {
@@ -710,22 +673,16 @@ mod tests {
     #[test]
     pub fn array_index_access_eval_success() {
         let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
-
-        let mut pipeline = Pipeline::default();
-        pipeline.inputs.insert(
-            "names".to_string(),
-            Input::Simple("[\"john\", \"jane\", \"jim\"]".to_string()),
-        );
-        pipeline.inputs.insert(
-            "numbers".to_string(),
-            Input::Simple("[100, 200, 300]".to_string()),
-        );
-        pipeline.inputs.insert(
-            "flags".to_string(),
-            Input::Simple("[true, false]".to_string()),
+        let rctx = rctx_with(
+            vec![
+                ("names", "[\"john\", \"jane\", \"jim\"]"),
+                ("numbers", "[100, 200, 300]"),
+                ("flags", "[true, false]"),
+            ],
+            vec![],
         );
 
+        let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         let Ok(value) = exec.eval("${{ inputs.names[1] }}") else {
@@ -756,14 +713,9 @@ mod tests {
     #[test]
     pub fn array_index_access_out_of_bounds_eval_failure() {
         let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let rctx = rctx_with(vec![("numbers", "[100, 200, 300]")], vec![]);
 
-        let mut pipeline = Pipeline::default();
-        pipeline.inputs.insert(
-            "numbers".to_string(),
-            Input::Simple("[100, 200, 300]".to_string()),
-        );
-
+        let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         assert!(exec.eval("${{ inputs.numbers[5] }}").is_err());
@@ -786,23 +738,12 @@ mod tests {
         ];
 
         let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let rctx = rctx_with(
+            vec![("name", "John"), ("surname", "Doe"), ("age", "32")],
+            vec![("WORKDIR", "/home/somedir"), ("NODE", "lts")],
+        );
 
-        let mut pipeline = Pipeline::default();
-        pipeline
-            .inputs
-            .insert("name".to_string(), Input::Simple("John".to_string()));
-        pipeline
-            .inputs
-            .insert("surname".to_string(), Input::Simple("Doe".to_string()));
-        pipeline
-            .inputs
-            .insert("age".to_string(), Input::Simple("32".to_string()));
-        pipeline
-            .env
-            .insert("WORKDIR".to_string(), "/home/somedir".to_string());
-        pipeline.env.insert("NODE".to_string(), "lts".to_string());
-
+        let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         for (expr, expected) in data {
@@ -1379,19 +1320,12 @@ mod tests {
         ];
 
         let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let rctx = rctx_with(
+            vec![("name", "john"), ("surname", "doe"), ("age", "30")],
+            vec![],
+        );
 
-        let mut pipeline = Pipeline::default();
-        pipeline
-            .inputs
-            .insert("name".to_string(), Input::Simple("john".to_string()));
-        pipeline
-            .inputs
-            .insert("surname".to_string(), Input::Simple("doe".to_string()));
-        pipeline
-            .inputs
-            .insert("age".to_string(), Input::Simple("30".to_string()));
-
+        let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         for (expr, expected) in data {
