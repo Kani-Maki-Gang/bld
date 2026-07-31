@@ -7,12 +7,11 @@ use bld_pkg::PackageManager;
 use bld_utils::sync::IntoArc;
 
 use crate::{
-    expr::v3::context::{CommonReadonlyRuntimeExprContextOptions, expr_rctx},
-    files::v3::RunnerFile,
+    expr::v3::context::CommonReadonlyRuntimeExprContext, files::v3::RunnerFile,
     validator::v3::ValidatorWritableRuntimeExprContext,
 };
 
-use super::{CommonValidator, ConsumeValidator, EMPTY_ENV, input_placeholders};
+use super::{CommonValidator, ConsumeValidator};
 
 pub struct RunnerFileValidator<'a> {
     file: &'a RunnerFile,
@@ -39,18 +38,20 @@ impl<'a> RunnerFileValidator<'a> {
 
 impl ConsumeValidator for RunnerFileValidator<'_> {
     async fn validate(self) -> Result<()> {
+        let with_blank_values = |keys: Vec<&String>| -> HashMap<String, String> {
+            keys.into_iter()
+                .map(|k| (k.clone(), String::new()))
+                .collect()
+        };
         match self.file {
             RunnerFile::PipelineFileType(pip) => {
-                let expr_rctx = expr_rctx(CommonReadonlyRuntimeExprContextOptions {
-                    obj: pip.as_ref(),
-                    config: self.config.clone(),
-                    inputs: input_placeholders(&pip.inputs).into_arc(),
-                    declared_inputs: &pip.inputs,
-                    env: HashMap::new().into_arc(),
-                    declared_env: &pip.env,
-                    run_id: String::new(),
-                    run_start_time: String::new(),
-                })?;
+                let expr_rctx = CommonReadonlyRuntimeExprContext::new(
+                    self.config.clone(),
+                    with_blank_values(pip.inputs.keys().collect()).into_arc(),
+                    with_blank_values(pip.env.keys().collect()).into_arc(),
+                    String::new(),
+                    String::new(),
+                );
                 let expr_wctx: Vec<ValidatorWritableRuntimeExprContext<'_>> = pip
                     .jobs
                     .keys()
@@ -68,16 +69,13 @@ impl ConsumeValidator for RunnerFileValidator<'_> {
                 .await
             }
             RunnerFile::ActionFileType(action) => {
-                let expr_rctx = expr_rctx(CommonReadonlyRuntimeExprContextOptions {
-                    obj: action.as_ref(),
-                    config: self.config.clone(),
-                    inputs: input_placeholders(&action.inputs).into_arc(),
-                    declared_inputs: &action.inputs,
-                    env: HashMap::new().into_arc(),
-                    declared_env: &EMPTY_ENV,
-                    run_id: String::new(),
-                    run_start_time: String::new(),
-                })?;
+                let expr_rctx = CommonReadonlyRuntimeExprContext::new(
+                    self.config.clone(),
+                    with_blank_values(action.inputs.keys().collect()).into_arc(),
+                    HashMap::new().into_arc(),
+                    String::new(),
+                    String::new(),
+                );
                 let expr_wctx = vec![ValidatorWritableRuntimeExprContext::new("action")];
                 CommonValidator::new(
                     action.as_ref(),

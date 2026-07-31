@@ -7,25 +7,14 @@ use bld_pkg::PackageManager;
 use regex::Regex;
 use tracing::debug;
 
-use crate::{
-    expr::v3::{
-        context::{CommonReadonlyRuntimeExprContext, START_OF_RUN_WCTX},
-        exec::CommonExprExecutor,
-        parser,
-        traits::{EvalExpr, EvalObject, ExprValue, WritableRuntimeExprContext},
-    },
-    inputs::v3::Input,
+use crate::expr::v3::{
+    context::{CommonReadonlyRuntimeExprContext, START_OF_RUN_WCTX},
+    exec::CommonExprExecutor,
+    parser,
+    traits::{EvalExpr, EvalObject, ExprValue, WritableRuntimeExprContext},
 };
 
 use super::{ConsumeValidator, ExprScope, Validate, ValidatorContext};
-
-pub fn input_placeholders(inputs: &HashMap<String, Input>) -> HashMap<String, String> {
-    inputs
-        .iter()
-        .filter(|(_, x)| x.default_value().is_none())
-        .map(|(name, _)| (name.to_owned(), String::new()))
-        .collect()
-}
 
 enum Section<'a> {
     Job(&'a str),

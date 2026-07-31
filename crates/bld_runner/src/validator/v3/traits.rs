@@ -1,14 +1,9 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, LazyLock},
-};
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Result;
 use bld_config::BldConfig;
 use bld_core::fs::FileSystem;
 use bld_pkg::PackageManager;
-
-pub static EMPTY_ENV: LazyLock<HashMap<String, String>> = LazyLock::new(HashMap::new);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExprScope {

@@ -489,26 +489,6 @@ mod tests {
     }
 
     #[tokio::test]
-    pub async fn input_default_referencing_another_default_validation_failure() {
-        let mut pipeline = Pipeline::default();
-        pipeline
-            .inputs
-            .insert("first".to_string(), complex_input("/root"));
-        pipeline.inputs.insert(
-            "second".to_string(),
-            complex_input("${{ inputs.first }}/sub"),
-        );
-
-        let Err(e) = validate_pipeline(pipeline).await else {
-            panic!("expected a validation error for a default referencing another default");
-        };
-        assert!(
-            e.to_string().contains("unable to resolve inputs.second"),
-            "{e}"
-        );
-    }
-
-    #[tokio::test]
     pub async fn runtime_expr_in_input_default_and_env_validation_failure() {
         let mut pipeline = Pipeline::default();
         pipeline.inputs.insert(
