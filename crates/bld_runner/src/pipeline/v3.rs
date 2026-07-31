@@ -300,9 +300,6 @@ impl<'a> Validate<'a> for Pipeline {
         ctx.validate_env(&self.env, ExprScope::StartOfRun);
         ctx.pop_section();
 
-        debug!("Validating that the pipeline's inputs and env can be resolved");
-        ctx.validate_start_of_run_values(&self.inputs, &self.env);
-
         debug!("Validating pipeline's jobs section");
         self.validate_jobs(ctx).await;
     }
@@ -395,13 +392,6 @@ mod tests {
         fn matrix_refs(&self, _value: &str) -> Vec<String> {
             vec![]
         }
-
-        fn validate_start_of_run_values(
-            &mut self,
-            _inputs: &'a HashMap<String, Input>,
-            _env: &'a HashMap<String, String>,
-        ) {
-        }
     }
 
     fn job_with_needs(needs: Option<Needs>) -> Job {
@@ -447,7 +437,7 @@ mod tests {
         let package_manager = PackageManager::new(config.clone()).into_arc();
         let file = RunnerFile::PipelineFileType(Box::new(with_single_job(pipeline)));
 
-        RunnerFileValidator::new(&file, config, file_system, package_manager)?
+        RunnerFileValidator::new(&file, config, file_system, package_manager)
             .validate()
             .await
     }

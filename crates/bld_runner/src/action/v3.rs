@@ -18,7 +18,7 @@ use {
                 WritableRuntimeExprContext,
             },
         },
-        validator::v3::{EMPTY_ENV, ExprScope, Validate, ValidatorContext},
+        validator::v3::{ExprScope, Validate, ValidatorContext},
     },
     anyhow::{Result, bail},
     bld_config::definitions::{
@@ -216,9 +216,6 @@ impl<'a> Validate<'a> for Action {
             ctx.pop_section();
         }
         ctx.pop_section();
-
-        debug!("Validating that the action's inputs can be resolved");
-        ctx.validate_start_of_run_values(&self.inputs, &EMPTY_ENV);
 
         debug!("Validating action's steps");
         ctx.push_section("steps");

@@ -4,16 +4,12 @@ use anyhow::{Result, bail};
 use bld_config::{BldConfig, path};
 use bld_core::fs::FileSystem;
 use bld_pkg::PackageManager;
-use bld_utils::sync::IntoArc;
 use regex::Regex;
 use tracing::debug;
 
 use crate::{
     expr::v3::{
-        context::{
-            CommonReadonlyRuntimeExprContext, CommonReadonlyRuntimeExprContextOptions,
-            START_OF_RUN_WCTX, expr_rctx,
-        },
+        context::{CommonReadonlyRuntimeExprContext, START_OF_RUN_WCTX},
         exec::CommonExprExecutor,
         parser,
         traits::{EvalExpr, EvalObject, ExprValue, WritableRuntimeExprContext},
@@ -23,8 +19,6 @@ use crate::{
 
 use super::{ConsumeValidator, ExprScope, Validate, ValidatorContext};
 
-/// An input with no default is only known once a run supplies it, so validation stands in
-/// an empty value for it rather than reporting it as missing.
 pub fn input_placeholders(inputs: &HashMap<String, Input>) -> HashMap<String, String> {
     inputs
         .iter()
@@ -243,27 +237,6 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for Comm
                 };
                 self.eval_array_expression(value, expr_wctx)
             }
-        }
-    }
-
-    fn validate_start_of_run_values(
-        &mut self,
-        inputs: &'a HashMap<String, Input>,
-        env: &'a HashMap<String, String>,
-    ) {
-        let result = expr_rctx(CommonReadonlyRuntimeExprContextOptions {
-            obj: self.validatable,
-            config: self.config.clone(),
-            inputs: input_placeholders(inputs).into_arc(),
-            declared_inputs: inputs,
-            env: HashMap::new().into_arc(),
-            declared_env: env,
-            run_id: String::new(),
-            run_start_time: String::new(),
-        });
-
-        if let Err(e) = result {
-            self.append_error(&format!("{e:#}"));
         }
     }
 

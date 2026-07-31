@@ -104,8 +104,6 @@ impl RunsOn {
     }
 
     /// Returns a copy of the current instance with every expression replaced by its value.
-    /// All of the fields here are consumed when the platform of a job is built, before any
-    /// step has run, so `eval` is expected to only support the start of run expressions.
     #[cfg(feature = "all")]
     pub fn resolve<F: Fn(&str) -> Result<String>>(&self, eval: F) -> Result<Self> {
         let eval_opt = |value: &Option<String>| -> Result<Option<String>> {
