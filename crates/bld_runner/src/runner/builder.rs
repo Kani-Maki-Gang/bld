@@ -24,7 +24,11 @@ use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
-    Dag, expr,
+    Dag,
+    expr::{
+        self,
+        v3::context::{CommonReadonlyRuntimeExprContextOptions, expr_rctx},
+    },
     files::{
         v3::RunnerFile,
         versioned::{VersionedFile, VersionedFileLoader},
@@ -288,13 +292,16 @@ impl<'a> RunnerBuilder<'a> {
 
                 let pipeline = (*pipeline).into_arc();
 
-                let expr_rctx = expr::v3::context::CommonReadonlyRuntimeExprContext::new(
-                    config.clone(),
+                let expr_rctx = expr_rctx(CommonReadonlyRuntimeExprContextOptions {
+                    obj: pipeline.as_ref(),
+                    config: config.clone(),
                     inputs,
+                    declared_inputs: &pipeline.inputs,
                     env,
-                    self.run_id,
-                    self.run_start_time,
-                )
+                    declared_env: &pipeline.env,
+                    run_id: self.run_id,
+                    run_start_time: self.run_start_time,
+                })?
                 .into_arc();
 
                 let expr_regex = Regex::new(expr::v3::parser::EXPR_REGEX)?.into_arc();
@@ -326,13 +333,16 @@ impl<'a> RunnerBuilder<'a> {
 
                 let expr_regex = Regex::new(expr::v3::parser::EXPR_REGEX)?;
 
-                let expr_rctx = expr::v3::context::CommonReadonlyRuntimeExprContext::new(
-                    config.clone(),
+                let expr_rctx = expr_rctx(CommonReadonlyRuntimeExprContextOptions {
+                    obj: action.as_ref(),
+                    config: config.clone(),
                     inputs,
+                    declared_inputs: &action.inputs,
                     env,
-                    self.run_id,
-                    self.run_start_time,
-                );
+                    declared_env: &HashMap::new(),
+                    run_id: self.run_id,
+                    run_start_time: self.run_start_time,
+                })?;
 
                 let platform = self
                     .platform

@@ -18,7 +18,7 @@ use {
             },
         },
         strategy::v3::validate_matrix_refs,
-        validator::v3::{Validate, ValidatorContext},
+        validator::v3::{ExprScope, Validate, ValidatorContext},
     },
     anyhow::{Result, bail},
     bld_core::fs::FileSystem,
@@ -272,14 +272,14 @@ impl<'a> Validate<'a> for Step {
                 if let Some(name) = complex.name.as_ref() {
                     debug!("Validating step's name value");
                     ctx.push_section("name");
-                    ctx.validate_expressions(name);
+                    ctx.validate_expressions(name, ExprScope::Runtime);
                     ctx.pop_section();
                 }
 
                 if let Some(wd) = complex.working_dir.as_ref() {
                     debug!("Validating step's working directory");
                     ctx.push_section("working_dir");
-                    ctx.validate_expressions(wd);
+                    ctx.validate_expressions(wd, ExprScope::Runtime);
                     ctx.pop_section();
                 }
 
@@ -292,7 +292,7 @@ impl<'a> Validate<'a> for Step {
                     } else if expr_count > 1 {
                         ctx.append_error("Condition must contain at most one expression");
                     } else {
-                        ctx.validate_expressions(condition);
+                        ctx.validate_expressions(condition, ExprScope::Runtime);
                     }
                     ctx.pop_section();
                 }
@@ -302,7 +302,7 @@ impl<'a> Validate<'a> for Step {
                 if complex.run.trim().is_empty() {
                     ctx.append_error("Run command must not be empty");
                 }
-                ctx.validate_expressions(&complex.run);
+                ctx.validate_expressions(&complex.run, ExprScope::Runtime);
                 ctx.pop_section();
 
                 ctx.pop_section();

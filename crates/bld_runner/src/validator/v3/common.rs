@@ -8,17 +8,13 @@ use regex::Regex;
 use tracing::debug;
 
 use crate::expr::v3::{
-    context::CommonReadonlyRuntimeExprContext,
+    context::{CommonReadonlyRuntimeExprContext, START_OF_RUN_WCTX},
     exec::CommonExprExecutor,
-    parser::EXPR_REGEX,
+    parser,
     traits::{EvalExpr, EvalObject, ExprValue, WritableRuntimeExprContext},
 };
 
-use super::{ConsumeValidator, Validate, ValidatorContext};
-
-pub fn create_expression_regex() -> Result<Regex> {
-    Ok(Regex::new(EXPR_REGEX)?)
-}
+use super::{ConsumeValidator, ExprScope, Validate, ValidatorContext};
 
 enum Section<'a> {
     Job(&'a str),
@@ -71,7 +67,7 @@ impl<'a> WritableRuntimeExprContext for ValidatorWritableRuntimeExprContext<'a> 
     }
 }
 
-pub struct CommonValidator<'a, V: Validate<'a> + EvalObject<'a>> {
+pub struct CommonValidator<'a, V: Validate<'a> + for<'x> EvalObject<'x>> {
     validatable: &'a V,
     config: Arc<BldConfig>,
     file_system: Arc<FileSystem>,
@@ -84,7 +80,7 @@ pub struct CommonValidator<'a, V: Validate<'a> + EvalObject<'a>> {
     errors: String,
 }
 
-impl<'a, V: Validate<'a> + EvalObject<'a>> CommonValidator<'a, V> {
+impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
     pub fn new(
         validatable: &'a V,
         config: Arc<BldConfig>,
@@ -98,7 +94,7 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> CommonValidator<'a, V> {
             config,
             file_system,
             package_manager,
-            expr_regex: create_expression_regex()?,
+            expr_regex: parser::new_regex()?,
             expr_rctx,
             expr_wctx,
             section: Vec::new(),
@@ -114,9 +110,52 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> CommonValidator<'a, V> {
             .collect::<Vec<&'a str>>()
             .join(" > ")
     }
+
+    fn runtime_wctx(&self) -> Option<&'a ValidatorWritableRuntimeExprContext<'a>> {
+        self.expr_wctx
+            .iter()
+            .find(|x| x.get_exec_id() == self.current_job.as_ref().map(|x| x.inner()))
+            .or_else(|| self.expr_wctx.iter().next())
+    }
+
+    fn eval_expressions<W: WritableRuntimeExprContext>(&mut self, value: &'a str, wctx: &'a W) {
+        let expr_exec = CommonExprExecutor::new(self.validatable, self.expr_rctx, wctx);
+        for entry in self.expr_regex.find_iter(value) {
+            let Err(e) = expr_exec.eval(entry.as_str()) else {
+                continue;
+            };
+            let section = self.section_txt();
+            let _ = writeln!(self.errors, "[{section}] {}", e);
+        }
+    }
+
+    fn eval_array_expression<W: WritableRuntimeExprContext>(
+        &mut self,
+        value: &'a str,
+        wctx: &'a W,
+    ) {
+        let expr_exec = CommonExprExecutor::new(self.validatable, self.expr_rctx, wctx);
+        for entry in self.expr_regex.find_iter(value) {
+            match expr_exec.eval(entry.as_str()) {
+                Ok(ExprValue::Array(_)) => {}
+                Ok(other) => {
+                    let section = self.section_txt();
+                    let _ = writeln!(
+                        self.errors,
+                        "[{section}] expected an array, found {}",
+                        other.type_as_string()
+                    );
+                }
+                Err(e) => {
+                    let section = self.section_txt();
+                    let _ = writeln!(self.errors, "[{section}] {}", e);
+                }
+            }
+        }
+    }
 }
 
-impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValidator<'a, V> {
+impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for CommonValidator<'a, V> {
     fn get_config(&self) -> Arc<BldConfig> {
         self.config.clone()
     }
@@ -151,7 +190,11 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValida
 
     fn append_error(&mut self, error: &str) {
         let section = self.section_txt();
-        let _ = writeln!(self.errors, "[{section}] {error}");
+        if section.is_empty() {
+            let _ = writeln!(self.errors, "{error}");
+        } else {
+            let _ = writeln!(self.errors, "[{section}] {error}");
+        }
     }
 
     fn expression_count(&self, value: &str) -> usize {
@@ -162,50 +205,26 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValida
         self.expr_regex.find(value).is_some()
     }
 
-    fn validate_expressions(&mut self, value: &'a str) {
-        let expr_wctx = self
-            .expr_wctx
-            .iter()
-            .find(|x| x.get_exec_id() == self.current_job.as_ref().map(|x| x.inner()))
-            .or_else(|| self.expr_wctx.iter().next());
-
-        let Some(expr_wctx) = expr_wctx else { return };
-
-        let expr_exec = CommonExprExecutor::new(self.validatable, self.expr_rctx, expr_wctx);
-        for entry in self.expr_regex.find_iter(value) {
-            let Err(e) = expr_exec.eval(entry.as_str()) else {
-                continue;
-            };
-            let section = self.section_txt();
-            let _ = writeln!(self.errors, "[{section}] {}", e);
+    fn validate_expressions(&mut self, value: &'a str, scope: ExprScope) {
+        match scope {
+            ExprScope::StartOfRun => self.eval_expressions(value, &START_OF_RUN_WCTX),
+            ExprScope::Runtime => {
+                let Some(expr_wctx) = self.runtime_wctx() else {
+                    return;
+                };
+                self.eval_expressions(value, expr_wctx)
+            }
         }
     }
 
-    fn validate_array_expression(&mut self, value: &'a str) {
-        let expr_wctx = self
-            .expr_wctx
-            .iter()
-            .find(|x| x.get_exec_id() == self.current_job.as_ref().map(|x| x.inner()))
-            .or_else(|| self.expr_wctx.iter().next());
-
-        let Some(expr_wctx) = expr_wctx else { return };
-
-        let expr_exec = CommonExprExecutor::new(self.validatable, self.expr_rctx, expr_wctx);
-        for entry in self.expr_regex.find_iter(value) {
-            match expr_exec.eval(entry.as_str()) {
-                Ok(ExprValue::Array(_)) => {}
-                Ok(other) => {
-                    let section = self.section_txt();
-                    let _ = writeln!(
-                        self.errors,
-                        "[{section}] expected an array, found {}",
-                        other.type_as_string()
-                    );
-                }
-                Err(e) => {
-                    let section = self.section_txt();
-                    let _ = writeln!(self.errors, "[{section}] {}", e);
-                }
+    fn validate_array_expression(&mut self, value: &'a str, scope: ExprScope) {
+        match scope {
+            ExprScope::StartOfRun => self.eval_array_expression(value, &START_OF_RUN_WCTX),
+            ExprScope::Runtime => {
+                let Some(expr_wctx) = self.runtime_wctx() else {
+                    return;
+                };
+                self.eval_array_expression(value, expr_wctx)
             }
         }
     }
@@ -240,17 +259,17 @@ impl<'a, V: Validate<'a> + EvalObject<'a>> ValidatorContext<'a> for CommonValida
         }
     }
 
-    fn validate_env(&mut self, env: &'a HashMap<String, String>) {
+    fn validate_env(&mut self, env: &'a HashMap<String, String>, scope: ExprScope) {
         for (k, v) in env.iter() {
             debug!("Validating env: {}", k);
             self.section.push(Section::Other(k));
-            self.validate_expressions(v);
+            self.validate_expressions(v, scope);
             self.section.pop();
         }
     }
 }
 
-impl<'a, V: Validate<'a> + EvalObject<'a>> ConsumeValidator for CommonValidator<'a, V> {
+impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ConsumeValidator for CommonValidator<'a, V> {
     async fn validate(mut self) -> Result<()> {
         self.validatable.validate(&mut self).await;
         if self.errors.is_empty() {

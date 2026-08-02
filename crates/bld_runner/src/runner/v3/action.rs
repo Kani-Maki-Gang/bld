@@ -19,7 +19,7 @@ use crate::{
     artifacts::v3::{DownloadArtifact, UploadArtifact},
     expr::v3::{
         context::CommonReadonlyRuntimeExprContext,
-        exec::CommonExprExecutor,
+        exec::{CommonExprExecutor, eval_all_expressions},
         traits::{EvalExpr, ExprValue},
     },
     external::v3::External,
@@ -59,15 +59,7 @@ impl<S: RootState> ActionRunner<S> {
 
     fn eval_all_expr(&mut self, value: &str) -> Result<String> {
         let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &self.state);
-
-        let mut result = value.to_string();
-        for entry in self.expr_regex.find_iter(value) {
-            let entry = entry.as_str();
-            let expr_value = expr_exec.eval(entry)?.to_string();
-            result = result.replace(entry, &expr_value);
-        }
-
-        Ok(result)
+        eval_all_expressions(&expr_exec, &self.expr_regex, value)
     }
 
     fn condition(&mut self, condition: Option<&str>) -> Result<bool> {
@@ -361,7 +353,6 @@ mod tests {
         action::v3::Action,
         artifacts::v3::{DownloadArtifact, UploadArtifact},
         expr::v3::{context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX},
-        inputs::v3::Input,
         runner::v3::{ActionRunner, ActionState, RootState, State, state::MockRootState},
         step::v3::{ShellCommand, Step},
         strategy::v3::{FailFastValue, MatrixValue, Strategy},
@@ -418,15 +409,18 @@ mod tests {
     #[test]
     pub fn resolve_working_dir_evaluates_expressions() {
         let logger = Logger::mock().into_arc();
-        let mut action = Action::default();
-        action.inputs.insert(
-            "worktree_dir".to_string(),
-            Input::Simple("/tmp/some-worktree".to_string()),
-        );
+        let action = Action::default();
         let platform = Platform::mock().into_arc();
         let artifacts = Artifacts::mock().into_arc();
         let regex = Regex::new(EXPR_REGEX).unwrap();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let inputs: HashMap<String, String> =
+            [("worktree_dir".to_string(), "/tmp/some-worktree".to_string())]
+                .into_iter()
+                .collect();
+        let rctx = CommonReadonlyRuntimeExprContext {
+            inputs: inputs.into_arc(),
+            ..Default::default()
+        };
         let state = MockRootState::new();
         let config = BldConfig::default().into_arc();
         let fs = FileSystem::local(config.clone()).into_arc();

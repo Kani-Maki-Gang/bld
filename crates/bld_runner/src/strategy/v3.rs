@@ -11,7 +11,7 @@ use {
                 WritableRuntimeExprContext,
             },
         },
-        validator::v3::{Validate, ValidatorContext},
+        validator::v3::{ExprScope, Validate, ValidatorContext},
     },
     anyhow::{Result, bail},
 };
@@ -127,6 +127,19 @@ impl Strategy {
 #[cfg(feature = "all")]
 impl<'a> Validate<'a> for Strategy {
     async fn validate<C: ValidatorContext<'a>>(&'a self, ctx: &mut C) {
+        self.validate_in_scope(ctx, ExprScope::Runtime).await;
+    }
+}
+
+#[cfg(feature = "all")]
+impl Strategy {
+    /// A job's strategy is resolved before any of its steps have run while a step's one is
+    /// resolved during the run, so the scope of their expressions differs.
+    pub async fn validate_in_scope<'a, C: ValidatorContext<'a>>(
+        &'a self,
+        ctx: &mut C,
+        scope: ExprScope,
+    ) {
         ctx.push_section("matrix");
         if self.matrix.is_empty() {
             ctx.append_error("Strategy matrix must define at least one key");
@@ -144,7 +157,7 @@ impl<'a> Validate<'a> for Strategy {
                     if ctx.expression_count(expr) > 1 {
                         ctx.append_error("Matrix value must contain at most one expression");
                     } else {
-                        ctx.validate_array_expression(expr);
+                        ctx.validate_array_expression(expr, scope);
                     }
                 }
             }
@@ -158,7 +171,7 @@ impl<'a> Validate<'a> for Strategy {
                 if ctx.expression_count(expr) > 1 {
                     ctx.append_error("fail_fast must contain at most one expression");
                 } else {
-                    ctx.validate_expressions(expr);
+                    ctx.validate_expressions(expr, scope);
                 }
             }
             ctx.pop_section();

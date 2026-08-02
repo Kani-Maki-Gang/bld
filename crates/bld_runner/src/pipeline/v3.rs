@@ -11,15 +11,16 @@ use {
     crate::{
         deps::v3::{Dependencies, Dependency},
         expr::v3::{
+            context::out_of_scope,
             parser::Rule,
             traits::{
                 EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext,
                 WritableRuntimeExprContext,
             },
         },
-        validator::v3::{Validate, ValidatorContext},
+        validator::v3::{ExprScope, Validate, ValidatorContext},
     },
-    anyhow::{Result, anyhow, bail},
+    anyhow::{Result, bail},
     bld_config::definitions::{
         KEYWORD_BLD_DIR_V3, KEYWORD_PROJECT_DIR_V3, KEYWORD_RUN_PROPS_ID_V3,
         KEYWORD_RUN_PROPS_START_TIME_V3,
@@ -85,7 +86,7 @@ impl Pipeline {
         };
         ctx.push_section("cron");
         if ctx.contains_expressions(cron) {
-            ctx.validate_expressions(cron);
+            ctx.validate_expressions(cron, ExprScope::StartOfRun);
         } else if let Err(e) = Schedule::from_str(cron) {
             let error = format!("{cron} {e}");
             ctx.append_error(&error);
@@ -203,6 +204,7 @@ impl<'a> EvalObject<'a> for Pipeline {
             bail!("no object path present");
         };
 
+        let object_path = object.as_span().as_str();
         let mut object_parts = object.into_inner().peekable();
         let Some(part) = object_parts.peek() else {
             bail!("expected at least one part in the object path");
@@ -224,15 +226,8 @@ impl<'a> EvalObject<'a> for Pipeline {
                     bail!("expected name of input in object path");
                 };
                 let name = part.as_span().as_str();
-
-                let input = rctx.get_input(name).or_else(|_| {
-                    self.inputs
-                        .get(name)
-                        .ok_or_else(|| anyhow!("input '{name}' not found"))
-                        .and_then(|x| x.try_into())
-                });
-
-                input.map(|x| ExprValue::Text(ExprText::Ref(x)))
+                rctx.get_input(name)
+                    .map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
             "env" => {
@@ -241,12 +236,6 @@ impl<'a> EvalObject<'a> for Pipeline {
                 };
                 let name = part.as_span().as_str();
                 rctx.get_env(name)
-                    .or_else(|_| {
-                        self.env
-                            .get(name)
-                            .map(|x| x.as_str())
-                            .ok_or_else(|| anyhow!("env variable '{name}' not found"))
-                    })
                     .map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
@@ -269,7 +258,10 @@ impl<'a> EvalObject<'a> for Pipeline {
 
             // Move evaluation to the job level
             _ => {
-                let Some(job) = wctx.get_exec_id().and_then(|id| self.jobs.get(id)) else {
+                let Some(exec_id) = wctx.get_exec_id() else {
+                    return Err(out_of_scope(object_path));
+                };
+                let Some(job) = self.jobs.get(exec_id) else {
                     bail!("unable to find executing job id");
                 };
                 job.eval_object(&mut object_parts, rctx, wctx)
@@ -286,7 +278,7 @@ impl<'a> Validate<'a> for Pipeline {
         if let Some(name) = self.name.as_ref() {
             debug!("Validating pipeline's name value");
             ctx.push_section("name");
-            ctx.validate_expressions(name);
+            ctx.validate_expressions(name, ExprScope::StartOfRun);
             ctx.pop_section();
         }
 
@@ -305,7 +297,7 @@ impl<'a> Validate<'a> for Pipeline {
 
         debug!("Validating pipeline's env section");
         ctx.push_section("env");
-        ctx.validate_env(&self.env);
+        ctx.validate_env(&self.env, ExprScope::StartOfRun);
         ctx.pop_section();
 
         debug!("Validating pipeline's jobs section");
@@ -331,8 +323,9 @@ mod tests {
         inputs::v3::Input,
         job::v3::{Job, Needs},
         step::v3::{ShellCommand, Step},
-        validator::v3::{Validate, ValidatorContext},
+        validator::v3::{ExprScope, RunnerFileValidator, Validate, ValidatorContext},
     };
+    use crate::{files::v3::RunnerFile, validator::v3::ConsumeValidator};
 
     use super::Pipeline;
 
@@ -388,13 +381,13 @@ mod tests {
             false
         }
 
-        fn validate_expressions(&mut self, _symbol: &'a str) {}
+        fn validate_expressions(&mut self, _symbol: &'a str, _scope: ExprScope) {}
 
         fn validate_file_path(&mut self, _value: &'a str) {}
 
-        fn validate_env(&mut self, _env: &'a HashMap<String, String>) {}
+        fn validate_env(&mut self, _env: &'a HashMap<String, String>, _scope: ExprScope) {}
 
-        fn validate_array_expression(&mut self, _symbol: &'a str) {}
+        fn validate_array_expression(&mut self, _symbol: &'a str, _scope: ExprScope) {}
 
         fn matrix_refs(&self, _value: &str) -> Vec<String> {
             vec![]
@@ -410,6 +403,116 @@ mod tests {
             }))],
             ..Default::default()
         }
+    }
+
+    fn complex_input(default: &str) -> Input {
+        Input::Complex {
+            description: None,
+            default: Some(default.to_string()),
+            required: false,
+        }
+    }
+
+    fn with_single_job(mut pipeline: Pipeline) -> Pipeline {
+        if !pipeline.jobs.is_empty() {
+            return pipeline;
+        }
+        pipeline.jobs.insert(
+            "main".to_string(),
+            Job {
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "build".to_string(),
+                    run: "echo hello".to_string(),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+        pipeline
+    }
+
+    async fn validate_pipeline(pipeline: Pipeline) -> anyhow::Result<()> {
+        let config = BldConfig::default().into_arc();
+        let file_system = FileSystem::local(config.clone()).into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        let file = RunnerFile::PipelineFileType(Box::new(with_single_job(pipeline)));
+
+        RunnerFileValidator::new(&file, config, file_system, package_manager)
+            .validate()
+            .await
+    }
+
+    #[tokio::test]
+    pub async fn start_of_run_values_validation_success() {
+        let mut pipeline = Pipeline::default();
+        pipeline.inputs.insert(
+            "worktree_root".to_string(),
+            complex_input("${{ bld_project_dir }}/../worktrees"),
+        );
+        pipeline.env.insert(
+            "LOGS".to_string(),
+            "${{ inputs.worktree_root }}/logs".to_string(),
+        );
+
+        let result = validate_pipeline(pipeline).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    /// A required input has no value until a run supplies one, so validation stands in an
+    /// empty value rather than reporting every use of it as an error.
+    #[tokio::test]
+    pub async fn required_input_without_default_validation_success() {
+        let mut pipeline = Pipeline::default();
+        pipeline.inputs.insert(
+            "worktree_dir".to_string(),
+            Input::Complex {
+                description: None,
+                default: None,
+                required: true,
+            },
+        );
+        pipeline.jobs.insert(
+            "main".to_string(),
+            Job {
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "build".to_string(),
+                    run: "echo ${{ inputs.worktree_dir }}".to_string(),
+                    working_dir: Some("${{ inputs.worktree_dir }}".to_string()),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+
+        let result = validate_pipeline(pipeline).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn runtime_expr_in_input_default_and_env_validation_failure() {
+        let mut pipeline = Pipeline::default();
+        pipeline.inputs.insert(
+            "image".to_string(),
+            complex_input("${{ steps.build.outputs.image }}"),
+        );
+        pipeline
+            .env
+            .insert("OS".to_string(), "${{ matrix.os }}".to_string());
+
+        let Err(e) = validate_pipeline(pipeline).await else {
+            panic!("expected a validation error for runtime expressions");
+        };
+        let error = e.to_string();
+        assert!(
+            error.contains(
+                "[inputs > image > default] 'steps.build.outputs.image' is not available at the start of a run"
+            ),
+            "{error}"
+        );
+        assert!(
+            error.contains("[env > OS] 'matrix.os' is not available at the start of a run"),
+            "{error}"
+        );
     }
 
     #[test]
@@ -470,32 +573,6 @@ mod tests {
     }
 
     #[test]
-    pub fn env_expr_eval_success() {
-        let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut pipeline = Pipeline::default();
-        pipeline.env.insert("NODE".to_string(), "22.10".to_string());
-        pipeline.env.insert("PATH".to_string(), "value".to_string());
-        pipeline
-            .env
-            .insert("HOME".to_string(), "/home/user".to_string());
-
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
-
-        for (k, v) in &pipeline.env {
-            let expr = format!("{} env.{k} {}", "${{", "}}");
-            let Ok(value) = exec.eval(&expr) else {
-                panic!("result is an error during expression evaluation");
-            };
-            let expected = ExprValue::Text(ExprText::Ref(v));
-            assert!(matches!(
-                value.try_eq(&expected),
-                Ok(ExprValue::Boolean(true))
-            ));
-        }
-    }
-
-    #[test]
     pub fn matrix_expr_eval_success() {
         let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
@@ -531,59 +608,6 @@ mod tests {
 
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
         assert!(exec.eval("${{ matrix.missing }}").is_err());
-    }
-
-    #[test]
-    pub fn inputs_expr_eval_success() {
-        let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
-        let mut pipeline = Pipeline::default();
-        pipeline
-            .inputs
-            .insert("name".to_string(), Input::Simple("john".to_string()));
-        pipeline
-            .inputs
-            .insert("surname".to_string(), Input::Simple("doe".to_string()));
-        pipeline
-            .inputs
-            .insert("age".to_string(), Input::Simple("30".to_string()));
-        pipeline.inputs.insert(
-            "address".to_string(),
-            Input::Complex {
-                default: Some("highway".to_string()),
-                description: None,
-                required: false,
-            },
-        );
-        pipeline.inputs.insert(
-            "taxId".to_string(),
-            Input::Complex {
-                default: Some("999999999".to_string()),
-                description: Some("a test input".to_string()),
-                required: true,
-            },
-        );
-
-        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
-
-        for (k, v) in &pipeline.inputs {
-            let expr = format!("{} inputs.{k} {}", "${{", "}}");
-            let Ok(value) = exec.eval(&expr) else {
-                panic!("result is an error during expression evaluation");
-            };
-            let expected = match v {
-                Input::Simple(value) => ExprValue::Text(ExprText::Ref(value)),
-                Input::Complex {
-                    default: Some(default),
-                    ..
-                } => ExprValue::Text(ExprText::Ref(default)),
-                _ => panic!("no value defined"),
-            };
-            assert!(matches!(
-                value.try_eq(&expected),
-                Ok(ExprValue::Boolean(true))
-            ));
-        }
     }
 
     #[test]

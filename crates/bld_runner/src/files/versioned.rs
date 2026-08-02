@@ -238,7 +238,7 @@ impl VersionedFile {
             }
 
             Self::Version3(file) => {
-                validator_v3::RunnerFileValidator::new(file, config, fs, package_manager)?
+                validator_v3::RunnerFileValidator::new(file, config, fs, package_manager)
                     .validate()
                     .await
             }

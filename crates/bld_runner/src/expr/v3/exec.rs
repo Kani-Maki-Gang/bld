@@ -6,6 +6,21 @@ use super::traits::{
 };
 use anyhow::{Result, anyhow, bail};
 use pest::{Parser, iterators::Pair};
+use regex::Regex;
+
+pub fn eval_all_expressions<'a, E: EvalExpr<'a>>(
+    exec: &E,
+    regex: &Regex,
+    value: &'a str,
+) -> Result<String> {
+    let mut result = value.to_string();
+    for entry in regex.find_iter(value) {
+        let entry = entry.as_str();
+        let evaluated = exec.eval(entry)?.to_string();
+        result = result.replace(entry, &evaluated);
+    }
+    Ok(result)
+}
 
 pub struct CommonExprExecutor<
     'a,
@@ -316,12 +331,31 @@ mod tests {
             context::CommonReadonlyRuntimeExprContext,
             traits::{ExprText, MockWritableRuntimeExprContext},
         },
-        inputs::v3::Input,
         pipeline::v3::Pipeline,
     };
     use anyhow::Result;
+    use bld_utils::sync::IntoArc;
+    use std::collections::HashMap;
 
     use super::*;
+
+    fn rctx_with(
+        inputs: Vec<(&str, &str)>,
+        env: Vec<(&str, &str)>,
+    ) -> CommonReadonlyRuntimeExprContext {
+        let owned = |values: Vec<(&str, &str)>| -> HashMap<String, String> {
+            values
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect()
+        };
+
+        CommonReadonlyRuntimeExprContext {
+            inputs: owned(inputs).into_arc(),
+            env: owned(env).into_arc(),
+            ..Default::default()
+        }
+    }
 
     #[test]
     pub fn number_eval_success() {
@@ -638,22 +672,16 @@ mod tests {
     #[test]
     pub fn array_index_access_eval_success() {
         let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
-
-        let mut pipeline = Pipeline::default();
-        pipeline.inputs.insert(
-            "names".to_string(),
-            Input::Simple("[\"john\", \"jane\", \"jim\"]".to_string()),
-        );
-        pipeline.inputs.insert(
-            "numbers".to_string(),
-            Input::Simple("[100, 200, 300]".to_string()),
-        );
-        pipeline.inputs.insert(
-            "flags".to_string(),
-            Input::Simple("[true, false]".to_string()),
+        let rctx = rctx_with(
+            vec![
+                ("names", "[\"john\", \"jane\", \"jim\"]"),
+                ("numbers", "[100, 200, 300]"),
+                ("flags", "[true, false]"),
+            ],
+            vec![],
         );
 
+        let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         let Ok(value) = exec.eval("${{ inputs.names[1] }}") else {
@@ -684,14 +712,9 @@ mod tests {
     #[test]
     pub fn array_index_access_out_of_bounds_eval_failure() {
         let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let rctx = rctx_with(vec![("numbers", "[100, 200, 300]")], vec![]);
 
-        let mut pipeline = Pipeline::default();
-        pipeline.inputs.insert(
-            "numbers".to_string(),
-            Input::Simple("[100, 200, 300]".to_string()),
-        );
-
+        let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         assert!(exec.eval("${{ inputs.numbers[5] }}").is_err());
@@ -714,23 +737,12 @@ mod tests {
         ];
 
         let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let rctx = rctx_with(
+            vec![("name", "John"), ("surname", "Doe"), ("age", "32")],
+            vec![("WORKDIR", "/home/somedir"), ("NODE", "lts")],
+        );
 
-        let mut pipeline = Pipeline::default();
-        pipeline
-            .inputs
-            .insert("name".to_string(), Input::Simple("John".to_string()));
-        pipeline
-            .inputs
-            .insert("surname".to_string(), Input::Simple("Doe".to_string()));
-        pipeline
-            .inputs
-            .insert("age".to_string(), Input::Simple("32".to_string()));
-        pipeline
-            .env
-            .insert("WORKDIR".to_string(), "/home/somedir".to_string());
-        pipeline.env.insert("NODE".to_string(), "lts".to_string());
-
+        let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         for (expr, expected) in data {
@@ -1307,19 +1319,12 @@ mod tests {
         ];
 
         let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let rctx = rctx_with(
+            vec![("name", "john"), ("surname", "doe"), ("age", "30")],
+            vec![],
+        );
 
-        let mut pipeline = Pipeline::default();
-        pipeline
-            .inputs
-            .insert("name".to_string(), Input::Simple("john".to_string()));
-        pipeline
-            .inputs
-            .insert("surname".to_string(), Input::Simple("doe".to_string()));
-        pipeline
-            .inputs
-            .insert("age".to_string(), Input::Simple("30".to_string()));
-
+        let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         for (expr, expected) in data {

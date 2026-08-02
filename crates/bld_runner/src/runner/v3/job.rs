@@ -25,8 +25,8 @@ use crate::{
     RunnerBuilder,
     artifacts::v3::{DownloadArtifact, UploadArtifact},
     expr::v3::{
-        context::CommonReadonlyRuntimeExprContext,
-        exec::CommonExprExecutor,
+        context::{CommonReadonlyRuntimeExprContext, START_OF_RUN_WCTX},
+        exec::{CommonExprExecutor, eval_all_expressions},
         traits::{EvalExpr, ExprValue},
     },
     external::v3::External,
@@ -57,6 +57,7 @@ pub struct JobRunnerOptions<S: RootState> {
 pub struct JobRunner<S: RootState> {
     pub options: JobRunnerOptions<S>,
     pub platform: Arc<Platform>,
+    pub runs_on: RunsOn,
 }
 
 impl<S: RootState> JobRunner<S> {
@@ -73,42 +74,35 @@ impl<S: RootState> JobRunner<S> {
                 })
             })?;
 
-        // Evaluate expression in volumes before building platform
-        let raw_volumes: Vec<String> = match &job.runs_on {
-            RunsOn::Pull { volumes, .. } | RunsOn::Build { volumes, .. } => volumes.clone(),
-            _ => Vec::new(),
-        };
-        let volumes = {
-            let exec = CommonExprExecutor::new(
-                options.pipeline.as_ref(),
-                options.expr_rctx.as_ref(),
-                &options.state,
-            );
-            let mut resolved = Vec::with_capacity(raw_volumes.len());
-            for volume in &raw_volumes {
-                let mut value = volume.to_string();
-                for entry in options.expr_regex.find_iter(volume) {
-                    let entry = entry.as_str();
-                    let evaluated = exec.eval(entry)?.to_string();
-                    value = value.replace(entry, &evaluated);
-                }
-                resolved.push(value);
-            }
-            resolved
-        };
+        // Every runs_on field is consumed when building the platform, before any step has
+        // run, so its expressions are limited to the start of run context.
+        let runs_on = Self::resolve_runs_on(job, &options)?;
 
         let platform = build_platform(
-            job,
-            options.pipeline.clone(),
+            &runs_on,
             options.config.clone(),
             options.logger.clone(),
             options.run_ctx.clone(),
             options.expr_rctx.clone(),
-            volumes,
         )
         .await?;
 
-        Ok(JobRunner { options, platform })
+        Ok(JobRunner {
+            options,
+            platform,
+            runs_on,
+        })
+    }
+
+    fn resolve_runs_on(job: &Job, options: &JobRunnerOptions<S>) -> Result<RunsOn> {
+        let exec = CommonExprExecutor::new(
+            options.pipeline.as_ref(),
+            options.expr_rctx.as_ref(),
+            &START_OF_RUN_WCTX,
+        );
+
+        job.runs_on
+            .resolve(|value| eval_all_expressions(&exec, &options.expr_regex, value))
     }
 
     pub async fn run(mut self) -> Result<Self> {
@@ -124,9 +118,9 @@ impl<S: RootState> JobRunner<S> {
                 })
             })?;
 
-        self.info(job).await?;
+        self.info().await?;
 
-        if !self.condition(job.condition.as_deref())? {
+        if !self.job_condition(job.condition.as_deref())? {
             debug!("condition failed, skiping step");
             return Ok(self);
         }
@@ -156,10 +150,12 @@ impl<S: RootState> JobRunner<S> {
             return Ok(());
         };
 
+        // The job's strategy is resolved before any of its steps have run, so the same
+        // start of run limits as runs_on apply to it.
         let exec = CommonExprExecutor::new(
             self.options.pipeline.as_ref(),
             self.options.expr_rctx.as_ref(),
-            &self.options.state,
+            &START_OF_RUN_WCTX,
         );
         let combinations = strategy.combinations(&exec)?;
         let fail_fast = strategy.resolve_fail_fast(&exec)?;
@@ -224,11 +220,11 @@ impl<S: RootState> JobRunner<S> {
         }
     }
 
-    async fn info(&self, job: &Job) -> Result<()> {
+    async fn info(&self) -> Result<()> {
         debug!("printing job informantion");
         self.options
             .logger
-            .write_line(format!("{:<15}: {}", "Runs on", &job.runs_on))
+            .write_line(format!("{:<15}: {}", "Runs on", &self.runs_on))
             .await
     }
 
@@ -406,7 +402,31 @@ impl<S: RootState> JobRunner<S> {
         Ok(())
     }
 
+    /// A job's condition is evaluated before any of its steps have run, so it can only use
+    /// the start of run expressions.
+    fn job_condition(&self, condition: Option<&str>) -> Result<bool> {
+        let expr_exec = CommonExprExecutor::new(
+            self.options.pipeline.as_ref(),
+            self.options.expr_rctx.as_ref(),
+            &START_OF_RUN_WCTX,
+        );
+        self.eval_condition(&expr_exec, condition)
+    }
+
     fn condition(&self, condition: Option<&str>) -> Result<bool> {
+        let expr_exec = CommonExprExecutor::new(
+            self.options.pipeline.as_ref(),
+            self.options.expr_rctx.as_ref(),
+            &self.options.state,
+        );
+        self.eval_condition(&expr_exec, condition)
+    }
+
+    fn eval_condition<'a, E: EvalExpr<'a>>(
+        &self,
+        expr_exec: &E,
+        condition: Option<&'a str>,
+    ) -> Result<bool> {
         let Some(condition) = condition else {
             return Ok(true);
         };
@@ -419,11 +439,6 @@ impl<S: RootState> JobRunner<S> {
             bail!("more than one condition found for step");
         };
 
-        let expr_exec = CommonExprExecutor::new(
-            self.options.pipeline.as_ref(),
-            self.options.expr_rctx.as_ref(),
-            &self.options.state,
-        );
         let value = expr_exec.eval(condition)?;
         Ok(matches!(value, ExprValue::Boolean(true)))
     }
@@ -435,14 +450,7 @@ impl<S: RootState> JobRunner<S> {
             &self.options.state,
         );
 
-        let mut result = value.to_string();
-        for entry in self.options.expr_regex.find_iter(value) {
-            let entry = entry.as_str();
-            let expr_value = expr_exec.eval(entry)?.to_string();
-            result = result.replace(entry, &expr_value);
-        }
-
-        Ok(result)
+        eval_all_expressions(&expr_exec, &self.options.expr_regex, value)
     }
 
     async fn dispose_platform(&self, job: &Job) -> Result<()> {
@@ -481,15 +489,15 @@ impl RunningJob {
 }
 
 pub async fn build_platform(
-    job: &Job,
-    pipeline: Arc<Pipeline>,
+    runs_on: &RunsOn,
     config: Arc<BldConfig>,
     logger: Arc<Logger>,
     run_ctx: Arc<Context>,
     expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
-    volumes: Vec<String>,
 ) -> Result<Arc<Platform>> {
-    let options = match &job.runs_on {
+    let volumes = runs_on.volumes().to_vec();
+
+    let options = match runs_on {
         RunsOn::ContainerOrMachine(image) if image == "machine" => PlatformOptions::Machine,
 
         RunsOn::ContainerOrMachine(image) => PlatformOptions::Container {
@@ -582,7 +590,7 @@ pub async fn build_platform(
         .run_id(&expr_rctx.run_id)
         .config(config.clone())
         .options(options)
-        .pipeline_env(&pipeline.env)
+        .pipeline_env(expr_rctx.env.as_ref())
         .env(expr_rctx.env.clone())
         .logger(logger.clone())
         .conn(conn)
@@ -604,14 +612,16 @@ mod tests {
     use bld_utils::sync::IntoArc;
     use regex::Regex;
 
+    use anyhow::Result;
+    use bld_config::{SshConfig, SshUserAuth};
     use std::collections::HashMap;
 
     use crate::{
         expr::v3::{context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX},
-        inputs::v3::Input,
         job::v3::Job,
         pipeline::v3::Pipeline,
         runner::v3::{MockRootState, RootState, State, state::JobState},
+        runs_on::v3::RunsOn,
         step::v3::{ShellCommand, Step},
         strategy::v3::{FailFastValue, MatrixValue, Strategy},
     };
@@ -649,7 +659,11 @@ mod tests {
             is_child: false,
             state,
         };
-        let job = JobRunner { options, platform };
+        let job = JobRunner {
+            options,
+            platform,
+            runs_on: RunsOn::default(),
+        };
 
         assert!(matches!(job.condition(None), Ok(true)));
 
@@ -679,15 +693,18 @@ mod tests {
         let artifacts = Artifacts::mock().into_arc();
         let regex_cache = RegexCache::mock().into_arc();
         let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
-        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let inputs: HashMap<String, String> =
+            [("worktree_dir".to_string(), "/tmp/some-worktree".to_string())]
+                .into_iter()
+                .collect();
+        let expr_rctx = CommonReadonlyRuntimeExprContext {
+            inputs: inputs.into_arc(),
+            ..Default::default()
+        }
+        .into_arc();
         let state = JobState::default();
         let package_manager = PackageManager::new(config.clone()).into_arc();
-        let mut pipeline = Pipeline::default();
-        pipeline.inputs.insert(
-            "worktree_dir".to_string(),
-            Input::Simple("/tmp/some-worktree".to_string()),
-        );
-        let pipeline = pipeline.into_arc();
+        let pipeline = Pipeline::default().into_arc();
 
         let options = JobRunnerOptions {
             job_name,
@@ -704,7 +721,11 @@ mod tests {
             is_child: false,
             state,
         };
-        let mut job = JobRunner { options, platform };
+        let mut job = JobRunner {
+            options,
+            platform,
+            runs_on: RunsOn::default(),
+        };
 
         assert_eq!(job.resolve_working_dir(&None).unwrap(), None);
 
@@ -713,6 +734,182 @@ mod tests {
                 .unwrap(),
             Some("/tmp/some-worktree".to_string())
         );
+    }
+
+    fn resolve_runs_on(runs_on: RunsOn, inputs: Vec<(&str, &str)>) -> Result<RunsOn> {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+
+        let inputs: HashMap<String, String> = inputs
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        let expr_rctx = CommonReadonlyRuntimeExprContext {
+            inputs: inputs.into_arc(),
+            ..Default::default()
+        }
+        .into_arc();
+
+        let state = JobState::default();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            job_name.clone(),
+            Job {
+                runs_on,
+                ..Default::default()
+            },
+        );
+        let pipeline = pipeline.into_arc();
+        let job = pipeline.jobs.get(&job_name).unwrap().clone();
+
+        let options = JobRunnerOptions {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline,
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            package_manager,
+            artifacts,
+            is_child: false,
+            state,
+        };
+
+        JobRunner::resolve_runs_on(&job, &options)
+    }
+
+    #[test]
+    pub fn resolve_runs_on_evaluates_container_image_expr_success() {
+        let resolved = resolve_runs_on(
+            RunsOn::ContainerOrMachine("${{ inputs.image }}".to_string()),
+            vec![("image", "ubuntu:22.04")],
+        )
+        .unwrap();
+
+        assert!(resolved.volumes().is_empty());
+        match resolved {
+            RunsOn::ContainerOrMachine(image) => assert_eq!(image, "ubuntu:22.04"),
+            other => panic!("expected ContainerOrMachine, got {other:?}"),
+        }
+    }
+
+    #[test]
+    pub fn resolve_runs_on_evaluates_pull_fields_and_volumes_expr_success() {
+        let resolved = resolve_runs_on(
+            RunsOn::Pull {
+                image: "${{ inputs.image }}".to_string(),
+                registry: None,
+                pull: Some(true),
+                docker_url: None,
+                volumes: vec!["${{ inputs.worktree_dir }}:${{ inputs.worktree_dir }}".to_string()],
+            },
+            vec![
+                ("image", "my-registry/my-image:latest"),
+                ("worktree_dir", "/home/user/worktree"),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(
+            resolved.volumes(),
+            ["/home/user/worktree:/home/user/worktree".to_string()]
+        );
+        match resolved {
+            RunsOn::Pull { image, .. } => assert_eq!(image, "my-registry/my-image:latest"),
+            other => panic!("expected Pull, got {other:?}"),
+        }
+    }
+
+    #[test]
+    pub fn resolve_runs_on_evaluates_build_and_ssh_fields_expr_success() {
+        let resolved = resolve_runs_on(
+            RunsOn::Build {
+                name: "${{ inputs.name }}".to_string(),
+                tag: "${{ inputs.tag }}".to_string(),
+                dockerfile: "${{ inputs.dir }}/Dockerfile".to_string(),
+                docker_url: None,
+                volumes: vec![],
+            },
+            vec![
+                ("name", "my-image"),
+                ("tag", "1.0.0"),
+                ("dir", "/home/user"),
+            ],
+        )
+        .unwrap();
+
+        match resolved {
+            RunsOn::Build {
+                name,
+                tag,
+                dockerfile,
+                ..
+            } => {
+                assert_eq!(name, "my-image");
+                assert_eq!(tag, "1.0.0");
+                assert_eq!(dockerfile, "/home/user/Dockerfile");
+            }
+            other => panic!("expected Build, got {other:?}"),
+        }
+
+        let resolved = resolve_runs_on(
+            RunsOn::Ssh(SshConfig {
+                host: "${{ inputs.host }}".to_string(),
+                port: "2222".to_string(),
+                user: "${{ inputs.user }}".to_string(),
+                userauth: SshUserAuth::Password {
+                    password: "${{ inputs.password }}".to_string(),
+                },
+            }),
+            vec![
+                ("host", "localhost"),
+                ("user", "some_user"),
+                ("password", "some_password"),
+            ],
+        )
+        .unwrap();
+
+        match resolved {
+            RunsOn::Ssh(config) => {
+                assert_eq!(config.host, "localhost");
+                assert_eq!(config.user, "some_user");
+                assert!(
+                    matches!(config.userauth, SshUserAuth::Password { password } if password == "some_password")
+                );
+            }
+            other => panic!("expected Ssh, got {other:?}"),
+        }
+    }
+
+    #[test]
+    pub fn resolve_runs_on_with_runtime_expr_failure() {
+        let data = vec![
+            RunsOn::ContainerOrMachine("${{ steps.build.outputs.image }}".to_string()),
+            RunsOn::ContainerOrMachine("${{ matrix.image }}".to_string()),
+            RunsOn::Pull {
+                image: "ubuntu:22.04".to_string(),
+                registry: None,
+                pull: Some(true),
+                docker_url: None,
+                volumes: vec!["${{ matrix.dir }}:/work".to_string()],
+            },
+        ];
+
+        for runs_on in data {
+            let result = resolve_runs_on(runs_on, vec![]);
+            assert!(result.is_err(), "expected an error for runtime expression");
+        }
     }
 
     #[tokio::test]
@@ -798,7 +995,11 @@ mod tests {
             is_child: false,
             state,
         };
-        let runner = JobRunner { options, platform };
+        let runner = JobRunner {
+            options,
+            platform,
+            runs_on: RunsOn::default(),
+        };
 
         // Act
         runner.run().await.unwrap();
@@ -862,7 +1063,11 @@ mod tests {
             is_child: false,
             state,
         };
-        let runner = JobRunner { options, platform };
+        let runner = JobRunner {
+            options,
+            platform,
+            runs_on: RunsOn::default(),
+        };
 
         let result = runner.run().await;
         assert!(result.is_ok(), "error: {:?}", result.err());
@@ -922,7 +1127,11 @@ mod tests {
             is_child: false,
             state,
         };
-        let runner = JobRunner { options, platform };
+        let runner = JobRunner {
+            options,
+            platform,
+            runs_on: RunsOn::default(),
+        };
 
         let result = runner.run().await;
         assert!(result.is_ok());
@@ -992,7 +1201,11 @@ mod tests {
             is_child: false,
             state,
         };
-        let runner = JobRunner { options, platform };
+        let runner = JobRunner {
+            options,
+            platform,
+            runs_on: RunsOn::default(),
+        };
 
         let result = runner.run().await;
         assert!(result.is_ok());
@@ -1065,7 +1278,11 @@ mod tests {
             is_child: false,
             state,
         };
-        let runner = JobRunner { options, platform };
+        let runner = JobRunner {
+            options,
+            platform,
+            runs_on: RunsOn::default(),
+        };
 
         let result = runner.run().await;
         assert!(result.is_err());
@@ -1138,7 +1355,11 @@ mod tests {
             is_child: false,
             state,
         };
-        let runner = JobRunner { options, platform };
+        let runner = JobRunner {
+            options,
+            platform,
+            runs_on: RunsOn::default(),
+        };
 
         let result = runner.run().await;
         assert!(result.is_err());

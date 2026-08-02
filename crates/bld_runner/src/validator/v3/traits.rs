@@ -5,6 +5,12 @@ use bld_config::BldConfig;
 use bld_core::fs::FileSystem;
 use bld_pkg::PackageManager;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExprScope {
+    StartOfRun,
+    Runtime,
+}
+
 pub trait ValidatorContext<'a> {
     fn get_config(&self) -> Arc<BldConfig>;
     fn get_fs(&self) -> Arc<FileSystem>;
@@ -17,11 +23,11 @@ pub trait ValidatorContext<'a> {
     fn append_error(&mut self, error: &str);
     fn expression_count(&self, value: &str) -> usize;
     fn contains_expressions(&mut self, value: &str) -> bool;
-    fn validate_expressions(&mut self, symbol: &'a str);
-    fn validate_array_expression(&mut self, symbol: &'a str);
+    fn validate_expressions(&mut self, symbol: &'a str, scope: ExprScope);
+    fn validate_array_expression(&mut self, symbol: &'a str, scope: ExprScope);
     fn matrix_refs(&self, value: &str) -> Vec<String>;
     fn validate_file_path(&mut self, value: &'a str);
-    fn validate_env(&mut self, env: &'a HashMap<String, String>);
+    fn validate_env(&mut self, env: &'a HashMap<String, String>, scope: ExprScope);
 }
 
 pub trait ConsumeValidator {

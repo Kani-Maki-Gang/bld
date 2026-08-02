@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "all")]
 use {
-    crate::validator::v3::{Validate, ValidatorContext},
+    crate::validator::v3::{ExprScope, Validate, ValidatorContext},
     anyhow::{Error, Result, anyhow},
     tracing::debug,
 };
@@ -14,6 +14,7 @@ pub enum Input {
     Complex {
         description: Option<String>,
         default: Option<String>,
+        #[serde(default)]
         required: bool,
     },
 }
@@ -23,6 +24,13 @@ impl Input {
         match self {
             Input::Simple(_) => false,
             Input::Complex { required, .. } => *required,
+        }
+    }
+
+    pub fn default_value(&self) -> Option<&str> {
+        match self {
+            Input::Simple(v) => Some(v),
+            Input::Complex { default, .. } => default.as_deref(),
         }
     }
 }
@@ -47,15 +55,34 @@ impl<'a> Validate<'a> for Input {
         match self {
             Input::Simple(v) => {
                 debug!("Validating input: {}", v);
-                ctx.validate_expressions(v);
+                ctx.validate_expressions(v, ExprScope::StartOfRun);
             }
             Input::Complex { default, .. } => {
                 if let Some(v) = default {
                     ctx.push_section("default");
-                    ctx.validate_expressions(v);
+                    ctx.validate_expressions(v, ExprScope::StartOfRun);
                     ctx.pop_section();
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Input;
+
+    #[test]
+    pub fn complex_input_deserializes_without_required() {
+        let input: Input = serde_yaml_ng::from_str("default: ubuntu:22.04").unwrap();
+
+        assert!(matches!(
+            input,
+            Input::Complex {
+                default: Some(default),
+                required: false,
+                ..
+            } if default == "ubuntu:22.04"
+        ));
     }
 }

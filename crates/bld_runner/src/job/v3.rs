@@ -16,7 +16,7 @@ use {
             },
         },
         strategy::v3::validate_matrix_refs,
-        validator::v3::{Validate, ValidatorContext},
+        validator::v3::{ExprScope, Validate, ValidatorContext},
     },
     anyhow::{Result, bail},
     bld_core::fs::FileSystem,
@@ -177,7 +177,8 @@ impl<'a> Validate<'a> for Job {
         if let Some(strategy) = self.strategy.as_ref() {
             debug!("Validating job's {} strategy section", self.id);
             ctx.push_section("strategy");
-            strategy.validate(ctx).await;
+            // A job's strategy and condition are resolved before any of its steps have run.
+            strategy.validate_in_scope(ctx, ExprScope::StartOfRun).await;
             ctx.pop_section();
         }
 
@@ -187,7 +188,7 @@ impl<'a> Validate<'a> for Job {
             if ctx.expression_count(condition) > 1 {
                 ctx.append_error("Condition must contain at most one expression");
             } else {
-                ctx.validate_expressions(condition);
+                ctx.validate_expressions(condition, ExprScope::StartOfRun);
             }
             validate_matrix_refs(ctx, condition, &HashSet::new());
             ctx.pop_section();
@@ -228,7 +229,7 @@ mod tests {
         expr::v3::context::CommonReadonlyRuntimeExprContext,
         pipeline::v3::Pipeline,
         step::v3::{ShellCommand, Step},
-        strategy::v3::{MatrixValue, Strategy},
+        strategy::v3::{FailFastValue, MatrixValue, Strategy},
         validator::v3::{CommonValidator, ConsumeValidator, ValidatorWritableRuntimeExprContext},
     };
 
@@ -329,6 +330,86 @@ mod tests {
 
         let result = validate_job(job).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    pub async fn start_of_run_values_in_condition_and_strategy_success() {
+        let job = Job {
+            condition: Some("${{ bld_project_dir != \"\" }}".to_string()),
+            strategy: Some(Strategy {
+                matrix: matrix_of(vec![("os", vec!["linux"])]),
+                fail_fast: Some(FailFastValue::Expr("${{ true }}".to_string())),
+            }),
+            steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                id: "build".to_string(),
+                run: "echo ${{ matrix.os }}".to_string(),
+                ..Default::default()
+            }))],
+            ..Default::default()
+        };
+
+        let result = validate_job(job).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn runtime_values_in_condition_and_strategy_failure() {
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "os".to_string(),
+            MatrixValue::Expr("${{ steps.build.outputs.oses }}".to_string()),
+        );
+
+        let data = vec![
+            // A job's condition and strategy are resolved before any of its steps have run.
+            Job {
+                condition: Some("${{ steps.build.outputs.ok == \"yes\" }}".to_string()),
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "build".to_string(),
+                    run: "echo hello".to_string(),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+            Job {
+                strategy: Some(Strategy {
+                    matrix,
+                    fail_fast: None,
+                }),
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "build".to_string(),
+                    run: "echo ${{ matrix.os }}".to_string(),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+            Job {
+                strategy: Some(Strategy {
+                    matrix: matrix_of(vec![("os", vec!["linux"])]),
+                    fail_fast: Some(FailFastValue::Expr(
+                        "${{ steps.build.outputs.ff == \"yes\" }}".to_string(),
+                    )),
+                }),
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "build".to_string(),
+                    run: "echo ${{ matrix.os }}".to_string(),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        ];
+
+        for job in data {
+            let result = validate_job(job).await;
+            let Err(e) = result else {
+                panic!("expected an error for a runtime value");
+            };
+            assert!(
+                e.to_string()
+                    .contains("is not available at the start of a run"),
+                "{e}"
+            );
+        }
     }
 
     #[tokio::test]
