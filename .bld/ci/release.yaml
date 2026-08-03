@@ -4,11 +4,21 @@ version: 2
 
 variables:
   branch: master
+  tag: ''
+  token: ''
+  prerelease: 'false'
 
 external:
-  - pipeline: pipelines/build.yaml
+  - pipeline: ci/build.yaml
     variables:
       branch: ${{ branch }}
+
+  - pipeline: ci/github-release.yaml
+    variables:
+      tag: ${{ tag }}
+      branch: ${{ branch }}
+      token: ${{ token }}
+      prerelease: ${{ prerelease }}
 
 jobs:
   musl:
@@ -27,5 +37,7 @@ jobs:
     - name: Create zip archive for windows
       working_dir: ${{ bld_project_dir }}/dist
       exec:
-        - zip -r bld-x86_64-pc-windows-gnu.zip bld
+        - zip -r bld-x86_64-pc-windows-gnu.zip bld.exe
         - sha256sum bld-x86_64-pc-windows-gnu.zip | awk '{{ print $1 }}' >> SHA256-x86_64-pc-windows-gnu
+
+    - ext: ci/github-release.yaml
