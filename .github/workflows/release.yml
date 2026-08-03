@@ -1,0 +1,45 @@
+name: Release workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'The tag to create, for example v0.5.0'
+        required: true
+      prerelease:
+        description: 'Mark the release as a pre-release. Use this for rc tags.'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    name: Release pipeline
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Get branch name
+        id: get_branch_name
+        shell: bash
+        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+
+      - name: Pull bld-ci image from github registry
+        id: pull_ci_image
+        shell: bash
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin && docker pull ghcr.io/kani-maki-gang/bld-ci:1.96
+
+      - name: Run bld pipeline
+        uses: Kani-Maki-Gang/bld-github-action@v0.3.1-alpha
+        with:
+          pipeline: 'ci/release.yaml'
+          variables: |-
+            branch=${{ steps.get_branch_name.outputs.branch }}
+            tag=${{ inputs.tag }}
+            token=${{ secrets.GITHUB_TOKEN }}
+            prerelease=${{ inputs.prerelease }}
