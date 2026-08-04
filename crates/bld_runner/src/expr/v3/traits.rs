@@ -76,6 +76,11 @@ pub enum ExprValue<'a> {
     Number(f64),
     Text(ExprText<'a>),
     Array(Vec<ExprValue<'a>>),
+    /// Placeholder used only during validation, when the real value of a
+    /// step output is not known yet. It is compatible with every
+    /// comparison, so a validation-time expression that compares a step
+    /// output does not fail due to a type mismatch.
+    Unknown,
 }
 
 impl<'a, 'b> ExprValue<'a> {
@@ -85,10 +90,15 @@ impl<'a, 'b> ExprValue<'a> {
             Self::Number(_) => "number",
             Self::Text(_) => "text",
             Self::Array(_) => "array",
+            Self::Unknown => "unknown",
         }
     }
 
     pub fn try_eq(&self, other: &'a Self) -> Result<ExprValue<'b>> {
+        if matches!(self, Self::Unknown) || matches!(other, Self::Unknown) {
+            return Ok(ExprValue::<'b>::Boolean(true));
+        }
+
         let value = match (self, other) {
             (Self::Boolean(l), Self::Boolean(r)) => l == r,
             (Self::Number(l), Self::Number(r)) => l == r,
@@ -127,6 +137,10 @@ impl<'a, 'b> ExprValue<'a> {
     }
 
     pub fn try_ord(&self, other: &'a Self) -> Result<ExprValue<'b>> {
+        if matches!(self, Self::Unknown) || matches!(other, Self::Unknown) {
+            return Ok(ExprValue::<'b>::Boolean(true));
+        }
+
         let value = match (self, other) {
             (Self::Number(l), Self::Number(r)) => l > r,
             (Self::Text(l), Self::Text(r)) => l.inner() > r.inner(),
@@ -141,6 +155,10 @@ impl<'a, 'b> ExprValue<'a> {
     }
 
     pub fn try_and(&self, other: &'a Self) -> Result<ExprValue<'b>> {
+        if matches!(self, Self::Unknown) || matches!(other, Self::Unknown) {
+            return Ok(ExprValue::<'b>::Boolean(true));
+        }
+
         let value = match (self, other) {
             (Self::Boolean(l), Self::Boolean(r)) => *l && *r,
             _ => bail!(
@@ -153,6 +171,10 @@ impl<'a, 'b> ExprValue<'a> {
     }
 
     pub fn try_or(&self, other: &'a Self) -> Result<ExprValue<'b>> {
+        if matches!(self, Self::Unknown) || matches!(other, Self::Unknown) {
+            return Ok(ExprValue::<'b>::Boolean(true));
+        }
+
         let value = match (self, other) {
             (Self::Boolean(l), Self::Boolean(r)) => *l || *r,
             _ => bail!(
@@ -229,6 +251,7 @@ impl Display for ExprValue<'_> {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
+            Self::Unknown => "unknown".to_string(),
         };
         f.write_str(&value)
     }

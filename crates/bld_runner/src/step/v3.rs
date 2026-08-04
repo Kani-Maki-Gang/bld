@@ -339,6 +339,7 @@ mod tests {
     use bld_pkg::PackageManager;
     use bld_utils::sync::IntoArc;
     use mockall::predicate;
+    use std::collections::HashMap;
 
     use crate::{
         action::v3::Action,
@@ -350,6 +351,7 @@ mod tests {
         job::v3::Job,
         pipeline::v3::Pipeline,
         step::v3::{ShellCommand, Step},
+        strategy::v3::{MatrixValue, Strategy},
         validator::v3::{CommonValidator, ConsumeValidator, ValidatorWritableRuntimeExprContext},
     };
 
@@ -848,5 +850,89 @@ mod tests {
         let result = validate_action(&action).await;
 
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    pub async fn condition_with_step_output_text_comparison_passes_validation() {
+        let mut action = Action::default();
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "build".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo \"value=ok\" >> $BLD_OUTPUTS".to_string(),
+            condition: None,
+            strategy: None,
+        })));
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "after".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo done".to_string(),
+            condition: Some(r#"${{ steps.build.outputs.value == "ok" }}"#.to_string()),
+            strategy: None,
+        })));
+
+        let result = validate_action(&action).await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    pub async fn condition_with_step_output_number_comparison_passes_validation() {
+        let mut action = Action::default();
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "build".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo \"count=5\" >> $BLD_OUTPUTS".to_string(),
+            condition: None,
+            strategy: None,
+        })));
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "after".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo done".to_string(),
+            condition: Some("${{ steps.build.outputs.count > 3 }}".to_string()),
+            strategy: None,
+        })));
+
+        let result = validate_action(&action).await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    pub async fn strategy_matrix_from_step_output_passes_validation() {
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "os".to_string(),
+            MatrixValue::Expr("${{ steps.build.outputs.oses }}".to_string()),
+        );
+
+        let mut action = Action::default();
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "build".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo \"oses=[linux, windows]\" >> $BLD_OUTPUTS".to_string(),
+            condition: None,
+            strategy: None,
+        })));
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "after".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo ${{ matrix.os }}".to_string(),
+            condition: None,
+            strategy: Some(Strategy {
+                matrix,
+                fail_fast: None,
+            }),
+        })));
+
+        let result = validate_action(&action).await;
+
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
     }
 }
