@@ -178,7 +178,7 @@ impl PipelineRunner {
     }
 
     async fn run_layer(&self, names: &[String]) -> Result<()> {
-        let mut result = Ok(());
+        let mut errors: Vec<String> = Vec::new();
         let mut running_jobs = self.prepare_jobs(names).await?;
 
         while running_jobs.iter().any(|x| x.is_some()) {
@@ -195,10 +195,12 @@ impl PipelineRunner {
 
                     let handle_result = running_job.handle.await.map_err(|e| anyhow!(e))?;
 
-                    let message = if handle_result.is_ok() {
-                        format!("{:<15}: {}", "Completed job", running_job.name)
-                    } else {
-                        format!("{:<15}: {}", "Erroneous job", running_job.name)
+                    let message = match &handle_result {
+                        Ok(_) => format!("{:<15}: {}", "Completed job", running_job.name),
+                        Err(e) => {
+                            errors.push(format!("[{}] {e}", running_job.name));
+                            format!("{:<15}: {} ({e})", "Erroneous job", running_job.name)
+                        }
                     };
 
                     self.logger.write_line(message).await?;
@@ -206,15 +208,17 @@ impl PipelineRunner {
                     self.logger
                         .write_line(running_job.logger.try_retrieve_output().await?)
                         .await?;
-
-                    result = result.and(handle_result.map(|_| ()));
                 }
             }
 
             sleep(Duration::from_millis(200)).await;
         }
 
-        result.map_err(|_| anyhow!("One or more jobs completed with errors"))
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(anyhow!(errors.join("\n")))
+        }
     }
 
     async fn run_all_jobs(&self) -> Result<()> {
@@ -304,5 +308,143 @@ impl PipelineRunner {
                 }
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use bld_config::BldConfig;
+    use bld_core::{
+        artifacts::Artifacts, context::Context, fs::FileSystem, logger::Logger, regex::RegexCache,
+    };
+    use bld_pkg::PackageManager;
+    use bld_utils::sync::IntoArc;
+    use regex::Regex;
+
+    use crate::{
+        dag::Dag,
+        expr::v3::{context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX},
+        job::v3::Job,
+        pipeline::v3::Pipeline,
+    };
+
+    use super::PipelineRunner;
+
+    fn create_runner(jobs: Vec<(&str, Job)>, logger: Arc<Logger>) -> PipelineRunner {
+        let config = BldConfig::default().into_arc();
+        let mut pipeline = Pipeline::default();
+        for (name, job) in jobs {
+            pipeline.jobs.insert(name.to_string(), job);
+        }
+
+        PipelineRunner {
+            fs: FileSystem::local(config.clone()).into_arc(),
+            logger,
+            run_ctx: Context::mock().into_arc(),
+            regex_cache: RegexCache::mock().into_arc(),
+            expr_regex: Regex::new(EXPR_REGEX).unwrap().into_arc(),
+            expr_rctx: CommonReadonlyRuntimeExprContext::default().into_arc(),
+            pipeline: pipeline.into_arc(),
+            dag: Dag::default(),
+            signals: None,
+            package_manager: PackageManager::new(config.clone()).into_arc(),
+            artifacts: Artifacts::mock().into_arc(),
+            ipc: None.into_arc(),
+            is_child: true,
+            has_faulted: false,
+            config,
+        }
+    }
+
+    /// An invalid comparison makes the condition evaluation fail, so the job
+    /// errors out without needing to run any real steps.
+    fn failing_job(condition: &str) -> Job {
+        Job {
+            condition: Some(condition.to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[actix_web::test]
+    async fn run_layer_collects_error_message_of_failing_job() {
+        let logger = Logger::in_memory().into_arc();
+        let runner = create_runner(
+            vec![
+                ("producer", failing_job("${{ true == \"James\" }}")),
+                ("consumer", Job::default()),
+            ],
+            logger.clone(),
+        );
+
+        let names = vec!["producer".to_string(), "consumer".to_string()];
+        let result = runner.run_layer(&names).await;
+
+        let error = result.expect_err("expected the failing job to produce an error");
+        let message = error.to_string();
+
+        assert!(
+            message.contains("producer"),
+            "expected the error to contain the name of the failing job, got: {message}"
+        );
+        assert!(
+            message.contains("cannot compare boolean and text"),
+            "expected the error to contain the message of the job, got: {message}"
+        );
+        assert!(
+            !message.contains("consumer"),
+            "expected the job that completed to be absent from the error, got: {message}"
+        );
+
+        let output = logger.try_retrieve_output().await.unwrap();
+        assert!(
+            output.contains("Erroneous job") && output.contains("producer"),
+            "expected the logger output to name the erroneous job, got: {output}"
+        );
+        assert!(
+            output.contains("cannot compare boolean and text"),
+            "expected the logger output to contain the message of the job, got: {output}"
+        );
+    }
+
+    #[actix_web::test]
+    async fn run_layer_collects_error_message_of_every_failing_job() {
+        let logger = Logger::in_memory().into_arc();
+        let runner = create_runner(
+            vec![
+                ("producer", failing_job("${{ true == \"James\" }}")),
+                ("consumer", failing_job("${{ 1 }} ${{ 2 }}")),
+            ],
+            logger.clone(),
+        );
+
+        let names = vec!["producer".to_string(), "consumer".to_string()];
+        let result = runner.run_layer(&names).await;
+
+        let error = result.expect_err("expected the failing jobs to produce an error");
+        let message = error.to_string();
+
+        assert!(
+            message.contains("[producer] cannot compare boolean and text"),
+            "expected the error of the producer job, got: {message}"
+        );
+        assert!(
+            message.contains("[consumer] more than one condition found for step"),
+            "expected the error of the consumer job, got: {message}"
+        );
+    }
+
+    #[actix_web::test]
+    async fn run_layer_of_completed_jobs_returns_ok() {
+        let logger = Logger::in_memory().into_arc();
+        let runner = create_runner(
+            vec![("producer", Job::default()), ("consumer", Job::default())],
+            logger.clone(),
+        );
+
+        let names = vec!["producer".to_string(), "consumer".to_string()];
+
+        assert!(runner.run_layer(&names).await.is_ok());
     }
 }
