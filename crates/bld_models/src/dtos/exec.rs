@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 #[cfg(feature = "web_socket")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum ExecClientMessage {
     EnqueueRun {
         name: String,

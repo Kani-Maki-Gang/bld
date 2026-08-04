@@ -11,6 +11,7 @@ use crate::{
     context::{AppDialog, AppDialogContent, RefreshArtifacts},
     error::ErrorDialog,
 };
+use bld_models::dtos::MonitInfo;
 use codee::string::FromToStringCodec;
 use leptos::{html::Dialog, leptos_dom::logging, *};
 use leptos_router::*;
@@ -18,18 +19,10 @@ use leptos_use::{
     ReconnectLimit, UseWebSocketOptions, UseWebSocketReturn, core::ConnectionReadyState,
     use_websocket_with_options,
 };
-use serde::{Deserialize, Serialize};
 
 use {artifacts::MonitArtifacts, logs::MonitLogs};
 
 type StopActionArgs = (String, NodeRef<Dialog>, RwSignal<Option<View>>);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct MonitInfo {
-    id: Option<String>,
-    pipeline: Option<String>,
-    last: bool,
-}
 
 #[derive(Clone, Default, Eq, PartialEq)]
 enum MenuItem {
@@ -48,11 +41,7 @@ pub fn Monit() -> impl IntoView {
 
     provide_context(RefreshArtifacts(create_rw_signal(())));
 
-    let info = move || MonitInfo {
-        id: id(),
-        pipeline: None,
-        last: false,
-    };
+    let info = move || MonitInfo::new(id(), None, false);
     let (history, set_history) = create_signal(vec![]);
 
     let Ok(access_token) = get_access_token() else {
