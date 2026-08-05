@@ -3,13 +3,13 @@ pub mod variables;
 use std::collections::HashMap;
 
 use crate::{
-    api::{self, RunParams},
+    api,
     components::button::Button,
     context::{AppDialog, AppDialogContent},
     error::{ErrorCard, ErrorDialog},
 };
 use anyhow::{Result, anyhow};
-use bld_models::dtos::PipelineInfoQueryParams;
+use bld_models::dtos::{ExecClientMessage, PipelineInfoQueryParams};
 use bld_runner::{
     VersionedFile,
     pipeline::{v1, v2},
@@ -42,10 +42,10 @@ async fn start_run(
     vars: HashMap<String, String>,
     env: HashMap<String, String>,
 ) -> Result<String> {
-    let data = RunParams::EnqueueRun {
+    let data = ExecClientMessage::EnqueueRun {
         name: name.to_string(),
-        variables: Some(vars),
-        environment: Some(env),
+        inputs: Some(vars),
+        env: Some(env),
     };
     api::run(data).await
 }

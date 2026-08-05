@@ -1,29 +1,19 @@
 use anyhow::{Result, anyhow, bail};
 use bld_models::dtos::{
     AddJobRequest, ArtifactResponse, ArtifactsQueryParams, AuthTokens, CompletedPipelinesKpi,
-    CronJobResponse, HistQueryParams, HistoryEntry, JobFiltersParams, ListResponse,
-    PipelineInfoQueryParams, PipelinePathRequest, PipelinePerCompletedStateKpi,
+    CronJobResponse, ExecClientMessage, HistQueryParams, HistoryEntry, JobFiltersParams,
+    ListResponse, PipelineInfoQueryParams, PipelinePathRequest, PipelinePerCompletedStateKpi,
     PipelineQueryParams, PipelineRunsPerMonthKpi, QueuedPipelinesKpi, RunningPipelinesKpi,
     RunsPerUserKpi, UpdateJobRequest,
 };
 use leptos::leptos_dom::logging;
 use leptos_router::{NavigateOptions, use_navigate};
 use reqwest::{Client, RequestBuilder, StatusCode};
-use serde::Serialize;
-use std::{collections::HashMap, fmt::Display};
+use std::fmt::Display;
 use web_sys::{Storage, window};
 
 const LOCAL_STORAGE_AUTH_AVAILABLE_KEY: &str = "auth_available";
 const LOCAL_STORAGE_AUTH_TOKENS_KEY: &str = "auth_tokens";
-
-#[derive(Serialize)]
-pub enum RunParams {
-    EnqueueRun {
-        name: String,
-        variables: Option<HashMap<String, String>>,
-        environment: Option<HashMap<String, String>>,
-    },
-}
 
 #[cfg(debug_assertions)]
 pub fn build_url<T: Into<String> + Display>(route: T) -> Result<String> {
@@ -380,7 +370,7 @@ pub async fn print(params: PipelineInfoQueryParams) -> Result<String> {
     }
 }
 
-pub async fn run(data: RunParams) -> Result<String> {
+pub async fn run(data: ExecClientMessage) -> Result<String> {
     let url = build_url("/v1/run")?;
     let request = add_authorization_header(Client::builder().build()?.post(&url))?;
     let response = request.json(&data).send().await?;
