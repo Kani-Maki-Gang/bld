@@ -142,7 +142,17 @@ jobs:
             .bld_review_status in the root of the worktree: write `OK` on its own if
             the implementation is acceptable, or `NEEDS_HUMAN: <a short explanation
             of what an engineer should check or decide>` if you cannot confidently
-            make that call yourself.
+            make that call yourself. Also write a file named .bld_commit_msg in the
+            root of the worktree holding a conventional commit message for the whole
+            change: a `<type>(<optional scope>): <subject>` first line using one of
+            feat, fix, chore, docs, refactor, test, build or ci, then a blank line,
+            then a short body explaining what changed and why. Finally write a file
+            named .bld_pr_body.md in the root of the worktree holding the pull
+            request description: the single line `### In this PR`, a blank line, then
+            a short bullet list with one brief remark per notable change. Nothing
+            else goes in that file - no title, no closing line, no other headings.
+            Write both files whether or not the verdict is OK, and do not mention
+            yourself or the pipeline in either.
 
       - id: outcome
         name: Report the review outcome

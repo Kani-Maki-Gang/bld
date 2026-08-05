@@ -16,13 +16,32 @@ inputs:
     description: Repository the project items are issues of, in owner/name form
     default: Kani-Maki-Gang/bld
     required: false
-  ready_status_field:
-    description: Project field name that marks an item ready for development
+  repo_dir:
+    description: The local clone of the repository on the current machine
+    default: ${{ bld_project_dir }}
+    required: false
+  assignee:
+    description: >-
+      Only project items assigned to this GitHub login are picked up, and the pull
+      requests opened for them are assigned to it. Defaults to @me, which the fetch
+      step resolves to the login of the authenticated gh user.
+    default: "@me"
+    required: false
+  status_field:
+    description: Project field name holding the item's development status
     default: Status
     required: false
   ready_status_value:
     description: Field value that marks an item ready for development
     default: Ready
+    required: false
+  in_progress_status_value:
+    description: Field value set on an item once its implementation run starts
+    default: In progress
+    required: false
+  in_review_status_value:
+    description: Field value set on an item once its pull request is open
+    default: In review
     required: false
   worktree_root:
     description: >-
@@ -41,20 +60,45 @@ jobs:
         run: |
           set -euo pipefail
 
-          field="$(echo "${{ inputs.ready_status_field }}" | tr '[:upper:]' '[:lower:]')"
+          # gh project item-list lowercases the field names in its json output, so the
+          # field is matched in lowercase here while the item-edit steps below use the
+          # input verbatim, which is the casing the GitHub API expects.
+          field="$(echo "${{ inputs.status_field }}" | tr '[:upper:]' '[:lower:]')"
           value="${{ inputs.ready_status_value }}"
 
+          # @me is resolved here rather than passed through, because the project item
+          # json carries real logins and jq has nothing to compare an alias against.
+          assignee="${{ inputs.assignee }}"
+          if [ "$assignee" = "@me" ]; then
+            assignee="$(gh api user -q .login)"
+          fi
+
+          if [ -z "$assignee" ]; then
+            echo "Could not determine the assignee to filter on - pass -i assignee=<login>."
+            exit 1
+          fi
+
+          # The assignee match is any(. == $assignee) rather than contains: on arrays of
+          # strings contains does substring matching, so ["kostas-vl"] would match the
+          # login "kostas".
           items="$(gh project item-list ${{ inputs.project_number }} --owner ${{ inputs.project_owner }} --format json --limit 200 \
-            | jq -c --arg field "$field" --arg value "$value" \
-                '[.items[] | select((.[$field] // "") == $value) | (.content.number // empty)]')"
+            | jq -c --arg field "$field" --arg value "$value" --arg assignee "$assignee" \
+                '[.items[]
+                  | select((.[$field] // "") == $value)
+                  | select((.assignees // []) | any(. == $assignee))
+                  | (.content.number // empty)]')"
 
           # A matrix expression must resolve to a non-empty array (see
           # strategy/v3.rs), so fail with a clear message rather than a cryptic
           # matrix error when nothing is ready for development.
           if [ "$items" = "[]" ] || [ -z "$items" ]; then
-            echo "No items in '${{ inputs.ready_status_value }}' status - nothing to implement."
+            echo "No items in '${{ inputs.ready_status_value }}' status assigned to $assignee - nothing to implement."
             exit 1
           fi
+
+          # Published for the commit step, which assigns the pull request to the same
+          # login every item was filtered on.
+          echo "assignee=$assignee" >> $BLD_OUTPUTS
 
           echo "items=$items" >> $BLD_OUTPUTS
           # Host paths bind-mounted into the implementation container so Claude Code
@@ -84,7 +128,7 @@ jobs:
           # verbatim, so an expression in one would reach the shell unevaluated.
           worktree_root="${{ inputs.worktree_root }}"
           if [ -z "$worktree_root" ]; then
-            worktree_root="${{ bld_project_dir }}/../worktrees/bld"
+            worktree_root="${{ inputs.repo_dir }}/../worktrees/bld"
           fi
           worktree_root="$(realpath -m "$worktree_root")"
           echo "worktree_root=$worktree_root" >> $BLD_OUTPUTS
@@ -100,10 +144,10 @@ jobs:
         with:
           item: ${{ matrix.item }}
           worktree_root: ${{ steps.fetch.outputs.worktree_root }}
-          repo_dir: ${{ bld_project_dir }}
+          repo_dir: ${{ inputs.repo_dir }}
 
       - id: issue
-        name: Write each item's issue content into its worktree
+        name: Write each item's issue content and mark it in progress
         strategy:
           fail_fast: false
           matrix:
@@ -123,6 +167,17 @@ jobs:
 
           echo "Item ${{ matrix.item }}: wrote $(wc -l < .bld_issue.md) lines of issue content to .bld_issue.md"
 
+          # Moving the item out of Ready here, before the agents start, is what stops a
+          # repeated or concurrent orchestrator run from picking the same item up again.
+          # gh resolves the field and the value by name, so no node ids are needed.
+          gh project item-edit ${{ inputs.project_number }} \
+            --owner ${{ inputs.project_owner }} \
+            --url https://github.com/${{ inputs.repo }}/issues/${{ matrix.item }} \
+            --field "${{ inputs.status_field }}" \
+            --value "${{ inputs.in_progress_status_value }}"
+
+          echo "Item ${{ matrix.item }}: status set to ${{ inputs.in_progress_status_value }}"
+
       - id: implement
         name: Run the implementation pipeline per item
         uses: dev/implementation.yaml
@@ -134,13 +189,13 @@ jobs:
           item: ${{ matrix.item }}
           branch: item-${{ matrix.item }}
           worktree_dir: ${{ steps.fetch.outputs.worktree_root }}/item-${{ matrix.item }}
-          repo_dir: ${{ bld_project_dir }}
+          repo_dir: ${{ inputs.repo_dir }}
           claude_dir: ${{ steps.fetch.outputs.claude_dir }}
           claude_config_file: ${{ steps.fetch.outputs.claude_config_file }}
           gh_config_dir: ${{ steps.fetch.outputs.gh_config_dir }}
 
       - id: commit
-        name: Commit and push each item's changes
+        name: Commit, push and open a pull request for each item
         strategy:
           fail_fast: false
           matrix:
@@ -150,25 +205,126 @@ jobs:
           set -euo pipefail
 
           status_file=".bld_review_status"
+          msg_file=".bld_commit_msg"
+          body_file=".bld_pr_body.md"
           branch="item-${{ matrix.item }}"
 
           if [ ! -f "$status_file" ] || ! grep -q '^OK' "$status_file"; then
             echo "Item ${{ matrix.item }}: review did not confirm OK, skipping commit."
             echo "Review status:"
             cat "$status_file" 2>/dev/null || echo "(no .bld_review_status file found)"
+            echo "The item stays in ${{ inputs.in_progress_status_value }} for an engineer to pick up."
             exit 0
           fi
 
           # Exclude bld's own worktree helper files (.bld_claude_session_*,
-          # .bld_last_output_*.md, .bld_review_status) from the commit.
+          # .bld_last_output_*.md, .bld_review_status, .bld_commit_msg,
+          # .bld_pr_body.md) from the commit.
           git add -A -- . ':!.bld_*'
           if git diff --cached --quiet; then
             echo "Item ${{ matrix.item }}: no changes to commit."
             exit 0
           fi
 
-          git commit -m "Implement item ${{ matrix.item }}"
+          # The review agent writes the conventional commit message, since it is the
+          # step that sees the final diff. Fall back to a generic message rather than
+          # failing the item when it did not write one.
+          if [ ! -s "$msg_file" ]; then
+            echo "chore: implement item ${{ matrix.item }}" > "$msg_file"
+          fi
 
-          echo "Item ${{ matrix.item }}: committed on $branch."
-          echo "Push it once an engineer has looked at the branch:"
-          echo "  git -C \"$(pwd)\" push -u origin $branch"
+          git commit -F "$msg_file"
+          git push -u origin "$branch"
+
+          # gh pr create fails when a pull request for the branch already exists, which
+          # is the normal case on a re-run, so reuse the open one instead. No --base is
+          # needed: it defaults to the repository's default branch, which is what
+          # actions/git-worktree.yaml branched from.
+          pr_url="$(gh pr list --repo ${{ inputs.repo }} --head "$branch" --state open --json url -q '.[0].url // empty')"
+          if [ -z "$pr_url" ]; then
+            # The review agent writes the "### In this PR" body; fall back to a single
+            # bullet with the commit subject when it did not. Any Closes line is
+            # stripped first so a re-run cannot append a second one. The body is held
+            # in a variable because redirecting into the file being read truncates it.
+            if [ -s "$body_file" ]; then
+              body="$(grep -v '^Closes #' "$body_file" || true)"
+            fi
+            if [ -z "${body:-}" ]; then
+              body="$(printf '### In this PR\n\n- %s' "$(head -n 1 "$msg_file")")"
+            fi
+            printf '%s\n\nCloses #%s\n' "$body" "${{ matrix.item }}" > "$body_file"
+
+            pr_url="$(gh pr create --repo ${{ inputs.repo }} --head "$branch" \
+              --assignee "${{ steps.fetch.outputs.assignee }}" \
+              --title "$(head -n 1 "$msg_file")" \
+              --body-file "$body_file")"
+          fi
+
+          gh project item-edit ${{ inputs.project_number }} \
+            --owner ${{ inputs.project_owner }} \
+            --url https://github.com/${{ inputs.repo }}/issues/${{ matrix.item }} \
+            --field "${{ inputs.status_field }}" \
+            --value "${{ inputs.in_review_status_value }}"
+
+          echo "Item ${{ matrix.item }}: $pr_url"
+          echo "Item ${{ matrix.item }}: status set to ${{ inputs.in_review_status_value }}"
+
+      - id: cleanup
+        name: Remove the worktree of each item that reached review
+        strategy:
+          fail_fast: false
+          matrix:
+            item: ${{ steps.fetch.outputs.items }}
+        # git worktree remove cannot run from inside the worktree it removes, so this
+        # step works from the main clone instead of the per item worktree.
+        working_dir: ${{ inputs.repo_dir }}
+        run: |
+          set -euo pipefail
+
+          worktree_dir="${{ steps.fetch.outputs.worktree_root }}/item-${{ matrix.item }}"
+
+          if [ ! -d "$worktree_dir" ]; then
+            echo "Item ${{ matrix.item }}: no worktree at $worktree_dir, nothing to clean up."
+            exit 0
+          fi
+
+          # The board is the source of truth for whether the item finished: the commit
+          # step only reaches In review once the push and the pull request succeeded.
+          # Anything left In progress keeps its worktree, which is what an engineer goes
+          # into to see what went wrong.
+          field="$(echo "${{ inputs.status_field }}" | tr '[:upper:]' '[:lower:]')"
+          status="$(gh project item-list ${{ inputs.project_number }} --owner ${{ inputs.project_owner }} --format json --limit 200 \
+            | jq -r --arg field "$field" --argjson item ${{ matrix.item }} \
+                '.items[] | select((.content.number // empty) == $item) | (.[$field] // "")')"
+
+          if [ "$status" != "${{ inputs.in_review_status_value }}" ]; then
+            echo "Item ${{ matrix.item }}: status is '${status:-unknown}', keeping $worktree_dir to inspect."
+            exit 0
+          fi
+
+          # Refuse to throw away real work. Only the pipeline's own .bld_ scratch files
+          # may be left behind, and every commit must already be on the remote.
+          if [ -n "$(git -C "$worktree_dir" status --porcelain -- . ':!.bld_*')" ]; then
+            echo "Item ${{ matrix.item }}: uncommitted changes in $worktree_dir, keeping it."
+            git -C "$worktree_dir" status --short -- . ':!.bld_*'
+            exit 0
+          fi
+
+          # A branch with no upstream has never been pushed, so treat a missing upstream
+          # as unpushed work rather than as an empty diff.
+          if ! upstream="$(git -C "$worktree_dir" rev-parse --abbrev-ref '@{u}' 2>/dev/null)"; then
+            echo "Item ${{ matrix.item }}: branch has no upstream, keeping $worktree_dir."
+            exit 0
+          fi
+
+          if [ -n "$(git -C "$worktree_dir" log --oneline "$upstream..HEAD")" ]; then
+            echo "Item ${{ matrix.item }}: unpushed commits in $worktree_dir, keeping it."
+            exit 0
+          fi
+
+          # --force is needed only because the .bld_ scratch files are untracked; the
+          # checks above already established there is nothing of value left here.
+          git worktree remove --force "$worktree_dir"
+
+          echo "Item ${{ matrix.item }}: removed $worktree_dir."
+          echo "Item ${{ matrix.item }}: branch item-${{ matrix.item }} is kept, the pull request is open on it."
