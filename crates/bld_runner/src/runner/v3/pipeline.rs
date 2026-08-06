@@ -196,6 +196,9 @@ impl PipelineRunner {
                     let handle_result = running_job.handle.await.map_err(|e| anyhow!(e))?;
 
                     let message = match &handle_result {
+                        Ok(runner) if runner.is_skipped() => {
+                            format!("{:<15}: {}", "Skipped job", running_job.name)
+                        }
                         Ok(_) => format!("{:<15}: {}", "Completed job", running_job.name),
                         Err(e) => {
                             errors.push(format!("[{}] {e}", running_job.name));
