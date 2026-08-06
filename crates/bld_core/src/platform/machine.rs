@@ -1,5 +1,5 @@
 use crate::logger::Logger;
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 use bld_config::{BldConfig, definitions::BLD_OUTPUTS_ENV_VAR_V3, path};
 use bld_utils::{shell::get_shell, variables::parse_variables_iter};
 use std::{
@@ -9,9 +9,55 @@ use std::{
     process::ExitStatus,
     sync::Arc,
 };
-use tokio::fs::{copy, create_dir_all, read_to_string, remove_dir_all};
+use tokio::fs::{copy, create_dir_all, read_dir, read_to_string, remove_dir_all};
 use tracing::debug;
 use uuid::Uuid;
+
+async fn copy_path(from: &Path, to: &Path) -> Result<()> {
+    let metadata = tokio::fs::metadata(from).await?;
+
+    if metadata.is_dir() {
+        return copy_dir_recursive(from, to).await;
+    }
+
+    let mut to = to.to_path_buf();
+    if tokio::fs::metadata(&to)
+        .await
+        .map(|m| m.is_dir())
+        .unwrap_or(false)
+    {
+        let name = from
+            .file_name()
+            .ok_or_else(|| anyhow!("unable to get the file name of {from:?}"))?;
+        to.push(name);
+    }
+
+    if let Some(parent) = to.parent() {
+        create_dir_all(parent).await?;
+    }
+
+    copy(from, &to).await?;
+    Ok(())
+}
+
+async fn copy_dir_recursive(from: &Path, to: &Path) -> Result<()> {
+    create_dir_all(to).await?;
+
+    let mut entries = read_dir(from).await?;
+    while let Some(entry) = entries.next_entry().await? {
+        let entry_path = entry.path();
+        let target_path = to.join(entry.file_name());
+        let file_type = entry.file_type().await?;
+
+        if file_type.is_dir() {
+            Box::pin(copy_dir_recursive(&entry_path, &target_path)).await?;
+        } else {
+            copy(&entry_path, &target_path).await?;
+        }
+    }
+
+    Ok(())
+}
 
 pub struct Machine {
     tmp_dir: String,
@@ -53,8 +99,7 @@ impl Machine {
     }
 
     async fn copy(&self, from: &str, to: &str) -> Result<()> {
-        copy(Path::new(from), Path::new(to)).await?;
-        Ok(())
+        copy_path(Path::new(from), Path::new(to)).await
     }
 
     pub async fn copy_from(&self, from: &str, to: &str) -> Result<()> {
@@ -120,5 +165,52 @@ impl Machine {
     pub async fn dispose(&self) -> Result<()> {
         remove_dir_all(&self.tmp_dir).await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::copy_path;
+    use bld_config::BldConfig;
+    use std::fs::{create_dir_all, read_to_string, remove_dir_all, write};
+    use uuid::Uuid;
+
+    #[tokio::test]
+    async fn copy_path_copies_file_into_directory_target() {
+        let config = BldConfig::default();
+        let base = config.tmp_full_path(&format!("machine-copy-test-{}", Uuid::new_v4()));
+        let source = base.join("file.txt");
+        let target_dir = base.join("target");
+        create_dir_all(&base).unwrap();
+        create_dir_all(&target_dir).unwrap();
+        write(&source, b"hello world").unwrap();
+
+        copy_path(&source, &target_dir).await.unwrap();
+
+        let content = read_to_string(target_dir.join("file.txt")).unwrap();
+        assert_eq!(content, "hello world");
+
+        let _ = remove_dir_all(&base);
+    }
+
+    #[tokio::test]
+    async fn copy_path_copies_directory_tree() {
+        let config = BldConfig::default();
+        let base = config.tmp_full_path(&format!("machine-copy-test-{}", Uuid::new_v4()));
+        let source = base.join("source");
+        let nested = source.join("nested");
+        let target = base.join("target");
+        create_dir_all(&nested).unwrap();
+        write(source.join("root.txt"), b"root file").unwrap();
+        write(nested.join("nested.txt"), b"nested file").unwrap();
+
+        copy_path(&source, &target).await.unwrap();
+
+        let root_content = read_to_string(target.join("root.txt")).unwrap();
+        let nested_content = read_to_string(target.join("nested").join("nested.txt")).unwrap();
+        assert_eq!(root_content, "root file");
+        assert_eq!(nested_content, "nested file");
+
+        let _ = remove_dir_all(&base);
     }
 }
