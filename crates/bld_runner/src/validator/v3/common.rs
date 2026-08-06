@@ -49,7 +49,7 @@ impl<'a> WritableRuntimeExprContext for ValidatorWritableRuntimeExprContext<'a> 
     }
 
     fn get_output<'b>(&'b self, _id: &str, _name: &str) -> Result<ExprValue<'b>> {
-        Ok(ExprValue::Array(vec![]))
+        Ok(ExprValue::Unknown)
     }
 
     fn set_output(&mut self, _id: &str, name: String, value: String) -> Result<()> {
@@ -137,7 +137,9 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
         let expr_exec = CommonExprExecutor::new(self.validatable, self.expr_rctx, wctx);
         for entry in self.expr_regex.find_iter(value) {
             match expr_exec.eval(entry.as_str()) {
-                Ok(ExprValue::Array(_)) => {}
+                // The value of a step output isn't known during validation, so an
+                // expression that uses one can't be checked against the array type.
+                Ok(ExprValue::Array(_) | ExprValue::Unknown) => {}
                 Ok(other) => {
                     let section = self.section_txt();
                     let _ = writeln!(
