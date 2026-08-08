@@ -295,7 +295,7 @@ impl<'a> Validate<'a> for Step {
                     } else if expr_count > 1 {
                         ctx.append_error("Condition must contain at most one expression");
                     } else {
-                        ctx.validate_expressions(condition, ExprScope::Runtime);
+                        ctx.validate_condition_expression(condition, ExprScope::Runtime);
                     }
                     ctx.pop_section();
                 }
@@ -912,6 +912,66 @@ mod tests {
         let result = validate_action(&action).await;
 
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    pub async fn condition_with_text_true_or_false_passes_validation() {
+        let mut action = Action::default();
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "first".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo hello".to_string(),
+            condition: Some("${{ \"true\" }}".to_string()),
+            strategy: None,
+        })));
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "second".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo hello".to_string(),
+            condition: Some("${{ \"false\" }}".to_string()),
+            strategy: None,
+        })));
+
+        let result = validate_action(&action).await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    pub async fn condition_with_number_fails_validation_with_type_in_message() {
+        let mut action = Action::default();
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "first".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo hello".to_string(),
+            condition: Some("${{ 1 }}".to_string()),
+            strategy: None,
+        })));
+
+        let result = validate_action(&action).await;
+
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("number"));
+    }
+
+    #[tokio::test]
+    pub async fn condition_with_array_fails_validation() {
+        let mut action = Action::default();
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "first".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo hello".to_string(),
+            condition: Some("${{ [1, 2] }}".to_string()),
+            strategy: None,
+        })));
+
+        let result = validate_action(&action).await;
+
+        assert!(result.is_err());
     }
 
     #[tokio::test]

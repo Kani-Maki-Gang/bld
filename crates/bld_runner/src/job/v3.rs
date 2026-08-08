@@ -198,7 +198,7 @@ impl<'a> Validate<'a> for Job {
             if ctx.expression_count(condition) > 1 {
                 ctx.append_error("Condition must contain at most one expression");
             } else {
-                ctx.validate_expressions(condition, ExprScope::StartOfRun);
+                ctx.validate_condition_expression(condition, ExprScope::StartOfRun);
             }
             validate_matrix_refs(ctx, condition, &HashSet::new());
             ctx.pop_section();
