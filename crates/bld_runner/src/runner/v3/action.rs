@@ -145,32 +145,37 @@ impl<S: RootState> ActionRunner<S> {
     }
 
     async fn run_step(&mut self, step: &Step) -> Result<()> {
-        self.state.update_node_state(step.id(), State::Running);
-        match step {
-            Step::ComplexSh(complex) => self.complex_shell(complex).await,
-            Step::ExternalFile(external) => self.external(external).await,
-            Step::DownloadArtifact(download) => self.download_artifact(download).await,
-            Step::UploadArtifact(upload) => self.upload_artifact(upload).await,
-        }
-        .inspect(|_| self.state.update_node_state(step.id(), State::Completed))
-        .inspect_err(|e| {
-            self.state.update_node_state(
-                step.id(),
-                State::Failed {
-                    error: e.to_string(),
-                },
-            )
-        })
+        let condition = self.condition(step.condition());
+        let result = match condition {
+            Ok(false) => {
+                debug!("condition failed, skiping step");
+                return Ok(());
+            }
+            Err(e) => Err(e),
+            Ok(true) => {
+                self.state.update_node_state(step.id(), State::Running);
+                match step {
+                    Step::ComplexSh(complex) => self.complex_shell(complex).await,
+                    Step::ExternalFile(external) => self.external(external).await,
+                    Step::DownloadArtifact(download) => self.download_artifact(download).await,
+                    Step::UploadArtifact(upload) => self.upload_artifact(upload).await,
+                }
+            }
+        };
+
+        result
+            .inspect(|_| self.state.update_node_state(step.id(), State::Completed))
+            .inspect_err(|e| {
+                self.state.update_node_state(
+                    step.id(),
+                    State::Failed {
+                        error: e.to_string(),
+                    },
+                )
+            })
     }
 
     async fn complex_shell(&mut self, complex: &ShellCommand) -> Result<()> {
-        let condition = complex.condition.as_deref();
-
-        if !self.condition(condition)? {
-            debug!("condition failed, skiping step");
-            return Ok(());
-        }
-
         if let Some(name) = complex.name.as_ref() {
             let mut message = String::new();
             writeln!(message, "{:<15}: {name}", "Step")?;
@@ -557,6 +562,7 @@ mod tests {
                 id: "download".to_string(),
                 download: "artifact-name".to_string(),
                 to: "${{ inputs.region }}/artifact".to_string(),
+                condition: None,
             })));
         action
             .steps
@@ -564,6 +570,7 @@ mod tests {
                 id: "upload".to_string(),
                 upload: "${{ inputs.region }}/artifact".to_string(),
                 name: "artifact-name".to_string(),
+                condition: None,
             })));
 
         let mut state = ActionState::default();
@@ -656,6 +663,73 @@ mod tests {
     }
 
     #[tokio::test]
+    pub async fn artifact_steps_respect_condition_and_still_run_remaining_steps() {
+        // Arrange
+        let logger = Logger::mock().into_arc();
+        let mut action = Action::default();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex = Regex::new(EXPR_REGEX).unwrap();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        action
+            .steps
+            .push(Step::DownloadArtifact(Box::new(DownloadArtifact {
+                id: "skipped".to_string(),
+                download: "artifact-name".to_string(),
+                to: "some/path".to_string(),
+                condition: Some("${{ false }}".to_string()),
+            })));
+        action
+            .steps
+            .push(Step::UploadArtifact(Box::new(UploadArtifact {
+                id: "executed".to_string(),
+                upload: "some/path".to_string(),
+                name: "artifact-name".to_string(),
+                condition: Some("${{ true }}".to_string()),
+            })));
+
+        let mut state = ActionState::default();
+        for step in &action.steps {
+            state.add_node(step.id());
+        }
+
+        let mut runner = ActionRunner {
+            logger,
+            action,
+            platform,
+            artifacts,
+            expr_regex: regex,
+            expr_rctx: rctx,
+            state,
+            config,
+            fs,
+            run_ctx,
+            regex_cache,
+            package_manager,
+        };
+
+        // Act
+        let result = runner.steps().await;
+
+        // Assert
+        assert!(result.is_ok(), "error: {:?}", result.err());
+        assert!(matches!(
+            runner.state.get_node_state("skipped"),
+            Some(State::Default)
+        ));
+        assert!(matches!(
+            runner.state.get_node_state("executed"),
+            Some(State::Completed)
+        ));
+    }
+
+    #[tokio::test]
     pub async fn step_level_matrix_expansion_runs_all_combinations_success() {
         let logger = Logger::mock().into_arc();
         let mut action = Action::default();
@@ -727,11 +801,6 @@ mod tests {
         state.expect_set_matrix().returning(|_| ());
         state
             .expect_update_node_state()
-            .withf(|_, state| matches!(state, State::Running))
-            .times(1)
-            .returning(|_, _| ());
-        state
-            .expect_update_node_state()
             .withf(|_, state| matches!(state, State::Failed { .. }))
             .times(1)
             .returning(|_, _| ());
@@ -790,11 +859,6 @@ mod tests {
         let mut state = MockRootState::new();
         state.expect_update_state().returning(|_| ());
         state.expect_set_matrix().returning(|_| ());
-        state
-            .expect_update_node_state()
-            .withf(|_, state| matches!(state, State::Running))
-            .times(3)
-            .returning(|_, _| ());
         state
             .expect_update_node_state()
             .withf(|_, state| matches!(state, State::Failed { .. }))
