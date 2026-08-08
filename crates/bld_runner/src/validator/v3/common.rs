@@ -155,6 +155,28 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
             }
         }
     }
+
+    fn eval_condition_expression<W: WritableRuntimeExprContext>(
+        &mut self,
+        value: &'a str,
+        wctx: &'a W,
+    ) {
+        let expr_exec = CommonExprExecutor::new(self.validatable, self.expr_rctx, wctx);
+        for entry in self.expr_regex.find_iter(value) {
+            match expr_exec.eval(entry.as_str()) {
+                Ok(value) => {
+                    if let Err(e) = value.validate_as_condition() {
+                        let section = self.section_txt();
+                        let _ = writeln!(self.errors, "[{section}] {}", e);
+                    }
+                }
+                Err(e) => {
+                    let section = self.section_txt();
+                    let _ = writeln!(self.errors, "[{section}] {}", e);
+                }
+            }
+        }
+    }
 }
 
 impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for CommonValidator<'a, V> {
@@ -227,6 +249,18 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for Comm
                     return;
                 };
                 self.eval_array_expression(value, expr_wctx)
+            }
+        }
+    }
+
+    fn validate_condition_expression(&mut self, value: &'a str, scope: ExprScope) {
+        match scope {
+            ExprScope::StartOfRun => self.eval_condition_expression(value, &START_OF_RUN_WCTX),
+            ExprScope::Runtime => {
+                let Some(expr_wctx) = self.runtime_wctx() else {
+                    return;
+                };
+                self.eval_condition_expression(value, expr_wctx)
             }
         }
     }
