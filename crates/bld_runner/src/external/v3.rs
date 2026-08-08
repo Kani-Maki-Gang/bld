@@ -14,7 +14,7 @@ use {
                 WritableRuntimeExprContext,
             },
         },
-        validator::v3::{ExprScope, Validate, ValidatorContext},
+        validator::v3::{ExprScope, Validate, ValidatorContext, validate_condition},
     },
     anyhow::{Result, bail},
     pest::iterators::Pairs,
@@ -37,6 +37,9 @@ pub struct External {
     pub env: HashMap<String, String>,
 
     pub strategy: Option<Strategy>,
+
+    #[serde(rename = "if")]
+    pub condition: Option<String>,
 }
 
 impl External {
@@ -130,6 +133,9 @@ impl<'a> Validate<'a> for External {
         ctx.push_section("env");
         ctx.validate_env(&self.env, ExprScope::Runtime);
         ctx.pop_section();
+
+        debug!("Validating external's if condition");
+        validate_condition(ctx, self.condition.as_deref());
     }
 }
 

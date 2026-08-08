@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 #[cfg(feature = "all")]
 use {
-    crate::validator::v3::{ExprScope, Validate, ValidatorContext},
+    crate::validator::v3::{ExprScope, Validate, ValidatorContext, validate_condition},
     bld_core::artifacts::validate_artifact_name,
     tracing::debug,
 };
@@ -14,6 +14,8 @@ pub struct UploadArtifact {
     pub id: String,
     pub upload: String,
     pub name: String,
+    #[serde(rename = "if")]
+    pub condition: Option<String>,
 }
 
 impl UploadArtifact {
@@ -28,6 +30,7 @@ impl Default for UploadArtifact {
             id: Self::default_id(),
             upload: String::new(),
             name: String::new(),
+            condition: None,
         }
     }
 }
@@ -50,5 +53,8 @@ impl<'a> Validate<'a> for UploadArtifact {
             ctx.append_error(&e.to_string());
         }
         ctx.pop_section();
+
+        debug!("Validating artifact's if condition");
+        validate_condition(ctx, self.condition.as_deref());
     }
 }
