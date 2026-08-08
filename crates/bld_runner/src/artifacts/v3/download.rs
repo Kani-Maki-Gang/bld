@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 #[cfg(feature = "all")]
 use {
-    crate::validator::v3::{ExprScope, Validate, ValidatorContext},
+    crate::validator::v3::{ExprScope, Validate, ValidatorContext, validate_condition},
     bld_core::artifacts::validate_artifact_name,
     tracing::debug,
 };
@@ -14,6 +14,8 @@ pub struct DownloadArtifact {
     pub id: String,
     pub download: String,
     pub to: String,
+    #[serde(rename = "if")]
+    pub condition: Option<String>,
 }
 
 impl DownloadArtifact {
@@ -28,6 +30,7 @@ impl Default for DownloadArtifact {
             id: Self::default_id(),
             download: String::new(),
             to: String::new(),
+            condition: None,
         }
     }
 }
@@ -50,5 +53,8 @@ impl<'a> Validate<'a> for DownloadArtifact {
         ctx.push_section("to");
         ctx.validate_expressions(&self.to, ExprScope::Runtime);
         ctx.pop_section();
+
+        debug!("Validating artifact's if condition");
+        validate_condition(ctx, self.condition.as_deref());
     }
 }
