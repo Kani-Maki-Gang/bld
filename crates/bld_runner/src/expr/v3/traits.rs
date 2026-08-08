@@ -94,6 +94,35 @@ impl<'a, 'b> ExprValue<'a> {
         }
     }
 
+    /// Interprets the value of a condition (a job's or a step's `if`). A boolean value
+    /// is used as is. A text value of `"true"` or `"false"` is accepted too, since an
+    /// input is always given as text. Any other value is an error, so a condition that
+    /// cannot be true or false does not silently skip a step.
+    pub fn try_as_condition(&self) -> Result<bool> {
+        match self {
+            Self::Boolean(value) => Ok(*value),
+            Self::Text(text) if text.inner() == "true" => Ok(true),
+            Self::Text(text) if text.inner() == "false" => Ok(false),
+            other => bail!(
+                "a condition must give a boolean value, but it gives {}",
+                other.type_as_string()
+            ),
+        }
+    }
+
+    /// Checks the value of a condition during validation. The value of an input or of a
+    /// step output is not known yet, and both are text, so every text value is accepted
+    /// here and only a type that can never be a condition is reported.
+    pub fn validate_as_condition(&self) -> Result<()> {
+        match self {
+            Self::Boolean(_) | Self::Text(_) | Self::Unknown => Ok(()),
+            other => bail!(
+                "a condition must give a boolean value, but it gives {}",
+                other.type_as_string()
+            ),
+        }
+    }
+
     pub fn try_eq(&self, other: &'a Self) -> Result<ExprValue<'b>> {
         if matches!(self, Self::Unknown) || matches!(other, Self::Unknown) {
             return Ok(ExprValue::<'b>::Boolean(true));
@@ -292,4 +321,71 @@ pub trait EvalExpr<'a> {
     fn eval_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
     fn eval_logical_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
     fn eval(&self, expr: &'a str) -> Result<ExprValue<'a>>;
+}
+
+#[cfg(test)]
+mod condition_tests {
+    use super::*;
+
+    #[test]
+    fn boolean_true_and_false_are_used_as_is() {
+        assert!(ExprValue::Boolean(true).try_as_condition().unwrap());
+        assert!(!ExprValue::Boolean(false).try_as_condition().unwrap());
+    }
+
+    #[test]
+    fn text_true_and_false_are_accepted_since_inputs_are_always_text() {
+        assert!(
+            ExprValue::Text(ExprText::Owned("true".to_string()))
+                .try_as_condition()
+                .unwrap()
+        );
+        assert!(
+            !ExprValue::Text(ExprText::Owned("false".to_string()))
+                .try_as_condition()
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn number_gives_an_error_naming_the_type() {
+        let err = ExprValue::Number(1.0).try_as_condition().unwrap_err();
+        assert!(err.to_string().contains("number"));
+    }
+
+    #[test]
+    fn array_gives_an_error() {
+        assert!(ExprValue::Array(vec![]).try_as_condition().is_err());
+    }
+
+    #[test]
+    fn arbitrary_text_gives_an_error() {
+        let err = ExprValue::Text(ExprText::Owned("yes".to_string()))
+            .try_as_condition()
+            .unwrap_err();
+        assert!(err.to_string().contains("text"));
+    }
+
+    #[test]
+    fn validation_accepts_every_text_and_an_unknown_value() {
+        assert!(
+            ExprValue::Text(ExprText::Owned(String::new()))
+                .validate_as_condition()
+                .is_ok()
+        );
+        assert!(
+            ExprValue::Text(ExprText::Owned("yes".to_string()))
+                .validate_as_condition()
+                .is_ok()
+        );
+        assert!(ExprValue::Unknown.validate_as_condition().is_ok());
+        assert!(ExprValue::Boolean(false).validate_as_condition().is_ok());
+    }
+
+    #[test]
+    fn validation_rejects_a_number_and_an_array() {
+        let err = ExprValue::Number(1.0).validate_as_condition().unwrap_err();
+        assert!(err.to_string().contains("number"));
+        assert!(ExprValue::Array(vec![]).validate_as_condition().is_err());
+    }
 }

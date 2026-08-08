@@ -20,7 +20,7 @@ use crate::{
     expr::v3::{
         context::CommonReadonlyRuntimeExprContext,
         exec::{CommonExprExecutor, eval_all_expressions},
-        traits::{EvalExpr, ExprValue},
+        traits::EvalExpr,
     },
     external::v3::External,
     runner::v3::state::{ActionState, RootState, State},
@@ -77,7 +77,7 @@ impl<S: RootState> ActionRunner<S> {
 
         let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &self.state);
         let value = expr_exec.eval(condition)?;
-        Ok(matches!(value, ExprValue::Boolean(true)))
+        value.try_as_condition()
     }
 
     fn resolve_working_dir(&mut self, working_dir: &Option<String>) -> Result<Option<String>> {

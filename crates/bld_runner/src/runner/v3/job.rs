@@ -27,7 +27,7 @@ use crate::{
     expr::v3::{
         context::{CommonReadonlyRuntimeExprContext, START_OF_RUN_WCTX},
         exec::{CommonExprExecutor, eval_all_expressions},
-        traits::{EvalExpr, ExprValue},
+        traits::EvalExpr,
     },
     external::v3::External,
     job::v3::Job,
@@ -440,7 +440,7 @@ impl<S: RootState> JobRunner<S> {
         };
 
         let value = expr_exec.eval(condition)?;
-        Ok(matches!(value, ExprValue::Boolean(true)))
+        value.try_as_condition()
     }
 
     fn eval_all_expr(&mut self, value: &str) -> Result<String> {
@@ -680,6 +680,57 @@ mod tests {
             job.condition(Some("hello world ${{ true == \"James\" }}"))
                 .is_err()
         );
+    }
+
+    #[test]
+    pub fn condition_eval_accepts_text_true_and_false() {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let state = JobState::default();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        let pipeline = Pipeline::default().into_arc();
+
+        let options = JobRunnerOptions {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline,
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            package_manager,
+            artifacts,
+            is_child: false,
+            state,
+        };
+        let job = JobRunner {
+            options,
+            platform,
+            runs_on: RunsOn::default(),
+        };
+
+        // A text value of "true" starts the step, mirroring an input whose value is "true".
+        assert!(matches!(job.condition(Some("${{ \"true\" }}")), Ok(true)));
+
+        // A text value of "false" skips the step, mirroring an input whose value is "false".
+        assert!(matches!(job.condition(Some("${{ \"false\" }}")), Ok(false)));
+
+        // A number is not a valid condition value and must produce an error naming the type.
+        let number_err = job.condition(Some("${{ 1 }}")).unwrap_err();
+        assert!(number_err.to_string().contains("number"));
+
+        // An array is not a valid condition value and must produce an error.
+        assert!(job.condition(Some("${{ [1, 2] }}")).is_err());
     }
 
     #[test]
