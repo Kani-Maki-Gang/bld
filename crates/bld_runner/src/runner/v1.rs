@@ -28,7 +28,7 @@ use crate::{
     step::v1::{BuildStep, BuildStepExec},
 };
 
-type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
+type RecursiveFuture = Pin<Box<dyn Future<Output = Result<HashMap<String, String>>>>>;
 
 pub struct Runner {
     pub run_id: String,
@@ -340,7 +340,7 @@ impl Runner {
         Ok(())
     }
 
-    async fn execute(mut self) -> Result<()> {
+    async fn execute(mut self) -> Result<HashMap<String, String>> {
         self.start().await?;
 
         // using let expression to log the errors and let an empty string be used
@@ -351,7 +351,7 @@ impl Runner {
             self.has_faulted = true;
             Err(anyhow!(""))
         } else {
-            Ok(())
+            Ok(HashMap::new())
         };
 
         self.stop().await?;
@@ -367,7 +367,7 @@ impl Runner {
             self.signals = None;
 
             if self.is_child || signals.is_none() {
-                return self.execute().await.map(|_| ());
+                return self.execute().await;
             }
 
             let context = self.context.clone();
@@ -379,7 +379,7 @@ impl Runner {
                 sleep(Duration::from_millis(200)).await;
 
                 if runner_handle.is_finished() {
-                    break runner_handle.await?.map(|_| ());
+                    break runner_handle.await?;
                 }
 
                 if let Ok(signal) = signals.try_next() {
@@ -408,7 +408,8 @@ impl Runner {
 
                             break resp_tx
                                 .send(())
-                                .map_err(|_| anyhow!("oneshot response sender dropped"));
+                                .map_err(|_| anyhow!("oneshot response sender dropped"))
+                                .map(|_| HashMap::new());
                         }
                     }
                 }

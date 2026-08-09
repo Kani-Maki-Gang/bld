@@ -19,7 +19,7 @@ use crate::{
     artifacts::v3::{DownloadArtifact, UploadArtifact},
     expr::v3::{
         context::CommonReadonlyRuntimeExprContext,
-        exec::{CommonExprExecutor, eval_all_expressions},
+        exec::{CommonExprExecutor, eval_all_expressions, eval_all_expressions_map},
         traits::{EvalExpr, ExprValue},
     },
     external::v3::External,
@@ -223,7 +223,13 @@ impl<S: RootState> ActionRunner<S> {
             .await?;
 
         debug!("starting child file runner");
-        runner.run().await?;
+        let outputs = runner.run().await?;
+
+        // A step with a strategy runs once per combination, each producing a different
+        // map, so no single map is representative and none is stored.
+        if details.strategy.is_none() {
+            self.state.set_outputs(&details.id, outputs)?;
+        }
 
         Ok(())
     }
@@ -257,12 +263,13 @@ impl<S: RootState> ActionRunner<S> {
         &mut self,
         vars: &HashMap<String, String>,
     ) -> Result<HashMap<String, String>> {
-        let mut result = HashMap::new();
-        for (name, value) in vars {
-            let value = self.eval_all_expr(value)?;
-            result.insert(name.to_string(), value);
-        }
-        Ok(result)
+        let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &self.state);
+        eval_all_expressions_map(&expr_exec, &self.expr_regex, vars)
+    }
+
+    fn resolve_outputs(&mut self) -> Result<HashMap<String, String>> {
+        let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &self.state);
+        eval_all_expressions_map(&expr_exec, &self.expr_regex, &self.action.outputs)
     }
 
     async fn download_artifact(&mut self, download: &DownloadArtifact) -> Result<()> {
@@ -279,7 +286,7 @@ impl<S: RootState> ActionRunner<S> {
             .await
     }
 
-    async fn execute(mut self) -> Result<()> {
+    async fn execute(mut self) -> Result<HashMap<String, String>> {
         self.state.update_state(State::Running);
         self.info().await.inspect_err(|e| {
             self.state.update_state(State::Failed {
@@ -291,8 +298,13 @@ impl<S: RootState> ActionRunner<S> {
                 error: e.to_string(),
             })
         })?;
+        let outputs = self.resolve_outputs().inspect_err(|e| {
+            self.state.update_state(State::Failed {
+                error: e.to_string(),
+            })
+        })?;
         self.state.update_state(State::Completed);
-        Ok(())
+        Ok(outputs)
     }
 }
 
@@ -352,8 +364,14 @@ mod tests {
     use crate::{
         action::v3::Action,
         artifacts::v3::{DownloadArtifact, UploadArtifact},
-        expr::v3::{context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX},
-        runner::v3::{ActionRunner, ActionState, RootState, State, state::MockRootState},
+        expr::v3::{
+            context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX,
+            traits::WritableRuntimeExprContext,
+        },
+        external::v3::External,
+        runner::v3::{
+            ActionRunner, ActionState, RootState, State, state::MockRootState, test_utils::TempDir,
+        },
         step::v3::{ShellCommand, Step},
         strategy::v3::{FailFastValue, MatrixValue, Strategy},
     };
@@ -818,6 +836,291 @@ mod tests {
                 fail_fast: Some(FailFastValue::Bool(false)),
             }),
         })));
+
+        let runner = ActionRunner {
+            logger,
+            action,
+            platform,
+            artifacts,
+            expr_regex: regex,
+            expr_rctx: rctx,
+            state,
+            config,
+            fs,
+            run_ctx,
+            regex_cache,
+            package_manager,
+        };
+
+        let result = runner.execute().await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    pub async fn action_with_no_outputs_key_gives_empty_map_success() {
+        let logger = Logger::mock().into_arc();
+        let mut action = Action::default();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex = Regex::new(EXPR_REGEX).unwrap();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "build".to_string(),
+            name: None,
+            run: "echo hello".to_string(),
+            condition: None,
+            working_dir: None,
+            strategy: None,
+        })));
+
+        let mut state = ActionState::default();
+        for step in &action.steps {
+            state.add_node(step.id());
+        }
+
+        let runner = ActionRunner {
+            logger,
+            action,
+            platform,
+            artifacts,
+            expr_regex: regex,
+            expr_rctx: rctx,
+            state,
+            config,
+            fs,
+            run_ctx,
+            regex_cache,
+            package_manager,
+        };
+
+        let result = runner.execute().await;
+        assert!(result.is_ok(), "error: {:?}", result.err());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[test]
+    pub fn resolve_outputs_reads_input_and_step_output_success() {
+        let logger = Logger::mock().into_arc();
+        let mut action = Action::default();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex = Regex::new(EXPR_REGEX).unwrap();
+        let mut inputs = HashMap::new();
+        inputs.insert("tag".to_string(), "my-image:latest".to_string());
+        let rctx = CommonReadonlyRuntimeExprContext {
+            inputs: inputs.into_arc(),
+            ..Default::default()
+        };
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "build".to_string(),
+            name: None,
+            run: "echo hello".to_string(),
+            condition: None,
+            working_dir: None,
+            strategy: None,
+        })));
+        action
+            .outputs
+            .insert("image".to_string(), "${{ inputs.tag }}".to_string());
+        action.outputs.insert(
+            "digest".to_string(),
+            "${{ steps.build.outputs.digest }}".to_string(),
+        );
+
+        let mut state = ActionState::default();
+        for step in &action.steps {
+            state.add_node(step.id());
+        }
+        let mut outputs = HashMap::new();
+        outputs.insert("digest".to_string(), "sha256:abc".to_string());
+        state.set_outputs("build", outputs).unwrap();
+
+        let mut runner = ActionRunner {
+            logger,
+            action,
+            platform,
+            artifacts,
+            expr_regex: regex,
+            expr_rctx: rctx,
+            state,
+            config,
+            fs,
+            run_ctx,
+            regex_cache,
+            package_manager,
+        };
+
+        let outputs = runner.resolve_outputs().unwrap();
+        assert_eq!(outputs.get("image"), Some(&"my-image:latest".to_string()));
+        assert_eq!(outputs.get("digest"), Some(&"sha256:abc".to_string()));
+    }
+
+    #[actix_web::test]
+    pub async fn action_calling_action_forwards_outputs_success() {
+        let dir = TempDir::new("calling_action_forwards_outputs");
+        dir.write(
+            "inner.yaml",
+            r#"
+version: 3
+type: action
+name: Inner
+
+inputs:
+  tag:
+    required: true
+
+outputs:
+  echoed: ${{ inputs.tag }}
+
+steps:
+  - id: noop
+    run: echo noop
+"#,
+        );
+
+        let logger = Logger::mock().into_arc();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex = Regex::new(EXPR_REGEX).unwrap();
+        let mut inputs = HashMap::new();
+        inputs.insert("tag".to_string(), "my-image:latest".to_string());
+        let rctx = CommonReadonlyRuntimeExprContext {
+            inputs: inputs.into_arc(),
+            ..Default::default()
+        };
+        let config = BldConfig {
+            root_dir: dir.root_dir(),
+            ..Default::default()
+        }
+        .into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        let mut action = Action::default();
+        let mut with = HashMap::new();
+        with.insert("tag".to_string(), "${{ inputs.tag }}".to_string());
+        action.steps.push(Step::ExternalFile(Box::new(External {
+            id: "call_inner".to_string(),
+            uses: "inner.yaml".to_string(),
+            with,
+            ..Default::default()
+        })));
+        action.outputs.insert(
+            "digest".to_string(),
+            "${{ steps.call_inner.outputs.echoed }}".to_string(),
+        );
+
+        let mut state = ActionState::default();
+        for step in &action.steps {
+            state.add_node(step.id());
+        }
+
+        let runner = ActionRunner {
+            logger,
+            action,
+            platform,
+            artifacts,
+            expr_regex: regex,
+            expr_rctx: rctx,
+            state,
+            config,
+            fs,
+            run_ctx,
+            regex_cache,
+            package_manager,
+        };
+
+        let result = runner.execute().await;
+        assert!(result.is_ok(), "error: {:?}", result.err());
+
+        let outputs = result.unwrap();
+        assert_eq!(outputs.get("digest"), Some(&"my-image:latest".to_string()));
+    }
+
+    #[actix_web::test]
+    pub async fn action_calling_action_with_strategy_stores_no_outputs_success() {
+        let dir = TempDir::new("calling_action_with_strategy_stores_no_outputs");
+        dir.write(
+            "inner.yaml",
+            r#"
+version: 3
+type: action
+name: Inner
+
+inputs:
+  tag:
+    required: true
+
+outputs:
+  echoed: ${{ inputs.tag }}
+
+steps:
+  - id: noop
+    run: echo noop
+"#,
+        );
+
+        let logger = Logger::mock().into_arc();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex = Regex::new(EXPR_REGEX).unwrap();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let config = BldConfig {
+            root_dir: dir.root_dir(),
+            ..Default::default()
+        }
+        .into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        let mut with = HashMap::new();
+        with.insert("tag".to_string(), "static-tag".to_string());
+
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "os".to_string(),
+            MatrixValue::Array(vec!["linux".to_string(), "windows".to_string()]),
+        );
+
+        let mut action = Action::default();
+        action.steps.push(Step::ExternalFile(Box::new(External {
+            id: "call_inner".to_string(),
+            uses: "inner.yaml".to_string(),
+            with,
+            strategy: Some(Strategy {
+                matrix,
+                fail_fast: None,
+            }),
+            ..Default::default()
+        })));
+        // The calling step ran with a strategy, so no output map was stored for it and
+        // reading it back here must fail rather than silently returning one combination's
+        // value.
+        action.outputs.insert(
+            "digest".to_string(),
+            "${{ steps.call_inner.outputs.echoed }}".to_string(),
+        );
+
+        let mut state = ActionState::default();
+        for step in &action.steps {
+            state.add_node(step.id());
+        }
 
         let runner = ActionRunner {
             logger,

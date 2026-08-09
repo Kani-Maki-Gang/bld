@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::expr::v3::parser::{ExprParser, Rule};
 
 use super::traits::{
@@ -18,6 +20,21 @@ pub fn eval_all_expressions<'a, E: EvalExpr<'a>>(
         let entry = entry.as_str();
         let evaluated = exec.eval(entry)?.to_string();
         result = result.replace(entry, &evaluated);
+    }
+    Ok(result)
+}
+
+/// Resolves a map of name to expression against the current runtime scope. Used both to
+/// resolve the `with`/`env` values sent into a child pipeline or action, and to resolve the
+/// `outputs` of an action once all of its steps have completed.
+pub fn eval_all_expressions_map<'a, E: EvalExpr<'a>>(
+    exec: &E,
+    regex: &Regex,
+    values: &'a HashMap<String, String>,
+) -> Result<HashMap<String, String>> {
+    let mut result = HashMap::new();
+    for (name, value) in values {
+        result.insert(name.to_owned(), eval_all_expressions(exec, regex, value)?);
     }
     Ok(result)
 }

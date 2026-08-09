@@ -45,6 +45,9 @@ pub struct Action {
 
     #[serde(default)]
     pub steps: Vec<Step>,
+
+    #[serde(default)]
+    pub outputs: HashMap<String, String>,
 }
 
 impl Action {
@@ -233,6 +236,16 @@ impl<'a> Validate<'a> for Action {
             }
             step.validate(ctx).await;
             step.validate_matrix(ctx, None).await;
+        }
+        ctx.pop_section();
+
+        debug!("Validating action's outputs section");
+        ctx.push_section("outputs");
+        for (name, expr) in self.outputs.iter() {
+            debug!("Validating output: {}", name);
+            ctx.push_section(name);
+            ctx.validate_expressions(expr, ExprScope::Runtime);
+            ctx.pop_section();
         }
         ctx.pop_section();
     }

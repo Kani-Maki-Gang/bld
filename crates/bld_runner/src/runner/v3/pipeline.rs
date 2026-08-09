@@ -1,4 +1,4 @@
-use std::{fmt::Write, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt::Write, sync::Arc, time::Duration};
 
 use actix_web::rt::spawn;
 use anyhow::{Result, anyhow, bail};
@@ -236,7 +236,7 @@ impl PipelineRunner {
         }
     }
 
-    async fn execute(mut self) -> Result<()> {
+    async fn execute(mut self) -> Result<HashMap<String, String>> {
         self.start().await?;
 
         // using let expression to log the errors and let an empty string be used
@@ -244,7 +244,7 @@ impl PipelineRunner {
 
         let Err(e) = self.jobs().await else {
             self.stop().await?;
-            return Ok(());
+            return Ok(HashMap::new());
         };
 
         self.logger.write(e.to_string()).await?;
@@ -261,7 +261,7 @@ impl PipelineRunner {
             self.signals = None;
 
             if self.is_child || signals.is_none() {
-                return self.execute().await.map(|_| ());
+                return self.execute().await;
             }
 
             let context = self.run_ctx.clone();
@@ -273,7 +273,7 @@ impl PipelineRunner {
                 sleep(Duration::from_millis(200)).await;
 
                 if runner_handle.is_finished() {
-                    break runner_handle.await?.map(|_| ());
+                    break runner_handle.await?;
                 }
 
                 if let Ok(message) = signals.try_next() {
@@ -302,7 +302,8 @@ impl PipelineRunner {
 
                             break resp_tx
                                 .send(())
-                                .map_err(|_| anyhow!("oneshot response sender dropped"));
+                                .map_err(|_| anyhow!("oneshot response sender dropped"))
+                                .map(|_| HashMap::new());
                         }
                     }
                 }
