@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::expr::v3::parser::{ExprParser, Rule};
 
 use super::traits::{
@@ -18,6 +20,18 @@ pub fn eval_all_expressions<'a, E: EvalExpr<'a>>(
         let entry = entry.as_str();
         let evaluated = exec.eval(entry)?.to_string();
         result = result.replace(entry, &evaluated);
+    }
+    Ok(result)
+}
+
+pub fn eval_all_expressions_map<'a, E: EvalExpr<'a>>(
+    exec: &E,
+    regex: &Regex,
+    values: &'a HashMap<String, String>,
+) -> Result<HashMap<String, String>> {
+    let mut result = HashMap::new();
+    for (name, value) in values {
+        result.insert(name.to_owned(), eval_all_expressions(exec, regex, value)?);
     }
     Ok(result)
 }

@@ -72,10 +72,7 @@ pub enum Step {
 
 impl Step {
     pub fn is(&self, id: &str) -> bool {
-        let Self::ComplexSh(complex) = self else {
-            return false;
-        };
-        complex.id == id
+        self.id() == id
     }
 
     pub fn id(&self) -> &str {
@@ -243,10 +240,16 @@ impl<'a> EvalObject<'a> for Step {
                 value => bail!("invalid steps field: {value}"),
             },
 
-            Self::ExternalFile(_) => {
-                // TODO: Remove once external section is removed.
-                bail!("invalid expression for step");
-            }
+            Self::ExternalFile(external) => match key {
+                "outputs" => {
+                    let Some(object) = path.next() else {
+                        bail!("no output variable name provided");
+                    };
+                    let name = object.as_span().as_str();
+                    wctx.get_output(&external.id, name)?
+                }
+                value => bail!("invalid expression for step: {value}"),
+            },
 
             Self::DownloadArtifact(_) => {
                 bail!("invalid expression for step");
@@ -349,6 +352,7 @@ mod tests {
             traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext},
         },
         job::v3::Job,
+        outputs::v3::Output,
         pipeline::v3::Pipeline,
         step::v3::{ShellCommand, Step},
         strategy::v3::{MatrixValue, Strategy},
@@ -934,5 +938,73 @@ mod tests {
         let result = validate_action(&action).await;
 
         assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn output_reading_input_and_declared_step_output_passes_validation() {
+        let mut action = Action::default();
+        action.inputs.insert(
+            "tag".to_string(),
+            crate::inputs::v3::Input::Simple(String::new()),
+        );
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "build".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo \"digest=abc\" >> $BLD_OUTPUTS".to_string(),
+            condition: None,
+            strategy: None,
+        })));
+        action.outputs.insert(
+            "image".to_string(),
+            Output::Simple("${{ inputs.tag }}".to_string()),
+        );
+        action.outputs.insert(
+            "digest".to_string(),
+            Output::Complex {
+                description: Some("The digest of the built image".to_string()),
+                value: "${{ steps.build.outputs.digest }}".to_string(),
+            },
+        );
+
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        let mut inputs = HashMap::new();
+        inputs.insert("tag".to_string(), String::new());
+        let expr_rctx = CommonReadonlyRuntimeExprContext {
+            inputs: inputs.into_arc(),
+            ..Default::default()
+        };
+        let expr_wctx = vec![ValidatorWritableRuntimeExprContext::new("action")];
+
+        let result =
+            CommonValidator::new(&action, config, fs, package_manager, &expr_rctx, &expr_wctx)
+                .unwrap()
+                .validate()
+                .await;
+
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn output_naming_undeclared_step_fails_validation() {
+        let mut action = Action::default();
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "build".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo hello".to_string(),
+            condition: None,
+            strategy: None,
+        })));
+        action.outputs.insert(
+            "digest".to_string(),
+            Output::Simple("${{ steps.missing.outputs.digest }}".to_string()),
+        );
+
+        let result = validate_action(&action).await;
+
+        assert!(result.is_err());
     }
 }

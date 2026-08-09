@@ -26,7 +26,7 @@ use crate::{
     artifacts::v3::{DownloadArtifact, UploadArtifact},
     expr::v3::{
         context::{CommonReadonlyRuntimeExprContext, START_OF_RUN_WCTX},
-        exec::{CommonExprExecutor, eval_all_expressions},
+        exec::{CommonExprExecutor, eval_all_expressions, eval_all_expressions_map},
         traits::{EvalExpr, ExprValue},
     },
     external::v3::External,
@@ -330,7 +330,13 @@ impl<S: RootState> JobRunner<S> {
             .await?;
 
         debug!("starting child file runner");
-        runner.run().await?;
+        let outputs = runner.run().await?;
+
+        // A step with a strategy runs once per combination, each producing a different
+        // map, so no single map is representative and none is stored.
+        if details.strategy.is_none() {
+            self.options.state.set_outputs(&details.id, outputs)?;
+        }
 
         Ok(())
     }
@@ -364,12 +370,12 @@ impl<S: RootState> JobRunner<S> {
         &mut self,
         vars: &HashMap<String, String>,
     ) -> Result<HashMap<String, String>> {
-        let mut result = HashMap::new();
-        for (name, value) in vars {
-            let value = self.eval_all_expr(value)?;
-            result.insert(name.to_string(), value);
-        }
-        Ok(result)
+        let expr_exec = CommonExprExecutor::new(
+            self.options.pipeline.as_ref(),
+            self.options.expr_rctx.as_ref(),
+            &self.options.state,
+        );
+        eval_all_expressions_map(&expr_exec, &self.options.expr_regex, vars)
     }
 
     fn resolve_working_dir(&mut self, working_dir: &Option<String>) -> Result<Option<String>> {
@@ -617,10 +623,15 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::{
-        expr::v3::{context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX},
+        expr::v3::{
+            context::CommonReadonlyRuntimeExprContext,
+            parser::EXPR_REGEX,
+            traits::{ExprText, ExprValue, WritableRuntimeExprContext},
+        },
+        external::v3::External,
         job::v3::Job,
         pipeline::v3::Pipeline,
-        runner::v3::{MockRootState, RootState, State, state::JobState},
+        runner::v3::{MockRootState, RootState, State, state::JobState, test_utils::TempDir},
         runs_on::v3::RunsOn,
         step::v3::{ShellCommand, Step},
         strategy::v3::{FailFastValue, MatrixValue, Strategy},
@@ -1363,5 +1374,145 @@ mod tests {
 
         let result = runner.run().await;
         assert!(result.is_err());
+    }
+
+    const ACTION_WITH_OUTPUT: &str = r#"
+version: 3
+type: action
+name: Inner
+
+inputs:
+  tag:
+    required: true
+
+outputs:
+  echoed: ${{ inputs.tag }}
+
+steps:
+  - id: noop
+    run: echo noop
+"#;
+
+    fn job_runner_calling_action(dir: &TempDir, step: External) -> JobRunner<JobState> {
+        let job_name = "main".to_string();
+        let config = BldConfig {
+            root_dir: dir.root_dir(),
+            ..Default::default()
+        }
+        .into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        let mut state = JobState::new(&job_name);
+        state.add_node(&step.id);
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            job_name.clone(),
+            Job {
+                steps: vec![Step::ExternalFile(Box::new(step))],
+                ..Default::default()
+            },
+        );
+
+        let options = JobRunnerOptions {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline: pipeline.into_arc(),
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            package_manager,
+            artifacts,
+            is_child: false,
+            state,
+        };
+        JobRunner {
+            options,
+            platform,
+            runs_on: RunsOn::default(),
+        }
+    }
+
+    #[actix_web::test]
+    pub async fn job_step_calling_action_stores_its_outputs_success() {
+        let dir = TempDir::new("job_step_calling_action_stores_its_outputs");
+        dir.write("inner.yaml", ACTION_WITH_OUTPUT);
+
+        let mut with = HashMap::new();
+        with.insert("tag".to_string(), "my-image:latest".to_string());
+
+        let runner = job_runner_calling_action(
+            &dir,
+            External {
+                id: "call_action".to_string(),
+                uses: "inner.yaml".to_string(),
+                with,
+                ..Default::default()
+            },
+        );
+
+        let result = runner.run().await;
+        assert!(result.is_ok(), "error: {:?}", result.err());
+
+        let runner = result.unwrap();
+        let output = runner.options.state.get_output("call_action", "echoed");
+        assert_eq!(
+            output.unwrap(),
+            ExprValue::Text(ExprText::Owned("my-image:latest".to_string()))
+        );
+    }
+
+    #[actix_web::test]
+    pub async fn job_step_with_strategy_calling_action_stores_no_outputs_success() {
+        let dir = TempDir::new("job_step_with_strategy_calling_action_stores_no_outputs");
+        dir.write("inner.yaml", ACTION_WITH_OUTPUT);
+
+        let mut with = HashMap::new();
+        with.insert("tag".to_string(), "${{ matrix.tag }}".to_string());
+
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "tag".to_string(),
+            MatrixValue::Array(vec!["one".to_string(), "two".to_string()]),
+        );
+
+        let runner = job_runner_calling_action(
+            &dir,
+            External {
+                id: "call_action".to_string(),
+                uses: "inner.yaml".to_string(),
+                with,
+                strategy: Some(Strategy {
+                    matrix,
+                    fail_fast: None,
+                }),
+                ..Default::default()
+            },
+        );
+
+        let result = runner.run().await;
+        assert!(result.is_ok(), "error: {:?}", result.err());
+
+        // Each combination produces a different map, so none is stored and reading one
+        // back gives an error instead of the value of a single combination.
+        let runner = result.unwrap();
+        assert!(
+            runner
+                .options
+                .state
+                .get_output("call_action", "echoed")
+                .is_err()
+        );
     }
 }
