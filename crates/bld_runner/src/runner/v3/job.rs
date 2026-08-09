@@ -58,6 +58,7 @@ pub struct JobRunner<S: RootState> {
     pub options: JobRunnerOptions<S>,
     pub platform: Arc<Platform>,
     pub runs_on: RunsOn,
+    pub outputs: HashMap<String, String>,
 }
 
 impl<S: RootState> JobRunner<S> {
@@ -91,6 +92,7 @@ impl<S: RootState> JobRunner<S> {
             options,
             platform,
             runs_on,
+            outputs: HashMap::new(),
         })
     }
 
@@ -128,18 +130,33 @@ impl<S: RootState> JobRunner<S> {
         self.options.state.update_state(State::Running);
 
         debug!("starting execution of pipeline steps");
-        let result = self.run_job_steps(job).await;
-
-        match &result {
-            Ok(()) => self.options.state.update_state(State::Completed),
-            Err(e) => self.options.state.update_state(State::Failed {
+        self.run_job_steps(job).await.inspect_err(|e| {
+            self.options.state.update_state(State::Failed {
                 error: e.to_string(),
-            }),
-        }
-        result?;
+            })
+        })?;
+
+        let outputs = self.resolve_outputs(job).inspect_err(|e| {
+            self.options.state.update_state(State::Failed {
+                error: e.to_string(),
+            })
+        })?;
+        self.outputs = outputs;
+
+        self.options.state.update_state(State::Completed);
 
         self.dispose_platform(job).await?;
         Ok(self)
+    }
+
+    fn resolve_outputs(&mut self, job: &Job) -> Result<HashMap<String, String>> {
+        let expr_exec = CommonExprExecutor::new(
+            self.options.pipeline.as_ref(),
+            self.options.expr_rctx.as_ref(),
+            &self.options.state,
+        );
+        let outputs = job.outputs_map();
+        eval_all_expressions_map(&expr_exec, &self.options.expr_regex, &outputs)
     }
 
     async fn run_job_steps(&mut self, job: &Job) -> Result<()> {
@@ -630,6 +647,7 @@ mod tests {
         },
         external::v3::External,
         job::v3::Job,
+        outputs::v3::Output,
         pipeline::v3::Pipeline,
         runner::v3::{MockRootState, RootState, State, state::JobState, test_utils::TempDir},
         runs_on::v3::RunsOn,
@@ -674,6 +692,7 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            outputs: HashMap::new(),
         };
 
         assert!(matches!(job.condition(None), Ok(true)));
@@ -736,6 +755,7 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            outputs: HashMap::new(),
         };
 
         assert_eq!(job.resolve_working_dir(&None).unwrap(), None);
@@ -1010,6 +1030,7 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            outputs: HashMap::new(),
         };
 
         // Act
@@ -1078,6 +1099,7 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            outputs: HashMap::new(),
         };
 
         let result = runner.run().await;
@@ -1142,6 +1164,7 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            outputs: HashMap::new(),
         };
 
         let result = runner.run().await;
@@ -1216,6 +1239,7 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            outputs: HashMap::new(),
         };
 
         let result = runner.run().await;
@@ -1293,6 +1317,7 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            outputs: HashMap::new(),
         };
 
         let result = runner.run().await;
@@ -1370,6 +1395,7 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            outputs: HashMap::new(),
         };
 
         let result = runner.run().await;
@@ -1441,6 +1467,7 @@ steps:
             options,
             platform,
             runs_on: RunsOn::default(),
+            outputs: HashMap::new(),
         }
     }
 
@@ -1513,6 +1540,183 @@ steps:
                 .state
                 .get_output("call_action", "echoed")
                 .is_err()
+        );
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn job_runner_with_outputs(
+        dir: &TempDir,
+        job_name: &str,
+        step: External,
+        job_outputs: HashMap<String, Output>,
+        needs: Option<crate::job::v3::Needs>,
+        incoming_job_outputs: HashMap<String, HashMap<String, String>>,
+    ) -> JobRunner<JobState> {
+        let config = BldConfig {
+            root_dir: dir.root_dir(),
+            ..Default::default()
+        }
+        .into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        let mut state = JobState::new(job_name);
+        state.add_node(&step.id);
+        state.set_job_outputs(incoming_job_outputs).unwrap();
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            job_name.to_string(),
+            Job {
+                needs,
+                steps: vec![Step::ExternalFile(Box::new(step))],
+                outputs: job_outputs,
+                ..Default::default()
+            },
+        );
+
+        let options = JobRunnerOptions {
+            job_name: job_name.to_string(),
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline: pipeline.into_arc(),
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            package_manager,
+            artifacts,
+            is_child: false,
+            state,
+        };
+        JobRunner {
+            options,
+            platform,
+            runs_on: RunsOn::default(),
+            outputs: HashMap::new(),
+        }
+    }
+
+    /// Two jobs, the second in the needs of the first: the second job's own `outputs` key
+    /// reads a value produced by the first job through `jobs.<name>.outputs.<name>`, and the
+    /// value it resolves is exactly the one the first job produced.
+    #[actix_web::test]
+    pub async fn job_reads_output_of_a_job_listed_in_its_needs_success() {
+        let dir = TempDir::new("job_reads_output_of_a_job_listed_in_its_needs");
+        dir.write("inner.yaml", ACTION_WITH_OUTPUT);
+
+        let mut with = HashMap::new();
+        with.insert("tag".to_string(), "my-image:latest".to_string());
+
+        let mut build_outputs = HashMap::new();
+        build_outputs.insert(
+            "version".to_string(),
+            Output::Simple("${{ steps.call_action.outputs.echoed }}".to_string()),
+        );
+
+        let build = job_runner_with_outputs(
+            &dir,
+            "build",
+            External {
+                id: "call_action".to_string(),
+                uses: "inner.yaml".to_string(),
+                with,
+                ..Default::default()
+            },
+            build_outputs,
+            None,
+            HashMap::new(),
+        );
+
+        let build = build.run().await.unwrap();
+        assert_eq!(
+            build.outputs.get("version").map(String::as_str),
+            Some("my-image:latest")
+        );
+
+        let mut incoming = HashMap::new();
+        incoming.insert("build".to_string(), build.outputs.clone());
+
+        let mut publish_outputs = HashMap::new();
+        publish_outputs.insert(
+            "got".to_string(),
+            Output::Simple("${{ jobs.build.outputs.version }}".to_string()),
+        );
+
+        let publish = job_runner_with_outputs(
+            &dir,
+            "publish",
+            External {
+                id: "call_action".to_string(),
+                uses: "inner.yaml".to_string(),
+                with: {
+                    let mut with = HashMap::new();
+                    with.insert("tag".to_string(), "unrelated".to_string());
+                    with
+                },
+                ..Default::default()
+            },
+            publish_outputs,
+            Some(crate::job::v3::Needs::Single("build".to_string())),
+            incoming,
+        );
+
+        let publish = publish.run().await.unwrap();
+        assert_eq!(
+            publish.outputs.get("got").map(String::as_str),
+            Some("my-image:latest")
+        );
+    }
+
+    /// A job that never runs because its condition fails still resolves to an empty map of
+    /// outputs, and a job that reads one of its values gets a clear error rather than a
+    /// stale or default value.
+    #[actix_web::test]
+    pub async fn job_reading_output_of_a_skipped_job_fails_clearly() {
+        let dir = TempDir::new("job_reading_output_of_a_skipped_job");
+        dir.write("inner.yaml", ACTION_WITH_OUTPUT);
+
+        let mut incoming = HashMap::new();
+        // Mirrors what the pipeline runner stores for a job that was skipped: present in
+        // the map, but with no outputs of its own.
+        incoming.insert("build".to_string(), HashMap::new());
+
+        let mut publish_outputs = HashMap::new();
+        publish_outputs.insert(
+            "got".to_string(),
+            Output::Simple("${{ jobs.build.outputs.version }}".to_string()),
+        );
+
+        let mut with = HashMap::new();
+        with.insert("tag".to_string(), "unrelated".to_string());
+
+        let publish = job_runner_with_outputs(
+            &dir,
+            "publish",
+            External {
+                id: "call_action".to_string(),
+                uses: "inner.yaml".to_string(),
+                with,
+                ..Default::default()
+            },
+            publish_outputs,
+            Some(crate::job::v3::Needs::Single("build".to_string())),
+            incoming,
+        );
+
+        let result = publish.run().await;
+        let error = result.err().expect("expected an error").to_string();
+        assert!(
+            error.contains("version") && error.contains("build"),
+            "{error}"
         );
     }
 }

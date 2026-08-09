@@ -256,6 +256,27 @@ impl<'a> EvalObject<'a> for Pipeline {
                 Ok(ExprValue::Text(ExprText::Ref(rctx.get_run_start_time())))
             }
 
+            "jobs" => {
+                let Some(job_name) = object_parts.nth(1) else {
+                    bail!("expected name of job in object path");
+                };
+                let job_name = job_name.as_span().as_str();
+
+                let Some(part) = object_parts.next() else {
+                    bail!("expected 'outputs' in jobs object path");
+                };
+                if part.as_span().as_str() != "outputs" {
+                    bail!("invalid jobs field: {}", part.as_span().as_str());
+                }
+
+                let Some(part) = object_parts.next() else {
+                    bail!("expected name of output in object path");
+                };
+                let name = part.as_span().as_str();
+
+                wctx.get_job_output(job_name, name)
+            }
+
             // Move evaluation to the job level
             _ => {
                 let Some(exec_id) = wctx.get_exec_id() else {
@@ -390,6 +411,10 @@ mod tests {
         fn validate_array_expression(&mut self, _symbol: &'a str, _scope: ExprScope) {}
 
         fn matrix_refs(&self, _value: &str) -> Vec<String> {
+            vec![]
+        }
+
+        fn job_output_refs(&self, _value: &str) -> Vec<String> {
             vec![]
         }
     }
@@ -573,6 +598,27 @@ mod tests {
     }
 
     #[test]
+    pub fn jobs_output_expr_eval_success() {
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+
+        wctx.expect_get_job_output()
+            .with(
+                mockall::predicate::eq("build"),
+                mockall::predicate::eq("version"),
+            )
+            .returning(|_, _| Ok(ExprValue::Text(ExprText::Ref("1.2.3"))));
+
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+        let actual = exec.eval("${{ jobs.build.outputs.version }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("1.2.3"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
+
+    #[test]
     pub fn matrix_expr_eval_success() {
         let mut wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext::default();
@@ -738,6 +784,104 @@ mod tests {
                 .any(|e| e.contains("undefined job") || e.contains("cyclic dependency")),
             "did not expect dependency errors, got: {:?}",
             ctx.errors
+        );
+    }
+
+    fn job_reading_output_of(name: &str, needs: Option<Needs>) -> Job {
+        Job {
+            needs,
+            steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                run: format!("echo ${{{{ jobs.{name}.outputs.version }}}}"),
+                ..Default::default()
+            }))],
+            ..Default::default()
+        }
+    }
+
+    fn job_reading_other_job_output(needs: Option<Needs>) -> Job {
+        job_reading_output_of("build", needs)
+    }
+
+    #[tokio::test]
+    pub async fn validate_accepts_job_output_ref_when_job_in_needs() {
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .jobs
+            .insert("build".to_string(), job_with_needs(None));
+        pipeline.jobs.insert(
+            "publish".to_string(),
+            job_reading_other_job_output(Some(Needs::Single("build".to_string()))),
+        );
+
+        let result = validate_pipeline(pipeline).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn validate_rejects_job_output_ref_when_job_not_in_needs() {
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .jobs
+            .insert("build".to_string(), job_with_needs(None));
+        pipeline
+            .jobs
+            .insert("publish".to_string(), job_reading_other_job_output(None));
+
+        let Err(e) = validate_pipeline(pipeline).await else {
+            panic!("expected an error for a job output reference outside of needs");
+        };
+        let error = e.to_string();
+        assert!(
+            error.contains("job 'build' is not defined in the needs of job 'publish'"),
+            "{error}"
+        );
+    }
+
+    /// A job name is free to hold any character that an object path allows, so the needs
+    /// rule has to hold for a name with a hyphen just as it does for a plain one.
+    #[tokio::test]
+    pub async fn validate_rejects_job_output_ref_of_hyphenated_job_not_in_needs() {
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .jobs
+            .insert("build-image".to_string(), job_with_needs(None));
+        pipeline.jobs.insert(
+            "publish".to_string(),
+            job_reading_output_of("build-image", None),
+        );
+
+        let Err(e) = validate_pipeline(pipeline).await else {
+            panic!("expected an error for a job output reference outside of needs");
+        };
+        let error = e.to_string();
+        assert!(
+            error.contains("job 'build-image' is not defined in the needs of job 'publish'"),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    pub async fn validate_rejects_job_output_ref_in_condition() {
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .jobs
+            .insert("build".to_string(), job_with_needs(None));
+        pipeline.jobs.insert(
+            "publish".to_string(),
+            Job {
+                needs: Some(Needs::Single("build".to_string())),
+                condition: Some("${{ jobs.build.outputs.version == \"1.0\" }}".to_string()),
+                ..job_with_needs(Some(Needs::Single("build".to_string())))
+            },
+        );
+
+        let Err(e) = validate_pipeline(pipeline).await else {
+            panic!("expected an error for reading job outputs in a condition");
+        };
+        let error = e.to_string();
+        assert!(
+            error.contains("is not available at the start of a run"),
+            "{error}"
         );
     }
 }

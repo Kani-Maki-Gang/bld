@@ -275,6 +275,7 @@ pub trait WritableRuntimeExprContext {
     fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
     #[allow(clippy::needless_lifetimes)]
     fn get_matrix_value<'a>(&'a self, name: &str) -> Result<&'a str>;
+    fn get_job_output<'a>(&'a self, job: &str, name: &str) -> Result<ExprValue<'a>>;
 }
 
 pub trait EvalObject<'a> {

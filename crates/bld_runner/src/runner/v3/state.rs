@@ -99,6 +99,10 @@ impl WritableRuntimeExprContext for StepState {
     fn get_matrix_value<'a>(&'a self, _name: &str) -> Result<&'a str> {
         bail!("matrix values are not accessible from step state")
     }
+
+    fn get_job_output<'a>(&'a self, _job: &str, _name: &str) -> Result<ExprValue<'a>> {
+        bail!("job outputs are not accessible from step state")
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -107,6 +111,9 @@ pub struct JobState {
     state: State,
     steps: HashMap<String, StepState>,
     matrix: HashMap<String, String>,
+    // TECH DEBT: Change 'static lifetime to a specific lifetime.
+    // Changing this will require a lot of type annotation changes.
+    job_outputs: HashMap<String, HashMap<String, ExprValue<'static>>>,
 }
 
 impl JobState {
@@ -115,6 +122,22 @@ impl JobState {
             id: id.to_string(),
             ..Default::default()
         }
+    }
+
+    pub fn set_job_outputs(
+        &mut self,
+        job_outputs: HashMap<String, HashMap<String, String>>,
+    ) -> Result<()> {
+        let mut map = HashMap::new();
+        for (job, outputs) in job_outputs {
+            let mut inner = HashMap::new();
+            for (name, value) in outputs {
+                inner.insert(name, value.try_into()?);
+            }
+            map.insert(job, inner);
+        }
+        self.job_outputs = map;
+        Ok(())
     }
 }
 
@@ -125,6 +148,7 @@ impl Default for JobState {
             state: State::default(),
             steps: HashMap::new(),
             matrix: HashMap::new(),
+            job_outputs: HashMap::new(),
         }
     }
 }
@@ -190,6 +214,18 @@ impl WritableRuntimeExprContext for JobState {
             .get(name)
             .map(|x| x.as_str())
             .ok_or_else(|| anyhow!("matrix value '{name}' not found"))
+    }
+
+    fn get_job_output<'a>(&'a self, job: &str, name: &str) -> Result<ExprValue<'a>> {
+        let Some(outputs) = self.job_outputs.get(job) else {
+            bail!(
+                "job '{job}' not found, only jobs listed in 'needs' have their outputs available"
+            );
+        };
+        outputs
+            .get(name)
+            .cloned()
+            .ok_or_else(|| anyhow!("output '{name}' not found for job '{job}'"))
     }
 }
 
@@ -273,6 +309,10 @@ impl WritableRuntimeExprContext for ActionState {
             .map(|x| x.as_str())
             .ok_or_else(|| anyhow!("matrix value '{name}' not found"))
     }
+
+    fn get_job_output<'a>(&'a self, _job: &str, _name: &str) -> Result<ExprValue<'a>> {
+        bail!("jobs are not accessible from an action")
+    }
 }
 
 mock! {
@@ -293,6 +333,7 @@ mock! {
         fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
         fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
         fn get_matrix_value<'a>(&'a self, name: &str) -> Result<&'a str>;
+        fn get_job_output<'a>(&'a self, job: &str, name: &str) -> Result<ExprValue<'a>>;
     }
 }
 
@@ -423,6 +464,7 @@ mod tests {
                 state: state.clone(),
                 steps: HashMap::new(),
                 matrix: HashMap::new(),
+                job_outputs: HashMap::new(),
             };
             let mut actual = JobState::new(&id);
             actual.update_state(state);
@@ -462,6 +504,7 @@ mod tests {
             state: State::Default,
             steps: HashMap::new(),
             matrix: HashMap::new(),
+            job_outputs: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),
@@ -498,6 +541,7 @@ mod tests {
             state: State::Default,
             steps: HashMap::new(),
             matrix: HashMap::new(),
+            job_outputs: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),
@@ -531,6 +575,7 @@ mod tests {
             state: State::Default,
             steps: HashMap::new(),
             matrix: HashMap::new(),
+            job_outputs: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),
@@ -542,6 +587,45 @@ mod tests {
         );
         let result = state.set_outputs(&step_id, outputs);
         assert!(result.is_ok())
+    }
+
+    #[test]
+    pub fn job_state_get_job_output_success() {
+        let mut state = JobState::new("consumer");
+        let mut build_outputs = HashMap::new();
+        build_outputs.insert("version".to_string(), "1.2.3".to_string());
+        let mut job_outputs = HashMap::new();
+        job_outputs.insert("build".to_string(), build_outputs);
+
+        state.set_job_outputs(job_outputs).unwrap();
+
+        let value = state.get_job_output("build", "version").unwrap();
+        assert_eq!(value, ExprValue::Text(ExprText::Owned("1.2.3".to_string())));
+    }
+
+    #[test]
+    pub fn job_state_get_job_output_unknown_job_failure() {
+        let state = JobState::new("consumer");
+        let error = state.get_job_output("missing", "version").unwrap_err();
+        assert!(error.to_string().contains("missing"), "{error}");
+    }
+
+    #[test]
+    pub fn job_state_get_job_output_unknown_output_failure() {
+        let mut state = JobState::new("consumer");
+        let mut job_outputs = HashMap::new();
+        job_outputs.insert("build".to_string(), HashMap::new());
+
+        state.set_job_outputs(job_outputs).unwrap();
+
+        let error = state.get_job_output("build", "version").unwrap_err();
+        assert!(error.to_string().contains("version"), "{error}");
+    }
+
+    #[test]
+    pub fn action_state_get_job_output_failure() {
+        let state = ActionState::default();
+        assert!(state.get_job_output("build", "version").is_err());
     }
 
     #[test]

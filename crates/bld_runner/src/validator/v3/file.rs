@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use anyhow::Result;
 use bld_config::BldConfig;
@@ -57,6 +60,11 @@ impl ConsumeValidator for RunnerFileValidator<'_> {
                     .keys()
                     .map(|k| ValidatorWritableRuntimeExprContext::new(k.as_str()))
                     .collect();
+                let job_needs: HashMap<&str, HashSet<&str>> = pip
+                    .jobs
+                    .iter()
+                    .map(|(name, job)| (name.as_str(), job.needs_iter().collect()))
+                    .collect();
                 CommonValidator::new(
                     pip.as_ref(),
                     self.config,
@@ -65,6 +73,7 @@ impl ConsumeValidator for RunnerFileValidator<'_> {
                     &expr_rctx,
                     &expr_wctx,
                 )?
+                .with_job_needs(job_needs)
                 .validate()
                 .await
             }

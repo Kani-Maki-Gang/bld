@@ -1,4 +1,9 @@
-use std::{collections::HashMap, fmt::Write, path::PathBuf, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Write,
+    path::PathBuf,
+    sync::Arc,
+};
 
 use anyhow::{Result, bail};
 use bld_config::{BldConfig, path};
@@ -65,6 +70,10 @@ impl<'a> WritableRuntimeExprContext for ValidatorWritableRuntimeExprContext<'a> 
     fn get_matrix_value<'b>(&'b self, _name: &str) -> Result<&'b str> {
         Ok("")
     }
+
+    fn get_job_output<'b>(&'b self, _job: &str, _name: &str) -> Result<ExprValue<'b>> {
+        Ok(ExprValue::Unknown)
+    }
 }
 
 pub struct CommonValidator<'a, V: Validate<'a> + for<'x> EvalObject<'x>> {
@@ -75,6 +84,7 @@ pub struct CommonValidator<'a, V: Validate<'a> + for<'x> EvalObject<'x>> {
     expr_regex: Regex,
     expr_rctx: &'a CommonReadonlyRuntimeExprContext,
     expr_wctx: &'a [ValidatorWritableRuntimeExprContext<'a>],
+    job_needs: HashMap<&'a str, HashSet<&'a str>>,
     section: Vec<Section<'a>>,
     current_job: Option<Section<'a>>,
     errors: String,
@@ -97,10 +107,39 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
             expr_regex: parser::new_regex()?,
             expr_rctx,
             expr_wctx,
+            job_needs: HashMap::new(),
             section: Vec::new(),
             current_job: None,
             errors: String::new(),
         })
+    }
+
+    /// Declares, for every job, which other jobs it may read outputs from through
+    /// `jobs.<name>.outputs.<name>`. A pipeline validator supplies the `needs` of every
+    /// job here; other validatable types (e.g. an action) leave this empty, since none of
+    /// their jobs exist.
+    pub fn with_job_needs(mut self, job_needs: HashMap<&'a str, HashSet<&'a str>>) -> Self {
+        self.job_needs = job_needs;
+        self
+    }
+
+    fn validate_job_output_refs(&mut self, value: &'a str) {
+        let Some(current_job) = self.current_job.as_ref().map(|x| x.inner()) else {
+            return;
+        };
+        let needs = self.job_needs.get(current_job);
+        for job_name in self.job_output_refs(value) {
+            let allowed = needs
+                .map(|n| n.contains(job_name.as_str()))
+                .unwrap_or(false);
+            if !allowed {
+                let section = self.section_txt();
+                let _ = writeln!(
+                    self.errors,
+                    "[{section}] job '{job_name}' is not defined in the needs of job '{current_job}', only jobs listed in needs can have their outputs read"
+                );
+            }
+        }
     }
 
     fn section_txt(&self) -> String {
@@ -211,6 +250,7 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for Comm
         match scope {
             ExprScope::StartOfRun => self.eval_expressions(value, &START_OF_RUN_WCTX),
             ExprScope::Runtime => {
+                self.validate_job_output_refs(value);
                 let Some(expr_wctx) = self.runtime_wctx() else {
                     return;
                 };
@@ -223,6 +263,7 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for Comm
         match scope {
             ExprScope::StartOfRun => self.eval_array_expression(value, &START_OF_RUN_WCTX),
             ExprScope::Runtime => {
+                self.validate_job_output_refs(value);
                 let Some(expr_wctx) = self.runtime_wctx() else {
                     return;
                 };
@@ -242,6 +283,28 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for Comm
                     .unwrap_or(after.len());
                 let name = &after[..end];
                 if !name.is_empty() {
+                    result.push(name.to_string());
+                }
+                rest = &after[end..];
+            }
+        }
+        result
+    }
+
+    fn job_output_refs(&self, value: &str) -> Vec<String> {
+        let mut result = Vec::new();
+        for entry in self.expr_regex.find_iter(value) {
+            let mut rest = entry.as_str();
+            while let Some(pos) = rest.find("jobs.") {
+                let after = &rest[pos + "jobs.".len()..];
+                // A job name is a part of an object path, so it keeps every character
+                // that the grammar allows in one, hyphens included.
+                let end = after
+                    .find(|c: char| !(c.is_alphanumeric() || c == '_' || c == '-'))
+                    .unwrap_or(after.len());
+                let name = &after[..end];
+                let remainder = &after[end..];
+                if !name.is_empty() && remainder.starts_with(".outputs.") {
                     result.push(name.to_string());
                 }
                 rest = &after[end..];

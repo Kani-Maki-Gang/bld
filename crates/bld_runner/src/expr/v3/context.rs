@@ -43,6 +43,10 @@ impl WritableRuntimeExprContext for StartOfRunWritableExprContext {
     fn get_matrix_value<'a>(&'a self, name: &str) -> Result<&'a str> {
         Err(out_of_scope(&format!("matrix.{name}")))
     }
+
+    fn get_job_output<'a>(&'a self, job: &str, name: &str) -> Result<ExprValue<'a>> {
+        Err(out_of_scope(&format!("jobs.{job}.outputs.{name}")))
+    }
 }
 
 #[derive(Debug, Default)]

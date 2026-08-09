@@ -1,8 +1,8 @@
 #[cfg(feature = "all")]
 use crate::expr::v3::traits::ExprText;
-use crate::{runs_on::v3::RunsOn, step::v3::Step, strategy::v3::Strategy};
+use crate::{outputs::v3::Output, runs_on::v3::RunsOn, step::v3::Step, strategy::v3::Strategy};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 #[cfg(feature = "all")]
@@ -45,6 +45,8 @@ pub struct Job {
     pub dispose: bool,
     pub strategy: Option<Strategy>,
     pub steps: Vec<Step>,
+    #[serde(default)]
+    pub outputs: HashMap<String, Output>,
 }
 
 impl Job {
@@ -63,6 +65,13 @@ impl Job {
             None => Box::new(std::iter::empty()),
         }
     }
+
+    pub fn outputs_map(&self) -> HashMap<String, String> {
+        self.outputs
+            .iter()
+            .map(|(name, output)| (name.to_owned(), output.value().to_owned()))
+            .collect()
+    }
 }
 
 impl Default for Job {
@@ -75,6 +84,7 @@ impl Default for Job {
             dispose: Self::default_dispose(),
             strategy: None,
             steps: vec![],
+            outputs: HashMap::new(),
         }
     }
 }
@@ -210,6 +220,16 @@ impl<'a> Validate<'a> for Job {
             }
             step.validate(ctx).await;
             step.validate_matrix(ctx, Some(&job_matrix_keys)).await;
+        }
+        ctx.pop_section();
+
+        debug!("Validating job's {} outputs section", self.id);
+        ctx.push_section("outputs");
+        for (name, output) in self.outputs.iter() {
+            debug!("Validating output: {}", name);
+            ctx.push_section(name);
+            output.validate(ctx).await;
+            ctx.pop_section();
         }
         ctx.pop_section();
     }

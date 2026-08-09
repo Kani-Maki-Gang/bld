@@ -26,6 +26,7 @@ pub trait ValidatorContext<'a> {
     fn validate_expressions(&mut self, symbol: &'a str, scope: ExprScope);
     fn validate_array_expression(&mut self, symbol: &'a str, scope: ExprScope);
     fn matrix_refs(&self, value: &str) -> Vec<String>;
+    fn job_output_refs(&self, value: &str) -> Vec<String>;
     fn validate_file_path(&mut self, value: &'a str);
     fn validate_env(&mut self, env: &'a HashMap<String, String>, scope: ExprScope);
 }
