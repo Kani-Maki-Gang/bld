@@ -73,7 +73,14 @@ impl<'a> ExprText<'a> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExprValue<'a> {
     Boolean(bool),
-    Number(f64),
+    /// `raw` keeps the original text the number was parsed from, so that
+    /// formatting it back to text does not lose information (leading or
+    /// trailing zeros, digits beyond `f64` precision, etc). `value` is used
+    /// for numeric comparisons.
+    Number {
+        value: f64,
+        raw: ExprText<'a>,
+    },
     Text(ExprText<'a>),
     Array(Vec<ExprValue<'a>>),
     /// Placeholder used only during validation, when the real value of a
@@ -84,10 +91,17 @@ pub enum ExprValue<'a> {
 }
 
 impl<'a, 'b> ExprValue<'a> {
+    pub fn number(value: f64) -> Self {
+        Self::Number {
+            value,
+            raw: ExprText::Owned(value.to_string()),
+        }
+    }
+
     pub fn type_as_string(&self) -> &'static str {
         match self {
             Self::Boolean(_) => "boolean",
-            Self::Number(_) => "number",
+            Self::Number { .. } => "number",
             Self::Text(_) => "text",
             Self::Array(_) => "array",
             Self::Unknown => "unknown",
@@ -101,7 +115,7 @@ impl<'a, 'b> ExprValue<'a> {
 
         let value = match (self, other) {
             (Self::Boolean(l), Self::Boolean(r)) => l == r,
-            (Self::Number(l), Self::Number(r)) => l == r,
+            (Self::Number { value: l, .. }, Self::Number { value: r, .. }) => l == r,
             (Self::Text(l), Self::Text(r)) => l.inner() == r.inner(),
             (Self::Array(l), Self::Array(r)) => {
                 if l.len() != r.len() {
@@ -142,7 +156,7 @@ impl<'a, 'b> ExprValue<'a> {
         }
 
         let value = match (self, other) {
-            (Self::Number(l), Self::Number(r)) => l > r,
+            (Self::Number { value: l, .. }, Self::Number { value: r, .. }) => l > r,
             (Self::Text(l), Self::Text(r)) => l.inner() > r.inner(),
             (Self::Boolean(l), Self::Boolean(r)) => l > r,
             _ => bail!(
@@ -191,9 +205,15 @@ impl<'b> TryFrom<&'b str> for ExprValue<'_> {
     type Error = anyhow::Error;
 
     fn try_from(value: &'b str) -> Result<Self> {
-        // Try number
-        if let Ok(num) = value.parse::<f64>() {
-            return Ok(ExprValue::Number(num));
+        // Try number. Reject inf, -inf and NaN, they are not the numbers a
+        // step output is meant to convey and should stay text instead.
+        if let Ok(num) = value.parse::<f64>()
+            && num.is_finite()
+        {
+            return Ok(ExprValue::Number {
+                value: num,
+                raw: ExprText::Owned(value.to_string()),
+            });
         }
 
         // Try boolean
@@ -240,7 +260,7 @@ impl Display for ExprValue<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let value = match self {
             Self::Boolean(value) => value.to_string(),
-            Self::Number(value) => value.to_string(),
+            Self::Number { raw, .. } => raw.inner().to_string(),
             Self::Text(ExprText::Ref(value)) => value.to_string(),
             Self::Text(ExprText::Owned(value)) => value.to_string(),
             Self::Array(items) => format!(
@@ -292,4 +312,48 @@ pub trait EvalExpr<'a> {
     fn eval_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
     fn eval_logical_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
     fn eval(&self, expr: &'a str) -> Result<ExprValue<'a>>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn number_conversion_keeps_leading_and_trailing_zeros() {
+        let value: ExprValue = "007".try_into().unwrap();
+        assert_eq!(value.to_string(), "007");
+        let ExprValue::Number { value: num, .. } = value else {
+            panic!("expected number");
+        };
+        assert_eq!(num, 7.0);
+
+        let value: ExprValue = "1.10".try_into().unwrap();
+        assert_eq!(value.to_string(), "1.10");
+        let ExprValue::Number { value: num, .. } = value else {
+            panic!("expected number");
+        };
+        assert_eq!(num, 1.1);
+    }
+
+    #[test]
+    fn number_conversion_rejects_non_finite_values() {
+        for input in ["NaN", "inf", "-inf", "infinity"] {
+            let value: ExprValue = input.try_into().unwrap();
+            assert!(
+                matches!(value, ExprValue::Text(_)),
+                "expected {input} to stay text, got {value:?}"
+            );
+            assert_eq!(value.to_string(), input);
+        }
+    }
+
+    #[test]
+    fn numbers_still_compare_by_value() {
+        let count: ExprValue = "10".try_into().unwrap();
+        let threshold = ExprValue::number(3.0);
+        let ExprValue::Boolean(greater) = count.try_ord(&threshold).unwrap() else {
+            panic!("expected boolean");
+        };
+        assert!(greater);
+    }
 }

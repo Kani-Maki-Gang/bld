@@ -360,14 +360,14 @@ mod tests {
     #[test]
     pub fn number_eval_success() {
         let data = vec![
-            ("${{ 100 }}", ExprValue::Number(100.0)),
-            ("${{ 100.0 }}", ExprValue::Number(100.0)),
-            ("${{ 150.20 }}", ExprValue::Number(150.20)),
-            ("${{ 0.0 }}", ExprValue::Number(0.0)),
-            ("${{ 0 }}", ExprValue::Number(0.0)),
-            ("${{ -100 }}", ExprValue::Number(-100.0)),
-            ("${{ -100.0 }}", ExprValue::Number(-100.0)),
-            ("${{ -150.20 }}", ExprValue::Number(-150.20)),
+            ("${{ 100 }}", ExprValue::number(100.0)),
+            ("${{ 100.0 }}", ExprValue::number(100.0)),
+            ("${{ 150.20 }}", ExprValue::number(150.20)),
+            ("${{ 0.0 }}", ExprValue::number(0.0)),
+            ("${{ 0 }}", ExprValue::number(0.0)),
+            ("${{ -100 }}", ExprValue::number(-100.0)),
+            ("${{ -100.0 }}", ExprValue::number(-100.0)),
+            ("${{ -150.20 }}", ExprValue::number(-150.20)),
         ];
 
         let wctx = MockWritableRuntimeExprContext::new();
@@ -380,11 +380,14 @@ mod tests {
                 panic!("failed to parse expression: {expr}");
             };
 
-            let ExprValue::Number(value) = value else {
+            let ExprValue::Number { value, .. } = value else {
                 panic!("expected number, found {:?}", value);
             };
 
-            let ExprValue::Number(expected) = expected else {
+            let ExprValue::Number {
+                value: expected, ..
+            } = expected
+            else {
                 panic!("expected number, found {:?}", expected);
             };
 
@@ -493,9 +496,9 @@ mod tests {
             (
                 "${{ [100, 200, 300] }}",
                 vec![
-                    ExprValue::Number(100.0),
-                    ExprValue::Number(200.0),
-                    ExprValue::Number(300.0),
+                    ExprValue::number(100.0),
+                    ExprValue::number(200.0),
+                    ExprValue::number(300.0),
                 ],
             ),
             (
@@ -696,7 +699,7 @@ mod tests {
             panic!("failed to eval indexed expression");
         };
         assert!(matches!(
-            value.try_eq(&ExprValue::Number(300.0)),
+            value.try_eq(&ExprValue::number(300.0)),
             Ok(ExprValue::Boolean(true))
         ));
 
