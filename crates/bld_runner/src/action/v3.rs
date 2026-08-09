@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     inputs::v3::Input,
+    outputs::v3::Output,
     step::v3::Step,
     traits::{IntoVariables, Variables},
 };
@@ -47,7 +48,7 @@ pub struct Action {
     pub steps: Vec<Step>,
 
     #[serde(default)]
-    pub outputs: HashMap<String, String>,
+    pub outputs: HashMap<String, Output>,
 }
 
 impl Action {
@@ -78,6 +79,13 @@ impl Action {
         } else {
             None
         }
+    }
+
+    pub fn outputs_map(&self) -> HashMap<String, String> {
+        self.outputs
+            .iter()
+            .map(|(name, output)| (name.to_owned(), output.value().to_owned()))
+            .collect()
     }
 }
 
@@ -241,10 +249,10 @@ impl<'a> Validate<'a> for Action {
 
         debug!("Validating action's outputs section");
         ctx.push_section("outputs");
-        for (name, expr) in self.outputs.iter() {
+        for (name, output) in self.outputs.iter() {
             debug!("Validating output: {}", name);
             ctx.push_section(name);
-            ctx.validate_expressions(expr, ExprScope::Runtime);
+            output.validate(ctx).await;
             ctx.pop_section();
         }
         ctx.pop_section();

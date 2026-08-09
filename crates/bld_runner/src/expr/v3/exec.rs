@@ -24,9 +24,6 @@ pub fn eval_all_expressions<'a, E: EvalExpr<'a>>(
     Ok(result)
 }
 
-/// Resolves a map of name to expression against the current runtime scope. Used both to
-/// resolve the `with`/`env` values sent into a child pipeline or action, and to resolve the
-/// `outputs` of an action once all of its steps have completed.
 pub fn eval_all_expressions_map<'a, E: EvalExpr<'a>>(
     exec: &E,
     regex: &Regex,

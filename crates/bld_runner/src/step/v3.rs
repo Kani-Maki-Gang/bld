@@ -248,7 +248,6 @@ impl<'a> EvalObject<'a> for Step {
                     let name = object.as_span().as_str();
                     wctx.get_output(&external.id, name)?
                 }
-                // TODO: Remove once external section is removed.
                 value => bail!("invalid expression for step: {value}"),
             },
 
@@ -353,6 +352,7 @@ mod tests {
             traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext},
         },
         job::v3::Job,
+        outputs::v3::Output,
         pipeline::v3::Pipeline,
         step::v3::{ShellCommand, Step},
         strategy::v3::{MatrixValue, Strategy},
@@ -955,12 +955,16 @@ mod tests {
             condition: None,
             strategy: None,
         })));
-        action
-            .outputs
-            .insert("image".to_string(), "${{ inputs.tag }}".to_string());
+        action.outputs.insert(
+            "image".to_string(),
+            Output::Simple("${{ inputs.tag }}".to_string()),
+        );
         action.outputs.insert(
             "digest".to_string(),
-            "${{ steps.build.outputs.digest }}".to_string(),
+            Output::Complex {
+                description: Some("The digest of the built image".to_string()),
+                value: "${{ steps.build.outputs.digest }}".to_string(),
+            },
         );
 
         let config = BldConfig::default().into_arc();
@@ -996,7 +1000,7 @@ mod tests {
         })));
         action.outputs.insert(
             "digest".to_string(),
-            "${{ steps.missing.outputs.digest }}".to_string(),
+            Output::Simple("${{ steps.missing.outputs.digest }}".to_string()),
         );
 
         let result = validate_action(&action).await;

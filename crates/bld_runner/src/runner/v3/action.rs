@@ -269,7 +269,8 @@ impl<S: RootState> ActionRunner<S> {
 
     fn resolve_outputs(&mut self) -> Result<HashMap<String, String>> {
         let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &self.state);
-        eval_all_expressions_map(&expr_exec, &self.expr_regex, &self.action.outputs)
+        let outputs = self.action.outputs_map();
+        eval_all_expressions_map(&expr_exec, &self.expr_regex, &outputs)
     }
 
     async fn download_artifact(&mut self, download: &DownloadArtifact) -> Result<()> {
@@ -369,6 +370,7 @@ mod tests {
             traits::WritableRuntimeExprContext,
         },
         external::v3::External,
+        outputs::v3::Output,
         runner::v3::{
             ActionRunner, ActionState, RootState, State, state::MockRootState, test_utils::TempDir,
         },
@@ -931,12 +933,13 @@ mod tests {
             working_dir: None,
             strategy: None,
         })));
-        action
-            .outputs
-            .insert("image".to_string(), "${{ inputs.tag }}".to_string());
+        action.outputs.insert(
+            "image".to_string(),
+            Output::Simple("${{ inputs.tag }}".to_string()),
+        );
         action.outputs.insert(
             "digest".to_string(),
-            "${{ steps.build.outputs.digest }}".to_string(),
+            Output::Simple("${{ steps.build.outputs.digest }}".to_string()),
         );
 
         let mut state = ActionState::default();
@@ -965,6 +968,60 @@ mod tests {
         let outputs = runner.resolve_outputs().unwrap();
         assert_eq!(outputs.get("image"), Some(&"my-image:latest".to_string()));
         assert_eq!(outputs.get("digest"), Some(&"sha256:abc".to_string()));
+    }
+
+    #[test]
+    pub fn resolve_outputs_of_a_described_output_gives_only_its_value_success() {
+        let logger = Logger::mock().into_arc();
+        let mut action = Action::default();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex = Regex::new(EXPR_REGEX).unwrap();
+        let mut inputs = HashMap::new();
+        inputs.insert("tag".to_string(), "my-image:latest".to_string());
+        let rctx = CommonReadonlyRuntimeExprContext {
+            inputs: inputs.into_arc(),
+            ..Default::default()
+        };
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        action.outputs.insert(
+            "described".to_string(),
+            Output::Complex {
+                description: Some("The tag of the image that was pushed".to_string()),
+                value: "${{ inputs.tag }}".to_string(),
+            },
+        );
+        action.outputs.insert(
+            "plain".to_string(),
+            Output::Simple("${{ inputs.tag }}".to_string()),
+        );
+
+        let mut runner = ActionRunner {
+            logger,
+            action,
+            platform,
+            artifacts,
+            expr_regex: regex,
+            expr_rctx: rctx,
+            state: ActionState::default(),
+            config,
+            fs,
+            run_ctx,
+            regex_cache,
+            package_manager,
+        };
+
+        let outputs = runner.resolve_outputs().unwrap();
+        assert_eq!(outputs.get("described"), outputs.get("plain"));
+        assert_eq!(
+            outputs.get("described"),
+            Some(&"my-image:latest".to_string())
+        );
     }
 
     #[actix_web::test]
@@ -1021,7 +1078,7 @@ steps:
         })));
         action.outputs.insert(
             "digest".to_string(),
-            "${{ steps.call_inner.outputs.echoed }}".to_string(),
+            Output::Simple("${{ steps.call_inner.outputs.echoed }}".to_string()),
         );
 
         let mut state = ActionState::default();
@@ -1114,7 +1171,7 @@ steps:
         // value.
         action.outputs.insert(
             "digest".to_string(),
-            "${{ steps.call_inner.outputs.echoed }}".to_string(),
+            Output::Simple("${{ steps.call_inner.outputs.echoed }}".to_string()),
         );
 
         let mut state = ActionState::default();
