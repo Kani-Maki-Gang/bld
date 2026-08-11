@@ -601,7 +601,9 @@ mod tests {
 
         state.set_job_outputs(job_outputs).unwrap();
 
-        let value = state.get_output(OutputScope::Job, "build", "version").unwrap();
+        let value = state
+            .get_output(OutputScope::Job, "build", "version")
+            .unwrap();
         assert_eq!(value, ExprValue::Text(ExprText::Owned("1.2.3".to_string())));
     }
 

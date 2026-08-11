@@ -53,7 +53,12 @@ impl<'a> WritableRuntimeExprContext for ValidatorWritableRuntimeExprContext<'a> 
         Some(self.exec_id)
     }
 
-    fn get_output<'b>(&'b self, _scope: OutputScope, _id: &str, _name: &str) -> Result<ExprValue<'b>> {
+    fn get_output<'b>(
+        &'b self,
+        _scope: OutputScope,
+        _id: &str,
+        _name: &str,
+    ) -> Result<ExprValue<'b>> {
         Ok(ExprValue::Unknown)
     }
 
