@@ -3,7 +3,9 @@ use crate::expr::v3::parser;
 use crate::expr::v3::traits::EvalObject;
 use crate::inputs::v3::Input;
 
-use super::traits::{ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext};
+use super::traits::{
+    ExprValue, OutputScope, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
+};
 use anyhow::{Context, Error, Result, anyhow};
 use bld_config::BldConfig;
 use bld_config::definitions::{
@@ -28,8 +30,11 @@ impl WritableRuntimeExprContext for StartOfRunWritableExprContext {
         None
     }
 
-    fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<ExprValue<'a>> {
-        Err(out_of_scope(&format!("steps.{id}.outputs.{name}")))
+    fn get_output<'a>(&'a self, scope: OutputScope, id: &str, name: &str) -> Result<ExprValue<'a>> {
+        match scope {
+            OutputScope::Step => Err(out_of_scope(&format!("steps.{id}.outputs.{name}"))),
+            OutputScope::Job => Err(out_of_scope(&format!("jobs.{id}.outputs.{name}"))),
+        }
     }
 
     fn set_output(&mut self, _id: &str, name: String, _value: String) -> Result<()> {

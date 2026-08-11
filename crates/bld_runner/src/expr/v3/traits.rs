@@ -257,6 +257,12 @@ impl Display for ExprValue<'_> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputScope {
+    Step,
+    Job,
+}
+
 pub trait ReadonlyRuntimeExprContext<'a> {
     fn get_root_dir(&'a self) -> &'a str;
     fn get_project_dir(&'a self) -> &'a str;
@@ -270,7 +276,7 @@ pub trait ReadonlyRuntimeExprContext<'a> {
 pub trait WritableRuntimeExprContext {
     #[allow(clippy::needless_lifetimes)]
     fn get_exec_id<'a>(&'a self) -> Option<&'a str>;
-    fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<ExprValue<'a>>;
+    fn get_output<'a>(&'a self, scope: OutputScope, id: &str, name: &str) -> Result<ExprValue<'a>>;
     fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
     fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
     #[allow(clippy::needless_lifetimes)]

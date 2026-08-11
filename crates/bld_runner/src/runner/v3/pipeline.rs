@@ -138,7 +138,11 @@ impl PipelineRunner {
         JobRunner::new(options).await
     }
 
-    fn create_job_state(&self, name: &str) -> Result<JobState> {
+    fn create_job_state(
+        &self,
+        name: &str,
+        job_outputs: &HashMap<String, HashMap<String, String>>,
+    ) -> Result<JobState> {
         let mut state = JobState::new(name);
         let Some(job) = self.pipeline.jobs.get(name) else {
             bail!("job with name {name} not found");
@@ -146,17 +150,22 @@ impl PipelineRunner {
         for step in &job.steps {
             state.add_node(step.id());
         }
+        state.set_job_outputs(job_outputs.clone())?;
         Ok(state)
     }
 
-    async fn prepare_jobs(&self, names: &[String]) -> Result<Vec<Option<RunningJob>>> {
+    async fn prepare_jobs(
+        &self,
+        names: &[String],
+        job_outputs: &HashMap<String, HashMap<String, String>>,
+    ) -> Result<Vec<Option<RunningJob>>> {
         let mut jobs = Vec::new();
         for name in names {
             self.logger
                 .write_line(format!("{:<15}: {}", "Running job", name))
                 .await?;
             let logger = Logger::in_memory().into_arc();
-            let state = self.create_job_state(name)?;
+            let state = self.create_job_state(name, job_outputs)?;
             let job = self.create_job(name, logger.clone(), state).await?;
             let handle = spawn(job.run());
             jobs.push(Some(RunningJob::new(name, handle, logger)));
@@ -169,7 +178,7 @@ impl PipelineRunner {
             bail!("unable to retrieve job");
         };
         debug!("found only one job so running it in the current context");
-        let state = self.create_job_state(name)?;
+        let state = self.create_job_state(name, &HashMap::new())?;
         self.create_job(name, self.logger.clone(), state)
             .await?
             .run()
@@ -177,9 +186,14 @@ impl PipelineRunner {
             .map(|_| ())
     }
 
-    async fn run_layer(&self, names: &[String]) -> Result<()> {
+    async fn run_layer(
+        &self,
+        names: &[String],
+        job_outputs: &HashMap<String, HashMap<String, String>>,
+    ) -> Result<HashMap<String, HashMap<String, String>>> {
         let mut errors: Vec<String> = Vec::new();
-        let mut running_jobs = self.prepare_jobs(names).await?;
+        let mut collected: HashMap<String, HashMap<String, String>> = HashMap::new();
+        let mut running_jobs = self.prepare_jobs(names, job_outputs).await?;
 
         while running_jobs.iter().any(|x| x.is_some()) {
             for job in running_jobs.iter_mut() {
@@ -196,7 +210,10 @@ impl PipelineRunner {
                     let handle_result = running_job.handle.await.map_err(|e| anyhow!(e))?;
 
                     let message = match &handle_result {
-                        Ok(_) => format!("{:<15}: {}", "Completed job", running_job.name),
+                        Ok(runner) => {
+                            collected.insert(running_job.name.clone(), runner.outputs.clone());
+                            format!("{:<15}: {}", "Completed job", running_job.name)
+                        }
                         Err(e) => {
                             errors.push(format!("[{}] {e}", running_job.name));
                             format!("{:<15}: {} ({e})", "Erroneous job", running_job.name)
@@ -215,15 +232,17 @@ impl PipelineRunner {
         }
 
         if errors.is_empty() {
-            Ok(())
+            Ok(collected)
         } else {
             Err(anyhow!(errors.join("\n")))
         }
     }
 
     async fn run_all_jobs(&self) -> Result<()> {
+        let mut job_outputs: HashMap<String, HashMap<String, String>> = HashMap::new();
         for layer in self.dag.layers() {
-            self.run_layer(&layer).await?;
+            let layer_outputs = self.run_layer(&layer, &job_outputs).await?;
+            job_outputs.extend(layer_outputs);
         }
         Ok(())
     }
@@ -327,7 +346,8 @@ mod tests {
     use crate::{
         dag::Dag,
         expr::v3::{context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX},
-        job::v3::Job,
+        job::v3::{Job, Needs},
+        outputs::v3::Output,
         pipeline::v3::Pipeline,
     };
 
@@ -380,7 +400,9 @@ mod tests {
         );
 
         let names = vec!["producer".to_string(), "consumer".to_string()];
-        let result = runner.run_layer(&names).await;
+        let result = runner
+            .run_layer(&names, &std::collections::HashMap::new())
+            .await;
 
         let error = result.expect_err("expected the failing job to produce an error");
         let message = error.to_string();
@@ -421,7 +443,9 @@ mod tests {
         );
 
         let names = vec!["producer".to_string(), "consumer".to_string()];
-        let result = runner.run_layer(&names).await;
+        let result = runner
+            .run_layer(&names, &std::collections::HashMap::new())
+            .await;
 
         let error = result.expect_err("expected the failing jobs to produce an error");
         let message = error.to_string();
@@ -446,6 +470,122 @@ mod tests {
 
         let names = vec!["producer".to_string(), "consumer".to_string()];
 
-        assert!(runner.run_layer(&names).await.is_ok());
+        assert!(
+            runner
+                .run_layer(&names, &std::collections::HashMap::new())
+                .await
+                .is_ok()
+        );
+    }
+
+    fn job_with_outputs(needs: Option<Needs>, outputs: Vec<(&str, &str)>) -> Job {
+        Job {
+            needs,
+            outputs: outputs
+                .into_iter()
+                .map(|(name, value)| (name.to_string(), Output::Simple(value.to_string())))
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    /// Three layers: build (layer 1), publish (layer 2, needs build) and deploy (layer 3,
+    /// needs both build and publish). Deploy reads a value straight from build even though
+    /// it is two layers away, because build is listed directly in its own needs.
+    #[actix_web::test]
+    async fn three_layers_collect_and_forward_job_outputs() {
+        let logger = Logger::in_memory().into_arc();
+        let runner = create_runner(
+            vec![
+                ("build", job_with_outputs(None, vec![("version", "1.2.3")])),
+                (
+                    "publish",
+                    job_with_outputs(
+                        Some(Needs::Single("build".to_string())),
+                        vec![("got", "${{ jobs.build.outputs.version }}")],
+                    ),
+                ),
+                (
+                    "deploy",
+                    job_with_outputs(
+                        Some(Needs::Multiple(
+                            ["build", "publish"].iter().map(|x| x.to_string()).collect(),
+                        )),
+                        vec![("final", "${{ jobs.build.outputs.version }}")],
+                    ),
+                ),
+            ],
+            logger.clone(),
+        );
+
+        let mut job_outputs = std::collections::HashMap::new();
+
+        let layer1 = runner
+            .run_layer(&["build".to_string()], &job_outputs)
+            .await
+            .unwrap();
+        job_outputs.extend(layer1);
+        assert_eq!(
+            job_outputs.get("build").and_then(|m| m.get("version")),
+            Some(&"1.2.3".to_string())
+        );
+
+        let layer2 = runner
+            .run_layer(&["publish".to_string()], &job_outputs)
+            .await
+            .unwrap();
+        job_outputs.extend(layer2);
+        assert_eq!(
+            job_outputs.get("publish").and_then(|m| m.get("got")),
+            Some(&"1.2.3".to_string())
+        );
+
+        let layer3 = runner
+            .run_layer(&["deploy".to_string()], &job_outputs)
+            .await
+            .unwrap();
+        job_outputs.extend(layer3);
+        assert_eq!(
+            job_outputs.get("deploy").and_then(|m| m.get("final")),
+            Some(&"1.2.3".to_string())
+        );
+    }
+
+    /// A job that is skipped because its condition fails still shows up in the outputs map
+    /// as an empty entry, so a job in the next layer that reads one of its values gets a
+    /// clear error naming the job and the missing output, instead of an order violation.
+    #[actix_web::test]
+    async fn job_skipped_by_condition_gives_empty_outputs_to_the_next_layer() {
+        let logger = Logger::in_memory().into_arc();
+        let runner = create_runner(
+            vec![
+                ("build", failing_job("${{ false }}")),
+                (
+                    "publish",
+                    job_with_outputs(
+                        Some(Needs::Single("build".to_string())),
+                        vec![("got", "${{ jobs.build.outputs.version }}")],
+                    ),
+                ),
+            ],
+            logger.clone(),
+        );
+
+        // The condition of "build" doesn't fail the run, it just evaluates to false, so the
+        // job is skipped rather than erroring.
+        let layer1 = runner
+            .run_layer(&["build".to_string()], &std::collections::HashMap::new())
+            .await
+            .unwrap();
+        assert_eq!(layer1.get("build"), Some(&std::collections::HashMap::new()));
+
+        let result = runner.run_layer(&["publish".to_string()], &layer1).await;
+        let error = result
+            .expect_err("expected an error reading the output of a skipped job")
+            .to_string();
+        assert!(
+            error.contains("version") && error.contains("build"),
+            "{error}"
+        );
     }
 }

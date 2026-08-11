@@ -13,7 +13,7 @@ use {
         expr::v3::{
             parser::Rule,
             traits::{
-                EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext,
+                EvalObject, ExprText, ExprValue, OutputScope, ReadonlyRuntimeExprContext,
                 WritableRuntimeExprContext,
             },
         },
@@ -235,7 +235,7 @@ impl<'a> EvalObject<'a> for Step {
                         bail!("no output variable name provided");
                     };
                     let name = object.as_span().as_str();
-                    wctx.get_output(&command.id, name)?
+                    wctx.get_output(OutputScope::Step, &command.id, name)?
                 }
                 value => bail!("invalid steps field: {value}"),
             },
@@ -246,7 +246,7 @@ impl<'a> EvalObject<'a> for Step {
                         bail!("no output variable name provided");
                     };
                     let name = object.as_span().as_str();
-                    wctx.get_output(&external.id, name)?
+                    wctx.get_output(OutputScope::Step, &external.id, name)?
                 }
                 value => bail!("invalid expression for step: {value}"),
             },
@@ -349,7 +349,7 @@ mod tests {
         expr::v3::{
             context::CommonReadonlyRuntimeExprContext,
             exec::CommonExprExecutor,
-            traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext},
+            traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext, OutputScope},
         },
         job::v3::Job,
         outputs::v3::Output,
@@ -702,9 +702,13 @@ mod tests {
 
                 for (name, value) in outputs.iter() {
                     wctx.expect_get_output()
-                        .with(predicate::eq(*step), predicate::eq(*name))
+                        .with(
+                            predicate::eq(OutputScope::Step),
+                            predicate::eq(*step),
+                            predicate::eq(*name),
+                        )
                         .times(1)
-                        .returning(|_, _| Ok(ExprValue::Text(ExprText::Ref(value))));
+                        .returning(|_, _, _| Ok(ExprValue::Text(ExprText::Ref(value))));
                 }
             }
         }
@@ -768,9 +772,13 @@ mod tests {
             }
             for (name, value) in outputs.iter() {
                 wctx.expect_get_output()
-                    .with(predicate::eq(*step), predicate::eq(*name))
+                    .with(
+                        predicate::eq(OutputScope::Step),
+                        predicate::eq(*step),
+                        predicate::eq(*name),
+                    )
                     .times(1)
-                    .returning(|_, _| Ok(ExprValue::Text(ExprText::Ref(value))));
+                    .returning(|_, _, _| Ok(ExprValue::Text(ExprText::Ref(value))));
             }
         }
 

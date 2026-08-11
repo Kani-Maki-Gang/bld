@@ -4,7 +4,7 @@ use anyhow::{Result, anyhow, bail};
 use mockall::{automock, mock};
 use uuid::Uuid;
 
-use crate::expr::v3::traits::{ExprValue, WritableRuntimeExprContext};
+use crate::expr::v3::traits::{ExprValue, OutputScope, WritableRuntimeExprContext};
 
 #[automock]
 pub trait NodeState {
@@ -66,7 +66,10 @@ impl WritableRuntimeExprContext for StepState {
         Some(self.id.as_str())
     }
 
-    fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<ExprValue<'a>> {
+    fn get_output<'a>(&'a self, scope: OutputScope, id: &str, name: &str) -> Result<ExprValue<'a>> {
+        if scope != OutputScope::Step {
+            bail!("job outputs are not accessible from step state");
+        }
         if self.id != id {
             bail!("id {id} has no outputs");
         }
@@ -103,28 +106,48 @@ impl WritableRuntimeExprContext for StepState {
 
 #[derive(Debug, PartialEq)]
 pub struct JobState {
-    id: String,
+    name: String,
     state: State,
     steps: HashMap<String, StepState>,
     matrix: HashMap<String, String>,
+    // TECH DEBT: Change 'static lifetime to a specific lifetime.
+    // Changing this will require a lot of type annotation changes.
+    job_outputs: HashMap<String, HashMap<String, ExprValue<'static>>>,
 }
 
 impl JobState {
-    pub fn new(id: &str) -> Self {
+    pub fn new(name: &str) -> Self {
         Self {
-            id: id.to_string(),
+            name: name.to_string(),
             ..Default::default()
         }
+    }
+
+    pub fn set_job_outputs(
+        &mut self,
+        job_outputs: HashMap<String, HashMap<String, String>>,
+    ) -> Result<()> {
+        let mut map = HashMap::new();
+        for (job, outputs) in job_outputs {
+            let mut inner = HashMap::new();
+            for (name, value) in outputs {
+                inner.insert(name, value.try_into()?);
+            }
+            map.insert(job, inner);
+        }
+        self.job_outputs = map;
+        Ok(())
     }
 }
 
 impl Default for JobState {
     fn default() -> Self {
         Self {
-            id: Uuid::new_v4().to_string(),
+            name: Uuid::new_v4().to_string(),
             state: State::default(),
             steps: HashMap::new(),
             matrix: HashMap::new(),
+            job_outputs: HashMap::new(),
         }
     }
 }
@@ -161,14 +184,29 @@ impl RootState for JobState {
 
 impl WritableRuntimeExprContext for JobState {
     fn get_exec_id(&self) -> Option<&str> {
-        Some(self.id.as_str())
+        Some(self.name.as_str())
     }
 
-    fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<ExprValue<'a>> {
-        let Some(step_state) = self.steps.get(id) else {
-            bail!("outputs for id {id} weren't found");
-        };
-        step_state.get_output(id, name)
+    fn get_output<'a>(&'a self, scope: OutputScope, id: &str, name: &str) -> Result<ExprValue<'a>> {
+        match scope {
+            OutputScope::Job => {
+                let Some(outputs) = self.job_outputs.get(id) else {
+                    bail!(
+                        "job '{id}' not found, only jobs listed in 'needs' have their outputs available"
+                    );
+                };
+                outputs
+                    .get(name)
+                    .cloned()
+                    .ok_or_else(|| anyhow!("output '{name}' not found for job '{id}'"))
+            }
+            OutputScope::Step => {
+                let Some(step_state) = self.steps.get(id) else {
+                    bail!("outputs for id {id} weren't found");
+                };
+                step_state.get_output(OutputScope::Step, id, name)
+            }
+        }
     }
 
     fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()> {
@@ -246,11 +284,14 @@ impl WritableRuntimeExprContext for ActionState {
         Some(self.id.as_str())
     }
 
-    fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<ExprValue<'a>> {
+    fn get_output<'a>(&'a self, scope: OutputScope, id: &str, name: &str) -> Result<ExprValue<'a>> {
+        if scope != OutputScope::Step {
+            bail!("jobs are not accessible from an action");
+        }
         let Some(step_state) = self.steps.get(id) else {
             bail!("outputs for id {id} weren't found");
         };
-        step_state.get_output(id, name)
+        step_state.get_output(OutputScope::Step, id, name)
     }
 
     fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()> {
@@ -289,7 +330,7 @@ mock! {
 
     impl WritableRuntimeExprContext for RootState {
         fn get_exec_id<'a> (&'a self) -> Option<&'a str>;
-        fn get_output<'a>(&'a self, id: &str, name: &str) -> Result<ExprValue<'a>>;
+        fn get_output<'a>(&'a self, scope: OutputScope, id: &str, name: &str) -> Result<ExprValue<'a>>;
         fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
         fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
         fn get_matrix_value<'a>(&'a self, name: &str) -> Result<&'a str>;
@@ -303,7 +344,7 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        expr::v3::traits::{ExprText, ExprValue, WritableRuntimeExprContext},
+        expr::v3::traits::{ExprText, ExprValue, OutputScope, WritableRuntimeExprContext},
         runner::v3::state::{ActionState, JobState, NodeState, RootState, State, StepState},
     };
 
@@ -362,7 +403,7 @@ mod tests {
             outputs: expr_outputs,
         };
         for (name, expected_value) in outputs {
-            let actual_value = state.get_output(&id, &name).unwrap();
+            let actual_value = state.get_output(OutputScope::Step, &id, &name).unwrap();
             assert_eq!(
                 actual_value,
                 ExprValue::Text(ExprText::Owned(expected_value))
@@ -419,10 +460,11 @@ mod tests {
         for state in states {
             let id = Uuid::new_v4().to_string();
             let expected = JobState {
-                id: id.clone(),
+                name: id.clone(),
                 state: state.clone(),
                 steps: HashMap::new(),
                 matrix: HashMap::new(),
+                job_outputs: HashMap::new(),
             };
             let mut actual = JobState::new(&id);
             actual.update_state(state);
@@ -435,7 +477,7 @@ mod tests {
         let data = vec!["123", "hello", "world", "john", "doe"];
         for id in data {
             let state = JobState {
-                id: id.to_string(),
+                name: id.to_string(),
                 ..Default::default()
             };
             let exec_id = state.get_exec_id();
@@ -458,10 +500,11 @@ mod tests {
             .map(|(k, v)| (k.clone(), ExprValue::Text(ExprText::Owned(v.clone()))))
             .collect();
         let mut state = JobState {
-            id: job_id.clone(),
+            name: job_id.clone(),
             state: State::Default,
             steps: HashMap::new(),
             matrix: HashMap::new(),
+            job_outputs: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),
@@ -472,7 +515,9 @@ mod tests {
             },
         );
         for (name, expected_value) in outputs {
-            let actual_value = state.get_output(&step_id, &name).unwrap();
+            let actual_value = state
+                .get_output(OutputScope::Step, &step_id, &name)
+                .unwrap();
             assert_eq!(
                 actual_value,
                 ExprValue::Text(ExprText::Owned(expected_value))
@@ -494,10 +539,11 @@ mod tests {
             .map(|(k, v)| (k.clone(), ExprValue::Text(ExprText::Owned(v.clone()))))
             .collect();
         let mut state = JobState {
-            id: job_id.clone(),
+            name: job_id.clone(),
             state: State::Default,
             steps: HashMap::new(),
             matrix: HashMap::new(),
+            job_outputs: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),
@@ -527,10 +573,11 @@ mod tests {
             .map(|(k, v)| (k.clone(), ExprValue::Text(ExprText::Owned(v.clone()))))
             .collect();
         let mut state = JobState {
-            id: job_id.clone(),
+            name: job_id.clone(),
             state: State::Default,
             steps: HashMap::new(),
             matrix: HashMap::new(),
+            job_outputs: HashMap::new(),
         };
         state.steps.insert(
             step_id.clone(),
@@ -542,6 +589,55 @@ mod tests {
         );
         let result = state.set_outputs(&step_id, outputs);
         assert!(result.is_ok())
+    }
+
+    #[test]
+    pub fn job_state_get_job_output_success() {
+        let mut state = JobState::new("consumer");
+        let mut build_outputs = HashMap::new();
+        build_outputs.insert("version".to_string(), "1.2.3".to_string());
+        let mut job_outputs = HashMap::new();
+        job_outputs.insert("build".to_string(), build_outputs);
+
+        state.set_job_outputs(job_outputs).unwrap();
+
+        let value = state
+            .get_output(OutputScope::Job, "build", "version")
+            .unwrap();
+        assert_eq!(value, ExprValue::Text(ExprText::Owned("1.2.3".to_string())));
+    }
+
+    #[test]
+    pub fn job_state_get_job_output_unknown_job_failure() {
+        let state = JobState::new("consumer");
+        let error = state
+            .get_output(OutputScope::Job, "missing", "version")
+            .unwrap_err();
+        assert!(error.to_string().contains("missing"), "{error}");
+    }
+
+    #[test]
+    pub fn job_state_get_job_output_unknown_output_failure() {
+        let mut state = JobState::new("consumer");
+        let mut job_outputs = HashMap::new();
+        job_outputs.insert("build".to_string(), HashMap::new());
+
+        state.set_job_outputs(job_outputs).unwrap();
+
+        let error = state
+            .get_output(OutputScope::Job, "build", "version")
+            .unwrap_err();
+        assert!(error.to_string().contains("version"), "{error}");
+    }
+
+    #[test]
+    pub fn action_state_get_job_output_failure() {
+        let state = ActionState::default();
+        assert!(
+            state
+                .get_output(OutputScope::Job, "build", "version")
+                .is_err()
+        );
     }
 
     #[test]
@@ -586,7 +682,9 @@ mod tests {
             },
         );
         for (name, expected_value) in outputs {
-            let actual_value = state.get_output(&step_id, &name).unwrap();
+            let actual_value = state
+                .get_output(OutputScope::Step, &step_id, &name)
+                .unwrap();
             assert_eq!(
                 actual_value,
                 ExprValue::Text(ExprText::Owned(expected_value))
