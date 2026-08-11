@@ -20,7 +20,7 @@ use crate::{
     expr::v3::{
         context::CommonReadonlyRuntimeExprContext,
         exec::{CommonExprExecutor, eval_all_expressions, eval_all_expressions_map},
-        traits::{EvalExpr, ExprValue},
+        traits::EvalExpr,
     },
     external::v3::External,
     runner::v3::state::{ActionState, RootState, State},

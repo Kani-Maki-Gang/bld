@@ -27,7 +27,7 @@ use crate::{
     expr::v3::{
         context::{CommonReadonlyRuntimeExprContext, START_OF_RUN_WCTX},
         exec::{CommonExprExecutor, eval_all_expressions, eval_all_expressions_map},
-        traits::{EvalExpr, ExprValue},
+        traits::EvalExpr,
     },
     external::v3::External,
     job::v3::Job,
@@ -241,7 +241,7 @@ impl<S: RootState> JobRunner<S> {
         debug!("printing job informantion");
         self.options
             .logger
-            .write_line(format!("{:<15}: {}", "Runs on", &self.runs_on))
+            .write_line(format!("{:<15}: {}", "Runs on", self.runs_on))
             .await
     }
 
@@ -747,6 +747,7 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            outputs: HashMap::new(),
         };
 
         // A text value of "true" starts the step, mirroring an input whose value is "true".
