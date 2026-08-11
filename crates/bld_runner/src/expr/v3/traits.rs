@@ -74,8 +74,7 @@ impl<'a> ExprText<'a> {
 pub enum ExprValue<'a> {
     Boolean(bool),
     /// `raw` keeps the original text the number was parsed from, so that
-    /// formatting it back to text does not lose information (leading or
-    /// trailing zeros, digits beyond `f64` precision, etc). `value` is used
+    /// formatting it back to text does not lose information. `value` is used
     /// for numeric comparisons.
     Number {
         value: f64,
@@ -91,13 +90,6 @@ pub enum ExprValue<'a> {
 }
 
 impl<'a, 'b> ExprValue<'a> {
-    pub fn number(value: f64) -> Self {
-        Self::Number {
-            value,
-            raw: ExprText::Owned(value.to_string()),
-        }
-    }
-
     pub fn type_as_string(&self) -> &'static str {
         match self {
             Self::Boolean(_) => "boolean",
@@ -315,8 +307,15 @@ pub trait EvalExpr<'a> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
+
+    pub fn expr_number<'a>(value: f64) -> ExprValue<'a> {
+        ExprValue::Number {
+            value,
+            raw: ExprText::Owned(value.to_string()),
+        }
+    }
 
     #[test]
     fn number_conversion_keeps_leading_and_trailing_zeros() {
@@ -350,7 +349,7 @@ mod tests {
     #[test]
     fn numbers_still_compare_by_value() {
         let count: ExprValue = "10".try_into().unwrap();
-        let threshold = ExprValue::number(3.0);
+        let threshold = expr_number(3.0);
         let ExprValue::Boolean(greater) = count.try_ord(&threshold).unwrap() else {
             panic!("expected boolean");
         };
