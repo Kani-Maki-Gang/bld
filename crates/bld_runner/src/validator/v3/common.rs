@@ -16,7 +16,7 @@ use crate::expr::v3::{
     context::{CommonReadonlyRuntimeExprContext, START_OF_RUN_WCTX},
     exec::CommonExprExecutor,
     parser,
-    traits::{EvalExpr, EvalObject, ExprValue, WritableRuntimeExprContext},
+    traits::{EvalExpr, EvalObject, ExprValue, OutputScope, WritableRuntimeExprContext},
 };
 
 use super::{ConsumeValidator, ExprScope, Validate, ValidatorContext};
@@ -53,7 +53,7 @@ impl<'a> WritableRuntimeExprContext for ValidatorWritableRuntimeExprContext<'a> 
         Some(self.exec_id)
     }
 
-    fn get_output<'b>(&'b self, _id: &str, _name: &str) -> Result<ExprValue<'b>> {
+    fn get_output<'b>(&'b self, _scope: OutputScope, _id: &str, _name: &str) -> Result<ExprValue<'b>> {
         Ok(ExprValue::Unknown)
     }
 
@@ -69,10 +69,6 @@ impl<'a> WritableRuntimeExprContext for ValidatorWritableRuntimeExprContext<'a> 
 
     fn get_matrix_value<'b>(&'b self, _name: &str) -> Result<&'b str> {
         Ok("")
-    }
-
-    fn get_job_output<'b>(&'b self, _job: &str, _name: &str) -> Result<ExprValue<'b>> {
-        Ok(ExprValue::Unknown)
     }
 }
 

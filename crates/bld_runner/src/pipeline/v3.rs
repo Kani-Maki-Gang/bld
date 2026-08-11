@@ -14,7 +14,7 @@ use {
             context::out_of_scope,
             parser::Rule,
             traits::{
-                EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext,
+                EvalObject, ExprText, ExprValue, OutputScope, ReadonlyRuntimeExprContext,
                 WritableRuntimeExprContext,
             },
         },
@@ -274,7 +274,7 @@ impl<'a> EvalObject<'a> for Pipeline {
                 };
                 let name = part.as_span().as_str();
 
-                wctx.get_job_output(job_name, name)
+                wctx.get_output(OutputScope::Job, job_name, name)
             }
 
             // Move evaluation to the job level
@@ -339,7 +339,7 @@ mod tests {
         expr::v3::{
             context::CommonReadonlyRuntimeExprContext,
             exec::CommonExprExecutor,
-            traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext},
+            traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext, OutputScope},
         },
         inputs::v3::Input,
         job::v3::{Job, Needs},
@@ -603,12 +603,13 @@ mod tests {
         let rctx = CommonReadonlyRuntimeExprContext::default();
         let pipeline = Pipeline::default();
 
-        wctx.expect_get_job_output()
+        wctx.expect_get_output()
             .with(
+                mockall::predicate::eq(OutputScope::Job),
                 mockall::predicate::eq("build"),
                 mockall::predicate::eq("version"),
             )
-            .returning(|_, _| Ok(ExprValue::Text(ExprText::Ref("1.2.3"))));
+            .returning(|_, _, _| Ok(ExprValue::Text(ExprText::Ref("1.2.3"))));
 
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
         let actual = exec.eval("${{ jobs.build.outputs.version }}").unwrap();

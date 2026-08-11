@@ -643,7 +643,7 @@ mod tests {
         expr::v3::{
             context::CommonReadonlyRuntimeExprContext,
             parser::EXPR_REGEX,
-            traits::{ExprText, ExprValue, WritableRuntimeExprContext},
+            traits::{ExprText, ExprValue, OutputScope, WritableRuntimeExprContext},
         },
         external::v3::External,
         job::v3::Job,
@@ -1493,7 +1493,10 @@ steps:
         assert!(result.is_ok(), "error: {:?}", result.err());
 
         let runner = result.unwrap();
-        let output = runner.options.state.get_output("call_action", "echoed");
+        let output = runner
+            .options
+            .state
+            .get_output(OutputScope::Step, "call_action", "echoed");
         assert_eq!(
             output.unwrap(),
             ExprValue::Text(ExprText::Owned("my-image:latest".to_string()))
@@ -1538,7 +1541,7 @@ steps:
             runner
                 .options
                 .state
-                .get_output("call_action", "echoed")
+                .get_output(OutputScope::Step, "call_action", "echoed")
                 .is_err()
         );
     }
