@@ -463,7 +463,7 @@ impl<S: RootState> JobRunner<S> {
         };
 
         let value = expr_exec.eval(condition)?;
-        value.try_as_condition()
+        value.try_into()
     }
 
     fn eval_all_expr(&mut self, value: &str) -> Result<String> {

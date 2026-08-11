@@ -77,7 +77,7 @@ impl<S: RootState> ActionRunner<S> {
 
         let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &self.state);
         let value = expr_exec.eval(condition)?;
-        value.try_as_condition()
+        value.try_into()
     }
 
     fn resolve_working_dir(&mut self, working_dir: &Option<String>) -> Result<Option<String>> {
