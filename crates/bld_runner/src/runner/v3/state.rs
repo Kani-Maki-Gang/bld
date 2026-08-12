@@ -448,6 +448,43 @@ mod tests {
     }
 
     #[test]
+    pub fn step_state_output_round_trip_preserves_the_original_text() {
+        let data = vec![
+            ("ver", "007"),
+            ("dec", "1.10"),
+            ("zero", "0.0"),
+            ("exp", "1e3"),
+            ("sha", "12345678901234567890123456789012"),
+            ("nan", "NaN"),
+            ("inf", "-inf"),
+            ("name", "john"),
+            ("flag", "true"),
+        ];
+
+        let id = Uuid::new_v4().to_string();
+        let mut state = StepState {
+            id: id.clone(),
+            state: State::Default,
+            outputs: HashMap::new(),
+        };
+
+        for (name, value) in &data {
+            state
+                .set_output(&id, name.to_string(), value.to_string())
+                .unwrap();
+        }
+
+        for (name, value) in &data {
+            let actual = state.get_output(&id, name).unwrap();
+            assert_eq!(
+                actual.to_string(),
+                *value,
+                "output '{name}' was not preserved"
+            );
+        }
+    }
+
+    #[test]
     pub fn job_state_update_state_success() {
         let states = vec![
             State::Default,

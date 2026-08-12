@@ -343,7 +343,7 @@ mod tests {
     use crate::{
         expr::v3::{
             context::CommonReadonlyRuntimeExprContext,
-            traits::{ExprText, MockWritableRuntimeExprContext},
+            traits::{ExprText, MockWritableRuntimeExprContext, tests::expr_number},
         },
         pipeline::v3::Pipeline,
     };
@@ -374,14 +374,14 @@ mod tests {
     #[test]
     pub fn number_eval_success() {
         let data = vec![
-            ("${{ 100 }}", ExprValue::Number(100.0)),
-            ("${{ 100.0 }}", ExprValue::Number(100.0)),
-            ("${{ 150.20 }}", ExprValue::Number(150.20)),
-            ("${{ 0.0 }}", ExprValue::Number(0.0)),
-            ("${{ 0 }}", ExprValue::Number(0.0)),
-            ("${{ -100 }}", ExprValue::Number(-100.0)),
-            ("${{ -100.0 }}", ExprValue::Number(-100.0)),
-            ("${{ -150.20 }}", ExprValue::Number(-150.20)),
+            ("${{ 100 }}", expr_number(100.0)),
+            ("${{ 100.0 }}", expr_number(100.0)),
+            ("${{ 150.20 }}", expr_number(150.20)),
+            ("${{ 0.0 }}", expr_number(0.0)),
+            ("${{ 0 }}", expr_number(0.0)),
+            ("${{ -100 }}", expr_number(-100.0)),
+            ("${{ -100.0 }}", expr_number(-100.0)),
+            ("${{ -150.20 }}", expr_number(-150.20)),
         ];
 
         let wctx = MockWritableRuntimeExprContext::new();
@@ -394,11 +394,14 @@ mod tests {
                 panic!("failed to parse expression: {expr}");
             };
 
-            let ExprValue::Number(value) = value else {
+            let ExprValue::Number { value, .. } = value else {
                 panic!("expected number, found {:?}", value);
             };
 
-            let ExprValue::Number(expected) = expected else {
+            let ExprValue::Number {
+                value: expected, ..
+            } = expected
+            else {
                 panic!("expected number, found {:?}", expected);
             };
 
@@ -506,11 +509,7 @@ mod tests {
         let data = vec![
             (
                 "${{ [100, 200, 300] }}",
-                vec![
-                    ExprValue::Number(100.0),
-                    ExprValue::Number(200.0),
-                    ExprValue::Number(300.0),
-                ],
+                vec![expr_number(100.0), expr_number(200.0), expr_number(300.0)],
             ),
             (
                 "${{ [\"hello\", \"world\"] }}",
@@ -710,7 +709,7 @@ mod tests {
             panic!("failed to eval indexed expression");
         };
         assert!(matches!(
-            value.try_eq(&ExprValue::Number(300.0)),
+            value.try_eq(&expr_number(300.0)),
             Ok(ExprValue::Boolean(true))
         ));
 
