@@ -197,8 +197,7 @@ impl<'b> TryFrom<&'b str> for ExprValue<'_> {
     type Error = anyhow::Error;
 
     fn try_from(value: &'b str) -> Result<Self> {
-        // Try number. Reject inf, -inf and NaN, they are not the numbers a
-        // step output is meant to convey and should stay text instead.
+        // Try number
         if let Ok(num) = value.parse::<f64>()
             && num.is_finite()
         {
