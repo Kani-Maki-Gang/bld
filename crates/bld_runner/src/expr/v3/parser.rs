@@ -778,17 +778,32 @@ mod tests {
             for pair in pairs {
                 let mut pair_inner = pair.into_inner();
 
-                let Some(left) = pair_inner.next() else {
+                let Some(and_term) = pair_inner.next() else {
+                    panic!("parsed value doesn't contain an and term");
+                };
+                assert_eq!(and_term.as_rule(), Rule::AndTerm);
+                assert!(pair_inner.next().is_none());
+
+                let mut and_term_inner = and_term.into_inner();
+
+                let Some(and_expr) = and_term_inner.next() else {
+                    panic!("parsed value doesn't contain an and expression");
+                };
+                assert_eq!(and_expr.as_rule(), Rule::AndExpression);
+
+                let mut and_expr_inner = and_expr.into_inner();
+
+                let Some(left) = and_expr_inner.next() else {
                     panic!("parsed value doesn't contain a left operand");
                 };
                 assert_eq!(left.as_rule(), Rule::Expression);
 
-                let Some(operator) = pair_inner.next() else {
+                let Some(operator) = and_expr_inner.next() else {
                     panic!("parsed value doesn't contain an operator");
                 };
                 assert_eq!(operator.as_rule(), Rule::AndOperator);
 
-                let Some(right) = pair_inner.next() else {
+                let Some(right) = and_expr_inner.next() else {
                     panic!("parsed value doesn't contain a right operand");
                 };
                 assert_eq!(right.as_rule(), Rule::Expression);
@@ -835,9 +850,13 @@ mod tests {
                 let mut pair_inner = pair.into_inner();
 
                 let Some(left) = pair_inner.next() else {
-                    panic!("parsed value doesn't contain a left operand");
+                    panic!("parsed value doesn't contain a left and term");
                 };
-                assert_eq!(left.as_rule(), Rule::Expression);
+                assert_eq!(left.as_rule(), Rule::AndTerm);
+                assert_eq!(
+                    left.into_inner().next().map(|p| p.as_rule()),
+                    Some(Rule::Expression)
+                );
 
                 let Some(operator) = pair_inner.next() else {
                     panic!("parsed value doesn't contain an operator");
@@ -845,9 +864,47 @@ mod tests {
                 assert_eq!(operator.as_rule(), Rule::OrOperator);
 
                 let Some(right) = pair_inner.next() else {
-                    panic!("parsed value doesn't contain a right operand");
+                    panic!("parsed value doesn't contain a right and term");
                 };
-                assert_eq!(right.as_rule(), Rule::Expression);
+                assert_eq!(right.as_rule(), Rule::AndTerm);
+                assert_eq!(
+                    right.into_inner().next().map(|p| p.as_rule()),
+                    Some(Rule::Expression)
+                );
+            }
+        }
+    }
+
+    fn assert_valid_expression(expr: pest::iterators::Pair<Rule>) {
+        assert_eq!(expr.as_rule(), Rule::Expression);
+        let expr_inner = expr.into_inner();
+
+        for inner in expr_inner {
+            match inner.as_rule() {
+                Rule::ExpressionInner => {
+                    let mut body = inner.into_inner();
+                    assert_eq!(body.len(), 1);
+
+                    let body_inner = body.next().unwrap();
+                    assert!(
+                        body_inner.as_rule() == Rule::Equals
+                            || body_inner.as_rule() == Rule::NotEquals
+                            || body_inner.as_rule() == Rule::Greater
+                            || body_inner.as_rule() == Rule::GreaterEquals
+                            || body_inner.as_rule() == Rule::Less
+                            || body_inner.as_rule() == Rule::LessEquals
+                            || body_inner.as_rule() == Rule::Symbol
+                    );
+                }
+
+                // a parenthesized group inside the expression is parsed as a
+                // nested logical expression, which is validated separately.
+                Rule::LogicalExpression => {}
+
+                _ => panic!(
+                    "unexpected rule found inside expression: {:?}",
+                    inner.as_rule()
+                ),
             }
         }
     }
@@ -862,32 +919,27 @@ mod tests {
             for logical in pairs {
                 let logical_inner = logical.into_inner();
 
-                for expr in logical_inner {
-                    match expr.as_rule() {
-                        Rule::Expression => {
-                            let expr_inner = expr.into_inner();
+                for term in logical_inner {
+                    match term.as_rule() {
+                        Rule::AndTerm => {
+                            let and_term_inner = term.into_inner().next().unwrap();
 
-                            for inner in expr_inner {
-                                assert_eq!(inner.as_rule(), Rule::ExpressionInner);
-
-                                let mut body = inner.into_inner();
-                                assert_eq!(body.len(), 1);
-
-                                let body_inner = body.next().unwrap();
-                                assert!(
-                                    body_inner.as_rule() == Rule::Equals
-                                        || body_inner.as_rule() == Rule::NotEquals
-                                        || body_inner.as_rule() == Rule::Greater
-                                        || body_inner.as_rule() == Rule::GreaterEquals
-                                        || body_inner.as_rule() == Rule::Less
-                                        || body_inner.as_rule() == Rule::LessEquals
-                                        || body_inner.as_rule() == Rule::LogicalExpression
-                                        || body_inner.as_rule() == Rule::Symbol
-                                );
+                            match and_term_inner.as_rule() {
+                                Rule::AndExpression => {
+                                    for part in and_term_inner.into_inner() {
+                                        match part.as_rule() {
+                                            Rule::Expression => assert_valid_expression(part),
+                                            Rule::AndOperator => {}
+                                            _ => panic!("parsed value is not a valid rule"),
+                                        }
+                                    }
+                                }
+                                Rule::Expression => assert_valid_expression(and_term_inner),
+                                _ => panic!("parsed value is not a valid rule"),
                             }
                         }
 
-                        Rule::AndOperator | Rule::OrOperator => {}
+                        Rule::OrOperator => {}
 
                         _ => panic!("parsed value is not a valid rule"),
                     }
@@ -942,6 +994,22 @@ mod tests {
                     assert!(expr_rule == Rule::Expression || expr_rule == Rule::LogicalExpression);
                 }
             }
+        }
+    }
+
+    #[test]
+    fn parse_full_expression_with_dangling_logical_operator_failure() {
+        let data = [
+            "${{ true && }}",
+            "${{ true || }}",
+            "${{ && true }}",
+            "${{ true && false || }}",
+        ];
+        for expr in data {
+            assert!(
+                ExprParser::parse(Rule::Full, expr).is_err(),
+                "expected a parse error for: {expr}"
+            );
         }
     }
 }
