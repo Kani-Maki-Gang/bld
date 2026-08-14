@@ -389,6 +389,7 @@ pub mod tests {
             panic!("expected boolean");
         };
         assert!(greater);
+    }
 
     #[test]
     fn boolean_true_and_false_are_used_as_is() {
@@ -410,7 +411,7 @@ pub mod tests {
 
     #[test]
     fn number_gives_an_error_naming_the_type() {
-        let res: Result<bool> = ExprValue::Number(1.0).try_into();
+        let res: Result<bool> = expr_number(1.0).try_into();
         assert!(res.unwrap_err().to_string().contains("number"));
     }
 
@@ -443,7 +444,7 @@ pub mod tests {
 
     #[test]
     fn validation_rejects_a_number_and_an_array() {
-        let err = ExprValue::Number(1.0).validate_as_condition().unwrap_err();
+        let err = expr_number(1.0).validate_as_condition().unwrap_err();
         assert!(err.to_string().contains("number"));
         assert!(ExprValue::Array(vec![]).validate_as_condition().is_err());
     }
