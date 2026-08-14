@@ -204,11 +204,14 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
         let expr_exec = CommonExprExecutor::new(self.validatable, self.expr_rctx, wctx);
         for entry in self.expr_regex.find_iter(value) {
             match expr_exec.eval(entry.as_str()) {
+                Ok(ExprValue::Boolean(_)) | Ok(ExprValue::Text(_)) | Ok(ExprValue::Unknown) => {}
                 Ok(value) => {
-                    if let Err(e) = value.validate_as_condition() {
-                        let section = self.section_txt();
-                        let _ = writeln!(self.errors, "[{section}] {}", e);
-                    }
+                    let section = self.section_txt();
+                    let _ = writeln!(
+                        self.errors,
+                        "[{section}] a condition must give a boolean value, but it gives {}",
+                        value.type_as_string()
+                    );
                 }
                 Err(e) => {
                     let section = self.section_txt();
