@@ -195,7 +195,7 @@ impl<'a> Validate<'a> for Job {
         if let Some(condition) = &self.condition {
             debug!("Validating job's {} if condition", self.id);
             ctx.push_section("if");
-            ctx.validate_condition(condition, ExprScope::Runtime);
+            ctx.validate_condition(condition, ExprScope::StartOfRun);
             validate_matrix_refs(ctx, condition, &HashSet::new());
             ctx.pop_section();
         }
