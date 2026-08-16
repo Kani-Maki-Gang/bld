@@ -93,6 +93,15 @@ impl Step {
         }
     }
 
+    pub fn condition(&self) -> Option<&str> {
+        match self {
+            Self::ComplexSh(cmd) => cmd.condition.as_deref(),
+            Self::ExternalFile(ext) => ext.condition.as_deref(),
+            Self::DownloadArtifact(download) => download.condition.as_deref(),
+            Self::UploadArtifact(upload) => upload.condition.as_deref(),
+        }
+    }
+
     #[cfg(feature = "all")]
     pub async fn validate_matrix<'a, C: ValidatorContext<'a>>(
         &'a self,
@@ -164,12 +173,27 @@ impl Step {
                 }
                 values.extend(ext.with.values().map(|x| x.as_str()));
                 values.extend(ext.env.values().map(|x| x.as_str()));
+                if let Some(cond) = ext.condition.as_deref() {
+                    values.push(cond);
+                }
                 values
             }
 
-            Step::DownloadArtifact(download) => vec![download.to.as_str()],
+            Step::DownloadArtifact(download) => {
+                let mut values = vec![download.to.as_str()];
+                if let Some(cond) = download.condition.as_deref() {
+                    values.push(cond);
+                }
+                values
+            }
 
-            Step::UploadArtifact(upload) => vec![upload.upload.as_str()],
+            Step::UploadArtifact(upload) => {
+                let mut values = vec![upload.upload.as_str()];
+                if let Some(cond) = upload.condition.as_deref() {
+                    values.push(cond);
+                }
+                values
+            }
         }
     }
 }
@@ -286,17 +310,10 @@ impl<'a> Validate<'a> for Step {
                     ctx.pop_section();
                 }
 
-                if let Some(condition) = complex.condition.as_ref() {
+                if let Some(condition) = &complex.condition {
                     debug!("Validating step's if condition");
                     ctx.push_section("if");
-                    let expr_count = ctx.expression_count(condition);
-                    if expr_count == 0 {
-                        ctx.append_error("Condition must contain exactly one expression");
-                    } else if expr_count > 1 {
-                        ctx.append_error("Condition must contain at most one expression");
-                    } else {
-                        ctx.validate_condition_expression(condition, ExprScope::Runtime);
-                    }
+                    ctx.validate_condition(condition, ExprScope::Runtime);
                     ctx.pop_section();
                 }
 
@@ -346,6 +363,7 @@ mod tests {
 
     use crate::{
         action::v3::Action,
+        artifacts::v3::{DownloadArtifact, UploadArtifact},
         expr::v3::{
             context::CommonReadonlyRuntimeExprContext,
             exec::CommonExprExecutor,
@@ -801,6 +819,54 @@ mod tests {
         }
     }
 
+    #[test]
+    pub fn external_step_deserializes_if_key() {
+        let step: Step = serde_yaml_ng::from_str(
+            "uses: actions/deploy.yaml\nif: '${{ inputs.environment == \"production\" }}'",
+        )
+        .unwrap();
+
+        let Step::ExternalFile(external) = step else {
+            panic!("expected an external step, got {step:?}");
+        };
+        assert_eq!(
+            external.condition.as_deref(),
+            Some(r#"${{ inputs.environment == "production" }}"#)
+        );
+    }
+
+    #[test]
+    pub fn upload_artifact_step_deserializes_if_key() {
+        let step: Step = serde_yaml_ng::from_str(
+            "upload: report.xml\nname: test-report\nif: '${{ inputs.upload_report }}'",
+        )
+        .unwrap();
+
+        let Step::UploadArtifact(upload) = step else {
+            panic!("expected an upload step, got {step:?}");
+        };
+        assert_eq!(
+            upload.condition.as_deref(),
+            Some("${{ inputs.upload_report }}")
+        );
+    }
+
+    #[test]
+    pub fn download_artifact_step_deserializes_if_key() {
+        let step: Step = serde_yaml_ng::from_str(
+            "download: test-report\nto: reports\nif: '${{ inputs.download_report }}'",
+        )
+        .unwrap();
+
+        let Step::DownloadArtifact(download) = step else {
+            panic!("expected a download step, got {step:?}");
+        };
+        assert_eq!(
+            download.condition.as_deref(),
+            Some("${{ inputs.download_report }}")
+        );
+    }
+
     async fn validate_action(action: &Action) -> anyhow::Result<()> {
         let config = BldConfig::default().into_arc();
         let fs = FileSystem::local(config.clone()).into_arc();
@@ -862,6 +928,57 @@ mod tests {
         let result = validate_action(&action).await;
 
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    pub async fn artifact_condition_with_multiple_expressions_fails_validation() {
+        let mut action = Action::default();
+        action
+            .steps
+            .push(Step::UploadArtifact(Box::new(UploadArtifact {
+                id: "upload".to_string(),
+                upload: "report.xml".to_string(),
+                name: "test-report".to_string(),
+                condition: Some("${{ true }} ${{ false }}".to_string()),
+            })));
+
+        let result = validate_action(&action).await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    pub async fn artifact_condition_with_unknown_step_output_fails_validation() {
+        let mut action = Action::default();
+        action
+            .steps
+            .push(Step::DownloadArtifact(Box::new(DownloadArtifact {
+                id: "download".to_string(),
+                download: "test-report".to_string(),
+                to: "reports".to_string(),
+                condition: Some("${{ steps.missing.outputs.value }}".to_string()),
+            })));
+
+        let result = validate_action(&action).await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    pub async fn artifact_condition_with_single_expression_passes_validation() {
+        let mut action = Action::default();
+        action
+            .steps
+            .push(Step::DownloadArtifact(Box::new(DownloadArtifact {
+                id: "download".to_string(),
+                download: "test-report".to_string(),
+                to: "reports".to_string(),
+                condition: Some("${{ true }}".to_string()),
+            })));
+
+        let result = validate_action(&action).await;
+
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
     }
 
     #[tokio::test]

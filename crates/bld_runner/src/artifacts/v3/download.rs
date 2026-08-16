@@ -14,6 +14,8 @@ pub struct DownloadArtifact {
     pub id: String,
     pub download: String,
     pub to: String,
+    #[serde(rename = "if")]
+    pub condition: Option<String>,
 }
 
 impl DownloadArtifact {
@@ -28,6 +30,7 @@ impl Default for DownloadArtifact {
             id: Self::default_id(),
             download: String::new(),
             to: String::new(),
+            condition: None,
         }
     }
 }
@@ -50,5 +53,12 @@ impl<'a> Validate<'a> for DownloadArtifact {
         ctx.push_section("to");
         ctx.validate_expressions(&self.to, ExprScope::Runtime);
         ctx.pop_section();
+
+        if let Some(condition) = &self.condition {
+            debug!("Validating artifact's if condition");
+            ctx.push_section("if");
+            ctx.validate_condition(condition, ExprScope::Runtime);
+            ctx.pop_section();
+        }
     }
 }

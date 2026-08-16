@@ -14,6 +14,8 @@ pub struct UploadArtifact {
     pub id: String,
     pub upload: String,
     pub name: String,
+    #[serde(rename = "if")]
+    pub condition: Option<String>,
 }
 
 impl UploadArtifact {
@@ -28,6 +30,7 @@ impl Default for UploadArtifact {
             id: Self::default_id(),
             upload: String::new(),
             name: String::new(),
+            condition: None,
         }
     }
 }
@@ -50,5 +53,12 @@ impl<'a> Validate<'a> for UploadArtifact {
             ctx.append_error(&e.to_string());
         }
         ctx.pop_section();
+
+        if let Some(condition) = &self.condition {
+            debug!("Validating artifact's if condition");
+            ctx.push_section("if");
+            ctx.validate_condition(condition, ExprScope::Runtime);
+            ctx.pop_section();
+        }
     }
 }

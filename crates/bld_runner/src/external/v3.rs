@@ -37,6 +37,9 @@ pub struct External {
     pub env: HashMap<String, String>,
 
     pub strategy: Option<Strategy>,
+
+    #[serde(rename = "if")]
+    pub condition: Option<String>,
 }
 
 impl External {
@@ -130,6 +133,13 @@ impl<'a> Validate<'a> for External {
         ctx.push_section("env");
         ctx.validate_env(&self.env, ExprScope::Runtime);
         ctx.pop_section();
+
+        if let Some(condition) = &self.condition {
+            debug!("Validating external's if condition");
+            ctx.push_section("if");
+            ctx.validate_condition(condition, ExprScope::Runtime);
+            ctx.pop_section();
+        }
     }
 }
 

@@ -246,15 +246,25 @@ impl<S: RootState> JobRunner<S> {
     }
 
     async fn step(&mut self, step: &Step) -> Result<()> {
-        self.options
-            .state
-            .update_node_state(step.id(), State::Running);
-        let result = match step {
-            Step::ComplexSh(complex) => self.complex_shell(complex).await,
-            Step::ExternalFile(external) => self.external(external).await,
-            Step::DownloadArtifact(download) => self.download_artifact(download).await,
-            Step::UploadArtifact(upload) => self.upload_artifact(upload).await,
+        let result = match self.condition(step.condition()) {
+            Ok(true) => {
+                self.options
+                    .state
+                    .update_node_state(step.id(), State::Running);
+                match step {
+                    Step::ComplexSh(complex) => self.complex_shell(complex).await,
+                    Step::ExternalFile(external) => self.external(external).await,
+                    Step::DownloadArtifact(download) => self.download_artifact(download).await,
+                    Step::UploadArtifact(upload) => self.upload_artifact(upload).await,
+                }
+            }
+            Ok(false) => {
+                debug!("condition failed, skiping step");
+                return Ok(());
+            }
+            Err(e) => Err(e),
         };
+
         result
             .inspect(|_| {
                 self.options
@@ -272,13 +282,6 @@ impl<S: RootState> JobRunner<S> {
     }
 
     async fn complex_shell(&mut self, complex: &ShellCommand) -> Result<()> {
-        let condition = complex.condition.as_deref();
-
-        if !self.condition(condition)? {
-            debug!("condition failed, skiping step");
-            return Ok(());
-        }
-
         if let Some(name) = complex.name.as_ref() {
             let mut message = String::new();
             writeln!(message, "{:<15}: {name}", "Step")?;
@@ -640,6 +643,7 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::{
+        artifacts::v3::DownloadArtifact,
         expr::v3::{
             context::CommonReadonlyRuntimeExprContext,
             parser::EXPR_REGEX,
@@ -1317,11 +1321,6 @@ mod tests {
         state.expect_set_matrix().returning(|_| ());
         state
             .expect_update_node_state()
-            .withf(|_, state| matches!(state, State::Running))
-            .times(1)
-            .returning(|_, _| ());
-        state
-            .expect_update_node_state()
             .withf(|_, state| matches!(state, State::Failed { .. }))
             .times(1)
             .returning(|_, _| ());
@@ -1393,11 +1392,6 @@ mod tests {
         let mut state = MockRootState::new();
         state.expect_update_state().returning(|_| ());
         state.expect_set_matrix().returning(|_| ());
-        state
-            .expect_update_node_state()
-            .withf(|_, state| matches!(state, State::Running))
-            .times(3)
-            .returning(|_, _| ());
         state
             .expect_update_node_state()
             .withf(|_, state| matches!(state, State::Failed { .. }))
@@ -1521,6 +1515,130 @@ steps:
             runs_on: RunsOn::default(),
             outputs: HashMap::new(),
         }
+    }
+
+    #[tokio::test]
+    pub async fn download_artifact_step_with_false_condition_is_skipped() {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        let mut state = JobState::new(&job_name);
+        state.add_node("download");
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            job_name.clone(),
+            Job {
+                steps: vec![Step::DownloadArtifact(Box::new(DownloadArtifact {
+                    id: "download".to_string(),
+                    download: "artifact-name".to_string(),
+                    to: "some/path".to_string(),
+                    condition: Some("${{ false }}".to_string()),
+                }))],
+                ..Default::default()
+            },
+        );
+
+        let options = JobRunnerOptions {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline: pipeline.into_arc(),
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            package_manager,
+            artifacts,
+            is_child: false,
+            state,
+        };
+        let runner = JobRunner {
+            options,
+            platform,
+            runs_on: RunsOn::default(),
+            outputs: HashMap::new(),
+        };
+
+        let result = runner.run().await;
+        assert!(result.is_ok(), "error: {:?}", result.err());
+
+        let runner = result.unwrap();
+        assert!(matches!(
+            runner.options.state.get_node_state("download"),
+            Some(State::Default)
+        ));
+    }
+
+    #[tokio::test]
+    pub async fn download_artifact_step_with_true_condition_runs() {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        let mut state = JobState::new(&job_name);
+        state.add_node("download");
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            job_name.clone(),
+            Job {
+                steps: vec![Step::DownloadArtifact(Box::new(DownloadArtifact {
+                    id: "download".to_string(),
+                    download: "artifact-name".to_string(),
+                    to: "some/path".to_string(),
+                    condition: Some("${{ true }}".to_string()),
+                }))],
+                ..Default::default()
+            },
+        );
+
+        let options = JobRunnerOptions {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline: pipeline.into_arc(),
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            package_manager,
+            artifacts,
+            is_child: false,
+            state,
+        };
+        let runner = JobRunner {
+            options,
+            platform,
+            runs_on: RunsOn::default(),
+            outputs: HashMap::new(),
+        };
+
+        let result = runner.run().await;
+        assert!(result.is_ok(), "error: {:?}", result.err());
+
+        let runner = result.unwrap();
+        assert!(matches!(
+            runner.options.state.get_node_state("download"),
+            Some(State::Completed)
+        ));
     }
 
     #[actix_web::test]
