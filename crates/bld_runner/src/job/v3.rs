@@ -44,6 +44,8 @@ pub struct Job {
     #[serde(default = "Job::default_dispose")]
     pub dispose: bool,
     pub strategy: Option<Strategy>,
+    #[serde(default)]
+    pub env: HashMap<String, String>,
     pub steps: Vec<Step>,
     #[serde(default)]
     pub outputs: HashMap<String, Output>,
@@ -83,6 +85,7 @@ impl Default for Job {
             needs: None,
             dispose: Self::default_dispose(),
             strategy: None,
+            env: HashMap::new(),
             steps: vec![],
             outputs: HashMap::new(),
         }
@@ -199,6 +202,11 @@ impl<'a> Validate<'a> for Job {
             validate_matrix_refs(ctx, condition, &HashSet::new());
             ctx.pop_section();
         }
+
+        debug!("Validating job's {} env section", self.id);
+        ctx.push_section("env");
+        ctx.validate_env(&self.env, ExprScope::StartOfRun);
+        ctx.pop_section();
 
         debug!("Validating job's {} steps", self.id);
         ctx.push_section("steps");
@@ -448,6 +456,76 @@ mod tests {
 
         let result = validate_job(job).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    pub async fn job_env_with_start_of_run_value_validation_success() {
+        let job = Job {
+            env: [(
+                "LOG_LEVEL".to_string(),
+                "${{ bld_project_dir }}".to_string(),
+            )]
+            .into_iter()
+            .collect(),
+            steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                id: "build".to_string(),
+                run: "echo hello".to_string(),
+                ..Default::default()
+            }))],
+            ..Default::default()
+        };
+
+        let result = validate_job(job).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn job_env_with_runtime_value_validation_failure() {
+        let job = Job {
+            env: [(
+                "LOG_LEVEL".to_string(),
+                "${{ steps.build.outputs.level }}".to_string(),
+            )]
+            .into_iter()
+            .collect(),
+            steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                id: "build".to_string(),
+                run: "echo hello".to_string(),
+                ..Default::default()
+            }))],
+            ..Default::default()
+        };
+
+        let Err(e) = validate_job(job).await else {
+            panic!("expected a validation error for a runtime expression in job env");
+        };
+        assert!(
+            e.to_string()
+                .contains("is not available at the start of a run"),
+            "{e}"
+        );
+    }
+
+    #[tokio::test]
+    pub async fn job_env_with_empty_name_validation_failure() {
+        let job = Job {
+            env: [(String::new(), "value".to_string())].into_iter().collect(),
+            steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                id: "build".to_string(),
+                run: "echo hello".to_string(),
+                ..Default::default()
+            }))],
+            ..Default::default()
+        };
+
+        let Err(e) = validate_job(job).await else {
+            panic!("expected a validation error for an empty env name");
+        };
+        assert!(
+            e.to_string()
+                .contains("Environment variable name must not be empty"),
+            "{e}"
+        );
     }
 
     #[test]
