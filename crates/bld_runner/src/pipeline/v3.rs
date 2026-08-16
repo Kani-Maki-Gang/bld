@@ -568,6 +568,105 @@ mod tests {
         );
     }
 
+    /// A value declared on a job is available to the expressions of that job, so a step
+    /// that reads one passes validation even when the file declares no such value.
+    #[tokio::test]
+    pub async fn job_env_value_used_by_expression_of_same_job_validation_success() {
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .env
+            .insert("LOG_LEVEL".to_string(), "info".to_string());
+        pipeline.jobs.insert(
+            "build".to_string(),
+            Job {
+                env: [("RUSTFLAGS".to_string(), "-D warnings".to_string())]
+                    .into_iter()
+                    .collect(),
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "build".to_string(),
+                    run: "echo ${{ env.RUSTFLAGS }} ${{ env.LOG_LEVEL }}".to_string(),
+                    condition: Some("${{ env.RUSTFLAGS }}".to_string()),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+
+        let result = validate_pipeline(pipeline).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    /// The values of a job are resolved in one step, before any of them exists, so one
+    /// value of a job cannot read another value of the same job.
+    #[tokio::test]
+    pub async fn job_env_value_reading_another_value_of_the_same_job_validation_failure() {
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            "build".to_string(),
+            Job {
+                env: [
+                    ("LEVEL".to_string(), "info".to_string()),
+                    ("LOG".to_string(), "${{ env.LEVEL }}".to_string()),
+                ]
+                .into_iter()
+                .collect(),
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "build".to_string(),
+                    run: "echo hello".to_string(),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+
+        let Err(e) = validate_pipeline(pipeline).await else {
+            panic!("expected a validation error for a value that reads a value of its own job");
+        };
+        let error = e.to_string();
+        assert!(error.contains("env variable 'LEVEL' not found"), "{error}");
+    }
+
+    /// The values of one job never reach another job, so an expression that reads the env
+    /// of a different job is an error.
+    #[tokio::test]
+    pub async fn env_value_of_another_job_validation_failure() {
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            "build".to_string(),
+            Job {
+                env: [("RUSTFLAGS".to_string(), "-D warnings".to_string())]
+                    .into_iter()
+                    .collect(),
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "build".to_string(),
+                    run: "echo hello".to_string(),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+        pipeline.jobs.insert(
+            "docs".to_string(),
+            Job {
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "docs".to_string(),
+                    run: "echo ${{ env.RUSTFLAGS }}".to_string(),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+
+        let Err(e) = validate_pipeline(pipeline).await else {
+            panic!("expected a validation error for the env of another job");
+        };
+        let error = e.to_string();
+        assert!(
+            error.contains("env variable 'RUSTFLAGS' not found"),
+            "{error}"
+        );
+    }
+
     #[test]
     pub fn name_expr_eval_success() {
         let wctx = MockWritableRuntimeExprContext::new();
