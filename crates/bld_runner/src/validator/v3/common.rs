@@ -298,18 +298,6 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for Comm
         }
     }
 
-    fn validate_condition_expression(&mut self, value: &'a str, scope: ExprScope) {
-        match scope {
-            ExprScope::StartOfRun => self.eval_condition_expression(value, &START_OF_RUN_WCTX),
-            ExprScope::Runtime => {
-                let Some(expr_wctx) = self.runtime_wctx() else {
-                    return;
-                };
-                self.eval_condition_expression(value, expr_wctx)
-            }
-        }
-    }
-
     fn matrix_refs(&self, value: &str) -> Vec<String> {
         let mut result = Vec::new();
         for entry in self.expr_regex.find_iter(value) {
@@ -371,21 +359,25 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for Comm
         }
     }
 
-    fn validate_condition(&mut self, condition: Option<&'a str>) {
-        let Some(condition) = condition else {
-            return;
-        };
-
-        self.push_section("if");
+    fn validate_condition(&mut self, condition: &'a str, scope: ExprScope) {
         let expr_count = self.expression_count(condition);
         if expr_count == 0 {
             self.append_error("Condition must contain exactly one expression");
         } else if expr_count > 1 {
             self.append_error("Condition must contain at most one expression");
         } else {
-            self.validate_expressions(condition, ExprScope::Runtime);
+            match scope {
+                ExprScope::StartOfRun => {
+                    self.eval_condition_expression(condition, &START_OF_RUN_WCTX)
+                }
+                ExprScope::Runtime => {
+                    let Some(expr_wctx) = self.runtime_wctx() else {
+                        return;
+                    };
+                    self.eval_condition_expression(condition, expr_wctx)
+                }
+            }
         }
-        self.pop_section();
     }
 }
 

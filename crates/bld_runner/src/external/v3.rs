@@ -134,8 +134,12 @@ impl<'a> Validate<'a> for External {
         ctx.validate_env(&self.env, ExprScope::Runtime);
         ctx.pop_section();
 
-        debug!("Validating external's if condition");
-        ctx.validate_condition(self.condition.as_deref());
+        if let Some(condition) = &self.condition {
+            debug!("Validating external's if condition");
+            ctx.push_section("if");
+            ctx.validate_condition(condition, ExprScope::Runtime);
+            ctx.pop_section();
+        }
     }
 }
 

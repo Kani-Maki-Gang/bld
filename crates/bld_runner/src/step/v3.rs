@@ -310,8 +310,12 @@ impl<'a> Validate<'a> for Step {
                     ctx.pop_section();
                 }
 
-                debug!("Validating step's if condition");
-                ctx.validate_condition(complex.condition.as_deref());
+                if let Some(condition) = &complex.condition {
+                    debug!("Validating step's if condition");
+                    ctx.push_section("if");
+                    ctx.validate_condition(condition, ExprScope::Runtime);
+                    ctx.pop_section();
+                }
 
                 debug!("Validating step's run command");
                 ctx.push_section("run");

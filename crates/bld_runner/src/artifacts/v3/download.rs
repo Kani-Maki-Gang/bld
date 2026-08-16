@@ -54,7 +54,11 @@ impl<'a> Validate<'a> for DownloadArtifact {
         ctx.validate_expressions(&self.to, ExprScope::Runtime);
         ctx.pop_section();
 
-        debug!("Validating artifact's if condition");
-        ctx.validate_condition(self.condition.as_deref());
+        if let Some(condition) = &self.condition {
+            debug!("Validating artifact's if condition");
+            ctx.push_section("if");
+            ctx.validate_condition(condition, ExprScope::Runtime);
+            ctx.pop_section();
+        }
     }
 }
