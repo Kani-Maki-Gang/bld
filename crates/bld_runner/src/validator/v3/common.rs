@@ -370,23 +370,23 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for Comm
             self.section.pop();
         }
     }
-}
 
-pub fn validate_condition<'a, C: ValidatorContext<'a>>(ctx: &mut C, condition: Option<&'a str>) {
-    let Some(condition) = condition else {
-        return;
-    };
+    fn validate_condition(&mut self, condition: Option<&'a str>) {
+        let Some(condition) = condition else {
+            return;
+        };
 
-    ctx.push_section("if");
-    let expr_count = ctx.expression_count(condition);
-    if expr_count == 0 {
-        ctx.append_error("Condition must contain exactly one expression");
-    } else if expr_count > 1 {
-        ctx.append_error("Condition must contain at most one expression");
-    } else {
-        ctx.validate_expressions(condition, ExprScope::Runtime);
+        self.push_section("if");
+        let expr_count = self.expression_count(condition);
+        if expr_count == 0 {
+            self.append_error("Condition must contain exactly one expression");
+        } else if expr_count > 1 {
+            self.append_error("Condition must contain at most one expression");
+        } else {
+            self.validate_expressions(condition, ExprScope::Runtime);
+        }
+        self.pop_section();
     }
-    ctx.pop_section();
 }
 
 impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ConsumeValidator for CommonValidator<'a, V> {

@@ -14,7 +14,7 @@ use {
                 WritableRuntimeExprContext,
             },
         },
-        validator::v3::{ExprScope, Validate, ValidatorContext, validate_condition},
+        validator::v3::{ExprScope, Validate, ValidatorContext},
     },
     anyhow::{Result, bail},
     pest::iterators::Pairs,
@@ -135,7 +135,7 @@ impl<'a> Validate<'a> for External {
         ctx.pop_section();
 
         debug!("Validating external's if condition");
-        validate_condition(ctx, self.condition.as_deref());
+        ctx.validate_condition(self.condition.as_deref());
     }
 }
 

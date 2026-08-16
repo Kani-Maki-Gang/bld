@@ -145,13 +145,7 @@ impl<S: RootState> ActionRunner<S> {
     }
 
     async fn run_step(&mut self, step: &Step) -> Result<()> {
-        let condition = self.condition(step.condition());
-        let result = match condition {
-            Ok(false) => {
-                debug!("condition failed, skiping step");
-                return Ok(());
-            }
-            Err(e) => Err(e),
+        let result = match self.condition(step.condition()) {
             Ok(true) => {
                 self.state.update_node_state(step.id(), State::Running);
                 match step {
@@ -161,6 +155,11 @@ impl<S: RootState> ActionRunner<S> {
                     Step::UploadArtifact(upload) => self.upload_artifact(upload).await,
                 }
             }
+            Ok(false) => {
+                debug!("condition failed, skiping step");
+                return Ok(());
+            }
+            Err(e) => Err(e),
         };
 
         result

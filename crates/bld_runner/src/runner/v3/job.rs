@@ -246,13 +246,7 @@ impl<S: RootState> JobRunner<S> {
     }
 
     async fn step(&mut self, step: &Step) -> Result<()> {
-        let condition = self.condition(step.condition());
-        let result = match condition {
-            Ok(false) => {
-                debug!("condition failed, skiping step");
-                return Ok(());
-            }
-            Err(e) => Err(e),
+        let result = match self.condition(step.condition()) {
             Ok(true) => {
                 self.options
                     .state
@@ -264,7 +258,13 @@ impl<S: RootState> JobRunner<S> {
                     Step::UploadArtifact(upload) => self.upload_artifact(upload).await,
                 }
             }
+            Ok(false) => {
+                debug!("condition failed, skiping step");
+                return Ok(());
+            }
+            Err(e) => Err(e),
         };
+
         result
             .inspect(|_| {
                 self.options

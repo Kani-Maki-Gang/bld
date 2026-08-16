@@ -30,6 +30,7 @@ pub trait ValidatorContext<'a> {
     fn job_output_refs(&self, value: &str) -> Vec<String>;
     fn validate_file_path(&mut self, value: &'a str);
     fn validate_env(&mut self, env: &'a HashMap<String, String>, scope: ExprScope);
+    fn validate_condition(&mut self, condition: Option<&'a str>);
 }
 
 pub trait ConsumeValidator {

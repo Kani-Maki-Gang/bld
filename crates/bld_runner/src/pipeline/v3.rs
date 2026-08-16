@@ -410,7 +410,7 @@ mod tests {
 
         fn validate_array_expression(&mut self, _symbol: &'a str, _scope: ExprScope) {}
 
-        fn validate_condition_expression(&mut self, _symbol: &'a str, _scope: ExprScope) {}
+        fn validate_condition(&mut self, _condition: Option<&'a str>) {}
 
         fn matrix_refs(&self, _value: &str) -> Vec<String> {
             vec![]

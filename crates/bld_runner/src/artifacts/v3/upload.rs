@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 #[cfg(feature = "all")]
 use {
-    crate::validator::v3::{ExprScope, Validate, ValidatorContext, validate_condition},
+    crate::validator::v3::{ExprScope, Validate, ValidatorContext},
     bld_core::artifacts::validate_artifact_name,
     tracing::debug,
 };
@@ -55,6 +55,6 @@ impl<'a> Validate<'a> for UploadArtifact {
         ctx.pop_section();
 
         debug!("Validating artifact's if condition");
-        validate_condition(ctx, self.condition.as_deref());
+        ctx.validate_condition(self.condition.as_deref());
     }
 }

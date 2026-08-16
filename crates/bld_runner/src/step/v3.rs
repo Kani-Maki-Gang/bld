@@ -18,7 +18,7 @@ use {
             },
         },
         strategy::v3::validate_matrix_refs,
-        validator::v3::{ExprScope, Validate, ValidatorContext, validate_condition},
+        validator::v3::{ExprScope, Validate, ValidatorContext},
     },
     anyhow::{Result, bail},
     bld_core::fs::FileSystem,
@@ -311,7 +311,7 @@ impl<'a> Validate<'a> for Step {
                 }
 
                 debug!("Validating step's if condition");
-                validate_condition(ctx, complex.condition.as_deref());
+                ctx.validate_condition(complex.condition.as_deref());
 
                 debug!("Validating step's run command");
                 ctx.push_section("run");
