@@ -100,19 +100,6 @@ impl<'a, 'b> ExprValue<'a> {
         }
     }
 
-    /// Checks the value of a condition during validation. The value of an input or of a
-    /// step output is not known yet, and both are text, so every text value is accepted
-    /// here and only a type that can never be a condition is reported.
-    pub fn validate_as_condition(&self) -> Result<()> {
-        match self {
-            Self::Boolean(_) | Self::Text(_) | Self::Unknown => Ok(()),
-            other => bail!(
-                "a condition must give a boolean value, but it gives {}",
-                other.type_as_string()
-            ),
-        }
-    }
-
     pub fn try_eq(&self, other: &'a Self) -> Result<ExprValue<'b>> {
         if matches!(self, Self::Unknown) || matches!(other, Self::Unknown) {
             return Ok(ExprValue::<'b>::Boolean(true));
@@ -424,28 +411,5 @@ pub mod tests {
     fn arbitrary_text_gives_an_error() {
         let res: Result<bool> = ExprValue::Text(ExprText::Owned("yes".to_string())).try_into();
         assert!(res.unwrap_err().to_string().contains("text"));
-    }
-
-    #[test]
-    fn validation_accepts_every_text_and_an_unknown_value() {
-        assert!(
-            ExprValue::Text(ExprText::Owned(String::new()))
-                .validate_as_condition()
-                .is_ok()
-        );
-        assert!(
-            ExprValue::Text(ExprText::Owned("yes".to_string()))
-                .validate_as_condition()
-                .is_ok()
-        );
-        assert!(ExprValue::Unknown.validate_as_condition().is_ok());
-        assert!(ExprValue::Boolean(false).validate_as_condition().is_ok());
-    }
-
-    #[test]
-    fn validation_rejects_a_number_and_an_array() {
-        let err = expr_number(1.0).validate_as_condition().unwrap_err();
-        assert!(err.to_string().contains("number"));
-        assert!(ExprValue::Array(vec![]).validate_as_condition().is_err());
     }
 }
