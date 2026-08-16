@@ -410,6 +410,8 @@ mod tests {
 
         fn validate_array_expression(&mut self, _symbol: &'a str, _scope: ExprScope) {}
 
+        fn validate_condition_expression(&mut self, _symbol: &'a str, _scope: ExprScope) {}
+
         fn matrix_refs(&self, _value: &str) -> Vec<String> {
             vec![]
         }
@@ -503,6 +505,32 @@ mod tests {
                     id: "build".to_string(),
                     run: "echo ${{ inputs.worktree_dir }}".to_string(),
                     working_dir: Some("${{ inputs.worktree_dir }}".to_string()),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+
+        let result = validate_pipeline(pipeline).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    /// An input is always text and validation stands in an empty value for it, so a
+    /// condition that uses an input can only be checked when the run evaluates it.
+    #[tokio::test]
+    pub async fn condition_that_uses_an_input_validation_success() {
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .inputs
+            .insert("flag".to_string(), complex_input("true"));
+        pipeline.jobs.insert(
+            "main".to_string(),
+            Job {
+                condition: Some("${{ inputs.flag }}".to_string()),
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "a".to_string(),
+                    run: "echo A RAN".to_string(),
+                    condition: Some("${{ inputs.flag }}".to_string()),
                     ..Default::default()
                 }))],
                 ..Default::default()

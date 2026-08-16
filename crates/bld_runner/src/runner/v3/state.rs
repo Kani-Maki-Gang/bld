@@ -475,7 +475,7 @@ mod tests {
         }
 
         for (name, value) in &data {
-            let actual = state.get_output(&id, name).unwrap();
+            let actual = state.get_output(OutputScope::Step, &id, name).unwrap();
             assert_eq!(
                 actual.to_string(),
                 *value,

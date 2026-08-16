@@ -239,6 +239,22 @@ impl<'b> TryFrom<&'b str> for ExprValue<'_> {
     }
 }
 
+impl TryInto<bool> for ExprValue<'_> {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<bool> {
+        match self {
+            Self::Boolean(value) => Ok(value),
+            Self::Text(text) if text.inner() == "true" => Ok(true),
+            Self::Text(text) if text.inner() == "false" => Ok(false),
+            other => bail!(
+                "a condition must give a boolean value, but it gives {}",
+                other.type_as_string()
+            ),
+        }
+    }
+}
+
 impl TryFrom<String> for ExprValue<'_> {
     type Error = anyhow::Error;
 
@@ -314,6 +330,7 @@ pub trait EvalExpr<'a> {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use anyhow::Result;
 
     pub fn expr_number<'a>(value: f64) -> ExprValue<'a> {
         ExprValue::Number {
@@ -359,5 +376,40 @@ pub mod tests {
             panic!("expected boolean");
         };
         assert!(greater);
+    }
+
+    #[test]
+    fn boolean_true_and_false_are_used_as_is() {
+        assert!(TryInto::<bool>::try_into(ExprValue::Boolean(true)).unwrap());
+        assert!(!TryInto::<bool>::try_into(ExprValue::Boolean(false)).unwrap());
+    }
+
+    #[test]
+    fn text_true_and_false_are_accepted_since_inputs_are_always_text() {
+        assert!(
+            TryInto::<bool>::try_into(ExprValue::Text(ExprText::Owned("true".to_string())))
+                .unwrap()
+        );
+        assert!(
+            !TryInto::<bool>::try_into(ExprValue::Text(ExprText::Owned("false".to_string())))
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn number_gives_an_error_naming_the_type() {
+        let res: Result<bool> = expr_number(1.0).try_into();
+        assert!(res.unwrap_err().to_string().contains("number"));
+    }
+
+    #[test]
+    fn array_gives_an_error() {
+        assert!(TryInto::<bool>::try_into(ExprValue::Array(vec![])).is_err());
+    }
+
+    #[test]
+    fn arbitrary_text_gives_an_error() {
+        let res: Result<bool> = ExprValue::Text(ExprText::Owned("yes".to_string())).try_into();
+        assert!(res.unwrap_err().to_string().contains("text"));
     }
 }
