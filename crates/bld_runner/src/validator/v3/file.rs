@@ -48,13 +48,41 @@ impl ConsumeValidator for RunnerFileValidator<'_> {
         };
         match self.file {
             RunnerFile::PipelineFileType(pip) => {
+                let inputs = with_blank_values(pip.inputs.keys().collect()).into_arc();
+                let env = with_blank_values(pip.env.keys().collect());
                 let expr_rctx = CommonReadonlyRuntimeExprContext::new(
                     self.config.clone(),
-                    with_blank_values(pip.inputs.keys().collect()).into_arc(),
-                    with_blank_values(pip.env.keys().collect()).into_arc(),
+                    inputs.clone(),
+                    env.clone().into_arc(),
                     String::new(),
                     String::new(),
                 );
+                // The env of a job is merged on top of the env of the file for that job
+                // alone, so every job that declares one gets a context of its own.
+                let job_expr_rctx_values: Vec<(&str, CommonReadonlyRuntimeExprContext)> = pip
+                    .jobs
+                    .iter()
+                    .filter(|(_, job)| !job.env.is_empty())
+                    .map(|(name, job)| {
+                        let mut job_env = env.clone();
+                        job_env.extend(with_blank_values(job.env.keys().collect()));
+                        (
+                            name.as_str(),
+                            CommonReadonlyRuntimeExprContext::new(
+                                self.config.clone(),
+                                inputs.clone(),
+                                job_env.into_arc(),
+                                String::new(),
+                                String::new(),
+                            ),
+                        )
+                    })
+                    .collect();
+                let job_expr_rctx: HashMap<&str, &CommonReadonlyRuntimeExprContext> =
+                    job_expr_rctx_values
+                        .iter()
+                        .map(|(name, rctx)| (*name, rctx))
+                        .collect();
                 let expr_wctx: Vec<ValidatorWritableRuntimeExprContext<'_>> = pip
                     .jobs
                     .keys()
@@ -74,6 +102,7 @@ impl ConsumeValidator for RunnerFileValidator<'_> {
                     &expr_wctx,
                 )?
                 .with_job_needs(job_needs)
+                .with_job_expr_rctx(job_expr_rctx)
                 .validate()
                 .await
             }
