@@ -58,6 +58,7 @@ pub struct JobRunner<S: RootState> {
     pub options: JobRunnerOptions<S>,
     pub platform: Arc<Platform>,
     pub runs_on: RunsOn,
+    pub working_dir: Option<String>,
     pub outputs: HashMap<String, String>,
 }
 
@@ -88,10 +89,13 @@ impl<S: RootState> JobRunner<S> {
         )
         .await?;
 
+        let working_dir = job.working_dir.clone();
+
         Ok(JobRunner {
             options,
             platform,
             runs_on,
+            working_dir,
             outputs: HashMap::new(),
         })
     }
@@ -398,11 +402,14 @@ impl<S: RootState> JobRunner<S> {
         eval_all_expressions_map(&expr_exec, &self.options.expr_regex, vars)
     }
 
+    /// The working directory of a step falls back to the one of the job. The chosen value
+    /// is the only one evaluated, since a step runs in one directory only.
     fn resolve_working_dir(&mut self, working_dir: &Option<String>) -> Result<Option<String>> {
-        working_dir
+        let working_dir = working_dir
             .as_deref()
-            .map(|wd| self.eval_all_expr(wd))
-            .transpose()
+            .or(self.working_dir.as_deref())
+            .map(str::to_owned);
+        working_dir.map(|wd| self.eval_all_expr(&wd)).transpose()
     }
 
     async fn shell(
@@ -696,6 +703,7 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            working_dir: None,
             outputs: HashMap::new(),
         };
 
@@ -751,6 +759,7 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            working_dir: None,
             outputs: HashMap::new(),
         };
 
@@ -811,14 +820,39 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            working_dir: None,
             outputs: HashMap::new(),
         };
 
+        // Neither the step nor the job has a value: there is no result.
         assert_eq!(job.resolve_working_dir(&None).unwrap(), None);
 
+        // The step has a value and the job has none: the result is the value of the step.
         assert_eq!(
             job.resolve_working_dir(&Some("${{ inputs.worktree_dir }}".to_string()))
                 .unwrap(),
+            Some("/tmp/some-worktree".to_string())
+        );
+
+        job.working_dir = Some("/job/working/dir".to_string());
+
+        // The step has no value and the job has a value: the result is the value of the job.
+        assert_eq!(
+            job.resolve_working_dir(&None).unwrap(),
+            Some("/job/working/dir".to_string())
+        );
+
+        // The step has a value and the job has a value: the result is the value of the step.
+        assert_eq!(
+            job.resolve_working_dir(&Some("/step/working/dir".to_string()))
+                .unwrap(),
+            Some("/step/working/dir".to_string())
+        );
+
+        // The value of the job holds an expression: the runner evaluates it.
+        job.working_dir = Some("${{ inputs.worktree_dir }}".to_string());
+        assert_eq!(
+            job.resolve_working_dir(&None).unwrap(),
             Some("/tmp/some-worktree".to_string())
         );
     }
@@ -1086,6 +1120,7 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            working_dir: None,
             outputs: HashMap::new(),
         };
 
@@ -1155,6 +1190,7 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            working_dir: None,
             outputs: HashMap::new(),
         };
 
@@ -1220,6 +1256,7 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            working_dir: None,
             outputs: HashMap::new(),
         };
 
@@ -1295,6 +1332,7 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            working_dir: None,
             outputs: HashMap::new(),
         };
 
@@ -1368,6 +1406,7 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            working_dir: None,
             outputs: HashMap::new(),
         };
 
@@ -1441,6 +1480,7 @@ mod tests {
             options,
             platform,
             runs_on: RunsOn::default(),
+            working_dir: None,
             outputs: HashMap::new(),
         };
 
@@ -1513,6 +1553,7 @@ steps:
             options,
             platform,
             runs_on: RunsOn::default(),
+            working_dir: None,
             outputs: HashMap::new(),
         }
     }
@@ -1566,6 +1607,7 @@ steps:
             options,
             platform,
             runs_on: RunsOn::default(),
+            working_dir: None,
             outputs: HashMap::new(),
         };
 
@@ -1628,6 +1670,7 @@ steps:
             options,
             platform,
             runs_on: RunsOn::default(),
+            working_dir: None,
             outputs: HashMap::new(),
         };
 
@@ -1774,6 +1817,7 @@ steps:
             options,
             platform,
             runs_on: RunsOn::default(),
+            working_dir: None,
             outputs: HashMap::new(),
         }
     }
