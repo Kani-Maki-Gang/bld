@@ -402,8 +402,6 @@ impl<S: RootState> JobRunner<S> {
         eval_all_expressions_map(&expr_exec, &self.options.expr_regex, vars)
     }
 
-    /// The working directory of a step falls back to the one of the job. The chosen value
-    /// is the only one evaluated, since a step runs in one directory only.
     fn resolve_working_dir(&mut self, working_dir: &Option<String>) -> Result<Option<String>> {
         let working_dir = working_dir
             .as_deref()

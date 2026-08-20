@@ -203,9 +203,6 @@ impl<'a> Validate<'a> for Job {
         }
 
         if let Some(wd) = &self.working_dir {
-            // A step falls back to the job's working_dir at the time it runs, so the
-            // job's value is resolved in that same run time scope, not at the start of
-            // the run.
             debug!("Validating job's {} working directory", self.id);
             ctx.push_section("working_dir");
             ctx.validate_expressions(wd, ExprScope::Runtime);
