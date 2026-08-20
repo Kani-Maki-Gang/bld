@@ -44,6 +44,7 @@ pub struct Job {
     #[serde(default = "Job::default_dispose")]
     pub dispose: bool,
     pub strategy: Option<Strategy>,
+    pub working_dir: Option<String>,
     pub steps: Vec<Step>,
     #[serde(default)]
     pub outputs: HashMap<String, Output>,
@@ -83,6 +84,7 @@ impl Default for Job {
             needs: None,
             dispose: Self::default_dispose(),
             strategy: None,
+            working_dir: None,
             steps: vec![],
             outputs: HashMap::new(),
         }
@@ -197,6 +199,13 @@ impl<'a> Validate<'a> for Job {
             ctx.push_section("if");
             ctx.validate_condition(condition, ExprScope::StartOfRun);
             validate_matrix_refs(ctx, condition, &HashSet::new());
+            ctx.pop_section();
+        }
+
+        if let Some(wd) = &self.working_dir {
+            debug!("Validating job's {} working directory", self.id);
+            ctx.push_section("working_dir");
+            ctx.validate_expressions(wd, ExprScope::Runtime);
             ctx.pop_section();
         }
 
@@ -426,6 +435,40 @@ mod tests {
                 "{e}"
             );
         }
+    }
+
+    #[tokio::test]
+    pub async fn runtime_value_in_working_dir_success() {
+        let job = Job {
+            working_dir: Some("${{ steps.build.outputs.dir }}".to_string()),
+            steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                id: "build".to_string(),
+                run: "echo hello".to_string(),
+                ..Default::default()
+            }))],
+            ..Default::default()
+        };
+
+        let result = validate_job(job).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn unavailable_value_in_working_dir_failure() {
+        let job = Job {
+            working_dir: Some("${{ jobs.other.outputs.dir }}".to_string()),
+            steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                id: "build".to_string(),
+                run: "echo hello".to_string(),
+                ..Default::default()
+            }))],
+            ..Default::default()
+        };
+
+        let Err(e) = validate_job(job).await else {
+            panic!("expected an error for a value that isn't available");
+        };
+        assert!(e.to_string().contains("working_dir"), "{e}");
     }
 
     #[tokio::test]
