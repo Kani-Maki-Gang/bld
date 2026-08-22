@@ -57,8 +57,7 @@ impl ConsumeValidator for RunnerFileValidator<'_> {
                     String::new(),
                     String::new(),
                 );
-                // The env of a job is merged on top of the env of the file for that job
-                // alone, so every job that declares one gets a context of its own.
+                // Create expr_rctx for each job's scope
                 let job_expr_rctx_values: Vec<(&str, CommonReadonlyRuntimeExprContext)> = pip
                     .jobs
                     .iter()

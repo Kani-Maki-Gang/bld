@@ -76,14 +76,10 @@ impl<S: RootState> JobRunner<S> {
                 })
             })?;
 
-        // A job's env is merged on top of the file's env once, before any step runs, so
-        // its expressions are limited to the start of run context. From this point on the
-        // job's own expr context carries the merge, so every command and expression of the
-        // job sees it with no further change needed.
-        options.expr_rctx = Self::resolve_job_expr_rctx(job, &options)?;
+        // Extending the provided expr_rctx with the currents job's internally evaluated scope
+        options.expr_rctx = Self::extend_expr_rctx(job, &options)?;
 
-        // Every runs_on field is consumed when building the platform, before any step has
-        // run, so its expressions are limited to the start of run context.
+        // Evaluate the runs_on value before building the job platform
         let runs_on = Self::resolve_runs_on(job, &options)?;
 
         let platform = build_platform(
@@ -106,7 +102,7 @@ impl<S: RootState> JobRunner<S> {
         })
     }
 
-    fn resolve_job_expr_rctx(
+    fn extend_expr_rctx(
         job: &Job,
         options: &JobRunnerOptions<S>,
     ) -> Result<Arc<CommonReadonlyRuntimeExprContext>> {
@@ -124,14 +120,12 @@ impl<S: RootState> JobRunner<S> {
         let mut env = (*options.expr_rctx.env).clone();
         env.extend(job_env);
 
-        Ok(CommonReadonlyRuntimeExprContext {
-            config: options.expr_rctx.config.clone(),
-            inputs: options.expr_rctx.inputs.clone(),
-            env: env.into_arc(),
-            run_id: options.expr_rctx.run_id.clone(),
-            run_start_time: options.expr_rctx.run_start_time.clone(),
-        }
-        .into_arc())
+        let expr_rctx = options
+            .expr_rctx
+            .clone_with(|x| x.env = env.into_arc())
+            .into_arc();
+
+        Ok(expr_rctx)
     }
 
     fn resolve_runs_on(job: &Job, options: &JobRunnerOptions<S>) -> Result<RunsOn> {
@@ -947,7 +941,7 @@ mod tests {
 
         let mut runner = job_runner_for_env_test(&job, CommonReadonlyRuntimeExprContext::default());
         runner.options.expr_rctx =
-            JobRunner::<JobState>::resolve_job_expr_rctx(&job, &runner.options).unwrap();
+            JobRunner::<JobState>::extend_expr_rctx(&job, &runner.options).unwrap();
 
         assert_eq!(
             runner.eval_all_expr("echo ${{ env.GREETING }}").unwrap(),
@@ -975,7 +969,7 @@ mod tests {
 
         let mut runner = job_runner_for_env_test(&job, expr_rctx);
         runner.options.expr_rctx =
-            JobRunner::<JobState>::resolve_job_expr_rctx(&job, &runner.options).unwrap();
+            JobRunner::<JobState>::extend_expr_rctx(&job, &runner.options).unwrap();
 
         assert_eq!(
             runner.eval_all_expr("${{ env.NAME }}").unwrap(),
