@@ -82,6 +82,10 @@ impl<S: RootState> JobRunner<S> {
         // Evaluate the runs_on value before building the job platform
         let runs_on = Self::resolve_runs_on(job, &options)?;
 
+        let working_dir = job.working_dir.clone();
+
+        // The platform is built once the job's condition is known to be true, see `run`.
+        // This keeps a skipped job from ever starting a container.
         Ok(JobRunner {
             options,
             platform: None,
@@ -175,27 +179,23 @@ impl<S: RootState> JobRunner<S> {
 
         debug!("starting execution of pipeline steps");
 
-        let result = self.runs_job_steps(job).await.and_then(|_| {
+        let result = self
+            .run_job_steps(job)
+            .await
+            .and_then(|_| self.resolve_outputs(job).map(|x| self.outputs = x));
 
-            self.resolve_outputs(job).inspect(|x| self.outputs = x)
-        });
-
-
-
-        // Remove the platform for a successful job and for a job that fails, so a failing
-        // step never leaves a container running.
         if let Err(e) = self.dispose_platform(job).await {
             error!("unable to dispose the platform: {e}");
         }
 
         result
-            .map(|_| self)
             .inspect(|_| self.options.state.update_state(State::Completed))
-            .inspect_err(|_| {
+            .inspect_err(|e| {
                 self.options.state.update_state(State::Failed {
                     error: e.to_string(),
                 })
             })
+            .map(|_| self)
     }
 
     fn resolve_outputs(&mut self, job: &Job) -> Result<HashMap<String, String>> {
@@ -804,7 +804,7 @@ mod tests {
         };
         let job = JobRunner {
             options,
-            platform,
+            platform: Some(platform),
             runs_on: RunsOn::default(),
             working_dir: None,
             outputs: HashMap::new(),
@@ -942,7 +942,7 @@ mod tests {
 
         JobRunner {
             options,
-            platform,
+            platform: Some(platform),
             runs_on: RunsOn::default(),
             outputs: HashMap::new(),
             working_dir: None,
@@ -1630,7 +1630,6 @@ mod tests {
         assert!(result.is_err());
     }
 
-<<<<<<< HEAD
     const ACTION_WITH_OUTPUT: &str = r#"
 version: 3
 type: action
@@ -1694,7 +1693,7 @@ steps:
         };
         JobRunner {
             options,
-            platform,
+            platform: Some(platform),
             runs_on: RunsOn::default(),
             working_dir: None,
             outputs: HashMap::new(),
@@ -1703,55 +1702,29 @@ steps:
 
     #[tokio::test]
     pub async fn download_artifact_step_with_false_condition_is_skipped() {
-=======
-    #[tokio::test]
-    pub async fn dispose_platform_runs_after_step_failure() {
->>>>>>> de8cdde (fix(bld_runner): Dispose the platform of a failed or skipped v3 job)
         let job_name = "main".to_string();
         let config = BldConfig::default().into_arc();
         let logger = Logger::mock().into_arc();
         let fs = FileSystem::local(config.clone()).into_arc();
-<<<<<<< HEAD
         let run_ctx = Context::mock().into_arc();
         let platform = Platform::mock().into_arc();
-=======
-        let (tx, mut rx) = tokio::sync::mpsc::channel(16);
-        let run_ctx = Context::Local(tx).into_arc();
-        let platform = Platform::mock().into_arc();
-        let platform_id = platform.id().to_string();
->>>>>>> de8cdde (fix(bld_runner): Dispose the platform of a failed or skipped v3 job)
         let artifacts = Artifacts::mock().into_arc();
         let regex_cache = RegexCache::mock().into_arc();
         let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
         let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
         let package_manager = PackageManager::new(config.clone()).into_arc();
         let mut state = JobState::new(&job_name);
-<<<<<<< HEAD
         state.add_node("download");
-=======
-        state.add_node("build");
->>>>>>> de8cdde (fix(bld_runner): Dispose the platform of a failed or skipped v3 job)
 
         let mut pipeline = Pipeline::default();
         pipeline.jobs.insert(
             job_name.clone(),
             Job {
-<<<<<<< HEAD
                 steps: vec![Step::DownloadArtifact(Box::new(DownloadArtifact {
                     id: "download".to_string(),
                     download: "artifact-name".to_string(),
                     to: "some/path".to_string(),
                     condition: Some("${{ false }}".to_string()),
-=======
-                dispose: true,
-                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
-                    id: "build".to_string(),
-                    run: "echo hello".to_string(),
-                    // More than one expression in a condition is rejected, so the step
-                    // errors out without needing to run any real shell command.
-                    condition: Some("${{ 1 }} ${{ 2 }}".to_string()),
-                    ..Default::default()
->>>>>>> de8cdde (fix(bld_runner): Dispose the platform of a failed or skipped v3 job)
                 }))],
                 ..Default::default()
             },
@@ -1774,8 +1747,7 @@ steps:
         };
         let runner = JobRunner {
             options,
-<<<<<<< HEAD
-            platform,
+            platform: Some(platform),
             runs_on: RunsOn::default(),
             working_dir: None,
             outputs: HashMap::new(),
@@ -1793,66 +1765,29 @@ steps:
 
     #[tokio::test]
     pub async fn download_artifact_step_with_true_condition_runs() {
-=======
-            platform: Some(platform),
-            runs_on: RunsOn::default(),
-        };
-
-        let result = runner.run().await;
-        assert!(result.is_err(), "expected the failing step to error out");
-
-        let message = rx
-            .try_recv()
-            .expect("expected the platform to be removed from the run context");
-        assert!(
-            matches!(message, LocalContextMessage::RemovePlatform(id) if id == platform_id),
-            "expected a RemovePlatform message for the job's platform"
-        );
-    }
-
-    #[tokio::test]
-    pub async fn condition_false_job_never_builds_a_platform() {
->>>>>>> de8cdde (fix(bld_runner): Dispose the platform of a failed or skipped v3 job)
         let job_name = "main".to_string();
         let config = BldConfig::default().into_arc();
         let logger = Logger::mock().into_arc();
         let fs = FileSystem::local(config.clone()).into_arc();
-<<<<<<< HEAD
         let run_ctx = Context::mock().into_arc();
         let platform = Platform::mock().into_arc();
-=======
-        let (tx, mut rx) = tokio::sync::mpsc::channel(16);
-        let run_ctx = Context::Local(tx).into_arc();
->>>>>>> de8cdde (fix(bld_runner): Dispose the platform of a failed or skipped v3 job)
         let artifacts = Artifacts::mock().into_arc();
         let regex_cache = RegexCache::mock().into_arc();
         let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
         let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
         let package_manager = PackageManager::new(config.clone()).into_arc();
         let mut state = JobState::new(&job_name);
-<<<<<<< HEAD
         state.add_node("download");
-=======
-        state.add_node("s");
->>>>>>> de8cdde (fix(bld_runner): Dispose the platform of a failed or skipped v3 job)
 
         let mut pipeline = Pipeline::default();
         pipeline.jobs.insert(
             job_name.clone(),
             Job {
-<<<<<<< HEAD
                 steps: vec![Step::DownloadArtifact(Box::new(DownloadArtifact {
                     id: "download".to_string(),
                     download: "artifact-name".to_string(),
                     to: "some/path".to_string(),
                     condition: Some("${{ true }}".to_string()),
-=======
-                condition: Some("${{ false }}".to_string()),
-                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
-                    id: "s".to_string(),
-                    run: "echo not run".to_string(),
-                    ..Default::default()
->>>>>>> de8cdde (fix(bld_runner): Dispose the platform of a failed or skipped v3 job)
                 }))],
                 ..Default::default()
             },
@@ -1873,10 +1808,9 @@ steps:
             is_child: false,
             state,
         };
-<<<<<<< HEAD
         let runner = JobRunner {
             options,
-            platform,
+            platform: Some(platform),
             runs_on: RunsOn::default(),
             working_dir: None,
             outputs: HashMap::new(),
@@ -1890,6 +1824,136 @@ steps:
             runner.options.state.get_node_state("download"),
             Some(State::Completed)
         ));
+    }
+
+    #[tokio::test]
+    pub async fn dispose_platform_runs_after_step_failure() {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let (tx, mut rx) = tokio::sync::mpsc::channel(16);
+        let run_ctx = Context::Local(tx).into_arc();
+        let platform = Platform::mock().into_arc();
+        let platform_id = platform.id().to_string();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        let mut state = JobState::new(&job_name);
+        state.add_node("build");
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            job_name.clone(),
+            Job {
+                dispose: true,
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "build".to_string(),
+                    run: "echo hello".to_string(),
+                    // More than one expression in a condition is rejected, so the step
+                    // errors out without needing to run any real shell command.
+                    condition: Some("${{ 1 }} ${{ 2 }}".to_string()),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+
+        let options = JobRunnerOptions {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline: pipeline.into_arc(),
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            package_manager,
+            artifacts,
+            is_child: false,
+            state,
+        };
+        let runner = JobRunner {
+            options,
+            platform: Some(platform),
+            runs_on: RunsOn::default(),
+            working_dir: None,
+            outputs: HashMap::new(),
+        };
+
+        let result = runner.run().await;
+        assert!(result.is_err(), "expected the failing step to error out");
+
+        let message = rx
+            .try_recv()
+            .expect("expected the platform to be removed from the run context");
+        assert!(
+            matches!(message, LocalContextMessage::RemovePlatform(id) if id == platform_id),
+            "expected a RemovePlatform message for the job's platform"
+        );
+    }
+
+    #[tokio::test]
+    pub async fn condition_false_job_never_builds_a_platform() {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let (tx, mut rx) = tokio::sync::mpsc::channel(16);
+        let run_ctx = Context::Local(tx).into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        let mut state = JobState::new(&job_name);
+        state.add_node("s");
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            job_name.clone(),
+            Job {
+                condition: Some("${{ false }}".to_string()),
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "s".to_string(),
+                    run: "echo not run".to_string(),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+
+        let options = JobRunnerOptions {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline: pipeline.into_arc(),
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            package_manager,
+            artifacts,
+            is_child: false,
+            state,
+        };
+
+        let runner = JobRunner::new(options).await.unwrap();
+        let runner = runner.run().await.unwrap();
+
+        assert!(
+            runner.platform.is_none(),
+            "expected a skipped job to never build a platform"
+        );
+        assert!(runner.is_skipped());
+        assert!(
+            rx.try_recv().is_err(),
+            "expected no platform to be registered with the run context"
+        );
     }
 
     #[actix_web::test]
@@ -2023,7 +2087,7 @@ steps:
         };
         JobRunner {
             options,
-            platform,
+            platform: Some(platform),
             runs_on: RunsOn::default(),
             working_dir: None,
             outputs: HashMap::new(),
@@ -2142,20 +2206,6 @@ steps:
         assert!(
             error.contains("version") && error.contains("build"),
             "{error}"
-=======
-
-        let runner = JobRunner::new(options).await.unwrap();
-        let runner = runner.run().await.unwrap();
-
-        assert!(
-            runner.platform.is_none(),
-            "expected a skipped job to never build a platform"
-        );
-        assert!(runner.is_skipped());
-        assert!(
-            rx.try_recv().is_err(),
-            "expected no platform to be registered with the run context"
->>>>>>> de8cdde (fix(bld_runner): Dispose the platform of a failed or skipped v3 job)
         );
     }
 }
