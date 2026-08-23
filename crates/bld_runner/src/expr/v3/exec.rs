@@ -91,6 +91,60 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
         Ok(ExprValue::Array(items))
     }
 
+    fn eval_and_term(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
+        let Rule::AndTerm = expr.as_rule() else {
+            bail!("expected and term rule, found {:?}", expr.as_rule());
+        };
+
+        let inner = expr
+            .into_inner()
+            .next()
+            .ok_or_else(|| anyhow!("no expression found in and term"))?;
+
+        match inner.as_rule() {
+            Rule::AndExpression => self.eval_and_expr(inner),
+            Rule::Expression => self.eval_expr(inner),
+            _ => bail!("unexpected rule: {:?}", inner.as_rule()),
+        }
+    }
+
+    fn eval_and_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
+        let Rule::AndExpression = expr.as_rule() else {
+            bail!("expected and expression rule, found {:?}", expr.as_rule());
+        };
+
+        let mut inner = expr.into_inner();
+
+        let first = inner
+            .next()
+            .ok_or_else(|| anyhow!("no left operand found for and expression"))?;
+        let mut result = self.eval_expr(first)?;
+
+        while let Some(operator) = inner.next() {
+            let Rule::AndOperator = operator.as_rule() else {
+                bail!(
+                    "invalid operator encountered during evaluation of and expression: {:?}",
+                    operator.as_rule()
+                );
+            };
+
+            let right = inner
+                .next()
+                .ok_or_else(|| anyhow!("no right operand found for and expression"))?;
+
+            // short circuit: once the left side is false the overall result is
+            // false, so the right side must not be evaluated at all.
+            if matches!(result, ExprValue::Boolean(false)) {
+                continue;
+            }
+
+            let value = self.eval_expr(right)?;
+            result = result.try_and(&value)?;
+        }
+
+        Ok(result)
+    }
+
     fn eval_index(&self, object: Pair<'a, Rule>, value: ExprValue<'a>) -> Result<ExprValue<'a>> {
         let Some(index) = object
             .into_inner()
@@ -266,57 +320,36 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
             );
         };
 
-        let expr_inner = expr.into_inner();
-        let mut result: Option<ExprValue<'a>> = None;
-        let mut operator: Option<Rule> = None;
+        let mut inner = expr.into_inner();
 
-        for inner in expr_inner {
-            match inner.as_rule() {
-                Rule::Expression => {
-                    let value = self.eval_expr(inner)?;
+        let first = inner
+            .next()
+            .ok_or_else(|| anyhow!("no left operand found for logical expression"))?;
+        let mut result = self.eval_and_term(first)?;
 
-                    // this is the case of starting the evaluation of the logical expression
-                    // during the rest of the evaluation there should always be a result value and
-                    // an operator.
-                    let Some(operator) = operator else {
-                        result = Some(value);
-                        continue;
-                    };
+        while let Some(operator) = inner.next() {
+            let Rule::OrOperator = operator.as_rule() else {
+                bail!(
+                    "invalid operator encountered during evaluation of logical expression: {:?}",
+                    operator.as_rule()
+                );
+            };
 
-                    match operator {
-                        Rule::AndOperator => {
-                            if let Some(res) = result {
-                                result = Some(res.try_and(&value)?);
-                            }
-                        }
+            let right = inner
+                .next()
+                .ok_or_else(|| anyhow!("no right operand found for logical expression"))?;
 
-                        Rule::OrOperator => {
-                            if let Some(res) = result {
-                                result = Some(res.try_or(&value)?);
-                            }
-                        }
-
-                        _ => bail!(
-                            "invalid operator encountered during evaluation of logical expression"
-                        ),
-                    }
-                }
-
-                Rule::AndOperator => {
-                    operator = Some(Rule::AndOperator);
-                }
-
-                Rule::OrOperator => {
-                    operator = Some(Rule::OrOperator);
-                }
-
-                _ => {
-                    bail!("invalid expression encountered during evaluation of logical expression")
-                }
+            // short circuit: once the left side is true the overall result is
+            // true, so the right side must not be evaluated at all.
+            if matches!(result, ExprValue::Boolean(true)) {
+                continue;
             }
+
+            let value = self.eval_and_term(right)?;
+            result = result.try_or(&value)?;
         }
 
-        result.ok_or_else(|| anyhow!("no value was computed during logical expression evaluation"))
+        Ok(result)
     }
 
     fn eval(&self, expr: &'a str) -> Result<ExprValue<'a>> {
@@ -1245,6 +1278,114 @@ mod tests {
             if expected.is_err() && value.is_ok() {
                 panic!("invalid result after eval");
             }
+        }
+    }
+
+    #[test]
+    pub fn and_has_higher_precedence_than_or_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            // true || (false && false) == true, not (true || false) && false == false
+            (
+                "${{ true || false && false }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            // (false && true) || true == true
+            ("${{ false && true || true }}", Ok(ExprValue::Boolean(true))),
+            // explicit parens force the opposite grouping and change the result
+            (
+                "${{ (true || false) && false }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            // true || (true && false) == true, a left fold would give false
+            ("${{ true || true && false }}", Ok(ExprValue::Boolean(true))),
+            // false || (true && true) || (false && false) == true, a left fold
+            // would give false
+            (
+                "${{ false || true && true || false && false }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            // the same precedence applies to comparisons used as operands
+            (
+                "${{ 1 == 1 || 2 == 2 && 3 == 4 }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+        ];
+
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        for (expr, expected) in data {
+            let value = exec.eval(expr);
+
+            if let Ok(expected) = expected {
+                let Ok(value) = value else {
+                    panic!("invalid result after eval for expr: {expr}");
+                };
+                assert!(
+                    matches!(value.try_eq(&expected), Ok(ExprValue::Boolean(true))),
+                    "unexpected result for expr: {expr}"
+                );
+                continue;
+            }
+
+            if expected.is_err() && value.is_ok() {
+                panic!("invalid result after eval for expr: {expr}");
+            }
+        }
+    }
+
+    #[test]
+    pub fn logical_operators_short_circuit_eval_success() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        // the right side of `&&` references a missing step output, which would
+        // normally error. since the left side is false, the right side must
+        // never be evaluated, so no error should be raised.
+        let value = exec
+            .eval("${{ false && steps.x.outputs.missing == \"1\" }}")
+            .expect("expected the short circuited && expression to evaluate without error");
+        assert!(matches!(
+            value.try_eq(&ExprValue::Boolean(false)),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        // the right side of `||` references a missing step output, which would
+        // normally error. since the left side is true, the right side must
+        // never be evaluated, so no error should be raised.
+        let value = exec
+            .eval("${{ true || steps.x.outputs.missing == \"1\" }}")
+            .expect("expected the short circuited || expression to evaluate without error");
+        assert!(matches!(
+            value.try_eq(&ExprValue::Boolean(true)),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
+
+    #[test]
+    pub fn non_boolean_logical_operand_eval_failure() {
+        let data = [
+            "${{ true && 100 }}",
+            "${{ 100 && true }}",
+            "${{ false || \"hello\" }}",
+            "${{ \"hello\" || true }}",
+            "${{ true && true && 100 }}",
+        ];
+
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        for expr in data {
+            assert!(
+                exec.eval(expr).is_err(),
+                "expected an error for expr: {expr}"
+            );
         }
     }
 
