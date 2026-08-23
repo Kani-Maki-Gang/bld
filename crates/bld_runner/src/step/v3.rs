@@ -1126,6 +1126,76 @@ mod tests {
     }
 
     #[tokio::test]
+    pub async fn strategy_matrix_key_with_hyphen_passes_validation() {
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "my-key".to_string(),
+            MatrixValue::Array(vec!["a".to_string(), "b".to_string()]),
+        );
+
+        let mut action = Action::default();
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "s".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo ${{ matrix.my-key }}".to_string(),
+            condition: None,
+            strategy: Some(Strategy {
+                matrix,
+                fail_fast: None,
+            }),
+        })));
+
+        let result = validate_action(&action).await;
+
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn strategy_matrix_text_value_passes_validation() {
+        let mut action = Action::default();
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "s".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo ${{ \"matrix.os\" }}".to_string(),
+            condition: None,
+            strategy: None,
+        })));
+
+        let result = validate_action(&action).await;
+
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn strategy_matrix_undefined_key_fails_validation() {
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "os".to_string(),
+            MatrixValue::Array(vec!["linux".to_string(), "windows".to_string()]),
+        );
+
+        let mut action = Action::default();
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "s".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo ${{ matrix.arch }}".to_string(),
+            condition: None,
+            strategy: Some(Strategy {
+                matrix,
+                fail_fast: None,
+            }),
+        })));
+
+        let result = validate_action(&action).await;
+
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("matrix key 'arch' is not defined"));
+    }
+
+    #[tokio::test]
     pub async fn output_reading_input_and_declared_step_output_passes_validation() {
         let mut action = Action::default();
         action.inputs.insert(

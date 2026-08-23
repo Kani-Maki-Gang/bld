@@ -16,10 +16,36 @@ use crate::expr::v3::{
     context::{CommonReadonlyRuntimeExprContext, START_OF_RUN_WCTX},
     exec::CommonExprExecutor,
     parser,
+    parser::{ExprParser, Rule},
     traits::{EvalExpr, EvalObject, ExprValue, OutputScope, WritableRuntimeExprContext},
 };
+use pest::{Parser, iterators::Pairs};
 
 use super::{ConsumeValidator, ExprScope, Validate, ValidatorContext};
+
+/// Walks the pairs of a parsed expression and collects the name of every matrix
+/// reference, i.e. every `Object` whose first part is `matrix`. A `String` symbol
+/// (a text value) has no `Object` inside it, so a text value never gives a reference.
+fn collect_matrix_refs(pairs: Pairs<Rule>, result: &mut Vec<String>) {
+    for pair in pairs {
+        if pair.as_rule() == Rule::Object {
+            let mut parts = pair.into_inner();
+            let Some(first) = parts.next() else {
+                continue;
+            };
+            if first.as_str() != "matrix" {
+                continue;
+            }
+            if let Some(second) = parts.next()
+                && second.as_rule() == Rule::ObjectPart
+            {
+                result.push(second.as_str().to_string());
+            }
+        } else {
+            collect_matrix_refs(pair.into_inner(), result);
+        }
+    }
+}
 
 enum Section<'a> {
     Job(&'a str),
@@ -324,18 +350,10 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for Comm
     fn matrix_refs(&self, value: &str) -> Vec<String> {
         let mut result = Vec::new();
         for entry in self.expr_regex.find_iter(value) {
-            let mut rest = entry.as_str();
-            while let Some(pos) = rest.find("matrix.") {
-                let after = &rest[pos + "matrix.".len()..];
-                let end = after
-                    .find(|c: char| !(c.is_alphanumeric() || c == '_'))
-                    .unwrap_or(after.len());
-                let name = &after[..end];
-                if !name.is_empty() {
-                    result.push(name.to_string());
-                }
-                rest = &after[end..];
-            }
+            let Ok(pairs) = ExprParser::parse(Rule::Full, entry.as_str()) else {
+                continue;
+            };
+            collect_matrix_refs(pairs, &mut result);
         }
         result
     }
