@@ -84,6 +84,7 @@ pub struct CommonValidator<'a, V: Validate<'a> + for<'x> EvalObject<'x>> {
     package_manager: Arc<PackageManager>,
     expr_regex: Regex,
     expr_rctx: &'a CommonReadonlyRuntimeExprContext,
+    job_expr_rctx: HashMap<&'a str, &'a CommonReadonlyRuntimeExprContext>,
     expr_wctx: &'a [ValidatorWritableRuntimeExprContext<'a>],
     job_needs: HashMap<&'a str, HashSet<&'a str>>,
     section: Vec<Section<'a>>,
@@ -107,6 +108,7 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
             package_manager,
             expr_regex: parser::new_regex()?,
             expr_rctx,
+            job_expr_rctx: HashMap::new(),
             expr_wctx,
             job_needs: HashMap::new(),
             section: Vec::new(),
@@ -122,6 +124,27 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
     pub fn with_job_needs(mut self, job_needs: HashMap<&'a str, HashSet<&'a str>>) -> Self {
         self.job_needs = job_needs;
         self
+    }
+
+    /// Declares the context of every job that has its own env, since the values of a job
+    /// are merged on top of the values of the file for that job alone. A job with no env
+    /// of its own is left out and keeps the context of the file.
+    pub fn with_job_expr_rctx(
+        mut self,
+        job_expr_rctx: HashMap<&'a str, &'a CommonReadonlyRuntimeExprContext>,
+    ) -> Self {
+        self.job_expr_rctx = job_expr_rctx;
+        self
+    }
+
+    /// The context of the job that is being validated, or the context of the file when no
+    /// job is being validated or the job has no env of its own.
+    fn rctx(&self) -> &'a CommonReadonlyRuntimeExprContext {
+        self.current_job
+            .as_ref()
+            .and_then(|job| self.job_expr_rctx.get(job.inner()))
+            .copied()
+            .unwrap_or(self.expr_rctx)
     }
 
     fn validate_job_output_refs(&mut self, value: &'a str) {
@@ -159,7 +182,7 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
     }
 
     fn eval_expressions<W: WritableRuntimeExprContext>(&mut self, value: &'a str, wctx: &'a W) {
-        let expr_exec = CommonExprExecutor::new(self.validatable, self.expr_rctx, wctx);
+        let expr_exec = CommonExprExecutor::new(self.validatable, self.rctx(), wctx);
         for entry in self.expr_regex.find_iter(value) {
             let Err(e) = expr_exec.eval(entry.as_str()) else {
                 continue;
@@ -174,7 +197,7 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
         value: &'a str,
         wctx: &'a W,
     ) {
-        let expr_exec = CommonExprExecutor::new(self.validatable, self.expr_rctx, wctx);
+        let expr_exec = CommonExprExecutor::new(self.validatable, self.rctx(), wctx);
         for entry in self.expr_regex.find_iter(value) {
             match expr_exec.eval(entry.as_str()) {
                 // The value of a step output isn't known during validation, so an
@@ -201,7 +224,7 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
         value: &'a str,
         wctx: &'a W,
     ) {
-        let expr_exec = CommonExprExecutor::new(self.validatable, self.expr_rctx, wctx);
+        let expr_exec = CommonExprExecutor::new(self.validatable, self.rctx(), wctx);
         for entry in self.expr_regex.find_iter(value) {
             match expr_exec.eval(entry.as_str()) {
                 Ok(ExprValue::Boolean(_)) | Ok(ExprValue::Text(_)) | Ok(ExprValue::Unknown) => {}
@@ -351,11 +374,28 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for Comm
     }
 
     fn validate_env(&mut self, env: &'a HashMap<String, String>, scope: ExprScope) {
+        // A declared env section is resolved before the values of that section exist, so
+        // its own values are not available to it. The env of a job is validated with the
+        // context of the file for that reason, while the env of a call to another file is
+        // resolved when the step runs and keeps the context of the job.
+        let current_job = match scope {
+            ExprScope::StartOfRun => self.current_job.take(),
+            ExprScope::Runtime => None,
+        };
+
         for (k, v) in env.iter() {
             debug!("Validating env: {}", k);
+            if k.is_empty() {
+                self.append_error("Environment variable name must not be empty");
+                continue;
+            }
             self.section.push(Section::Other(k));
             self.validate_expressions(v, scope);
             self.section.pop();
+        }
+
+        if current_job.is_some() {
+            self.current_job = current_job;
         }
     }
 

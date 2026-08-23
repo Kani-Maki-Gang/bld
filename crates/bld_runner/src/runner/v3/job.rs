@@ -76,8 +76,10 @@ impl<S: RootState> JobRunner<S> {
                 })
             })?;
 
-        // Every runs_on field is consumed when building the platform, before any step has
-        // run, so its expressions are limited to the start of run context.
+        // Extending the provided expr_rctx with the currents job's internally evaluated scope
+        options.expr_rctx = Self::extend_expr_rctx(job, &options)?;
+
+        // Evaluate the runs_on value before building the job platform
         let runs_on = Self::resolve_runs_on(job, &options)?;
 
         let platform = build_platform(
@@ -98,6 +100,32 @@ impl<S: RootState> JobRunner<S> {
             working_dir,
             outputs: HashMap::new(),
         })
+    }
+
+    fn extend_expr_rctx(
+        job: &Job,
+        options: &JobRunnerOptions<S>,
+    ) -> Result<Arc<CommonReadonlyRuntimeExprContext>> {
+        if job.env.is_empty() {
+            return Ok(options.expr_rctx.clone());
+        }
+
+        let exec = CommonExprExecutor::new(
+            options.pipeline.as_ref(),
+            options.expr_rctx.as_ref(),
+            &START_OF_RUN_WCTX,
+        );
+        let job_env = eval_all_expressions_map(&exec, &options.expr_regex, &job.env)?;
+
+        let mut env = (*options.expr_rctx.env).clone();
+        env.extend(job_env);
+
+        let expr_rctx = options
+            .expr_rctx
+            .clone_with(|x| x.env = env.into_arc())
+            .into_arc();
+
+        Ok(expr_rctx)
     }
 
     fn resolve_runs_on(job: &Job, options: &JobRunnerOptions<S>) -> Result<RunsOn> {
@@ -852,6 +880,101 @@ mod tests {
         assert_eq!(
             job.resolve_working_dir(&None).unwrap(),
             Some("/tmp/some-worktree".to_string())
+        );
+    }
+
+    fn job_runner_for_env_test(
+        job: &Job,
+        expr_rctx: CommonReadonlyRuntimeExprContext,
+    ) -> JobRunner<JobState> {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::mock().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let state = JobState::default();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(job_name.clone(), job.clone());
+        let pipeline = pipeline.into_arc();
+
+        let options = JobRunnerOptions {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline,
+            regex_cache,
+            expr_regex,
+            expr_rctx: expr_rctx.into_arc(),
+            package_manager,
+            artifacts,
+            is_child: false,
+            state,
+        };
+
+        JobRunner {
+            options,
+            platform,
+            runs_on: RunsOn::default(),
+            outputs: HashMap::new(),
+            working_dir: None,
+        }
+    }
+
+    /// A job's env value is merged into the expr context that builds every command of the
+    /// job, so a value declared on the job reaches the text of a shell command the same way
+    /// a value declared on the file already does.
+    #[test]
+    pub fn job_env_value_reaches_command_success() {
+        let job = Job {
+            env: [("GREETING".to_string(), "hello from job".to_string())]
+                .into_iter()
+                .collect(),
+            ..Default::default()
+        };
+
+        let mut runner = job_runner_for_env_test(&job, CommonReadonlyRuntimeExprContext::default());
+        runner.options.expr_rctx =
+            JobRunner::<JobState>::extend_expr_rctx(&job, &runner.options).unwrap();
+
+        assert_eq!(
+            runner.eval_all_expr("echo ${{ env.GREETING }}").unwrap(),
+            "echo hello from job"
+        );
+    }
+
+    /// The two levels merge in the order file, job: a job value with the same name as a
+    /// file value replaces it, so an expression sees the job's value, not the file's.
+    #[test]
+    pub fn job_env_value_replaces_file_env_with_same_name_success() {
+        let job = Job {
+            env: [("NAME".to_string(), "job-value".to_string())]
+                .into_iter()
+                .collect(),
+            ..Default::default()
+        };
+        let file_env: HashMap<String, String> = [("NAME".to_string(), "file-value".to_string())]
+            .into_iter()
+            .collect();
+        let expr_rctx = CommonReadonlyRuntimeExprContext {
+            env: file_env.into_arc(),
+            ..Default::default()
+        };
+
+        let mut runner = job_runner_for_env_test(&job, expr_rctx);
+        runner.options.expr_rctx =
+            JobRunner::<JobState>::extend_expr_rctx(&job, &runner.options).unwrap();
+
+        assert_eq!(
+            runner.eval_all_expr("${{ env.NAME }}").unwrap(),
+            "job-value"
         );
     }
 

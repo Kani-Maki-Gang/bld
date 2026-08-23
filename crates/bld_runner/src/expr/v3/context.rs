@@ -50,7 +50,7 @@ impl WritableRuntimeExprContext for StartOfRunWritableExprContext {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct CommonReadonlyRuntimeExprContext {
     pub config: Arc<BldConfig>,
     pub inputs: Arc<HashMap<String, String>>,
@@ -74,6 +74,12 @@ impl CommonReadonlyRuntimeExprContext {
             run_id,
             run_start_time,
         }
+    }
+
+    pub fn clone_with(&self, closure: impl FnOnce(&mut Self)) -> Self {
+        let mut clone = self.clone();
+        closure(&mut clone);
+        clone
     }
 }
 
