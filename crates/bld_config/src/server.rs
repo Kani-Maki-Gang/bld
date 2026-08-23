@@ -23,6 +23,9 @@ pub struct BldLocalServerConfig {
 
     #[serde(default = "BldLocalServerConfig::default_cleanup_interval")]
     pub cleanup_interval: i64,
+
+    #[serde(default = "BldLocalServerConfig::default_artifacts_retention_days")]
+    pub artifacts_retention_days: i64,
 }
 
 impl BldLocalServerConfig {
@@ -44,6 +47,10 @@ impl BldLocalServerConfig {
 
     fn default_cleanup_interval() -> i64 {
         definitions::LOCAL_SERVER_CLEANUP_INTERVAL
+    }
+
+    fn default_artifacts_retention_days() -> i64 {
+        definitions::LOCAL_SERVER_ARTIFACTS_RETENTION_DAYS
     }
 
     /// Checks the value of the tls field and returns the appropriate form
@@ -90,6 +97,7 @@ impl Default for BldLocalServerConfig {
             logs: Self::default_logs(),
             db: None,
             cleanup_interval: Self::default_cleanup_interval(),
+            artifacts_retention_days: Self::default_artifacts_retention_days(),
         }
     }
 }

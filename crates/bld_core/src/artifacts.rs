@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
-    io::Write,
+    fs::File,
+    io::{BufReader, BufWriter, Write},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -12,7 +13,7 @@ use bld_models::artifacts::{self, InsertArtifact};
 use flate2::{Compression, read::GzDecoder, write::GzEncoder};
 use sea_orm::DatabaseConnection;
 use tar::{Archive, Builder};
-use tokio::fs::{create_dir_all, read, remove_dir_all, write};
+use tokio::fs::{create_dir_all, remove_dir_all, remove_file};
 use tokio::sync::{
     mpsc::{Receiver, Sender, channel},
     oneshot,
@@ -131,8 +132,7 @@ impl ArtifactsBackend {
             .get(name)
             .ok_or_else(|| anyhow!("artifact '{name}' not found"))?;
 
-        let compressed = read(archive_path).await?;
-        decompress_tar_gz(&compressed, staging_dir)?;
+        decompress_tar_gz(archive_path, staging_dir)?;
 
         let extracted_path = staging_dir.join(name);
 
@@ -180,10 +180,16 @@ impl ArtifactsBackend {
             create_dir_all(parent).await?;
         }
 
-        let compressed = compress_to_tar_gz(staging_dir, name)?;
-        write(&artifact_path, compressed).await?;
+        let result = compress_to_tar_gz(staging_dir, name, &artifact_path);
 
-        Ok(())
+        if result.is_err()
+            && artifact_path.is_file()
+            && let Err(e) = remove_file(&artifact_path).await
+        {
+            error!("unable to remove incomplete archive for artifact {name}: {e}");
+        }
+
+        result
     }
 
     async fn resolve_artifact_path(&self, name: &str) -> Result<PathBuf> {
@@ -194,7 +200,12 @@ impl ArtifactsBackend {
                     run_id: self.run_id.clone(),
                     name: name.to_string(),
                 };
-                let model = artifacts::insert(conn.as_ref(), insert).await?;
+                let model = artifacts::insert(
+                    conn.as_ref(),
+                    insert,
+                    self.config.local.server.artifacts_retention_days,
+                )
+                .await?;
                 model.id
             }
         };
@@ -219,15 +230,28 @@ pub fn validate_artifact_name(name: &str) -> Result<()> {
 
     let mut components = path.components();
     match (components.next(), components.next()) {
-        (Some(std::path::Component::Normal(_)), None) => Ok(()),
-        _ => Err(anyhow!(
-            "artifact name '{name}' must be a single path segment without '.', '..' or path separators"
-        )),
+        (Some(std::path::Component::Normal(_)), None) => {}
+        _ => {
+            return Err(anyhow!(
+                "artifact name '{name}' must be a single path segment without '.', '..' or path separators"
+            ));
+        }
     }
+
+    if name.chars().any(|c| c.is_control()) {
+        return Err(anyhow!(
+            "an artifact name must not contain a control character"
+        ));
+    }
+
+    Ok(())
 }
 
-fn compress_to_tar_gz(source: &Path, entry_name: &str) -> Result<Vec<u8>> {
-    let mut tar = Builder::new(Vec::new());
+/// Compresses the source path into the destination archive. The archive is written
+/// while it is created, so neither the tar nor the gzip content is kept in memory.
+fn compress_to_tar_gz(source: &Path, entry_name: &str, dest: &Path) -> Result<()> {
+    let gz = GzEncoder::new(BufWriter::new(File::create(dest)?), Compression::default());
+    let mut tar = Builder::new(gz);
 
     if source.is_file() {
         tar.append_path_with_name(source, entry_name)?;
@@ -235,14 +259,12 @@ fn compress_to_tar_gz(source: &Path, entry_name: &str) -> Result<Vec<u8>> {
         tar.append_dir_all(entry_name, source)?;
     }
 
-    let uncompressed = tar.into_inner()?;
-    let mut gz = GzEncoder::new(Vec::new(), Compression::default());
-    gz.write_all(&uncompressed)?;
-    Ok(gz.finish()?)
+    tar.into_inner()?.finish()?.flush()?;
+    Ok(())
 }
 
-fn decompress_tar_gz(data: &[u8], dest: &Path) -> Result<()> {
-    let gz = GzDecoder::new(data);
+fn decompress_tar_gz(archive_path: &Path, dest: &Path) -> Result<()> {
+    let gz = GzDecoder::new(BufReader::new(File::open(archive_path)?));
     let mut archive = Archive::new(gz);
     archive.unpack(dest)?;
     Ok(())
@@ -347,16 +369,24 @@ mod tests {
     }
 
     #[test]
+    fn validate_artifact_name_rejects_control_characters() {
+        assert!(validate_artifact_name("foo\nbar").is_err());
+        assert!(validate_artifact_name("foo\rbar").is_err());
+        assert!(validate_artifact_name("foo\tbar").is_err());
+    }
+
+    #[test]
     fn compress_to_tar_gz_round_trip() {
         let config = BldConfig::default();
         let base = config.tmp_full_path(&format!("artifacts-test-{}", Uuid::new_v4()));
         let source = base.join("payload");
+        let archive = base.join("payload.tar.gz");
         let extracted = base.join("extracted");
         create_dir_all(&source).unwrap();
         write(source.join("hello.txt"), b"hello world").unwrap();
 
-        let compressed = compress_to_tar_gz(&source, "my-artifact").unwrap();
-        decompress_tar_gz(&compressed, &extracted).unwrap();
+        compress_to_tar_gz(&source, "my-artifact", &archive).unwrap();
+        decompress_tar_gz(&archive, &extracted).unwrap();
 
         let content = read_to_string(extracted.join("my-artifact").join("hello.txt")).unwrap();
         assert_eq!(content, "hello world");
@@ -368,13 +398,14 @@ mod tests {
     fn compress_to_tar_gz_round_trip_single_file() {
         let config = BldConfig::default();
         let base = config.tmp_full_path(&format!("artifacts-test-{}", Uuid::new_v4()));
+        let archive = base.join("payload.tar.gz");
         let extracted = base.join("extracted");
         create_dir_all(&base).unwrap();
         let source = base.join("payload.txt");
         write(&source, b"hello file").unwrap();
 
-        let compressed = compress_to_tar_gz(&source, "my-artifact").unwrap();
-        decompress_tar_gz(&compressed, &extracted).unwrap();
+        compress_to_tar_gz(&source, "my-artifact", &archive).unwrap();
+        decompress_tar_gz(&archive, &extracted).unwrap();
 
         let content = read_to_string(extracted.join("my-artifact")).unwrap();
         assert_eq!(content, "hello file");
