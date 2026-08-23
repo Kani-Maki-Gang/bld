@@ -924,6 +924,7 @@ mod tests {
             platform,
             runs_on: RunsOn::default(),
             outputs: HashMap::new(),
+            working_dir: None,
         }
     }
 
