@@ -28,6 +28,7 @@ pub enum State {
     Default,
     Running,
     Completed,
+    Skipped,
     Failed {
         error: String,
     },
