@@ -76,7 +76,7 @@ impl CommonReadonlyRuntimeExprContext {
         }
     }
 
-    pub fn clone_with(&self, closure: impl FnOnce(&mut Self) -> ()) -> Self {
+    pub fn clone_with(&self, closure: impl FnOnce(&mut Self)) -> Self {
         let mut clone = self.clone();
         closure(&mut clone);
         clone
