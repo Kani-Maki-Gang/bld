@@ -23,9 +23,6 @@ use pest::{Parser, iterators::Pairs};
 
 use super::{ConsumeValidator, ExprScope, Validate, ValidatorContext};
 
-/// Walks the pairs of a parsed expression and collects the name of every matrix
-/// reference, i.e. every `Object` whose first part is `matrix`. A `String` symbol
-/// (a text value) has no `Object` inside it, so a text value never gives a reference.
 fn collect_matrix_refs(pairs: Pairs<Rule>, result: &mut Vec<String>) {
     for pair in pairs {
         if pair.as_rule() == Rule::Object {
@@ -143,18 +140,11 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
         })
     }
 
-    /// Declares, for every job, which other jobs it may read outputs from through
-    /// `jobs.<name>.outputs.<name>`. A pipeline validator supplies the `needs` of every
-    /// job here; other validatable types (e.g. an action) leave this empty, since none of
-    /// their jobs exist.
     pub fn with_job_needs(mut self, job_needs: HashMap<&'a str, HashSet<&'a str>>) -> Self {
         self.job_needs = job_needs;
         self
     }
 
-    /// Declares the context of every job that has its own env, since the values of a job
-    /// are merged on top of the values of the file for that job alone. A job with no env
-    /// of its own is left out and keeps the context of the file.
     pub fn with_job_expr_rctx(
         mut self,
         job_expr_rctx: HashMap<&'a str, &'a CommonReadonlyRuntimeExprContext>,
@@ -163,8 +153,6 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
         self
     }
 
-    /// The context of the job that is being validated, or the context of the file when no
-    /// job is being validated or the job has no env of its own.
     fn rctx(&self) -> &'a CommonReadonlyRuntimeExprContext {
         self.current_job
             .as_ref()
