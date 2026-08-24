@@ -16,10 +16,33 @@ use crate::expr::v3::{
     context::{CommonReadonlyRuntimeExprContext, START_OF_RUN_WCTX},
     exec::CommonExprExecutor,
     parser,
+    parser::{ExprParser, Rule},
     traits::{EvalExpr, EvalObject, ExprValue, OutputScope, WritableRuntimeExprContext},
 };
+use pest::{Parser, iterators::Pairs};
 
 use super::{ConsumeValidator, ExprScope, Validate, ValidatorContext};
+
+fn collect_matrix_refs(pairs: Pairs<Rule>, result: &mut Vec<String>) {
+    for pair in pairs {
+        if pair.as_rule() == Rule::Object {
+            let mut parts = pair.into_inner();
+            let Some(first) = parts.next() else {
+                continue;
+            };
+            if first.as_str() != "matrix" {
+                continue;
+            }
+            if let Some(second) = parts.next()
+                && second.as_rule() == Rule::ObjectPart
+            {
+                result.push(second.as_str().to_string());
+            }
+        } else {
+            collect_matrix_refs(pair.into_inner(), result);
+        }
+    }
+}
 
 enum Section<'a> {
     Job(&'a str),
@@ -117,18 +140,11 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
         })
     }
 
-    /// Declares, for every job, which other jobs it may read outputs from through
-    /// `jobs.<name>.outputs.<name>`. A pipeline validator supplies the `needs` of every
-    /// job here; other validatable types (e.g. an action) leave this empty, since none of
-    /// their jobs exist.
     pub fn with_job_needs(mut self, job_needs: HashMap<&'a str, HashSet<&'a str>>) -> Self {
         self.job_needs = job_needs;
         self
     }
 
-    /// Declares the context of every job that has its own env, since the values of a job
-    /// are merged on top of the values of the file for that job alone. A job with no env
-    /// of its own is left out and keeps the context of the file.
     pub fn with_job_expr_rctx(
         mut self,
         job_expr_rctx: HashMap<&'a str, &'a CommonReadonlyRuntimeExprContext>,
@@ -137,8 +153,6 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
         self
     }
 
-    /// The context of the job that is being validated, or the context of the file when no
-    /// job is being validated or the job has no env of its own.
     fn rctx(&self) -> &'a CommonReadonlyRuntimeExprContext {
         self.current_job
             .as_ref()
@@ -324,18 +338,10 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for Comm
     fn matrix_refs(&self, value: &str) -> Vec<String> {
         let mut result = Vec::new();
         for entry in self.expr_regex.find_iter(value) {
-            let mut rest = entry.as_str();
-            while let Some(pos) = rest.find("matrix.") {
-                let after = &rest[pos + "matrix.".len()..];
-                let end = after
-                    .find(|c: char| !(c.is_alphanumeric() || c == '_'))
-                    .unwrap_or(after.len());
-                let name = &after[..end];
-                if !name.is_empty() {
-                    result.push(name.to_string());
-                }
-                rest = &after[end..];
-            }
+            let Ok(pairs) = ExprParser::parse(Rule::Full, entry.as_str()) else {
+                continue;
+            };
+            collect_matrix_refs(pairs, &mut result);
         }
         result
     }
