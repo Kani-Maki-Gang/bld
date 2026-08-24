@@ -40,9 +40,6 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
     })
 }
 
-/// Adds the configured retention period to the creation date. A value that is not
-/// positive or that would move the date out of the representable range falls back
-/// to the default retention period.
 fn expiration_date(date_created: DateTime<Utc>, retention_days: i64) -> DateTime<Utc> {
     let expires = if retention_days > 0 {
         Duration::try_days(retention_days).and_then(|x| date_created.checked_add_signed(x))

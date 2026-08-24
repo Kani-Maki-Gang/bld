@@ -7,7 +7,7 @@ use std::{
 };
 
 use actix_web::rt::spawn;
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use bld_config::BldConfig;
 use bld_models::artifacts::{self, InsertArtifact};
 use flate2::{Compression, read::GzDecoder, write::GzEncoder};
@@ -200,12 +200,8 @@ impl ArtifactsBackend {
                     run_id: self.run_id.clone(),
                     name: name.to_string(),
                 };
-                let model = artifacts::insert(
-                    conn.as_ref(),
-                    insert,
-                    self.config.local.server.artifacts_retention_days,
-                )
-                .await?;
+                let retention = self.config.local.server.artifacts_retention_days;
+                let model = artifacts::insert(conn.as_ref(), insert, retention).await?;
                 model.id
             }
         };
@@ -218,37 +214,31 @@ impl ArtifactsBackend {
 
 pub fn validate_artifact_name(name: &str) -> Result<()> {
     if name.is_empty() {
-        return Err(anyhow!("artifact name cannot be empty"));
+        bail!("artifact name cannot be empty")
     }
 
     let path = Path::new(name);
     if path.is_absolute() {
-        return Err(anyhow!(
-            "artifact name '{name}' must not be an absolute path"
-        ));
+        bail!("artifact name '{name}' must not be an absolute path");
     }
 
     let mut components = path.components();
     match (components.next(), components.next()) {
         (Some(std::path::Component::Normal(_)), None) => {}
         _ => {
-            return Err(anyhow!(
+            bail!(
                 "artifact name '{name}' must be a single path segment without '.', '..' or path separators"
-            ));
+            );
         }
     }
 
     if name.chars().any(|c| c.is_control()) {
-        return Err(anyhow!(
-            "an artifact name must not contain a control character"
-        ));
+        bail!("an artifact name must not contain a control character");
     }
 
     Ok(())
 }
 
-/// Compresses the source path into the destination archive. The archive is written
-/// while it is created, so neither the tar nor the gzip content is kept in memory.
 fn compress_to_tar_gz(source: &Path, entry_name: &str, dest: &Path) -> Result<()> {
     let gz = GzEncoder::new(BufWriter::new(File::create(dest)?), Compression::default());
     let mut tar = Builder::new(gz);

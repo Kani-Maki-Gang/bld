@@ -75,8 +75,6 @@ pub async fn download(
         .body(SizedStream::new(size, artifact_stream(file)))
 }
 
-/// Reads the artifact file in chunks so that the whole content is never held in
-/// memory at once.
 fn artifact_stream(file: File) -> impl Stream<Item = Result<Bytes, actix_web::Error>> {
     unfold(file, |mut file| async move {
         let mut buffer = vec![0u8; DOWNLOAD_CHUNK_SIZE];
