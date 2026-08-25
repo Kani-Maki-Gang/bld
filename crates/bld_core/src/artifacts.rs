@@ -18,7 +18,7 @@ use tokio::sync::{
     mpsc::{Receiver, Sender, channel},
     oneshot,
 };
-use tracing::error;
+use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::platform::Platform;
@@ -84,10 +84,10 @@ impl ArtifactsBackend {
                     to,
                     resp_tx,
                 } => {
-                    let res = self.download(&platform, name, to).await;
-                    resp_tx
-                        .send(res)
-                        .map_err(|_| anyhow!("oneshot channel closed"))?;
+                    let res = self.download(&platform, &name, &to).await;
+                    if resp_tx.send(res).is_err() {
+                        debug!("the receiver for artifact '{name}' is no longer available");
+                    }
                 }
                 ArtifactsMessage::Upload {
                     platform,
@@ -95,23 +95,21 @@ impl ArtifactsBackend {
                     path,
                     resp_tx,
                 } => {
-                    let res = self.upload(&platform, name, path).await;
-                    resp_tx
-                        .send(res)
-                        .map_err(|_| anyhow!("oneshot channel closed"))?;
+                    let res = self.upload(&platform, &name, &path).await;
+                    if resp_tx.send(res).is_err() {
+                        debug!("the receiver for artifact '{name}' is no longer available");
+                    }
                 }
             }
         }
         Ok(())
     }
 
-    async fn download(&mut self, platform: &Platform, name: String, to: String) -> Result<()> {
+    async fn download(&mut self, platform: &Platform, name: &str, to: &str) -> Result<()> {
         let staging_dir = self.config.tmp_full_path(&Uuid::new_v4().to_string());
         create_dir_all(&staging_dir).await?;
 
-        let result = self
-            .download_inner(platform, &name, &to, &staging_dir)
-            .await;
+        let result = self.download_inner(platform, name, to, &staging_dir).await;
 
         if let Err(e) = remove_dir_all(&staging_dir).await {
             error!("unable to clean up staging directory for artifact {name}: {e}");
@@ -141,13 +139,11 @@ impl ArtifactsBackend {
             .await
     }
 
-    async fn upload(&mut self, platform: &Platform, name: String, path: String) -> Result<()> {
+    async fn upload(&mut self, platform: &Platform, name: &str, path: &str) -> Result<()> {
         let staging_dir = self.config.tmp_full_path(&Uuid::new_v4().to_string());
         create_dir_all(&staging_dir).await?;
 
-        let result = self
-            .upload_inner(platform, &name, &path, &staging_dir)
-            .await;
+        let result = self.upload_inner(platform, name, path, &staging_dir).await;
 
         if let Err(e) = remove_dir_all(&staging_dir).await {
             error!("unable to clean up staging directory for artifact {name}: {e}");
@@ -320,9 +316,15 @@ impl Artifacts {
 
 #[cfg(test)]
 mod tests {
-    use super::{compress_to_tar_gz, decompress_tar_gz, validate_artifact_name};
+    use super::{
+        ArtifactsBackend, ArtifactsMessage, ArtifactsStore, compress_to_tar_gz, decompress_tar_gz,
+        validate_artifact_name,
+    };
+    use crate::platform::Platform;
     use bld_config::BldConfig;
     use std::fs::{create_dir_all, read_to_string, remove_dir_all, write};
+    use std::sync::Arc;
+    use tokio::sync::{mpsc::channel, oneshot};
     use uuid::Uuid;
 
     #[test]
@@ -401,5 +403,68 @@ mod tests {
         assert_eq!(content, "hello file");
 
         let _ = remove_dir_all(&base);
+    }
+
+    #[actix_web::test]
+    async fn backend_continues_after_a_closed_receiver() {
+        let config = Arc::new(BldConfig::default());
+        let run_id = format!("artifacts-backend-test-{}", Uuid::new_v4());
+        let target = config.tmp_full_path(&run_id);
+        let (tx, rx) = channel(4);
+        let backend =
+            ArtifactsBackend::new(config.clone(), run_id.clone(), ArtifactsStore::Local, rx);
+        backend.receive();
+
+        let platform = Arc::new(Platform::mock());
+
+        // the receiver of the first message is gone before the backend can respond
+        let (resp_tx, resp_rx) = oneshot::channel();
+        tx.send(ArtifactsMessage::Upload {
+            platform: platform.clone(),
+            name: "first-artifact".to_string(),
+            path: target.display().to_string(),
+            resp_tx,
+        })
+        .await
+        .unwrap();
+        drop(resp_rx);
+
+        let (resp_tx, resp_rx) = oneshot::channel();
+        tx.send(ArtifactsMessage::Upload {
+            platform: platform.clone(),
+            name: "second-artifact".to_string(),
+            path: target.display().to_string(),
+            resp_tx,
+        })
+        .await
+        .unwrap();
+        let res = resp_rx.await.expect("the backend must still be running");
+        assert!(res.is_ok(), "{:?}", res.unwrap_err());
+
+        let (resp_tx, resp_rx) = oneshot::channel();
+        tx.send(ArtifactsMessage::Download {
+            platform,
+            name: "second-artifact".to_string(),
+            to: target.display().to_string(),
+            resp_tx,
+        })
+        .await
+        .unwrap();
+        let res = resp_rx.await.expect("the backend must still be running");
+        assert!(res.is_ok(), "{:?}", res.unwrap_err());
+
+        let (resp_tx, resp_rx) = oneshot::channel();
+        tx.send(ArtifactsMessage::Download {
+            platform: Arc::new(Platform::mock()),
+            name: "missing-artifact".to_string(),
+            to: target.display().to_string(),
+            resp_tx,
+        })
+        .await
+        .unwrap();
+        let res = resp_rx.await.expect("the backend must still be running");
+        assert!(res.is_err());
+
+        let _ = remove_dir_all(config.artifacts_run_dir(&run_id));
     }
 }

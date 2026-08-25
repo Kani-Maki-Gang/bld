@@ -1,6 +1,6 @@
 use crate::platform::Platform;
 use actix_web::rt::spawn;
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use bld_config::BldConfig;
 use bld_http::Request;
 use std::sync::Arc;
@@ -80,9 +80,11 @@ impl LocalContextBackend {
             let _ = platform.dispose(false).await.map_err(|e| error!("{e}"));
         }
 
-        resp_tx
-            .send(())
-            .map_err(|_| anyhow!("oneshot response sender dropped"))
+        if resp_tx.send(()).is_err() {
+            debug!("the receiver for run faulted notification is no longer available");
+        }
+
+        Ok(())
     }
 
     async fn cleanup_remote_run(&self, run: &RemoteRun) -> Result<()> {
