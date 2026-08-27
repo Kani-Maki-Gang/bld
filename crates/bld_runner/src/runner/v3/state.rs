@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow, bail};
-use mockall::{automock, mock};
 use uuid::Uuid;
 
 use crate::expr::v3::traits::{ExprValue, OutputScope, WritableRuntimeExprContext};
 
-#[automock]
+#[cfg(test)]
+use mockall::{automock, mock};
+
+#[cfg_attr(test, automock)]
 pub trait NodeState {
     fn update_state(&mut self, state: State);
     #[allow(unused)]
@@ -317,26 +319,34 @@ impl WritableRuntimeExprContext for ActionState {
     }
 }
 
-mock! {
-    pub RootState {}
+#[cfg(test)]
+mod mocks {
+    use super::*;
 
-    impl RootState for RootState {
-        fn update_state(&mut self, state: State);
-        fn get_state(&self) -> &State;
-        fn add_node(&mut self, node_id: &str);
-        fn update_node_state(&mut self, node_id: &str, state: State);
-        fn get_node_state<'a>(&'a self, node_id: &str) -> Option<&'a State>;
-        fn set_matrix(&mut self, matrix: HashMap<String, String>);
-    }
+    mock! {
+        pub RootState {}
 
-    impl WritableRuntimeExprContext for RootState {
-        fn get_exec_id<'a> (&'a self) -> Option<&'a str>;
-        fn get_output<'a>(&'a self, scope: OutputScope, id: &str, name: &str) -> Result<ExprValue<'a>>;
-        fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
-        fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
-        fn get_matrix_value<'a>(&'a self, name: &str) -> Result<&'a str>;
+        impl RootState for RootState {
+            fn update_state(&mut self, state: State);
+            fn get_state(&self) -> &State;
+            fn add_node(&mut self, node_id: &str);
+            fn update_node_state(&mut self, node_id: &str, state: State);
+            fn get_node_state<'a>(&'a self, node_id: &str) -> Option<&'a State>;
+            fn set_matrix(&mut self, matrix: HashMap<String, String>);
+        }
+
+        impl WritableRuntimeExprContext for RootState {
+            fn get_exec_id<'a> (&'a self) -> Option<&'a str>;
+            fn get_output<'a>(&'a self, scope: OutputScope, id: &str, name: &str) -> Result<ExprValue<'a>>;
+            fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
+            fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
+            fn get_matrix_value<'a>(&'a self, name: &str) -> Result<&'a str>;
+        }
     }
 }
+
+#[cfg(test)]
+pub use mocks::MockRootState;
 
 #[cfg(test)]
 mod tests {
