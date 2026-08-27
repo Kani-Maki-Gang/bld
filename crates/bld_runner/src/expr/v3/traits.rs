@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 
+use super::parser::Rule;
+use anyhow::{Result, bail};
+use pest::iterators::{Pair, Pairs};
 use std::{collections::HashMap, fmt::Display, iter::Peekable};
 
-use anyhow::{Result, bail};
+#[cfg(test)]
 use mockall::automock;
-use pest::iterators::{Pair, Pairs};
-
-use super::parser::Rule;
 
 fn unescape_string_literal(value: &str) -> String {
     let quote = value.chars().next();
@@ -299,7 +299,7 @@ pub trait ReadonlyRuntimeExprContext<'a> {
     fn get_run_start_time(&'a self) -> &'a str;
 }
 
-#[automock]
+#[cfg_attr(test, automock)]
 pub trait WritableRuntimeExprContext {
     #[allow(clippy::needless_lifetimes)]
     fn get_exec_id<'a>(&'a self) -> Option<&'a str>;
