@@ -2,9 +2,14 @@ use std::{path::Path, sync::Arc};
 
 use anyhow::{Result, anyhow, bail};
 use bld_config::{BldConfig, SshConfig, SshUserAuth, definitions::PACKAGE_ACTION_FILE_NAME, path};
+use fs4::AsyncFileExt;
 use git2::{Cred, FetchOptions, RemoteCallbacks, Repository, build::RepoBuilder};
 use std::path::PathBuf;
-use tokio::{fs::File, io::AsyncReadExt, task::spawn_blocking};
+use tokio::{
+    fs::{File, OpenOptions, remove_dir_all, remove_file},
+    io::AsyncReadExt,
+    task::spawn_blocking,
+};
 use tracing::{error, warn};
 
 #[derive(Clone)]
@@ -29,34 +34,15 @@ impl RepositoryUrl {
 }
 
 #[derive(Clone)]
-struct RepositoryInfo {
+struct Package {
+    config: Arc<BldConfig>,
     pub url: RepositoryUrl,
     pub name: String,
     pub branch: Option<RepositoryBranch>,
 }
 
-pub struct PackageManager {
-    config: Arc<BldConfig>,
-}
-
-impl PackageManager {
-    pub fn new(config: Arc<BldConfig>) -> Self {
-        Self { config }
-    }
-
-    fn validate_path_segment(segment: &str) -> Result<()> {
-        if segment.is_empty()
-            || segment == "."
-            || segment == ".."
-            || segment.contains('/')
-            || segment.contains('\\')
-        {
-            bail!("Invalid or unsafe package reference segment '{segment}'");
-        }
-        Ok(())
-    }
-
-    fn repo_info(&self, source: &str) -> Result<RepositoryInfo> {
+impl Package {
+    pub fn from_source(config: Arc<BldConfig>, source: &str) -> Result<Self> {
         let mut branch: Option<RepositoryBranch> = None;
         let mut url = source.to_string();
 
@@ -91,19 +77,32 @@ impl PackageManager {
             RepositoryUrl::Http { raw: url }
         };
 
-        Ok(RepositoryInfo {
+        Ok(Self {
+            config,
             url: repo_url,
             name,
             branch,
         })
     }
 
-    fn repo_path(&self, info: &RepositoryInfo) -> PathBuf {
-        let dir = info
+    fn validate_path_segment(segment: &str) -> Result<()> {
+        if segment.is_empty()
+            || segment == "."
+            || segment == ".."
+            || segment.contains('/')
+            || segment.contains('\\')
+        {
+            bail!("Invalid or unsafe package reference segment '{segment}'");
+        }
+        Ok(())
+    }
+
+    pub fn path(&self) -> PathBuf {
+        let dir = self
             .branch
             .as_ref()
-            .map(|b| format!("{}@{}", &info.name, b.name))
-            .unwrap_or_else(|| info.name.clone());
+            .map(|b| format!("{}@{}", &self.name, b.name))
+            .unwrap_or_else(|| self.name.clone());
         path![&self.config.local.packages.cache, dir]
     }
 
@@ -123,17 +122,14 @@ impl PackageManager {
         }
     }
 
-    fn repo_fetch_options<'a>(
-        config: Arc<BldConfig>,
-        info: &'a RepositoryInfo,
-    ) -> FetchOptions<'a> {
+    fn fetch_options<'a>(&'a self) -> FetchOptions<'a> {
         let mut callbacks = RemoteCallbacks::new();
 
         callbacks.credentials(move |_url, username_from_url, _allowed_types| {
             let user = username_from_url.unwrap_or("git");
 
-            if let RepositoryUrl::Ssh { host: ssh_host, .. } = &info.url {
-                let ssh = &config.local.ssh;
+            if let RepositoryUrl::Ssh { host: ssh_host, .. } = &self.url {
+                let ssh = &self.config.local.ssh;
 
                 let Some(ssh_config) = ssh.iter().find(|x| &x.1.host == ssh_host).map(|x| x.1)
                 else {
@@ -152,48 +148,77 @@ impl PackageManager {
         fetch_options
     }
 
-    fn repo_builder<'a>(config: Arc<BldConfig>, info: &'a RepositoryInfo) -> RepoBuilder<'a> {
+    pub fn into_builder(&self) -> RepoBuilder<'_> {
         let mut builder = RepoBuilder::new();
-        builder.fetch_options(Self::repo_fetch_options(config, info));
+        builder.fetch_options(self.fetch_options());
         builder
     }
 
-    fn repo_clone(config: Arc<BldConfig>, info: RepositoryInfo, path: &Path) -> Result<Repository> {
-        let mut builder = Self::repo_builder(config, &info);
-        builder.clone(info.url.raw(), path).map_err(|e| anyhow!(e))
+    fn git_clone(&self, path: &Path) -> Result<Repository> {
+        let mut builder = self.into_builder();
+        builder.clone(self.url.raw(), path).map_err(|e| anyhow!(e))
     }
 
-    fn repo_open(config: Arc<BldConfig>, info: RepositoryInfo, path: &Path) -> Result<Repository> {
+    fn open(&self, path: &Path) -> Result<Repository> {
         let repo = Repository::open(path)?;
         {
             let mut remote = repo.find_remote("origin")?;
-            let mut fetch_options = Self::repo_fetch_options(config, &info);
+            let mut fetch_options = self.fetch_options();
             remote.fetch::<&str>(&[], Some(&mut fetch_options), None)?;
         }
         Ok(repo)
     }
 
+    async fn lock(&self) -> Result<File> {
+        let mut path = self.path();
+        let file_name = path
+            .file_name()
+            .ok_or_else(|| anyhow!("Unable to create package lock file path"))?;
+        path.set_file_name(format!("lock_{}", file_name.display()));
+        let file = OpenOptions::new()
+            .read(true)
+            .append(true)
+            .create(true)
+            .open(&path)
+            .await?;
+        spawn_blocking(move || {
+            if let Err(e) = file.lock() {
+                bail!(e);
+            }
+            Ok(file)
+        })
+        .await?
+    }
+}
+
+pub struct PackageManager {
+    config: Arc<BldConfig>,
+}
+
+impl PackageManager {
+    pub fn new(config: Arc<BldConfig>) -> Self {
+        Self { config }
+    }
+
+    fn package(&self, source: &str) -> Result<Package> {
+        Package::from_source(self.config.clone(), source)
+    }
+
     pub fn is_package(&self, source: &str) -> bool {
-        self.repo_info(source).is_ok()
+        self.package(source).is_ok()
     }
 
-    pub fn exists(&self, source: &str) -> bool {
-        let Ok(info) = self.repo_info(source) else {
-            return false;
-        };
-        let repository_path = self.repo_path(&info);
-        repository_path.exists()
-    }
+    async fn get(&self, package: Package) -> Result<()> {
+        let path = package.path();
+        let branch = package.branch.clone();
 
-    pub async fn get(&self, source: &str) -> Result<()> {
-        let info = self.repo_info(source)?;
-        let path = self.repo_path(&info);
-        let info_clone = info.clone();
-        let config = self.config.clone();
-        let repository =
-            spawn_blocking(move || Self::repo_clone(config, info_clone, &path)).await??;
+        if path.exists() {
+            remove_dir_all(&path).await?;
+        }
 
-        if let Some(branch) = &info.branch {
+        let repository = spawn_blocking(move || package.git_clone(&path)).await??;
+
+        if let Some(branch) = &branch {
             let tag_ref = format!("refs/tags/{}", branch.name);
 
             let (commit, is_branch) = if let Ok(obj) = repository.revparse_single(&branch.refname) {
@@ -220,24 +245,14 @@ impl PackageManager {
         Ok(())
     }
 
-    async fn is_synced(&self, source: &str) -> bool {
-        let Ok(info) = self.repo_info(source).inspect_err(|e| {
-            error!(
-                "unable to resolve repository information due to {}",
-                e.to_string()
-            )
-        }) else {
-            return false;
-        };
-
-        let path = self.repo_path(&info);
-        let mut ref_name = info
+    async fn is_synced(&self, package: &Package) -> bool {
+        let package = package.clone();
+        let mut ref_name = package
             .branch
             .as_ref()
             .map(|x| x.name.clone())
             .unwrap_or_default();
-        let config = self.config.clone();
-        let Ok(repository_task) = spawn_blocking(move || Self::repo_open(config, info, &path))
+        let Ok(repository_task) = spawn_blocking(move || package.open(&package.path()))
             .await
             .inspect_err(|e| error!("unable to spawn repository open task due to {e}"))
         else {
@@ -294,16 +309,14 @@ impl PackageManager {
         local_oid == remote_oid
     }
 
-    async fn sync(&self, source: &str) -> Result<()> {
-        let info = self.repo_info(source)?;
-        let path = self.repo_path(&info);
-        let mut ref_name = info
+    async fn sync(&self, package: &Package) -> Result<()> {
+        let package = package.clone();
+        let mut ref_name = package
             .branch
             .as_ref()
             .map(|x| x.name.clone())
             .unwrap_or_default();
-        let config = self.config.clone();
-        let repository = spawn_blocking(move || Self::repo_open(config, info, &path)).await??;
+        let repository = spawn_blocking(move || package.open(&package.path())).await??;
 
         if ref_name.is_empty() {
             let head = repository.head()?;
@@ -340,12 +353,12 @@ impl PackageManager {
         Ok(())
     }
 
-    pub async fn try_sync(&self, source: &str) -> Result<()> {
-        if self.is_synced(source).await {
+    async fn try_sync(&self, package: &Package) -> Result<()> {
+        if self.is_synced(package).await {
             return Ok(());
         }
 
-        let sync_res = self.sync(source).await;
+        let sync_res = self.sync(package).await;
         if self.config.local.packages.strict_sync {
             return sync_res;
         }
@@ -358,18 +371,19 @@ impl PackageManager {
     }
 
     pub async fn read(&self, source: &str) -> Result<String> {
-        if self.exists(source) {
-            self.try_sync(source).await?;
+        let package = self.package(source)?;
+        let _lock_file = package.lock().await?;
+        if package.path().exists() {
+            self.try_sync(&package).await?;
         } else {
             // if get fails, then allow the read to try and read the file and fail if not found.
             let _ = self
-                .get(source)
+                .get(package)
                 .await
                 .inspect_err(|e| warn!("Failed to clone package {source} due to {e}"));
         }
-        let info = self.repo_info(source)?;
-        let repository_path = self.repo_path(&info);
-        let file_path = path![&repository_path, PACKAGE_ACTION_FILE_NAME];
+        let package = self.package(source)?;
+        let file_path = path![&package.path(), PACKAGE_ACTION_FILE_NAME];
         let mut handle = File::open(file_path).await?;
         let mut content = String::new();
         handle.read_to_string(&mut content).await?;

@@ -80,11 +80,6 @@ impl<'a> VersionedFileLoader<'a> {
     }
 
     async fn load_package(&self, name: &str) -> Result<String> {
-        if self.package_manager.exists(name) {
-            self.package_manager.try_sync(name).await?;
-        } else {
-            self.package_manager.get(name).await?;
-        }
         self.package_manager
             .read(name)
             .await
