@@ -101,7 +101,7 @@ impl Package {
         let dir = self
             .branch
             .as_ref()
-            .map(|b| format!("{}@{}", &self.name, b.name))
+            .map(|b| format!("{}@{}", self.name, b.name))
             .unwrap_or_else(|| self.name.clone());
         path![&self.config.local.packages.cache, dir]
     }
@@ -148,14 +148,14 @@ impl Package {
         fetch_options
     }
 
-    pub fn into_builder(&self) -> RepoBuilder<'_> {
+    pub fn to_builder(&self) -> RepoBuilder<'_> {
         let mut builder = RepoBuilder::new();
         builder.fetch_options(self.fetch_options());
         builder
     }
 
     fn git_clone(&self, path: &Path) -> Result<Repository> {
-        let mut builder = self.into_builder();
+        let mut builder = self.to_builder();
         builder.clone(self.url.raw(), path).map_err(|e| anyhow!(e))
     }
 
@@ -263,7 +263,14 @@ impl PackageManager {
             repository.checkout_tree(commit.as_object(), None)?;
 
             if is_branch {
-                repository.branch(&branch.name, &commit, false)?;
+                // The clone already creates a local branch for the remote's default branch, and
+                // git refuses to update it while it is the current HEAD.
+                if repository
+                    .find_branch(&branch.name, git2::BranchType::Local)
+                    .is_err()
+                {
+                    repository.branch(&branch.name, &commit, false)?;
+                }
                 repository.set_head(&branch.head)?;
             } else {
                 repository.set_head_detached(commit.id())?;
@@ -425,6 +432,11 @@ impl PackageManager {
 mod tests {
     use super::*;
     use bld_config::{BldPackages, SshConfig, SshUserAuth};
+    use git2::{RepositoryInitOptions, Signature};
+    use std::fs;
+    use tempfile::TempDir;
+
+    const ACTION: &str = "version: 3\nname: probe\nrunsOn: machine\n";
 
     fn test_manager(cache: &str) -> PackageManager {
         let mut config = BldConfig::default();
@@ -435,25 +447,124 @@ mod tests {
         PackageManager::new(Arc::new(config))
     }
 
+    /// Builds a local repository that stands in for a remote package. It holds the action file on
+    /// `main`, a `feature` branch with a second commit and a `v1` tag on the first commit, so every
+    /// form of package reference can be exercised from a single fixture.
+    fn origin_repo(dir: &Path, name: &str) -> PathBuf {
+        let path = path![dir, format!("{name}.git")];
+        let mut options = RepositoryInitOptions::new();
+        options.initial_head("refs/heads/main");
+        let repository = Repository::init_opts(&path, &options).unwrap();
+
+        let signature = Signature::now("bld", "bld@example.com").unwrap();
+        let action = Path::new(PACKAGE_ACTION_FILE_NAME);
+        fs::write(path![&path, PACKAGE_ACTION_FILE_NAME], ACTION).unwrap();
+
+        let first = {
+            let mut index = repository.index().unwrap();
+            index.add_path(action).unwrap();
+            index.write().unwrap();
+            let tree = repository.find_tree(index.write_tree().unwrap()).unwrap();
+            let oid = repository
+                .commit(Some("HEAD"), &signature, &signature, "init", &tree, &[])
+                .unwrap();
+            repository.find_commit(oid).unwrap()
+        };
+
+        repository
+            .tag_lightweight("v1", first.as_object(), false)
+            .unwrap();
+        repository.branch("feature", &first, false).unwrap();
+        repository.set_head("refs/heads/feature").unwrap();
+
+        {
+            fs::write(
+                path![&path, PACKAGE_ACTION_FILE_NAME],
+                format!("{ACTION}# feature\n"),
+            )
+            .unwrap();
+            let mut index = repository.index().unwrap();
+            index.add_path(action).unwrap();
+            index.write().unwrap();
+            let tree = repository.find_tree(index.write_tree().unwrap()).unwrap();
+            repository
+                .commit(
+                    Some("HEAD"),
+                    &signature,
+                    &signature,
+                    "feature",
+                    &tree,
+                    &[&first],
+                )
+                .unwrap();
+        }
+
+        repository.set_head("refs/heads/main").unwrap();
+        repository
+            .checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        path
+    }
+
+    /// Owns the temporary cache and origin directories so they outlive the manager under test.
+    struct TestEnv {
+        cache: TempDir,
+        origins: TempDir,
+        manager: Arc<PackageManager>,
+    }
+
+    impl TestEnv {
+        fn new() -> Self {
+            let cache = TempDir::new().unwrap();
+            let origins = TempDir::new().unwrap();
+            let manager = Arc::new(test_manager(cache.path().to_str().unwrap()));
+            Self {
+                cache,
+                origins,
+                manager,
+            }
+        }
+
+        /// Creates a fixture repository and returns the source string that refers to it.
+        fn source(&self, name: &str) -> String {
+            origin_repo(self.origins.path(), name)
+                .to_str()
+                .unwrap()
+                .to_string()
+        }
+
+        fn cache_path(&self) -> &Path {
+            self.cache.path()
+        }
+
+        fn cache_entries(&self) -> Vec<String> {
+            let mut entries: Vec<String> = fs::read_dir(self.cache.path())
+                .unwrap()
+                .map(|x| x.unwrap().file_name().to_string_lossy().to_string())
+                .collect();
+            entries.sort();
+            entries
+        }
+    }
+
     #[test]
     fn repo_info_parses_https_url_without_ref() {
         let manager = test_manager("/tmp/bld_pkg_cache");
-        let info = manager
-            .repo_info("https://example.com/org/repo.git")
-            .unwrap();
-        assert_eq!(info.name, "repo.git");
-        assert!(info.branch.is_none());
-        assert!(matches!(info.url, RepositoryUrl::Http { .. }));
+        let package = manager.package("https://example.com/org/repo.git").unwrap();
+        assert_eq!(package.name, "repo.git");
+        assert!(package.branch.is_none());
+        assert!(matches!(package.url, RepositoryUrl::Http { .. }));
     }
 
     #[test]
     fn repo_info_parses_https_url_with_branch_ref() {
         let manager = test_manager("/tmp/bld_pkg_cache");
-        let info = manager
-            .repo_info("https://example.com/org/repo.git@main")
+        let package = manager
+            .package("https://example.com/org/repo.git@main")
             .unwrap();
-        assert_eq!(info.name, "repo.git");
-        let branch = info.branch.unwrap();
+        assert_eq!(package.name, "repo.git");
+        let branch = package.branch.unwrap();
         assert_eq!(branch.name, "main");
         assert_eq!(branch.refname, "refs/remotes/origin/main");
         assert_eq!(branch.head, "refs/heads/main");
@@ -462,11 +573,11 @@ mod tests {
     #[test]
     fn repo_info_parses_ssh_url_and_extracts_host() {
         let manager = test_manager("/tmp/bld_pkg_cache");
-        let info = manager
-            .repo_info("git@github.com:org/repo.git@v1.0.0")
+        let package = manager
+            .package("git@github.com:org/repo.git@v1.0.0")
             .unwrap();
-        assert_eq!(info.name, "repo.git");
-        match info.url {
+        assert_eq!(package.name, "repo.git");
+        match package.url {
             RepositoryUrl::Ssh { host, .. } => assert_eq!(host, "github.com"),
             _ => panic!("expected ssh url"),
         }
@@ -475,42 +586,41 @@ mod tests {
     #[test]
     fn repo_info_rejects_path_traversal_in_ref() {
         let manager = test_manager("/tmp/bld_pkg_cache");
-        let result = manager.repo_info("https://example.com/org/repo.git@../../../etc");
+        let result = manager.package("https://example.com/org/repo.git@../../../etc");
         assert!(result.is_err());
     }
 
     #[test]
     fn repo_info_rejects_path_separator_in_ref() {
         let manager = test_manager("/tmp/bld_pkg_cache");
-        let result = manager.repo_info("https://example.com/org/repo.git@feature/foo");
+        let result = manager.package("https://example.com/org/repo.git@feature/foo");
         assert!(result.is_err());
     }
 
     #[test]
     fn repo_info_rejects_empty_repo_name() {
         let manager = test_manager("/tmp/bld_pkg_cache");
-        let result = manager.repo_info("https://example.com/org/");
+        let result = manager.package("https://example.com/org/");
         assert!(result.is_err());
     }
 
     #[test]
     fn repo_path_without_branch_uses_repo_name() {
         let manager = test_manager("/tmp/bld_pkg_cache");
-        let info = manager
-            .repo_info("https://example.com/org/repo.git")
-            .unwrap();
-        let path = manager.repo_path(&info);
-        assert_eq!(path, PathBuf::from("/tmp/bld_pkg_cache/repo.git"));
+        let package = manager.package("https://example.com/org/repo.git").unwrap();
+        assert_eq!(package.path(), PathBuf::from("/tmp/bld_pkg_cache/repo.git"));
     }
 
     #[test]
     fn repo_path_with_branch_includes_branch_name() {
         let manager = test_manager("/tmp/bld_pkg_cache");
-        let info = manager
-            .repo_info("https://example.com/org/repo.git@main")
+        let package = manager
+            .package("https://example.com/org/repo.git@main")
             .unwrap();
-        let path = manager.repo_path(&info);
-        assert_eq!(path, PathBuf::from("/tmp/bld_pkg_cache/repo.git@main"));
+        assert_eq!(
+            package.path(),
+            PathBuf::from("/tmp/bld_pkg_cache/repo.git@main")
+        );
     }
 
     #[test]
@@ -526,12 +636,6 @@ mod tests {
     }
 
     #[test]
-    fn exists_false_for_unknown_package() {
-        let manager = test_manager("/tmp/bld_pkg_cache_nonexistent_xyz");
-        assert!(!manager.exists("https://example.com/org/repo.git"));
-    }
-
-    #[test]
     fn ssh_credentials_agent_variant() {
         let ssh_config = SshConfig {
             host: "example.com".to_string(),
@@ -539,8 +643,8 @@ mod tests {
             user: "git".to_string(),
             userauth: SshUserAuth::Agent,
         };
-        let cred = PackageManager::ssh_credentials(&ssh_config, "git").unwrap();
-        assert!(git2::CredentialType::from_bits_truncate(cred.credtype() as u32).is_ssh_key());
+        let cred = Package::ssh_credentials(&ssh_config, "git").unwrap();
+        assert!(git2::CredentialType::from_bits_truncate(cred.credtype()).is_ssh_key());
     }
 
     #[test]
@@ -553,11 +657,8 @@ mod tests {
                 password: "secret".to_string(),
             },
         };
-        let cred = PackageManager::ssh_credentials(&ssh_config, "git").unwrap();
-        assert!(
-            git2::CredentialType::from_bits_truncate(cred.credtype() as u32)
-                .is_user_pass_plaintext()
-        );
+        let cred = Package::ssh_credentials(&ssh_config, "git").unwrap();
+        assert!(git2::CredentialType::from_bits_truncate(cred.credtype()).is_user_pass_plaintext());
     }
 
     #[test]
@@ -571,7 +672,282 @@ mod tests {
                 private_key: "/tmp/does-not-need-to-exist".to_string(),
             },
         };
-        let cred = PackageManager::ssh_credentials(&ssh_config, "git").unwrap();
-        assert!(git2::CredentialType::from_bits_truncate(cred.credtype() as u32).is_ssh_key());
+        let cred = Package::ssh_credentials(&ssh_config, "git").unwrap();
+        assert!(git2::CredentialType::from_bits_truncate(cred.credtype()).is_ssh_key());
+    }
+
+    #[tokio::test]
+    async fn is_git_repository_false_for_missing_directory() {
+        let env = TestEnv::new();
+        let package = env.manager.package(&env.source("pkg")).unwrap();
+        assert!(!env.manager.is_git_repository(&package).await);
+    }
+
+    #[tokio::test]
+    async fn is_git_repository_false_for_empty_directory() {
+        let env = TestEnv::new();
+        let package = env.manager.package(&env.source("pkg")).unwrap();
+        fs::create_dir_all(package.path()).unwrap();
+        assert!(!env.manager.is_git_repository(&package).await);
+    }
+
+    #[tokio::test]
+    async fn is_git_repository_false_for_partial_directory() {
+        let env = TestEnv::new();
+        let package = env.manager.package(&env.source("pkg")).unwrap();
+        fs::create_dir_all(package.path()).unwrap();
+        fs::write(path![package.path(), "leftover"], "junk").unwrap();
+        assert!(!env.manager.is_git_repository(&package).await);
+    }
+
+    #[tokio::test]
+    async fn is_git_repository_true_for_cloned_package() {
+        let env = TestEnv::new();
+        let source = env.source("pkg");
+        env.manager.read(&source).await.unwrap();
+        let package = env.manager.package(&source).unwrap();
+        assert!(env.manager.is_git_repository(&package).await);
+    }
+
+    #[tokio::test]
+    async fn lock_file_is_a_sibling_of_the_package_directory() {
+        let env = TestEnv::new();
+        env.manager.create_cache_dir().await.unwrap();
+        let package = env
+            .manager
+            .package("https://example.com/org/repo.git@main")
+            .unwrap();
+
+        let lock = package.lock().await.unwrap();
+        drop(lock);
+
+        assert_eq!(package.path().parent(), Some(env.cache_path()));
+        assert_eq!(env.cache_entries(), vec!["lock_repo.git@main".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn lock_file_is_shared_between_url_forms_of_the_same_repository() {
+        let env = TestEnv::new();
+        env.manager.create_cache_dir().await.unwrap();
+
+        for source in [
+            "https://example.com/org/repo.git",
+            "git@example.com:org/repo.git",
+        ] {
+            let package = env.manager.package(source).unwrap();
+            let lock = package.lock().await.unwrap();
+            drop(lock);
+        }
+
+        assert_eq!(env.cache_entries(), vec!["lock_repo.git".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn create_cache_dir_creates_missing_parents_and_is_idempotent() {
+        let root = TempDir::new().unwrap();
+        let cache = path![root.path(), "a", "b", "cache"];
+        let manager = test_manager(cache.to_str().unwrap());
+
+        manager.create_cache_dir().await.unwrap();
+        assert!(cache.is_dir());
+
+        manager.create_cache_dir().await.unwrap();
+        assert!(cache.is_dir());
+    }
+
+    #[tokio::test]
+    async fn read_clones_package_without_a_ref() {
+        let env = TestEnv::new();
+        let content = env.manager.read(&env.source("pkg")).await.unwrap();
+        assert_eq!(content, ACTION);
+    }
+
+    #[tokio::test]
+    async fn read_checks_out_a_non_default_branch() {
+        let env = TestEnv::new();
+        let source = format!("{}@feature", env.source("pkg"));
+        let content = env.manager.read(&source).await.unwrap();
+        assert!(content.ends_with("# feature\n"));
+
+        let package = env.manager.package(&source).unwrap();
+        let repository = Repository::open(package.path()).unwrap();
+        assert_eq!(repository.head().unwrap().shorthand(), Some("feature"));
+    }
+
+    #[tokio::test]
+    async fn read_checks_out_the_default_branch() {
+        let env = TestEnv::new();
+        let source = format!("{}@main", env.source("pkg"));
+        let content = env.manager.read(&source).await.unwrap();
+        assert_eq!(content, ACTION);
+
+        let package = env.manager.package(&source).unwrap();
+        let repository = Repository::open(package.path()).unwrap();
+        assert_eq!(repository.head().unwrap().shorthand(), Some("main"));
+    }
+
+    #[tokio::test]
+    async fn read_checks_out_a_tag_with_a_detached_head() {
+        let env = TestEnv::new();
+        let source = format!("{}@v1", env.source("pkg"));
+        let content = env.manager.read(&source).await.unwrap();
+        assert_eq!(content, ACTION);
+
+        let package = env.manager.package(&source).unwrap();
+        let repository = Repository::open(package.path()).unwrap();
+        assert!(repository.head_detached().unwrap());
+    }
+
+    #[tokio::test]
+    async fn read_fails_for_an_unknown_ref() {
+        let env = TestEnv::new();
+        let source = format!("{}@nope", env.source("pkg"));
+        let error = env.manager.read(&source).await.unwrap_err().to_string();
+        assert!(
+            error.contains("nope"),
+            "expected the missing ref to be reported, got: {error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn read_reports_the_clone_error_instead_of_a_missing_file() {
+        let env = TestEnv::new();
+        let source = env
+            .origins
+            .path()
+            .join("does-not-exist.git")
+            .to_string_lossy()
+            .to_string();
+
+        let error = env.manager.read(&source).await.unwrap_err().to_string();
+        assert!(
+            !error.contains("No such file or directory (os error 2)"),
+            "the underlying git error was swallowed, got: {error}"
+        );
+    }
+
+    /// Issue 356: two jobs of the same layer using the same package must both succeed.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_reads_of_the_same_package_on_a_cold_cache_succeed() {
+        let env = TestEnv::new();
+        let source = env.source("pkg");
+        let manager = env.manager.clone();
+
+        let mut handles = vec![];
+        for _ in 0..2 {
+            let (manager, source) = (manager.clone(), source.clone());
+            handles.push(tokio::spawn(async move { manager.read(&source).await }));
+        }
+
+        for handle in handles {
+            assert_eq!(handle.await.unwrap().unwrap(), ACTION);
+        }
+    }
+
+    /// Issue 356: the package directory must be complete once the concurrent reads are done.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn package_directory_is_complete_after_concurrent_reads() {
+        let env = TestEnv::new();
+        let source = env.source("pkg");
+        let manager = env.manager.clone();
+
+        let mut handles = vec![];
+        for _ in 0..6 {
+            let (manager, source) = (manager.clone(), source.clone());
+            handles.push(tokio::spawn(async move { manager.read(&source).await }));
+        }
+        for handle in handles {
+            handle.await.unwrap().unwrap();
+        }
+
+        let package = manager.package(&source).unwrap();
+        assert!(path![package.path(), ".git"].exists());
+        assert_eq!(
+            fs::read_to_string(path![package.path(), PACKAGE_ACTION_FILE_NAME]).unwrap(),
+            ACTION
+        );
+        Repository::open(package.path()).unwrap();
+    }
+
+    /// Issue 356: a job using a different package must not be blocked by the first one.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_reads_of_different_packages_succeed() {
+        let env = TestEnv::new();
+        let first = env.source("first");
+        let second = env.source("second");
+        let manager = env.manager.clone();
+
+        assert_ne!(
+            manager.package(&first).unwrap().path(),
+            manager.package(&second).unwrap().path()
+        );
+
+        let mut handles = vec![];
+        for source in [first, second] {
+            let manager = manager.clone();
+            handles.push(tokio::spawn(async move { manager.read(&source).await }));
+        }
+
+        for handle in handles {
+            assert_eq!(handle.await.unwrap().unwrap(), ACTION);
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_reads_of_the_same_package_on_a_warm_cache_succeed() {
+        let env = TestEnv::new();
+        let source = env.source("pkg");
+        let manager = env.manager.clone();
+        manager.read(&source).await.unwrap();
+
+        let mut handles = vec![];
+        for _ in 0..6 {
+            let (manager, source) = (manager.clone(), source.clone());
+            handles.push(tokio::spawn(async move { manager.read(&source).await }));
+        }
+
+        for handle in handles {
+            assert_eq!(handle.await.unwrap().unwrap(), ACTION);
+        }
+    }
+
+    /// A cache directory left behind in a partial state is re-cloned rather than read from.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn read_repairs_a_partial_cache_directory() {
+        let env = TestEnv::new();
+        let source = env.source("pkg");
+        let package = env.manager.package(&source).unwrap();
+        fs::create_dir_all(package.path()).unwrap();
+        fs::write(path![package.path(), "leftover"], "junk").unwrap();
+
+        assert_eq!(env.manager.read(&source).await.unwrap(), ACTION);
+
+        assert!(path![package.path(), ".git"].exists());
+        assert!(!path![package.path(), "leftover"].exists());
+    }
+
+    /// Issue 356: no temporary or partial directory is left in the cache. The lock files are
+    /// persisted on purpose, so they are the only entries expected next to the package directory.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_reads_leave_no_stray_entries_in_the_cache() {
+        let env = TestEnv::new();
+        let source = env.source("pkg");
+        let manager = env.manager.clone();
+
+        for _ in 0..3 {
+            let mut handles = vec![];
+            for _ in 0..6 {
+                let (manager, source) = (manager.clone(), source.clone());
+                handles.push(tokio::spawn(async move { manager.read(&source).await }));
+            }
+            for handle in handles {
+                handle.await.unwrap().unwrap();
+            }
+        }
+
+        assert_eq!(
+            env.cache_entries(),
+            vec!["lock_pkg.git".to_string(), "pkg.git".to_string()]
+        );
     }
 }

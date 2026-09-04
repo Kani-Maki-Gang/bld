@@ -876,6 +876,7 @@ dependencies = [
  "fs4",
  "git2",
  "regex",
+ "tempfile",
  "tokio",
  "tracing",
 ]
