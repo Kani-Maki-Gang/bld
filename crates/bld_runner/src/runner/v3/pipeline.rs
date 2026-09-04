@@ -16,10 +16,11 @@ use bld_pkg::PackageManager;
 use bld_utils::sync::IntoArc;
 use regex::Regex;
 use tokio::{sync::mpsc::Sender, time::sleep};
-use tracing::debug;
+use tracing::{debug, info};
 
 use crate::{
     dag::Dag,
+    deps::v3::{Dependencies, Dependency},
     expr::v3::context::CommonReadonlyRuntimeExprContext,
     pipeline::v3::Pipeline,
     runner::v3::{

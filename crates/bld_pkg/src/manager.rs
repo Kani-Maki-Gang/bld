@@ -4,11 +4,7 @@ use anyhow::{Result, anyhow, bail};
 use bld_config::{BldConfig, SshConfig, SshUserAuth, definitions::PACKAGE_ACTION_FILE_NAME, path};
 use git2::{Cred, FetchOptions, RemoteCallbacks, Repository, build::RepoBuilder};
 use std::path::PathBuf;
-use tokio::{
-    fs::{File, remove_dir_all},
-    io::AsyncReadExt,
-    task::spawn_blocking,
-};
+use tokio::{fs::File, io::AsyncReadExt, task::spawn_blocking};
 use tracing::{error, warn};
 
 #[derive(Clone)]
@@ -192,11 +188,6 @@ impl PackageManager {
     pub async fn get(&self, source: &str) -> Result<()> {
         let info = self.repo_info(source)?;
         let path = self.repo_path(&info);
-
-        if path.exists() {
-            remove_dir_all(&path).await?;
-        }
-
         let info_clone = info.clone();
         let config = self.config.clone();
         let repository =
@@ -367,6 +358,15 @@ impl PackageManager {
     }
 
     pub async fn read(&self, source: &str) -> Result<String> {
+        if self.exists(source) {
+            self.try_sync(source).await?;
+        } else {
+            // if get fails, then allow the read to try and read the file and fail if not found.
+            let _ = self
+                .get(source)
+                .await
+                .inspect_err(|e| warn!("Failed to clone package {source} due to {e}"));
+        }
         let info = self.repo_info(source)?;
         let repository_path = self.repo_path(&info);
         let file_path = path![&repository_path, PACKAGE_ACTION_FILE_NAME];
