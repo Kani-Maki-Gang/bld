@@ -17,15 +17,14 @@ use bld_pkg::PackageManager;
 use bld_utils::sync::IntoArc;
 use chrono::Utc;
 use regex::Regex;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{Mutex, mpsc::Sender};
-use tracing::{debug, info};
+use tokio::sync::mpsc::Sender;
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
     Dag,
-    deps::v3::{Dependencies, Dependency},
     expr::{
         self,
         v3::context::{CommonReadonlyRuntimeExprContextOptions, expr_rctx},
@@ -186,10 +185,6 @@ impl<'a> RunnerBuilder<'a> {
             .file
             .validate(config.clone(), self.fs.clone(), package_manager.clone())
             .await?;
-        if !self.is_child {
-            let visited = Arc::new(Mutex::new(HashSet::new()));
-            hydrate_packages(&metadata.file, self.fs.as_ref(), &package_manager, visited).await?;
-        }
 
         let env = self
             .env
@@ -372,40 +367,4 @@ impl<'a> RunnerBuilder<'a> {
 
         Ok(runner)
     }
-}
-
-async fn hydrate_packages(
-    file: &VersionedFile,
-    fs: &FileSystem,
-    package_manager: &PackageManager,
-    visited: Arc<Mutex<HashSet<String>>>,
-) -> Result<()> {
-    let VersionedFile::Version3(file) = file else {
-        return Ok(());
-    };
-    info!("Hydrating packages");
-    let loader = VersionedFileLoader::new(package_manager, fs, false);
-    let remote_deps = file.remote_deps(package_manager).await;
-    for entry in remote_deps {
-        let Dependency::Remote(remote) = entry else {
-            continue;
-        };
-        if remote.server.is_some() {
-            continue;
-        }
-        {
-            let mut visited = visited.lock().await;
-            if visited.contains(remote.name) {
-                continue;
-            }
-            visited.insert(remote.name.to_string());
-        }
-        let metadata = loader.load(remote.name).await?;
-        let visited = visited.clone();
-        Box::pin(
-            async move { hydrate_packages(&metadata.file, fs, package_manager, visited).await },
-        )
-        .await?;
-    }
-    Ok(())
 }

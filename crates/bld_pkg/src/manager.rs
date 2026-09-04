@@ -6,7 +6,7 @@ use fs4::AsyncFileExt;
 use git2::{Cred, FetchOptions, RemoteCallbacks, Repository, build::RepoBuilder};
 use std::path::PathBuf;
 use tokio::{
-    fs::{File, OpenOptions, remove_dir_all, remove_file},
+    fs::{File, OpenOptions, create_dir_all, remove_dir_all},
     io::AsyncReadExt,
     task::spawn_blocking,
 };
@@ -208,6 +208,34 @@ impl PackageManager {
         self.package(source).is_ok()
     }
 
+    async fn is_git_repository(&self, package: &Package) -> bool {
+        let ceiling = path![&self.config.local.packages.cache];
+        let path = package.path();
+        if path.exists() {
+            let package = package.clone();
+            let result = spawn_blocking(move || Repository::discover_path(&path, &ceiling)).await;
+
+            return match result {
+                Ok(Ok(_)) => true,
+                Ok(Err(e)) => {
+                    warn!(
+                        "No valid git repository found for package {} due to {e}",
+                        package.name
+                    );
+                    false
+                }
+                Err(e) => {
+                    warn!(
+                        "No valid git repository found for package {} due to {e}",
+                        package.name
+                    );
+                    false
+                }
+            };
+        }
+        false
+    }
+
     async fn get(&self, package: Package) -> Result<()> {
         let path = package.path();
         let branch = package.branch.clone();
@@ -370,17 +398,19 @@ impl PackageManager {
         Ok(())
     }
 
+    async fn create_cache_dir(&self) -> Result<()> {
+        let path = path![&self.config.local.packages.cache];
+        create_dir_all(&path).await.map_err(|e| anyhow!(e))
+    }
+
     pub async fn read(&self, source: &str) -> Result<String> {
+        self.create_cache_dir().await?;
         let package = self.package(source)?;
         let _lock_file = package.lock().await?;
-        if package.path().exists() {
+        if self.is_git_repository(&package).await {
             self.try_sync(&package).await?;
         } else {
-            // if get fails, then allow the read to try and read the file and fail if not found.
-            let _ = self
-                .get(package)
-                .await
-                .inspect_err(|e| warn!("Failed to clone package {source} due to {e}"));
+            self.get(package).await?;
         }
         let package = self.package(source)?;
         let file_path = path![&package.path(), PACKAGE_ACTION_FILE_NAME];
