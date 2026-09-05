@@ -57,6 +57,8 @@ pub struct CommonReadonlyRuntimeExprContext {
     pub env: Arc<HashMap<String, String>>,
     pub run_id: String,
     pub run_start_time: String,
+    /// Set only by the validator, see [`ReadonlyRuntimeExprContext::is_validation`].
+    pub validation: bool,
 }
 
 impl CommonReadonlyRuntimeExprContext {
@@ -73,7 +75,15 @@ impl CommonReadonlyRuntimeExprContext {
             env,
             run_id,
             run_start_time,
+            validation: false,
         }
+    }
+
+    /// Marks the context as one of the validator, where every input and env
+    /// variable stands in with a blank value.
+    pub fn with_validation(mut self) -> Self {
+        self.validation = true;
+        self
     }
 
     pub fn clone_with(&self, closure: impl FnOnce(&mut Self)) -> Self {
@@ -112,6 +122,10 @@ impl<'a> ReadonlyRuntimeExprContext<'a> for CommonReadonlyRuntimeExprContext {
 
     fn get_run_start_time(&'a self) -> &'a str {
         &self.run_start_time
+    }
+
+    fn is_validation(&self) -> bool {
+        self.validation
     }
 }
 

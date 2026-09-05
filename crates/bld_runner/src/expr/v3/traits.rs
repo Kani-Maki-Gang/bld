@@ -297,6 +297,10 @@ pub trait ReadonlyRuntimeExprContext<'a> {
     fn get_env(&'a self, name: &'a str) -> Result<&'a str>;
     fn get_run_id(&'a self) -> &'a str;
     fn get_run_start_time(&'a self) -> &'a str;
+    /// True when the context belongs to the validator, which stands in for every
+    /// input and env variable with a blank value. Evaluation that needs the real
+    /// value has to give [`ExprValue::Unknown`] instead of an error then.
+    fn is_validation(&self) -> bool;
 }
 
 #[cfg_attr(test, automock)]
