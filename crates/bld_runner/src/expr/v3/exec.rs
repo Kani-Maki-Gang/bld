@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use crate::expr::v3::parser::{ExprParser, Rule};
 
 use super::traits::{
-    EvalExpr, EvalObject, ExprText, ExprValue, ReadonlyRuntimeExprContext,
-    WritableRuntimeExprContext,
+    EvalExpr, EvalObject, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
 };
 use anyhow::{Result, anyhow, bail};
 use pest::{Parser, iterators::Pair};
@@ -158,19 +157,36 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
             .parse()
             .map_err(|_| anyhow!("invalid array index: {index_span}"))?;
 
-        let type_str = value.type_as_string();
-        let ExprValue::Text(ExprText::Ref(text)) = value else {
-            bail!("cannot index into value of type {type_str}");
-        };
+        let items = match value {
+            ExprValue::Array(items) => items,
 
-        let mut pairs = ExprParser::parse(Rule::Array, text)
-            .map_err(|_| anyhow!("value is not an array: {text}"))?;
-        let array = pairs
-            .next()
-            .ok_or_else(|| anyhow!("value is not an array: {text}"))?;
+            // The real value of a step output or an input is not known during
+            // validation, so an index into it can't be checked either.
+            ExprValue::Unknown => return Ok(ExprValue::Unknown),
 
-        let ExprValue::Array(items) = self.eval_array(array)? else {
-            bail!("expected array value");
+            ExprValue::Text(text) => {
+                let raw = text.inner();
+
+                // The validator has no real value for an input, so it stands in with
+                // an empty string. An index into that placeholder must not be
+                // reported as an error, only the run itself can check it.
+                if raw.is_empty() && self.rctx.is_validation() {
+                    return Ok(ExprValue::Unknown);
+                }
+
+                let parsed: ExprValue<'a> = raw
+                    .try_into()
+                    .map_err(|_| anyhow!("the value is not an array: '{raw}'"))?;
+                let ExprValue::Array(items) = parsed else {
+                    bail!("the value is not an array: '{raw}'");
+                };
+                items
+            }
+
+            other => bail!(
+                "cannot index into a value of type {}",
+                other.type_as_string()
+            ),
         };
 
         let len = items.len();
@@ -376,15 +392,34 @@ mod tests {
     use crate::{
         expr::v3::{
             context::CommonReadonlyRuntimeExprContext,
-            traits::{ExprText, MockWritableRuntimeExprContext, tests::expr_number},
+            traits::{ExprText, MockWritableRuntimeExprContext, OutputScope, tests::expr_number},
         },
+        job::v3::Job,
         pipeline::v3::Pipeline,
+        runner::v3::{JobState, RootState},
+        step::v3::{ShellCommand, Step},
     };
     use anyhow::Result;
     use bld_utils::sync::IntoArc;
+    use mockall::predicate;
     use std::collections::HashMap;
 
     use super::*;
+
+    fn pipeline_with_step(job: &str, step: &str) -> Pipeline {
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            job.to_string(),
+            Job {
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: step.to_string(),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+        pipeline
+    }
 
     fn rctx_with(
         inputs: Vec<(&str, &str)>,
@@ -763,7 +798,147 @@ mod tests {
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
-        assert!(exec.eval("${{ inputs.numbers[5] }}").is_err());
+        let err = exec.eval("${{ inputs.numbers[5] }}").unwrap_err();
+        assert!(err.to_string().contains("length 3"), "error was: {err}");
+    }
+
+    #[test]
+    pub fn array_step_output_index_access_eval_success() {
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        wctx.expect_get_exec_id().returning(|| Some("main"));
+        wctx.expect_get_output()
+            .with(
+                predicate::eq(OutputScope::Step),
+                predicate::eq("build"),
+                predicate::eq("items"),
+            )
+            .times(1)
+            .returning(|_, _, _| {
+                Ok(ExprValue::Array(vec![
+                    ExprValue::Text(ExprText::Ref("x")),
+                    ExprValue::Text(ExprText::Ref("y")),
+                ]))
+            });
+
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = pipeline_with_step("main", "build");
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let value = exec
+            .eval("${{ steps.build.outputs.items[0] }}")
+            .expect("failed to eval indexed step output");
+        assert!(matches!(
+            value.try_eq(&ExprValue::Text(ExprText::Owned("x".to_string()))),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
+
+    /// The state of a run converts the text of an output into a value, so an array
+    /// output has to be indexable exactly as it is stored there.
+    #[test]
+    pub fn array_step_output_of_run_state_index_access_eval_success() {
+        let mut wctx = JobState::new("main");
+        wctx.add_node("build");
+        wctx.set_output("build", "items".to_string(), "[\"x\", \"y\"]".to_string())
+            .unwrap();
+
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = pipeline_with_step("main", "build");
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let value = exec
+            .eval("${{ steps.build.outputs.items[1] }}")
+            .expect("failed to eval indexed step output");
+        assert_eq!(value.to_string(), "y");
+    }
+
+    #[test]
+    pub fn text_step_output_index_access_eval_success() {
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        wctx.expect_get_exec_id().returning(|| Some("main"));
+        wctx.expect_get_output()
+            .with(
+                predicate::eq(OutputScope::Step),
+                predicate::eq("build"),
+                predicate::eq("items"),
+            )
+            .times(1)
+            .returning(|_, _, _| {
+                Ok(ExprValue::Text(ExprText::Owned(
+                    "[\"x\", \"y\"]".to_string(),
+                )))
+            });
+
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = pipeline_with_step("main", "build");
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let value = exec
+            .eval("${{ steps.build.outputs.items[1] }}")
+            .expect("failed to eval indexed step output");
+        assert!(matches!(
+            value.try_eq(&ExprValue::Text(ExprText::Owned("y".to_string()))),
+            Ok(ExprValue::Boolean(true))
+        ));
+    }
+
+    #[test]
+    pub fn index_into_number_step_output_eval_failure() {
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        wctx.expect_get_exec_id().returning(|| Some("main"));
+        wctx.expect_get_output()
+            .with(
+                predicate::eq(OutputScope::Step),
+                predicate::eq("build"),
+                predicate::eq("count"),
+            )
+            .times(1)
+            .returning(|_, _, _| {
+                Ok(ExprValue::Number {
+                    value: 5.0,
+                    raw: ExprText::Owned("5".to_string()),
+                })
+            });
+
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = pipeline_with_step("main", "build");
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let err = exec
+            .eval("${{ steps.build.outputs.count[0] }}")
+            .unwrap_err();
+        assert!(err.to_string().contains("number"), "error was: {err}");
+    }
+
+    #[test]
+    pub fn index_into_blank_validation_placeholder_gives_unknown() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = rctx_with(vec![("list", "")], vec![]).with_validation();
+
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let value = exec
+            .eval("${{ inputs.list[0] }}")
+            .expect("indexing a blank placeholder value must not error");
+        assert!(matches!(value, ExprValue::Unknown));
+    }
+
+    /// Outside of validation a blank value is a real one, so an index into it has
+    /// to be reported instead of quietly giving an unknown value.
+    #[test]
+    pub fn index_into_blank_input_of_a_run_eval_failure() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = rctx_with(vec![("list", "")], vec![]);
+
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let err = exec.eval("${{ inputs.list[0] }}").unwrap_err();
+        assert!(
+            err.to_string().contains("the value is not an array: ''"),
+            "error was: {err}"
+        );
     }
 
     #[test]

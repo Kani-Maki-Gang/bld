@@ -541,6 +541,38 @@ mod tests {
         assert!(result.is_ok(), "unexpected error: {:?}", result.err());
     }
 
+    /// Neither the value of an input nor the value of a step output is known during
+    /// validation, so an index into either one can only be checked by the run itself.
+    #[tokio::test]
+    pub async fn index_into_input_and_step_output_validation_success() {
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .inputs
+            .insert("list".to_string(), complex_input(r#"["a", "b"]"#));
+        pipeline.jobs.insert(
+            "main".to_string(),
+            Job {
+                steps: vec![
+                    Step::ComplexSh(Box::new(ShellCommand {
+                        id: "build".to_string(),
+                        run: r#"echo 'items=["x", "y"]' >> $BLD_OUTPUTS"#.to_string(),
+                        ..Default::default()
+                    })),
+                    Step::ComplexSh(Box::new(ShellCommand {
+                        id: "show".to_string(),
+                        run: r#"echo "${{ inputs.list[0] }} ${{ steps.build.outputs.items[0] }}""#
+                            .to_string(),
+                        ..Default::default()
+                    })),
+                ],
+                ..Default::default()
+            },
+        );
+
+        let result = validate_pipeline(pipeline).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
     #[tokio::test]
     pub async fn runtime_expr_in_input_default_and_env_validation_failure() {
         let mut pipeline = Pipeline::default();
