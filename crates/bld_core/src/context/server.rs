@@ -185,7 +185,7 @@ impl ServerContextBackend {
         }
 
         for platform in self.platforms.iter() {
-            let _ = platform.dispose(false).await.map_err(|e| error!("{e}"));
+            let _ = platform.dispose().await.map_err(|e| error!("{e}"));
         }
 
         resp_tx

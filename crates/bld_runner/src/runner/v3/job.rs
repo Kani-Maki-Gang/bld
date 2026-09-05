@@ -50,7 +50,6 @@ pub struct JobRunnerOptions<S: RootState> {
     pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
     pub package_manager: Arc<PackageManager>,
     pub artifacts: Arc<Artifacts>,
-    pub is_child: bool,
     pub state: S,
 }
 
@@ -532,7 +531,7 @@ impl<S: RootState> JobRunner<S> {
     async fn dispose_platform(&self, job: &Job) -> Result<()> {
         if job.dispose {
             debug!("executing dispose operations for platform");
-            self.platform()?.dispose(self.options.is_child).await?;
+            self.platform()?.dispose().await?;
         } else {
             debug!("keeping platform alive");
             self.platform()?.keep_alive().await?;
@@ -743,7 +742,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let job = JobRunner {
@@ -799,7 +797,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let job = JobRunner {
@@ -860,7 +857,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let mut job = JobRunner {
@@ -936,7 +932,6 @@ mod tests {
             expr_rctx: expr_rctx.into_arc(),
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
 
@@ -1045,7 +1040,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
 
@@ -1255,7 +1249,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1325,7 +1318,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1391,7 +1383,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1467,7 +1458,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1541,7 +1531,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1615,7 +1604,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1688,7 +1676,6 @@ steps:
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         JobRunner {
@@ -1742,7 +1729,6 @@ steps:
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1805,7 +1791,6 @@ steps:
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1873,7 +1858,6 @@ steps:
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1938,7 +1922,6 @@ steps:
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
 
@@ -2082,7 +2065,6 @@ steps:
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         JobRunner {

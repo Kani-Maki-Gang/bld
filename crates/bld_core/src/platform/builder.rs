@@ -4,6 +4,7 @@ use anyhow::{Result, anyhow};
 use bld_config::BldConfig;
 use bld_utils::sync::IntoArc;
 use sea_orm::DatabaseConnection;
+use uuid::Uuid;
 
 use crate::{
     logger::Logger,
@@ -120,7 +121,8 @@ impl<'a> PlatformBuilder<'a> {
             }
 
             PlatformOptions::Machine => {
-                let machine = Machine::new(run_id, config, pipeline_env, env).await?;
+                let platform_id = Uuid::new_v4().to_string();
+                let machine = Machine::new(run_id, &platform_id, config, pipeline_env, env).await?;
                 Platform::machine(Box::new(machine))
             }
         }

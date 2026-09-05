@@ -9,7 +9,7 @@ use std::{
     process::ExitStatus,
     sync::Arc,
 };
-use tokio::fs::{copy, create_dir_all, read_dir, read_to_string, remove_dir_all};
+use tokio::fs::{copy, create_dir_all, read_dir, read_to_string, remove_dir, remove_dir_all};
 use tracing::debug;
 use uuid::Uuid;
 
@@ -66,12 +66,13 @@ pub struct Machine {
 
 impl Machine {
     pub async fn new(
-        id: &str,
+        run_id: &str,
+        platform_id: &str,
         config: Arc<BldConfig>,
         pipeline_env: &HashMap<String, String>,
         env: Arc<HashMap<String, String>>,
     ) -> Result<Self> {
-        let tmp_path = config.tmp_full_path(id);
+        let tmp_path = config.tmp_full_path(run_id).join(platform_id);
         if !tmp_path.is_dir() {
             create_dir_all(&tmp_path).await?;
         }
@@ -164,16 +165,62 @@ impl Machine {
 
     pub async fn dispose(&self) -> Result<()> {
         remove_dir_all(&self.tmp_dir).await?;
+
+        // The directory of the run is shared with the platforms of the other jobs, so it
+        // is only removed by the last platform that is disposed. The removal fails while
+        // any other job still holds a directory there, which is the expected outcome.
+        if let Some(run_dir) = Path::new(&self.tmp_dir).parent() {
+            let _ = remove_dir(run_dir).await;
+        }
+
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::copy_path;
+    use super::{Machine, copy_path};
     use bld_config::BldConfig;
+    use bld_utils::sync::IntoArc;
+    use std::collections::HashMap;
     use std::fs::{create_dir_all, read_to_string, remove_dir_all, write};
+    use std::path::Path;
     use uuid::Uuid;
+
+    #[tokio::test]
+    async fn dispose_of_one_machine_platform_does_not_remove_the_directory_of_another() {
+        let config = BldConfig::default().into_arc();
+        let run_id = format!("machine-dispose-test-{}", Uuid::new_v4());
+        let pipeline_env = HashMap::new();
+        let env = HashMap::new().into_arc();
+
+        let first = Machine::new(&run_id, "first", config.clone(), &pipeline_env, env.clone())
+            .await
+            .unwrap();
+        let second = Machine::new(
+            &run_id,
+            "second",
+            config.clone(),
+            &pipeline_env,
+            env.clone(),
+        )
+        .await
+        .unwrap();
+
+        let run_dir = config.tmp_full_path(&run_id);
+        let second_marker = Path::new(&second.tmp_dir).join("marker.txt");
+        write(&second_marker, b"still here").unwrap();
+
+        first.dispose().await.unwrap();
+
+        assert!(!Path::new(&first.tmp_dir).exists());
+        assert!(second_marker.exists());
+        assert!(run_dir.is_dir());
+
+        second.dispose().await.unwrap();
+        assert!(!Path::new(&second.tmp_dir).exists());
+        assert!(!run_dir.exists());
+    }
 
     #[tokio::test]
     async fn copy_path_copies_file_into_directory_target() {
