@@ -56,7 +56,8 @@ impl ConsumeValidator for RunnerFileValidator<'_> {
                     env.clone().into_arc(),
                     String::new(),
                     String::new(),
-                );
+                )
+                .with_validation();
                 // Create expr_rctx for each job's scope
                 let job_expr_rctx_values: Vec<(&str, CommonReadonlyRuntimeExprContext)> = pip
                     .jobs
@@ -73,7 +74,8 @@ impl ConsumeValidator for RunnerFileValidator<'_> {
                                 job_env.into_arc(),
                                 String::new(),
                                 String::new(),
-                            ),
+                            )
+                            .with_validation(),
                         )
                     })
                     .collect();
@@ -112,7 +114,8 @@ impl ConsumeValidator for RunnerFileValidator<'_> {
                     HashMap::new().into_arc(),
                     String::new(),
                     String::new(),
-                );
+                )
+                .with_validation();
                 let expr_wctx = vec![ValidatorWritableRuntimeExprContext::new("action")];
                 CommonValidator::new(
                     action.as_ref(),
