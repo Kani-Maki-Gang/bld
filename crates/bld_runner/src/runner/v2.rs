@@ -408,7 +408,7 @@ impl Runner {
         };
         if self.pipeline.dispose {
             debug!("executing dispose operations for platform");
-            platform.dispose(self.is_child).await?;
+            platform.dispose().await?;
         } else {
             debug!("keeping platform alive");
             platform.keep_alive().await?;

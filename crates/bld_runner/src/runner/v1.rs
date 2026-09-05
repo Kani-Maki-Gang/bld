@@ -79,7 +79,7 @@ impl Runner {
     async fn dispose_platform(&self) -> Result<()> {
         if self.pipeline.dispose {
             debug!("executing dispose operations for platform");
-            self.platform.dispose(self.is_child).await?;
+            self.platform.dispose().await?;
         } else {
             debug!("keeping platform alive");
             self.platform.keep_alive().await?;

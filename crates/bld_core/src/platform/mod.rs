@@ -258,11 +258,12 @@ impl Platform {
         }
     }
 
-    pub async fn dispose(&self, in_child_runner: bool) -> Result<()> {
+    pub async fn dispose(&self) -> Result<()> {
         match &self.inner {
-            // checking if the runner is a child in order to not cleanup the temp dir for the whole run
-            PlatformType::Machine(machine) if !in_child_runner => machine.dispose().await,
-            PlatformType::Machine(_) => Ok(()),
+            // every machine platform owns a directory of its own inside the directory of
+            // the run, so disposing one never removes the files of another platform. A
+            // child runner that received this platform from its parent doesn't dispose it.
+            PlatformType::Machine(machine) => machine.dispose().await,
             PlatformType::Container(container) => container.dispose().await,
             PlatformType::Ssh(ssh) => {
                 let (resp_tx, resp_rx) = oneshot::channel();
