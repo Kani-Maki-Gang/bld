@@ -7,6 +7,10 @@ use std::{collections::HashMap, fmt::Display, iter::Peekable};
 
 #[cfg(test)]
 use mockall::automock;
+use pest::Parser;
+use pest::iterators::{Pair, Pairs};
+
+use super::parser::{ExprParser, Rule};
 
 fn unescape_string_literal(value: &str) -> String {
     let quote = value.chars().next();
@@ -70,23 +74,45 @@ impl<'a> ExprText<'a> {
     }
 }
 
+pub fn array_from_pair<'a>(pair: Pair<'_, Rule>) -> Result<ExprValue<'a>> {
+    let Rule::Array = pair.as_rule() else {
+        bail!("expected array rule, found {:?}", pair.as_rule());
+    };
+
+    let mut items = Vec::new();
+    let mut element_type: Option<&'static str> = None;
+
+    for element in pair.into_inner() {
+        let Rule::ArrayElement = element.as_rule() else {
+            bail!("expected array element rule, found {:?}", element.as_rule());
+        };
+
+        let value: ExprValue<'a> = element.as_span().as_str().try_into()?;
+
+        match element_type {
+            Some(expected) if expected != value.type_as_string() => {
+                bail!("array elements must all be of the same type")
+            }
+            None => element_type = Some(value.type_as_string()),
+            _ => {}
+        }
+
+        items.push(value);
+    }
+
+    Ok(ExprValue::Array(items))
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExprValue<'a> {
     Boolean(bool),
-    /// `raw` keeps the original text the number was parsed from, so that
-    /// formatting it back to text does not lose information. `value` is used
-    /// for numeric comparisons.
     Number {
         value: f64,
-        raw: ExprText<'a>,
+        raw: ExprText<'a>, // original text for formatting puprposes
     },
     Text(ExprText<'a>),
     Array(Vec<ExprValue<'a>>),
-    /// Placeholder used only during validation, when the real value of a
-    /// step output is not known yet. It is compatible with every
-    /// comparison, so a validation-time expression that compares a step
-    /// output does not fail due to a type mismatch.
-    Unknown,
+    Unknown, // Placeholder for expression results that aren't known at validation time
 }
 
 impl<'a, 'b> ExprValue<'a> {
@@ -213,23 +239,13 @@ impl<'b> TryFrom<&'b str> for ExprValue<'_> {
         }
 
         // Try array
-        if value.starts_with('[') && value.ends_with(']') {
-            let mut expr_type: Option<&'static str> = None;
-            let mut expr_value = vec![];
-            for entry in value[1..value.len() - 1].split(',') {
-                let entry_expr_value: ExprValue<'_> = entry.trim().try_into()?;
-                let entry_expr_type = entry_expr_value.type_as_string();
-
-                if let Some(expr_type) = expr_type
-                    && expr_type != entry_expr_value.type_as_string()
-                {
-                    bail!("Array expression contains entries of multiple types")
-                }
-
-                expr_type = Some(entry_expr_type);
-                expr_value.push(entry_expr_value);
-            }
-            return Ok(ExprValue::Array(expr_value));
+        if value.starts_with('[')
+            && value.ends_with(']')
+            && let Ok(mut pairs) = ExprParser::parse(Rule::Array, value)
+            && let Some(pair) = pairs.next()
+            && pair.as_span().end() == value.len()
+        {
+            return array_from_pair(pair);
         }
 
         // Fallback to test

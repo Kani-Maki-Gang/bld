@@ -42,8 +42,8 @@ impl ConsumeValidator for RunnerFileValidator<'_> {
     async fn validate(self) -> Result<()> {
         match self.file {
             RunnerFile::PipelineFileType(pip) => {
-                let inputs: HashSet<String> = pip.inputs.keys().map(|k| k.clone()).collect();
-                let env: HashSet<String> = pip.env.keys().map(|k| k.clone()).collect();
+                let inputs: HashSet<String> = pip.inputs.keys().cloned().collect();
+                let env: HashSet<String> = pip.env.keys().cloned().collect();
                 let expr_rctx = ValidatorReadonlyRuntimeExprContext::new(
                     self.config.clone(),
                     inputs.clone(),
@@ -58,7 +58,7 @@ impl ConsumeValidator for RunnerFileValidator<'_> {
                     .filter(|(_, job)| !job.env.is_empty())
                     .map(|(name, job)| {
                         let mut job_env = env.clone();
-                        job_env.extend(job.env.keys().map(|k| k.clone()));
+                        job_env.extend(job.env.keys().cloned());
                         (
                             name.as_str(),
                             ValidatorReadonlyRuntimeExprContext::new(
@@ -102,7 +102,7 @@ impl ConsumeValidator for RunnerFileValidator<'_> {
             RunnerFile::ActionFileType(action) => {
                 let expr_rctx = ValidatorReadonlyRuntimeExprContext::new(
                     self.config.clone(),
-                    action.inputs.keys().map(|k| k.clone()).collect(),
+                    action.inputs.keys().cloned().collect(),
                     HashSet::new(),
                     String::new(),
                     String::new(),

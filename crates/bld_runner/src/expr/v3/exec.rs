@@ -4,6 +4,7 @@ use crate::expr::v3::parser::{ExprParser, Rule};
 
 use super::traits::{
     EvalExpr, EvalObject, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
+    array_from_pair,
 };
 use anyhow::{Result, anyhow, bail};
 use pest::{Parser, iterators::Pair};
@@ -58,36 +59,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
     }
 
     fn eval_array(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
-        let Rule::Array = expr.as_rule() else {
-            bail!("expected array rule, found {:?}", expr.as_rule());
-        };
-
-        let mut items = Vec::new();
-        let mut element_rule: Option<Rule> = None;
-
-        for element in expr.into_inner() {
-            let Rule::ArrayElement = element.as_rule() else {
-                bail!("expected array element rule, found {:?}", element.as_rule());
-            };
-
-            let element = element
-                .into_inner()
-                .next()
-                .ok_or_else(|| anyhow!("empty array element found"))?;
-            let rule = element.as_rule();
-
-            match element_rule {
-                Some(expected) if expected != rule => {
-                    bail!("array elements must all be of the same type")
-                }
-                None => element_rule = Some(rule),
-                _ => {}
-            }
-
-            items.push(element.as_span().as_str().try_into()?);
-        }
-
-        Ok(ExprValue::Array(items))
+        array_from_pair(expr)
     }
 
     fn eval_and_term(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
@@ -166,17 +138,18 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 
             ExprValue::Text(text) => {
                 let raw = text.inner();
-                let parsed: ExprValue<'a> = raw
-                    .try_into()
-                    .map_err(|_| anyhow!("the value is not an array: '{raw}'"))?;
-                let ExprValue::Array(items) = parsed else {
-                    bail!("the value is not an array: '{raw}'");
-                };
-                items
+                match TryInto::<ExprValue<'a>>::try_into(raw) {
+                    Ok(ExprValue::Array(items)) => items,
+                    Ok(other) => bail!(
+                        "cannot index into a value of type {}: '{raw}'",
+                        other.type_as_string()
+                    ),
+                    Err(_) => bail!("the value is not an array: '{raw}'"),
+                }
             }
 
             other => bail!(
-                "cannot index into a value of type {}",
+                "cannot index into a value of type {}: '{other}'",
                 other.type_as_string()
             ),
         };
