@@ -259,11 +259,13 @@ mod tests {
     use bld_utils::sync::IntoArc;
 
     use crate::{
-        expr::v3::context::CommonReadonlyRuntimeExprContext,
         pipeline::v3::Pipeline,
         step::v3::{ShellCommand, Step},
         strategy::v3::{FailFastValue, MatrixValue, Strategy},
-        validator::v3::{CommonValidator, ConsumeValidator, ValidatorWritableRuntimeExprContext},
+        validator::v3::{
+            CommonValidator, ConsumeValidator, ValidatorReadonlyRuntimeExprContext,
+            ValidatorWritableRuntimeExprContext,
+        },
     };
 
     use super::{Job, Needs};
@@ -273,7 +275,7 @@ mod tests {
         let config = BldConfig::default().into_arc();
         let file_system = FileSystem::local(config.clone()).into_arc();
         let package_manager = PackageManager::new(config.clone()).into_arc();
-        let expr_rctx = CommonReadonlyRuntimeExprContext::default();
+        let expr_rctx = ValidatorReadonlyRuntimeExprContext::default();
         let expr_wctx = vec![ValidatorWritableRuntimeExprContext::new(job_name)];
 
         let mut pipeline = Pipeline::default();

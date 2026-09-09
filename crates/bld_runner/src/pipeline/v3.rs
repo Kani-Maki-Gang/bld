@@ -697,6 +697,30 @@ mod tests {
         );
     }
 
+    /// An input that is not declared must be named as an input, not as an env
+    /// variable.
+    #[tokio::test]
+    pub async fn undeclared_input_validation_failure() {
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            "main".to_string(),
+            Job {
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "show".to_string(),
+                    run: "echo ${{ inputs.nope }}".to_string(),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+
+        let Err(e) = validate_pipeline(pipeline).await else {
+            panic!("expected a validation error for an undeclared input");
+        };
+        let error = e.to_string();
+        assert!(error.contains("input 'nope' not found"), "{error}");
+    }
+
     #[test]
     pub fn name_expr_eval_success() {
         let wctx = MockWritableRuntimeExprContext::new();

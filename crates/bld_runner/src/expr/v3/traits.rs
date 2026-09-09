@@ -384,6 +384,60 @@ pub mod tests {
         }
     }
 
+    fn array_items(value: &str) -> Vec<String> {
+        let value: ExprValue = value.try_into().unwrap();
+        let ExprValue::Array(items) = value else {
+            panic!("expected array, got {value:?}");
+        };
+        items.iter().map(|item| item.to_string()).collect()
+    }
+
+    #[test]
+    fn array_conversion_keeps_a_comma_inside_quotation_marks() {
+        assert_eq!(array_items(r#"["a,b", "c"]"#), vec!["a,b", "c"]);
+    }
+
+    #[test]
+    fn array_conversion_accepts_an_empty_array() {
+        assert!(array_items("[]").is_empty());
+    }
+
+    #[test]
+    fn array_conversion_accepts_text_and_number_elements() {
+        assert_eq!(array_items(r#"["x", "y"]"#), vec!["x", "y"]);
+        assert_eq!(array_items("[1, 2]"), vec!["1", "2"]);
+    }
+
+    #[test]
+    fn array_conversion_rejects_elements_without_quotation_marks() {
+        let value: ExprValue = "[a, b]".try_into().unwrap();
+        assert!(
+            matches!(value, ExprValue::Text(_)),
+            "expected text, got {value:?}"
+        );
+        assert_eq!(value.to_string(), "[a, b]");
+    }
+
+    #[test]
+    fn array_conversion_rejects_text_after_the_array() {
+        let value: ExprValue = r#"["a"] junk]"#.try_into().unwrap();
+        assert!(
+            matches!(value, ExprValue::Text(_)),
+            "expected text, got {value:?}"
+        );
+    }
+
+    #[test]
+    fn array_conversion_rejects_elements_of_multiple_types() {
+        let error = TryInto::<ExprValue>::try_into(r#"[1, "a"]"#).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("array elements must all be of the same type"),
+            "error was: {error}"
+        );
+    }
+
     #[test]
     fn numbers_still_compare_by_value() {
         let count: ExprValue = "10".try_into().unwrap();

@@ -363,11 +363,12 @@ mod tests {
         pipeline::v3::Pipeline,
         runner::v3::{JobState, RootState},
         step::v3::{ShellCommand, Step},
+        validator::v3::ValidatorReadonlyRuntimeExprContext,
     };
     use anyhow::Result;
     use bld_utils::sync::IntoArc;
     use mockall::predicate;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
 
     use super::*;
 
@@ -817,6 +818,75 @@ mod tests {
         assert_eq!(value.to_string(), "y");
     }
 
+    /// A step output that has no quotation marks around its elements is not an
+    /// array, because the grammar accepts a boolean, a number or a string only.
+    #[test]
+    pub fn step_output_without_quotation_marks_index_access_eval_failure() {
+        let mut wctx = JobState::new("main");
+        wctx.add_node("build");
+        wctx.set_output("build", "items".to_string(), "[a, b]".to_string())
+            .unwrap();
+
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = pipeline_with_step("main", "build");
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let err = exec
+            .eval("${{ steps.build.outputs.items[0] }}")
+            .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("cannot index into a value of type text: '[a, b]'"),
+            "error was: {err}"
+        );
+    }
+
+    #[test]
+    pub fn input_array_with_comma_index_access_eval_success() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = rctx_with(vec![("list", r#"["a,b", "c"]"#)], vec![]);
+
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let value = exec
+            .eval("${{ inputs.list[0] }}")
+            .expect("failed to eval indexed input");
+        assert_eq!(value.to_string(), "a,b");
+    }
+
+    #[test]
+    pub fn empty_input_array_index_access_eval_failure() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = rctx_with(vec![("list", "[]")], vec![]);
+
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let err = exec.eval("${{ inputs.list[0] }}").unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("index 0 out of bounds for array of length 0"),
+            "error was: {err}"
+        );
+    }
+
+    #[test]
+    pub fn index_into_number_input_eval_failure() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = rctx_with(vec![("count", "5")], vec![]);
+
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let err = exec.eval("${{ inputs.count[0] }}").unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("cannot index into a value of type number: '5'"),
+            "error was: {err}"
+        );
+    }
+
     #[test]
     pub fn text_step_output_index_access_eval_success() {
         let mut wctx = MockWritableRuntimeExprContext::new();
@@ -876,16 +946,19 @@ mod tests {
     }
 
     #[test]
-    pub fn index_into_blank_validation_placeholder_gives_unknown() {
+    pub fn index_into_unknown_validation_value_gives_unknown() {
         let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = rctx_with(vec![("list", "")], vec![]).with_validation();
+        let rctx = ValidatorReadonlyRuntimeExprContext {
+            inputs: HashSet::from(["list".to_string()]),
+            ..Default::default()
+        };
 
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         let value = exec
             .eval("${{ inputs.list[0] }}")
-            .expect("indexing a blank placeholder value must not error");
+            .expect("indexing an unknown value must not error");
         assert!(matches!(value, ExprValue::Unknown));
     }
 
@@ -901,7 +974,8 @@ mod tests {
 
         let err = exec.eval("${{ inputs.list[0] }}").unwrap_err();
         assert!(
-            err.to_string().contains("the value is not an array: ''"),
+            err.to_string()
+                .contains("cannot index into a value of type text: ''"),
             "error was: {err}"
         );
     }

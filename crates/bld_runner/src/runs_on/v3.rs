@@ -608,7 +608,10 @@ mod tests {
         pipeline::v3::Pipeline,
         registry::v3::Registry,
         step::v3::{ShellCommand, Step},
-        validator::v3::{CommonValidator, ConsumeValidator, ValidatorWritableRuntimeExprContext},
+        validator::v3::{
+            CommonValidator, ConsumeValidator, ValidatorReadonlyRuntimeExprContext,
+            ValidatorWritableRuntimeExprContext,
+        },
     };
 
     use super::RunsOn;
@@ -618,7 +621,7 @@ mod tests {
         let config = BldConfig::default().into_arc();
         let file_system = FileSystem::local(config.clone()).into_arc();
         let package_manager = PackageManager::new(config.clone()).into_arc();
-        let expr_rctx = CommonReadonlyRuntimeExprContext::default();
+        let expr_rctx = ValidatorReadonlyRuntimeExprContext::default();
         let expr_wctx = vec![ValidatorWritableRuntimeExprContext::new(job_name)];
 
         let mut pipeline = Pipeline::default();

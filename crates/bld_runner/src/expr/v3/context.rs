@@ -229,7 +229,7 @@ mod tests {
         let rctx = resolve(&pipeline, vec![]).unwrap();
 
         assert_eq!(
-            rctx.get_input("worktree_root").unwrap(),
+            rctx.get_input("worktree_root").unwrap().to_string(),
             "/home/user/project/../worktrees/bld"
         );
     }
@@ -249,11 +249,11 @@ mod tests {
         let rctx = resolve(&pipeline, vec![]).unwrap();
 
         assert_eq!(
-            rctx.get_input("repo_dir").unwrap(),
+            rctx.get_input("repo_dir").unwrap().to_string(),
             "/home/user/project/repo"
         );
         assert_eq!(
-            rctx.get_env("LOGS").unwrap(),
+            rctx.get_env("LOGS").unwrap().to_string(),
             "/home/user/project/repo/logs"
         );
     }
@@ -285,7 +285,7 @@ mod tests {
 
         let rctx = resolve(&pipeline, vec![("image", "ubuntu:22.04")]).unwrap();
 
-        assert_eq!(rctx.get_input("image").unwrap(), "ubuntu:22.04");
+        assert_eq!(rctx.get_input("image").unwrap().to_string(), "ubuntu:22.04");
     }
 
     #[test]

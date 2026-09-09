@@ -103,6 +103,7 @@ impl<'a> WritableRuntimeExprContext for ValidatorWritableRuntimeExprContext<'a> 
     }
 }
 
+#[derive(Debug, Default)]
 pub struct ValidatorReadonlyRuntimeExprContext {
     pub config: Arc<BldConfig>,
     pub inputs: HashSet<String>,
