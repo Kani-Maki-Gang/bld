@@ -227,7 +227,6 @@ impl<'a> EvalObject<'a> for Pipeline {
                 };
                 let name = part.as_span().as_str();
                 rctx.get_input(name)
-                    .map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
             "env" => {
@@ -236,7 +235,6 @@ impl<'a> EvalObject<'a> for Pipeline {
                 };
                 let name = part.as_span().as_str();
                 rctx.get_env(name)
-                    .map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
             // Keywords section

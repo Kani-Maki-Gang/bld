@@ -1,6 +1,6 @@
 use crate::expr::v3::exec::{CommonExprExecutor, eval_all_expressions};
 use crate::expr::v3::parser;
-use crate::expr::v3::traits::EvalObject;
+use crate::expr::v3::traits::{EvalObject, ExprText};
 use crate::inputs::v3::Input;
 
 use super::traits::{
@@ -57,8 +57,6 @@ pub struct CommonReadonlyRuntimeExprContext {
     pub env: Arc<HashMap<String, String>>,
     pub run_id: String,
     pub run_start_time: String,
-    /// Set only by the validator, see [`ReadonlyRuntimeExprContext::is_validation`].
-    pub validation: bool,
 }
 
 impl CommonReadonlyRuntimeExprContext {
@@ -75,15 +73,7 @@ impl CommonReadonlyRuntimeExprContext {
             env,
             run_id,
             run_start_time,
-            validation: false,
         }
-    }
-
-    /// Marks the context as one of the validator, where every input and env
-    /// variable stands in with a blank value.
-    pub fn with_validation(mut self) -> Self {
-        self.validation = true;
-        self
     }
 
     pub fn clone_with(&self, closure: impl FnOnce(&mut Self)) -> Self {
@@ -102,17 +92,17 @@ impl<'a> ReadonlyRuntimeExprContext<'a> for CommonReadonlyRuntimeExprContext {
         &self.config.project_dir
     }
 
-    fn get_input(&'a self, name: &'a str) -> Result<&'a str> {
+    fn get_input(&'a self, name: &'a str) -> Result<ExprValue<'a>> {
         self.inputs
             .get(name)
-            .map(|x| x.as_str())
+            .map(|x| ExprValue::Text(ExprText::Ref(x.as_str())))
             .ok_or_else(|| anyhow!("input '{name}' not found"))
     }
 
-    fn get_env(&'a self, name: &'a str) -> Result<&'a str> {
+    fn get_env(&'a self, name: &'a str) -> Result<ExprValue<'a>> {
         self.env
             .get(name)
-            .map(|x| x.as_str())
+            .map(|x| ExprValue::Text(ExprText::Ref(x.as_str())))
             .ok_or_else(|| anyhow!("env variable '{name}' not found"))
     }
 
@@ -122,10 +112,6 @@ impl<'a> ReadonlyRuntimeExprContext<'a> for CommonReadonlyRuntimeExprContext {
 
     fn get_run_start_time(&'a self) -> &'a str {
         &self.run_start_time
-    }
-
-    fn is_validation(&self) -> bool {
-        self.validation
     }
 }
 

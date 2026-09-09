@@ -166,14 +166,6 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 
             ExprValue::Text(text) => {
                 let raw = text.inner();
-
-                // The validator has no real value for an input, so it stands in with
-                // an empty string. An index into that placeholder must not be
-                // reported as an error, only the run itself can check it.
-                if raw.is_empty() && self.rctx.is_validation() {
-                    return Ok(ExprValue::Unknown);
-                }
-
                 let parsed: ExprValue<'a> = raw
                     .try_into()
                     .map_err(|_| anyhow!("the value is not an array: '{raw}'"))?;

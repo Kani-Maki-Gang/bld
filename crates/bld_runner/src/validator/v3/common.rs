@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 use bld_config::{BldConfig, path};
 use bld_core::fs::FileSystem;
 use bld_pkg::PackageManager;
@@ -13,11 +13,14 @@ use regex::Regex;
 use tracing::debug;
 
 use crate::expr::v3::{
-    context::{CommonReadonlyRuntimeExprContext, START_OF_RUN_WCTX},
+    context::START_OF_RUN_WCTX,
     exec::CommonExprExecutor,
     parser,
     parser::{ExprParser, Rule},
-    traits::{EvalExpr, EvalObject, ExprValue, OutputScope, WritableRuntimeExprContext},
+    traits::{
+        EvalExpr, EvalObject, ExprValue, OutputScope, ReadonlyRuntimeExprContext,
+        WritableRuntimeExprContext,
+    },
 };
 use pest::{Parser, iterators::Pairs};
 
@@ -100,14 +103,72 @@ impl<'a> WritableRuntimeExprContext for ValidatorWritableRuntimeExprContext<'a> 
     }
 }
 
+pub struct ValidatorReadonlyRuntimeExprContext {
+    pub config: Arc<BldConfig>,
+    pub inputs: HashSet<String>,
+    pub env: HashSet<String>,
+    pub run_id: String,
+    pub run_start_time: String,
+}
+
+impl ValidatorReadonlyRuntimeExprContext {
+    pub fn new(
+        config: Arc<BldConfig>,
+        inputs: HashSet<String>,
+        env: HashSet<String>,
+        run_id: String,
+        run_start_time: String,
+    ) -> Self {
+        Self {
+            config,
+            inputs,
+            env,
+            run_id,
+            run_start_time,
+        }
+    }
+}
+
+impl<'a> ReadonlyRuntimeExprContext<'a> for ValidatorReadonlyRuntimeExprContext {
+    fn get_root_dir(&'a self) -> &'a str {
+        &self.config.root_dir
+    }
+
+    fn get_project_dir(&'a self) -> &'a str {
+        &self.config.project_dir
+    }
+
+    fn get_input(&'a self, name: &'a str) -> Result<ExprValue<'a>> {
+        self.inputs
+            .get(name)
+            .map(|_| ExprValue::Unknown)
+            .ok_or_else(|| anyhow!("input '{name}' not found"))
+    }
+
+    fn get_env(&'a self, name: &'a str) -> Result<ExprValue<'a>> {
+        self.env
+            .get(name)
+            .map(|_| ExprValue::Unknown)
+            .ok_or_else(|| anyhow!("env variable '{name}' not found"))
+    }
+
+    fn get_run_id(&'a self) -> &'a str {
+        &self.run_id
+    }
+
+    fn get_run_start_time(&'a self) -> &'a str {
+        &self.run_start_time
+    }
+}
+
 pub struct CommonValidator<'a, V: Validate<'a> + for<'x> EvalObject<'x>> {
     validatable: &'a V,
     config: Arc<BldConfig>,
     file_system: Arc<FileSystem>,
     package_manager: Arc<PackageManager>,
     expr_regex: Regex,
-    expr_rctx: &'a CommonReadonlyRuntimeExprContext,
-    job_expr_rctx: HashMap<&'a str, &'a CommonReadonlyRuntimeExprContext>,
+    expr_rctx: &'a ValidatorReadonlyRuntimeExprContext,
+    job_expr_rctx: HashMap<&'a str, &'a ValidatorReadonlyRuntimeExprContext>,
     expr_wctx: &'a [ValidatorWritableRuntimeExprContext<'a>],
     job_needs: HashMap<&'a str, HashSet<&'a str>>,
     section: Vec<Section<'a>>,
@@ -121,7 +182,7 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
         config: Arc<BldConfig>,
         file_system: Arc<FileSystem>,
         package_manager: Arc<PackageManager>,
-        expr_rctx: &'a CommonReadonlyRuntimeExprContext,
+        expr_rctx: &'a ValidatorReadonlyRuntimeExprContext,
         expr_wctx: &'a [ValidatorWritableRuntimeExprContext],
     ) -> Result<Self> {
         Ok(Self {
@@ -147,13 +208,15 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
 
     pub fn with_job_expr_rctx(
         mut self,
-        job_expr_rctx: HashMap<&'a str, &'a CommonReadonlyRuntimeExprContext>,
+        job_expr_rctx: HashMap<&'a str, &'a ValidatorReadonlyRuntimeExprContext>,
     ) -> Self {
         self.job_expr_rctx = job_expr_rctx;
         self
     }
 
-    fn rctx(&self) -> &'a CommonReadonlyRuntimeExprContext {
+    /// The context of the job that is being validated, or the context of the file when no
+    /// job is being validated or the job has no env of its own.
+    fn rctx(&self) -> &'a ValidatorReadonlyRuntimeExprContext {
         self.current_job
             .as_ref()
             .and_then(|job| self.job_expr_rctx.get(job.inner()))
