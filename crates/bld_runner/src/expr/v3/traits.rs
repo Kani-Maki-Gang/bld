@@ -1,16 +1,12 @@
 #![allow(dead_code)]
 
-use super::parser::Rule;
+use super::parser::{ExprParser, Rule};
 use anyhow::{Result, bail};
-use pest::iterators::{Pair, Pairs};
+use pest::{Parser, iterators::{Pair, Pairs}};
 use std::{collections::HashMap, fmt::Display, iter::Peekable};
 
 #[cfg(test)]
 use mockall::automock;
-use pest::Parser;
-use pest::iterators::{Pair, Pairs};
-
-use super::parser::{ExprParser, Rule};
 
 fn unescape_string_literal(value: &str) -> String {
     let quote = value.chars().next();
