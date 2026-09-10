@@ -2,7 +2,10 @@
 
 use super::parser::{ExprParser, Rule};
 use anyhow::{Result, bail};
-use pest::{Parser, iterators::{Pair, Pairs}};
+use pest::{
+    Parser,
+    iterators::{Pair, Pairs},
+};
 use std::{collections::HashMap, fmt::Display, iter::Peekable};
 
 #[cfg(test)]
