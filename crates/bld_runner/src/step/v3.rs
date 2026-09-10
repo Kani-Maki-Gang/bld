@@ -359,7 +359,7 @@ mod tests {
     use bld_pkg::PackageManager;
     use bld_utils::sync::IntoArc;
     use mockall::predicate;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
 
     use crate::{
         action::v3::Action,
@@ -374,7 +374,10 @@ mod tests {
         pipeline::v3::Pipeline,
         step::v3::{ShellCommand, Step},
         strategy::v3::{MatrixValue, Strategy},
-        validator::v3::{CommonValidator, ConsumeValidator, ValidatorWritableRuntimeExprContext},
+        validator::v3::{
+            CommonValidator, ConsumeValidator, ValidatorReadonlyRuntimeExprContext,
+            ValidatorWritableRuntimeExprContext,
+        },
     };
 
     #[test]
@@ -871,7 +874,7 @@ mod tests {
         let config = BldConfig::default().into_arc();
         let fs = FileSystem::local(config.clone()).into_arc();
         let package_manager = PackageManager::new(config.clone()).into_arc();
-        let expr_rctx = CommonReadonlyRuntimeExprContext::default();
+        let expr_rctx = ValidatorReadonlyRuntimeExprContext::default();
         let expr_wctx = vec![ValidatorWritableRuntimeExprContext::new("action")];
 
         CommonValidator::new(action, config, fs, package_manager, &expr_rctx, &expr_wctx)?
@@ -1225,10 +1228,8 @@ mod tests {
         let config = BldConfig::default().into_arc();
         let fs = FileSystem::local(config.clone()).into_arc();
         let package_manager = PackageManager::new(config.clone()).into_arc();
-        let mut inputs = HashMap::new();
-        inputs.insert("tag".to_string(), String::new());
-        let expr_rctx = CommonReadonlyRuntimeExprContext {
-            inputs: inputs.into_arc(),
+        let expr_rctx = ValidatorReadonlyRuntimeExprContext {
+            inputs: HashSet::from(["tag".to_string()]),
             ..Default::default()
         };
         let expr_wctx = vec![ValidatorWritableRuntimeExprContext::new("action")];

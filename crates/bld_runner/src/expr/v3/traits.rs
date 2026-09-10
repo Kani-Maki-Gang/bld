@@ -1,8 +1,11 @@
 #![allow(dead_code)]
 
-use super::parser::Rule;
+use super::parser::{ExprParser, Rule};
 use anyhow::{Result, bail};
-use pest::iterators::{Pair, Pairs};
+use pest::{
+    Parser,
+    iterators::{Pair, Pairs},
+};
 use std::{collections::HashMap, fmt::Display, iter::Peekable};
 
 #[cfg(test)]
@@ -70,23 +73,45 @@ impl<'a> ExprText<'a> {
     }
 }
 
+pub fn array_from_pair<'a>(pair: Pair<'_, Rule>) -> Result<ExprValue<'a>> {
+    let Rule::Array = pair.as_rule() else {
+        bail!("expected array rule, found {:?}", pair.as_rule());
+    };
+
+    let mut items = Vec::new();
+    let mut element_type: Option<&'static str> = None;
+
+    for element in pair.into_inner() {
+        let Rule::ArrayElement = element.as_rule() else {
+            bail!("expected array element rule, found {:?}", element.as_rule());
+        };
+
+        let value: ExprValue<'a> = element.as_span().as_str().try_into()?;
+
+        match element_type {
+            Some(expected) if expected != value.type_as_string() => {
+                bail!("array elements must all be of the same type")
+            }
+            None => element_type = Some(value.type_as_string()),
+            _ => {}
+        }
+
+        items.push(value);
+    }
+
+    Ok(ExprValue::Array(items))
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExprValue<'a> {
     Boolean(bool),
-    /// `raw` keeps the original text the number was parsed from, so that
-    /// formatting it back to text does not lose information. `value` is used
-    /// for numeric comparisons.
     Number {
         value: f64,
-        raw: ExprText<'a>,
+        raw: ExprText<'a>, // original text for formatting puprposes
     },
     Text(ExprText<'a>),
     Array(Vec<ExprValue<'a>>),
-    /// Placeholder used only during validation, when the real value of a
-    /// step output is not known yet. It is compatible with every
-    /// comparison, so a validation-time expression that compares a step
-    /// output does not fail due to a type mismatch.
-    Unknown,
+    Unknown, // Placeholder for expression results that aren't known at validation time
 }
 
 impl<'a, 'b> ExprValue<'a> {
@@ -213,23 +238,13 @@ impl<'b> TryFrom<&'b str> for ExprValue<'_> {
         }
 
         // Try array
-        if value.starts_with('[') && value.ends_with(']') {
-            let mut expr_type: Option<&'static str> = None;
-            let mut expr_value = vec![];
-            for entry in value[1..value.len() - 1].split(',') {
-                let entry_expr_value: ExprValue<'_> = entry.trim().try_into()?;
-                let entry_expr_type = entry_expr_value.type_as_string();
-
-                if let Some(expr_type) = expr_type
-                    && expr_type != entry_expr_value.type_as_string()
-                {
-                    bail!("Array expression contains entries of multiple types")
-                }
-
-                expr_type = Some(entry_expr_type);
-                expr_value.push(entry_expr_value);
-            }
-            return Ok(ExprValue::Array(expr_value));
+        if value.starts_with('[')
+            && value.ends_with(']')
+            && let Ok(mut pairs) = ExprParser::parse(Rule::Array, value)
+            && let Some(pair) = pairs.next()
+            && pair.as_span().end() == value.len()
+        {
+            return array_from_pair(pair);
         }
 
         // Fallback to test
@@ -293,8 +308,8 @@ pub enum OutputScope {
 pub trait ReadonlyRuntimeExprContext<'a> {
     fn get_root_dir(&'a self) -> &'a str;
     fn get_project_dir(&'a self) -> &'a str;
-    fn get_input(&'a self, name: &'a str) -> Result<&'a str>;
-    fn get_env(&'a self, name: &'a str) -> Result<&'a str>;
+    fn get_input(&'a self, name: &'a str) -> Result<ExprValue<'a>>;
+    fn get_env(&'a self, name: &'a str) -> Result<ExprValue<'a>>;
     fn get_run_id(&'a self) -> &'a str;
     fn get_run_start_time(&'a self) -> &'a str;
 }
@@ -366,6 +381,60 @@ pub mod tests {
             );
             assert_eq!(value.to_string(), input);
         }
+    }
+
+    fn array_items(value: &str) -> Vec<String> {
+        let value: ExprValue = value.try_into().unwrap();
+        let ExprValue::Array(items) = value else {
+            panic!("expected array, got {value:?}");
+        };
+        items.iter().map(|item| item.to_string()).collect()
+    }
+
+    #[test]
+    fn array_conversion_keeps_a_comma_inside_quotation_marks() {
+        assert_eq!(array_items(r#"["a,b", "c"]"#), vec!["a,b", "c"]);
+    }
+
+    #[test]
+    fn array_conversion_accepts_an_empty_array() {
+        assert!(array_items("[]").is_empty());
+    }
+
+    #[test]
+    fn array_conversion_accepts_text_and_number_elements() {
+        assert_eq!(array_items(r#"["x", "y"]"#), vec!["x", "y"]);
+        assert_eq!(array_items("[1, 2]"), vec!["1", "2"]);
+    }
+
+    #[test]
+    fn array_conversion_rejects_elements_without_quotation_marks() {
+        let value: ExprValue = "[a, b]".try_into().unwrap();
+        assert!(
+            matches!(value, ExprValue::Text(_)),
+            "expected text, got {value:?}"
+        );
+        assert_eq!(value.to_string(), "[a, b]");
+    }
+
+    #[test]
+    fn array_conversion_rejects_text_after_the_array() {
+        let value: ExprValue = r#"["a"] junk]"#.try_into().unwrap();
+        assert!(
+            matches!(value, ExprValue::Text(_)),
+            "expected text, got {value:?}"
+        );
+    }
+
+    #[test]
+    fn array_conversion_rejects_elements_of_multiple_types() {
+        let error = TryInto::<ExprValue>::try_into(r#"[1, "a"]"#).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("array elements must all be of the same type"),
+            "error was: {error}"
+        );
     }
 
     #[test]

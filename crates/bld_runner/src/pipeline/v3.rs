@@ -227,7 +227,6 @@ impl<'a> EvalObject<'a> for Pipeline {
                 };
                 let name = part.as_span().as_str();
                 rctx.get_input(name)
-                    .map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
             "env" => {
@@ -236,7 +235,6 @@ impl<'a> EvalObject<'a> for Pipeline {
                 };
                 let name = part.as_span().as_str();
                 rctx.get_env(name)
-                    .map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
             // Keywords section
@@ -541,6 +539,38 @@ mod tests {
         assert!(result.is_ok(), "unexpected error: {:?}", result.err());
     }
 
+    /// Neither the value of an input nor the value of a step output is known during
+    /// validation, so an index into either one can only be checked by the run itself.
+    #[tokio::test]
+    pub async fn index_into_input_and_step_output_validation_success() {
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .inputs
+            .insert("list".to_string(), complex_input(r#"["a", "b"]"#));
+        pipeline.jobs.insert(
+            "main".to_string(),
+            Job {
+                steps: vec![
+                    Step::ComplexSh(Box::new(ShellCommand {
+                        id: "build".to_string(),
+                        run: r#"echo 'items=["x", "y"]' >> $BLD_OUTPUTS"#.to_string(),
+                        ..Default::default()
+                    })),
+                    Step::ComplexSh(Box::new(ShellCommand {
+                        id: "show".to_string(),
+                        run: r#"echo "${{ inputs.list[0] }} ${{ steps.build.outputs.items[0] }}""#
+                            .to_string(),
+                        ..Default::default()
+                    })),
+                ],
+                ..Default::default()
+            },
+        );
+
+        let result = validate_pipeline(pipeline).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
     #[tokio::test]
     pub async fn runtime_expr_in_input_default_and_env_validation_failure() {
         let mut pipeline = Pipeline::default();
@@ -665,6 +695,30 @@ mod tests {
             error.contains("env variable 'RUSTFLAGS' not found"),
             "{error}"
         );
+    }
+
+    /// An input that is not declared must be named as an input, not as an env
+    /// variable.
+    #[tokio::test]
+    pub async fn undeclared_input_validation_failure() {
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            "main".to_string(),
+            Job {
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "show".to_string(),
+                    run: "echo ${{ inputs.nope }}".to_string(),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            },
+        );
+
+        let Err(e) = validate_pipeline(pipeline).await else {
+            panic!("expected a validation error for an undeclared input");
+        };
+        let error = e.to_string();
+        assert!(error.contains("input 'nope' not found"), "{error}");
     }
 
     #[test]

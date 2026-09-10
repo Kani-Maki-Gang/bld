@@ -161,7 +161,6 @@ impl<'a> EvalObject<'a> for Action {
                 };
                 let name = part.as_span().as_str();
                 rctx.get_input(name)
-                    .map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
             "matrix" => {
