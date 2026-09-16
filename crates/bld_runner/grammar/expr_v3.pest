@@ -55,7 +55,7 @@ SingleQuotedString = @{
 
 String = ${ DoubleQuotedString | SingleQuotedString }
 
-ObjectPart = @{ ('a'..'z' | 'A'..'Z' | "_" | "-" | "(" | ")" | ASCII_NONZERO_DIGIT | ASCII_DIGIT)+ }
+ObjectPart = @{ ('a'..'z' | 'A'..'Z' | "_" | "-" | ASCII_NONZERO_DIGIT | ASCII_DIGIT)+ }
 Index = @{ "[" ~ ASCII_DIGIT+ ~ "]" }
 Object = ${
     ObjectPart ~ ("." ~ ObjectPart)* ~ Index?
@@ -69,19 +69,21 @@ Array = {
 }
 
 Symbol = { Boolean | Number | String | Array | Object }
+NotSymbol = { "!" ~ " "* ~ (Symbol | NotSymbol) }
 
 //
 // Defining expressions
 //
-Equals = { Symbol ~ EqualsOperator ~ Symbol }
-NotEquals = { Symbol ~ NotEqualsOperator ~ Symbol }
-Greater = { Symbol ~ GreaterOperator ~ Symbol }
-GreaterEquals = { Symbol ~ GreaterEqualsOperator ~ Symbol }
-Less = { Symbol ~ LessOperator ~ Symbol }
-LessEquals = { Symbol ~ LessEqualsOperator ~ Symbol }
+Equals = { (Symbol | NotSymbol) ~ EqualsOperator ~ (Symbol | NotSymbol) }
+NotEquals = { (Symbol | NotSymbol) ~ NotEqualsOperator ~ (Symbol | NotSymbol) }
+Greater = { (Symbol | NotSymbol) ~ GreaterOperator ~ (Symbol | NotSymbol) }
+GreaterEquals = { (Symbol | NotSymbol) ~ GreaterEqualsOperator ~ (Symbol | NotSymbol) }
+Less = { (Symbol | NotSymbol) ~ LessOperator ~ (Symbol | NotSymbol) }
+LessEquals = { (Symbol | NotSymbol) ~ LessEqualsOperator ~ (Symbol | NotSymbol) }
 
-ExpressionInner = { Equals | NotEquals | Greater | GreaterEquals | Less | LessEquals | Symbol }
-Expression = { ("(" ~ " "* ~ (LogicalExpression | ExpressionInner) ~ " "* ~ ")") | ExpressionInner }
+ExpressionInner = { Equals | NotEquals | Greater | GreaterEquals | Less | LessEquals | Symbol | NotSymbol }
+Expression = { ("(" ~ " "* ~ (LogicalExpression | ExpressionInner | NotExpression) ~ " "* ~ ")") | ExpressionInner | NotExpression }
+NotExpression = { "!" ~ " "* ~ Expression }
 
 AndExpression = { Expression ~ (AndOperator ~ Expression)+ }
 AndTerm = { AndExpression | Expression }
@@ -90,4 +92,4 @@ LogicalExpression = { AndTerm ~ (OrOperator ~ AndTerm)* }
 //
 // Define full grammar
 //
-Full = ${ "${{" ~ " "* ~ (LogicalExpression | Expression) ~ " "* ~ "}}" }
+Full = ${ "${{" ~ " "* ~ (LogicalExpression | Expression ) ~ " "* ~ "}}" }

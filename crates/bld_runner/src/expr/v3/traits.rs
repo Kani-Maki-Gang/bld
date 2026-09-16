@@ -216,6 +216,15 @@ impl<'a, 'b> ExprValue<'a> {
         };
         Ok(ExprValue::<'b>::Boolean(value))
     }
+
+    pub fn try_negate(&self) -> Result<ExprValue<'b>> {
+        let value = match self {
+            ExprValue::Boolean(val) => ExprValue::Boolean(!val),
+            ExprValue::Unknown => ExprValue::Unknown,
+            val => bail!("cannot use logical NOT on type {}", val.type_as_string()),
+        };
+        Ok(value)
+    }
 }
 
 impl<'b> TryFrom<&'b str> for ExprValue<'_> {
@@ -335,10 +344,6 @@ pub trait EvalObject<'a> {
 }
 
 pub trait EvalExpr<'a> {
-    fn eval_cmp(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
-    fn eval_symbol(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
-    fn eval_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
-    fn eval_logical_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
     fn eval(&self, expr: &'a str) -> Result<ExprValue<'a>>;
 }
 
@@ -480,5 +485,38 @@ pub mod tests {
     fn arbitrary_text_gives_an_error() {
         let res: Result<bool> = ExprValue::Text(ExprText::Owned("yes".to_string())).try_into();
         assert!(res.unwrap_err().to_string().contains("text"));
+    }
+
+    #[test]
+    fn try_negate_success() {
+        assert_eq!(
+            ExprValue::Boolean(true).try_negate().unwrap(),
+            ExprValue::Boolean(false)
+        );
+        assert_eq!(
+            ExprValue::Boolean(false).try_negate().unwrap(),
+            ExprValue::Boolean(true)
+        );
+        assert_eq!(ExprValue::Unknown.try_negate().unwrap(), ExprValue::Unknown);
+    }
+
+    #[test]
+    fn try_negate_failure() {
+        let text = ExprValue::Text(ExprText::Owned("true".to_string()));
+        assert!(text.try_negate().unwrap_err().to_string().contains("text"));
+        assert!(
+            expr_number(1.0)
+                .try_negate()
+                .unwrap_err()
+                .to_string()
+                .contains("number")
+        );
+        assert!(
+            ExprValue::Array(vec![])
+                .try_negate()
+                .unwrap_err()
+                .to_string()
+                .contains("array")
+        );
     }
 }
