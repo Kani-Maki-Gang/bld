@@ -64,7 +64,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 
     fn eval_and_term(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         let Rule::AndTerm = expr.as_rule() else {
-            bail!("expected AndTerm rule, found {:?}", expr.as_rule());
+            bail!("expected and term rule, found {:?}", expr.as_rule());
         };
 
         let inner = expr
@@ -81,27 +81,27 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 
     fn eval_and_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         let Rule::AndExpression = expr.as_rule() else {
-            bail!("expected and Expression rule, found {:?}", expr.as_rule());
+            bail!("expected and expression rule, found {:?}", expr.as_rule());
         };
 
         let mut inner = expr.into_inner();
 
         let first = inner
             .next()
-            .ok_or_else(|| anyhow!("no left operand found for AndExpression"))?;
+            .ok_or_else(|| anyhow!("no left operand found for and expression"))?;
         let mut result = self.eval_expr(first)?;
 
         while let Some(operator) = inner.next() {
             let Rule::AndOperator = operator.as_rule() else {
                 bail!(
-                    "invalid operator encountered during evaluation of AndExpression: {:?}",
+                    "invalid operator encountered during evaluation of and expression: {:?}",
                     operator.as_rule()
                 );
             };
 
             let right = inner
                 .next()
-                .ok_or_else(|| anyhow!("no right operand found for AndExpression"))?;
+                .ok_or_else(|| anyhow!("no right operand found for and expression"))?;
 
             // short circuit: once the left side is false the overall result is
             // false, so the right side must not be evaluated at all.
@@ -132,6 +132,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
         let items = match value {
             ExprValue::Array(items) => items,
 
+<<<<<<< HEAD
             // The real value of a step output or an input is not known during
             // validation, so an index into it can't be checked either.
             ExprValue::Unknown => return Ok(ExprValue::Unknown),
@@ -152,6 +153,16 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
                 "cannot index into a value of type {}: '{other}'",
                 other.type_as_string()
             ),
+=======
+        let mut pairs = ExprParser::parse(Rule::Array, text)
+            .map_err(|_| anyhow!("value is not an array: {text}"))?;
+        let array = pairs
+            .next()
+            .ok_or_else(|| anyhow!("value is not an array: {text}"))?;
+
+        let ExprValue::Array(items) = self.eval_array(array)? else {
+            bail!("expected array value");
+>>>>>>> b9cbfb6 (test: Added tests for not expression)
         };
 
         let len = items.len();
@@ -181,7 +192,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
                 Rule::Symbol => self.eval_symbol(expr),
                 Rule::NotSymbol => self.eval_negated_symbol(expr),
                 _ => bail!(
-                    "expected Symbol or NotSymbol rule, found {:?}",
+                    "expected symbol or not symbol rule, found {:?}",
                     expr.as_rule()
                 ),
             }
@@ -233,13 +244,13 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 
     fn eval_symbol(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         let Rule::Symbol = expr.as_rule() else {
-            bail!("expected Symbol rule, found {:?}", expr.as_rule());
+            bail!("expected symbol rule, found {:?}", expr.as_rule());
         };
 
         let mut symbol = expr.into_inner().peekable();
         let peeked_symbol = symbol
             .peek()
-            .ok_or_else(|| anyhow!("no Symbol found in expression"))?;
+            .ok_or_else(|| anyhow!("no symbol found in expression"))?;
         let symbol_span = peeked_symbol.as_span();
         let symbol_rule = peeked_symbol.as_rule();
         let object_pair = peeked_symbol.clone();
@@ -249,7 +260,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
             Rule::Array => {
                 let array = symbol
                     .next()
-                    .ok_or_else(|| anyhow!("no Array found in Expression"))?;
+                    .ok_or_else(|| anyhow!("no array found in expression"))?;
                 self.eval_array(array)
             }
             Rule::Object => {
@@ -264,13 +275,13 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 
     fn eval_negated_symbol(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         let Rule::NotSymbol = expr.as_rule() else {
-            bail!("expected NotSymbol rule, found {:?}", expr.as_rule());
+            bail!("expected not symbol rule, found {:?}", expr.as_rule());
         };
 
         let expr_inner = expr
             .into_inner()
             .next()
-            .ok_or_else(|| anyhow!("no inner Symbol found"))?;
+            .ok_or_else(|| anyhow!("no symbol found in not symbol"))?;
 
         let expr_value = match expr_inner.as_rule() {
             Rule::Symbol => self.eval_symbol(expr_inner),
@@ -283,13 +294,13 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 
     fn eval_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         let Rule::Expression = expr.as_rule() else {
-            bail!("expected Expression rule, found {:?}", expr.as_rule());
+            bail!("expected expression rule, found {:?}", expr.as_rule());
         };
 
         let expr_inner = expr
             .into_inner()
             .next()
-            .ok_or_else(|| anyhow!("no Expression found"))?;
+            .ok_or_else(|| anyhow!("no expression found"))?;
 
         match expr_inner.as_rule() {
             Rule::LogicalExpression => self.eval_logical_expr(expr_inner),
@@ -298,7 +309,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
                 let actual_expr = expr_inner
                     .into_inner()
                     .next()
-                    .ok_or_else(|| anyhow!("no Expression found"))?;
+                    .ok_or_else(|| anyhow!("no expression found"))?;
 
                 match actual_expr.as_rule() {
                     Rule::Equals
@@ -316,7 +327,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
             Rule::NotExpression => self.eval_negated_expr(expr_inner),
 
             _ => bail!(
-                "expected ExpressionInner, LogicalExpression or NotExpression rule, found {:?}",
+                "expected expression inner, logical expression or not expression rule, found {:?}",
                 expr_inner.as_rule()
             ),
         }
@@ -324,16 +335,16 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 
     fn eval_negated_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         let Rule::NotExpression = expr.as_rule() else {
-            bail!("expected NotExpression rule, found {:?}", expr.as_rule());
+            bail!("expected not expression rule, found {:?}", expr.as_rule());
         };
 
         let expr_inner = expr
             .into_inner()
             .next()
-            .ok_or_else(|| anyhow!("no Expression found"))?;
+            .ok_or_else(|| anyhow!("no expression found in not expression"))?;
 
         let Rule::Expression = expr_inner.as_rule() else {
-            bail!("expected Expression rule, found {:?}", expr_inner.as_rule());
+            bail!("expected expression rule, found {:?}", expr_inner.as_rule());
         };
 
         self.eval_expr(expr_inner).and_then(|x| x.try_negate())
@@ -342,7 +353,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
     fn eval_logical_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         let Rule::LogicalExpression = expr.as_rule() else {
             bail!(
-                "expected LogicalExpression rule, found {:?}",
+                "expected logical expression rule, found {:?}",
                 expr.as_rule()
             );
         };
@@ -351,20 +362,20 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 
         let first = inner
             .next()
-            .ok_or_else(|| anyhow!("no left operand found for LogicalExpression"))?;
+            .ok_or_else(|| anyhow!("no left operand found for logical expression"))?;
         let mut result = self.eval_and_term(first)?;
 
         while let Some(operator) = inner.next() {
             let Rule::OrOperator = operator.as_rule() else {
                 bail!(
-                    "invalid operator encountered during evaluation of LogicalExpression: {:?}",
+                    "invalid operator encountered during evaluation of logical expression: {:?}",
                     operator.as_rule()
                 );
             };
 
             let right = inner
                 .next()
-                .ok_or_else(|| anyhow!("no right operand found for LogicalExpression"))?;
+                .ok_or_else(|| anyhow!("no right operand found for logical expression"))?;
 
             // short circuit: once the left side is true the overall result is
             // true, so the right side must not be evaluated at all.
@@ -378,7 +389,6 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 
         Ok(result)
     }
-
 }
 
 impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>
@@ -1764,5 +1774,128 @@ mod tests {
                 panic!("invalid result after eval");
             }
         }
+    }
+
+    fn assert_boolean_eval(
+        rctx: &CommonReadonlyRuntimeExprContext,
+        data: Vec<(&str, Result<ExprValue>)>,
+    ) {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, rctx, &wctx);
+
+        for (expr, expected) in data {
+            let value = exec.eval(expr);
+
+            match expected {
+                Ok(expected) => {
+                    let Ok(value) = value else {
+                        panic!("failed to evaluate expression: {expr}");
+                    };
+                    assert!(
+                        matches!(value.try_eq(&expected), Ok(ExprValue::Boolean(true))),
+                        "expected {expected:?} for {expr}, found {value:?}"
+                    );
+                }
+                Err(_) => {
+                    assert!(
+                        value.is_err(),
+                        "expected an error for {expr}, found {value:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    pub fn not_symbol_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            ("${{ !true }}", Ok(ExprValue::Boolean(false))),
+            ("${{ !false }}", Ok(ExprValue::Boolean(true))),
+            ("${{ ! true }}", Ok(ExprValue::Boolean(false))),
+            ("${{ !!true }}", Ok(ExprValue::Boolean(true))),
+            ("${{ !!!true }}", Ok(ExprValue::Boolean(false))),
+            ("${{ ! ! false }}", Ok(ExprValue::Boolean(false))),
+        ];
+        assert_boolean_eval(&CommonReadonlyRuntimeExprContext::default(), data);
+    }
+
+    #[test]
+    pub fn not_symbol_in_comparison_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            ("${{ !true == false }}", Ok(ExprValue::Boolean(true))),
+            ("${{ false == !true }}", Ok(ExprValue::Boolean(true))),
+            ("${{ !true != !false }}", Ok(ExprValue::Boolean(true))),
+            ("${{ !false == !false }}", Ok(ExprValue::Boolean(true))),
+            ("${{ !true > false }}", Ok(ExprValue::Boolean(false))),
+            ("${{ !false >= true }}", Ok(ExprValue::Boolean(true))),
+        ];
+        assert_boolean_eval(&CommonReadonlyRuntimeExprContext::default(), data);
+    }
+
+    #[test]
+    pub fn not_expression_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            ("${{ !(true) }}", Ok(ExprValue::Boolean(false))),
+            ("${{ !( false ) }}", Ok(ExprValue::Boolean(true))),
+            ("${{ !(4 == 4) }}", Ok(ExprValue::Boolean(false))),
+            ("${{ !(4 == 5) }}", Ok(ExprValue::Boolean(true))),
+            ("${{ !(true && false) }}", Ok(ExprValue::Boolean(true))),
+            ("${{ !(true || false) }}", Ok(ExprValue::Boolean(false))),
+            ("${{ !(!(true)) }}", Ok(ExprValue::Boolean(true))),
+            ("${{ !!(false) }}", Ok(ExprValue::Boolean(false))),
+            ("${{ (!true) }}", Ok(ExprValue::Boolean(false))),
+            ("${{ (!(false)) }}", Ok(ExprValue::Boolean(true))),
+        ];
+        assert_boolean_eval(&CommonReadonlyRuntimeExprContext::default(), data);
+    }
+
+    #[test]
+    pub fn not_in_logical_expression_eval_success() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            ("${{ !true && true }}", Ok(ExprValue::Boolean(false))),
+            ("${{ true && !false }}", Ok(ExprValue::Boolean(true))),
+            ("${{ !false || !true }}", Ok(ExprValue::Boolean(true))),
+            ("${{ !(true) && true }}", Ok(ExprValue::Boolean(false))),
+            ("${{ !(4 == 4) || 5 == 5 }}", Ok(ExprValue::Boolean(true))),
+            (
+                "${{ !true && true || !false }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+            (
+                "${{ !true && !(false || false) }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+        ];
+        assert_boolean_eval(&CommonReadonlyRuntimeExprContext::default(), data);
+    }
+
+    #[test]
+    pub fn not_object_eval() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            ("${{ !inputs.flag }}", Err(anyhow!("text value"))),
+            (
+                "${{ !(inputs.flag == \"true\") }}",
+                Ok(ExprValue::Boolean(false)),
+            ),
+            (
+                "${{ !(inputs.flag == \"false\") }}",
+                Ok(ExprValue::Boolean(true)),
+            ),
+        ];
+        assert_boolean_eval(&rctx_with(vec![("flag", "true")], vec![]), data);
+    }
+
+    #[test]
+    pub fn not_non_boolean_eval_failure() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            ("${{ !5 }}", Err(anyhow!("number value"))),
+            ("${{ !-5 }}", Err(anyhow!("number value"))),
+            ("${{ !\"text\" }}", Err(anyhow!("text value"))),
+            ("${{ ![true] }}", Err(anyhow!("array value"))),
+            ("${{ ![1, 2] }}", Err(anyhow!("array value"))),
+            ("${{ !\"a\" == \"b\" }}", Err(anyhow!("text value"))),
+        ];
+        assert_boolean_eval(&CommonReadonlyRuntimeExprContext::default(), data);
     }
 }

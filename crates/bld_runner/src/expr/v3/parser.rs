@@ -235,18 +235,12 @@ mod tests {
             vec!["customer", "customer"],
             vec!["customer.name", "customer", "name"],
             vec!["customer.123", "customer", "123"],
-            vec!["customer.name.toString()", "customer", "name", "toString()"],
+            vec!["customer.name.to_string", "customer", "name", "to_string"],
             vec![
-                "customer().name().length()",
-                "customer()",
-                "name()",
-                "length()",
-            ],
-            vec![
-                "customer().name23_23().length()",
-                "customer()",
-                "name23_23()",
-                "length()",
+                "customer.name23_23.length",
+                "customer",
+                "name23_23",
+                "length",
             ],
         ];
         for entry in data.iter() {
@@ -267,6 +261,18 @@ mod tests {
                     assert_eq!(object_part.into_inner().count(), 0_usize);
                 }
             }
+        }
+    }
+
+    #[test]
+    fn parse_object_with_parens_failure() {
+        let data = ["customer()", "customer.name()", "(customer)"];
+        for expr in data {
+            let pairs = ExprParser::parse(Rule::Object, expr);
+            assert!(
+                pairs.is_err() || pairs.unwrap().as_str() != expr,
+                "parentheses must not be part of an object path: {expr}"
+            );
         }
     }
 
@@ -401,18 +407,12 @@ mod tests {
             vec!["customer", "customer"],
             vec!["customer.name", "customer", "name"],
             vec!["customer.123", "customer", "123"],
-            vec!["customer.name.toString()", "customer", "name", "toString()"],
+            vec!["customer.name.to_string", "customer", "name", "to_string"],
             vec![
-                "customer().name().length()",
-                "customer()",
-                "name()",
-                "length()",
-            ],
-            vec![
-                "customer().name23_23().length()",
-                "customer()",
-                "name23_23()",
-                "length()",
+                "customer.name23_23.length",
+                "customer",
+                "name23_23",
+                "length",
             ],
         ];
         for symbol in data {
@@ -447,6 +447,92 @@ mod tests {
     }
 
     #[test]
+    fn parse_not_symbol_success() {
+        let data = [
+            ("!true", Rule::Symbol),
+            ("! true", Rule::Symbol),
+            ("!customer.active", Rule::Symbol),
+            ("!customer.flags[0]", Rule::Symbol),
+            ("!!true", Rule::NotSymbol),
+            ("! ! true", Rule::NotSymbol),
+        ];
+        for (expr, expected_inner) in data {
+            let Ok(pairs) = ExprParser::parse(Rule::NotSymbol, expr) else {
+                panic!("unable to parse NotSymbol: {expr}");
+            };
+            for pair in pairs {
+                let Rule::NotSymbol = pair.as_rule() else {
+                    panic!("parsed value is not a NotSymbol rule");
+                };
+                assert_eq!(pair.as_span().as_str(), expr);
+                let inner = pair.into_inner().next().unwrap();
+                assert_eq!(
+                    inner.as_rule(),
+                    expected_inner,
+                    "unexpected inner rule for: {expr}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn parse_not_expression_success() {
+        let data = [
+            "${{ !true }}",
+            "${{ !(true) }}",
+            "${{ !( true ) }}",
+            "${{ !(a == b) }}",
+            "${{ !(a && b) }}",
+            "${{ !(a || b) }}",
+            "${{ !(!(a)) }}",
+            "${{ !!(a) }}",
+            "${{ !a == false }}",
+            "${{ a == !b }}",
+            "${{ !a != !b }}",
+            "${{ !a && b }}",
+            "${{ a && !b }}",
+            "${{ !a || !b }}",
+            "${{ !(a) && b }}",
+            "${{ !(a == true) && c }}",
+            "${{ (!a) }}",
+            "${{ (!(a)) }}",
+            "${{ !a && !(b || c) }}",
+        ];
+        for expr in data {
+            let Ok(pairs) = ExprParser::parse(Rule::Full, expr) else {
+                panic!("unable to parse Full rule: {expr}");
+            };
+            for full in pairs {
+                for inner in full.into_inner() {
+                    let rule = inner.as_rule();
+                    assert!(
+                        rule == Rule::Expression || rule == Rule::LogicalExpression,
+                        "unexpected rule {rule:?} for: {expr}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn parse_not_expression_failure() {
+        let data = [
+            "${{ ! }}",
+            "${{ !() }}",
+            "${{ ! == true }}",
+            "${{ a == ! }}",
+            "${{ !( }}",
+            "${{ !a == }}",
+        ];
+        for expr in data {
+            assert!(
+                ExprParser::parse(Rule::Full, expr).is_err(),
+                "expected a parse error for: {expr}"
+            );
+        }
+    }
+
+    #[test]
     fn parse_equals_success() {
         let data = [
             "100 == 150.12",
@@ -465,8 +551,8 @@ mod tests {
             "\"hello\" == true",
             "\"hello\" == false",
             "\"hello\" == customer.name.length",
-            "\"hello\" == customer().name().length()",
-            "\"hello\" == customer().name23_23().length()",
+            "\"hello\" == customer.name.length",
+            "\"hello\" == customer.name23_23.length",
             "\"hello\" == \"hello world\"",
             "100 == \"hello\"",
             "-100 == \"hello\"",
@@ -500,8 +586,8 @@ mod tests {
             "\"hello\" != true",
             "\"hello\" != false",
             "\"hello\" != customer.name.length",
-            "\"hello\" != customer().name().length()",
-            "\"hello\" != customer().name23_23().length()",
+            "\"hello\" != customer.name.length",
+            "\"hello\" != customer.name23_23.length",
             "\"hello\" != \"hello world\"",
             "100 != \"hello\"",
             "-100 != \"hello\"",
@@ -535,9 +621,9 @@ mod tests {
             "\"hello\" > true",
             "\"hello\" > false",
             "\"hello\" > customer.name.length",
-            "\"hello\" > customer.name().length()",
-            "\"hello\" > customer().name().length()",
-            "\"hello\" > customer().name23_23().length()",
+            "\"hello\" > customer.name.length",
+            "\"hello\" > customer.name.length",
+            "\"hello\" > customer.name23_23.length",
             "\"hello\" > \"hello world\"",
             "100 > \"hello\"",
             "-100 > \"hello\"",
@@ -591,9 +677,9 @@ mod tests {
             "\"hello\" >= true",
             "\"hello\" >= false",
             "\"hello\" >= customer.name.length",
-            "\"hello\" >= customer.name().length()",
-            "\"hello\" >= customer().name().length()",
-            "\"hello\" >= customer().name23_23().length()",
+            "\"hello\" >= customer.name.length",
+            "\"hello\" >= customer.name.length",
+            "\"hello\" >= customer.name23_23.length",
             "\"hello\" >= \"hello world\"",
             "100 >= \"hello\"",
             "-100 >= \"hello\"",
@@ -647,9 +733,9 @@ mod tests {
             "\"hello\" < true",
             "\"hello\" < false",
             "\"hello\" < customer.name.length",
-            "\"hello\" < customer.name().length()",
-            "\"hello\" < customer().name().length()",
-            "\"hello\" < customer().name23_23().length()",
+            "\"hello\" < customer.name.length",
+            "\"hello\" < customer.name.length",
+            "\"hello\" < customer.name23_23.length",
             "\"hello\" < \"hello world\"",
             "100 < \"hello\"",
             "-100 < \"hello\"",
@@ -703,9 +789,9 @@ mod tests {
             "\"hello\" <= true",
             "\"hello\" <= false",
             "\"hello\" <= customer.name.length",
-            "\"hello\" <= customer.name().length()",
-            "\"hello\" <= customer().name().length()",
-            "\"hello\" <= customer().name23_23().length()",
+            "\"hello\" <= customer.name.length",
+            "\"hello\" <= customer.name.length",
+            "\"hello\" <= customer.name23_23.length",
             "\"hello\" <= \"hello world\"",
             "100 <= \"hello\"",
             "-100 <= \"hello\"",
@@ -759,9 +845,9 @@ mod tests {
             "\"hello\" && true",
             "\"hello\" && false",
             "\"hello\" && customer.name.length",
-            "\"hello\" && customer.name().length()",
-            "\"hello\" && customer().name().length()",
-            "\"hello\" && customer().name23_23().length()",
+            "\"hello\" && customer.name.length",
+            "\"hello\" && customer.name.length",
+            "\"hello\" && customer.name23_23.length",
             "\"hello\" && \"hello world\"",
             "100 && \"hello\"",
             "-100 && \"hello\"",
@@ -830,9 +916,9 @@ mod tests {
             "\"hello\" || true",
             "\"hello\" || false",
             "\"hello\" || customer.name.length",
-            "\"hello\" || customer.name().length()",
-            "\"hello\" || customer().name().length()",
-            "\"hello\" || customer().name23_23().length()",
+            "\"hello\" || customer.name.length",
+            "\"hello\" || customer.name.length",
+            "\"hello\" || customer.name23_23.length",
             "\"hello\" || \"hello world\"",
             "100 || \"hello\"",
             "-100 || \"hello\"",
