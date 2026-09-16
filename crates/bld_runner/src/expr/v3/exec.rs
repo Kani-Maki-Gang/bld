@@ -132,7 +132,6 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
         let items = match value {
             ExprValue::Array(items) => items,
 
-<<<<<<< HEAD
             // The real value of a step output or an input is not known during
             // validation, so an index into it can't be checked either.
             ExprValue::Unknown => return Ok(ExprValue::Unknown),
@@ -153,16 +152,6 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
                 "cannot index into a value of type {}: '{other}'",
                 other.type_as_string()
             ),
-=======
-        let mut pairs = ExprParser::parse(Rule::Array, text)
-            .map_err(|_| anyhow!("value is not an array: {text}"))?;
-        let array = pairs
-            .next()
-            .ok_or_else(|| anyhow!("value is not an array: {text}"))?;
-
-        let ExprValue::Array(items) = self.eval_array(array)? else {
-            bail!("expected array value");
->>>>>>> b9cbfb6 (test: Added tests for not expression)
         };
 
         let len = items.len();
