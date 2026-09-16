@@ -64,7 +64,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 
     fn eval_and_term(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         let Rule::AndTerm = expr.as_rule() else {
-            bail!("expected and term rule, found {:?}", expr.as_rule());
+            bail!("expected AndTerm rule, found {:?}", expr.as_rule());
         };
 
         let inner = expr
@@ -81,27 +81,27 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 
     fn eval_and_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         let Rule::AndExpression = expr.as_rule() else {
-            bail!("expected and expression rule, found {:?}", expr.as_rule());
+            bail!("expected and Expression rule, found {:?}", expr.as_rule());
         };
 
         let mut inner = expr.into_inner();
 
         let first = inner
             .next()
-            .ok_or_else(|| anyhow!("no left operand found for and expression"))?;
+            .ok_or_else(|| anyhow!("no left operand found for AndExpression"))?;
         let mut result = self.eval_expr(first)?;
 
         while let Some(operator) = inner.next() {
             let Rule::AndOperator = operator.as_rule() else {
                 bail!(
-                    "invalid operator encountered during evaluation of and expression: {:?}",
+                    "invalid operator encountered during evaluation of AndExpression: {:?}",
                     operator.as_rule()
                 );
             };
 
             let right = inner
                 .next()
-                .ok_or_else(|| anyhow!("no right operand found for and expression"))?;
+                .ok_or_else(|| anyhow!("no right operand found for AndExpression"))?;
 
             // short circuit: once the left side is false the overall result is
             // false, so the right side must not be evaluated at all.
@@ -160,11 +160,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
             .nth(index)
             .ok_or_else(|| anyhow!("index {index} out of bounds for array of length {len}"))
     }
-}
 
-impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>
-    EvalExpr<'a> for CommonExprExecutor<'a, T, RCtx, WCtx>
-{
     fn eval_cmp(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         if !matches!(
             expr.as_rule(),
@@ -180,10 +176,21 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 
         let mut expr = expr.into_inner();
 
+        let eval_operand_value = |expr: Pair<'a, Rule>| -> Result<ExprValue<'a>> {
+            match expr.as_rule() {
+                Rule::Symbol => self.eval_symbol(expr),
+                Rule::NotSymbol => self.eval_negated_symbol(expr),
+                _ => bail!(
+                    "expected Symbol or NotSymbol rule, found {:?}",
+                    expr.as_rule()
+                ),
+            }
+        };
+
         let left_expr = expr
             .next()
             .ok_or_else(|| anyhow!("no left operand found for comparison expression"))?;
-        let left = self.eval_symbol(left_expr)?;
+        let left = eval_operand_value(left_expr)?;
 
         let Some(operator) = expr.next() else {
             bail!("expected comparison operator");
@@ -192,7 +199,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
         let right_expr = expr
             .next()
             .ok_or_else(|| anyhow!("no right operand found for comparison expression"))?;
-        let right = self.eval_symbol(right_expr)?;
+        let right = eval_operand_value(right_expr)?;
 
         let operator_rule = operator.as_rule();
         match &operator_rule {
@@ -226,13 +233,13 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 
     fn eval_symbol(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         let Rule::Symbol = expr.as_rule() else {
-            bail!("expected symbol rule, found {:?}", expr.as_rule());
+            bail!("expected Symbol rule, found {:?}", expr.as_rule());
         };
 
         let mut symbol = expr.into_inner().peekable();
         let peeked_symbol = symbol
             .peek()
-            .ok_or_else(|| anyhow!("no symbol found in expression"))?;
+            .ok_or_else(|| anyhow!("no Symbol found in expression"))?;
         let symbol_span = peeked_symbol.as_span();
         let symbol_rule = peeked_symbol.as_rule();
         let object_pair = peeked_symbol.clone();
@@ -242,7 +249,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
             Rule::Array => {
                 let array = symbol
                     .next()
-                    .ok_or_else(|| anyhow!("no array found in expression"))?;
+                    .ok_or_else(|| anyhow!("no Array found in Expression"))?;
                 self.eval_array(array)
             }
             Rule::Object => {
@@ -255,15 +262,34 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
         }
     }
 
-    fn eval_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
-        let Rule::Expression = expr.as_rule() else {
-            bail!("expected expression rule, found {:?}", expr.as_rule());
+    fn eval_negated_symbol(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
+        let Rule::NotSymbol = expr.as_rule() else {
+            bail!("expected NotSymbol rule, found {:?}", expr.as_rule());
         };
 
         let expr_inner = expr
             .into_inner()
             .next()
-            .ok_or_else(|| anyhow!("no expression found"))?;
+            .ok_or_else(|| anyhow!("no inner Symbol found"))?;
+
+        let expr_value = match expr_inner.as_rule() {
+            Rule::Symbol => self.eval_symbol(expr_inner),
+            Rule::NotSymbol => self.eval_negated_symbol(expr_inner),
+            _ => bail!("unexpected rule: {:?}", expr_inner.as_rule()),
+        }?;
+
+        expr_value.try_negate()
+    }
+
+    fn eval_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
+        let Rule::Expression = expr.as_rule() else {
+            bail!("expected Expression rule, found {:?}", expr.as_rule());
+        };
+
+        let expr_inner = expr
+            .into_inner()
+            .next()
+            .ok_or_else(|| anyhow!("no Expression found"))?;
 
         match expr_inner.as_rule() {
             Rule::LogicalExpression => self.eval_logical_expr(expr_inner),
@@ -272,7 +298,7 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
                 let actual_expr = expr_inner
                     .into_inner()
                     .next()
-                    .ok_or_else(|| anyhow!("no expression found"))?;
+                    .ok_or_else(|| anyhow!("no Expression found"))?;
 
                 match actual_expr.as_rule() {
                     Rule::Equals
@@ -282,21 +308,41 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
                     | Rule::Less
                     | Rule::LessEquals => self.eval_cmp(actual_expr),
                     Rule::Symbol => self.eval_symbol(actual_expr),
+                    Rule::NotSymbol => self.eval_negated_symbol(actual_expr),
                     _ => bail!("unexpected rule: {:?}", actual_expr.as_rule()),
                 }
             }
 
+            Rule::NotExpression => self.eval_negated_expr(expr_inner),
+
             _ => bail!(
-                "expected expression inner or logical expression rule, found {:?}",
+                "expected ExpressionInner, LogicalExpression or NotExpression rule, found {:?}",
                 expr_inner.as_rule()
             ),
         }
     }
 
+    fn eval_negated_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
+        let Rule::NotExpression = expr.as_rule() else {
+            bail!("expected NotExpression rule, found {:?}", expr.as_rule());
+        };
+
+        let expr_inner = expr
+            .into_inner()
+            .next()
+            .ok_or_else(|| anyhow!("no Expression found"))?;
+
+        let Rule::Expression = expr_inner.as_rule() else {
+            bail!("expected Expression rule, found {:?}", expr_inner.as_rule());
+        };
+
+        self.eval_expr(expr_inner).and_then(|x| x.try_negate())
+    }
+
     fn eval_logical_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>> {
         let Rule::LogicalExpression = expr.as_rule() else {
             bail!(
-                "expected logical expression rule, found {:?}",
+                "expected LogicalExpression rule, found {:?}",
                 expr.as_rule()
             );
         };
@@ -305,20 +351,20 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 
         let first = inner
             .next()
-            .ok_or_else(|| anyhow!("no left operand found for logical expression"))?;
+            .ok_or_else(|| anyhow!("no left operand found for LogicalExpression"))?;
         let mut result = self.eval_and_term(first)?;
 
         while let Some(operator) = inner.next() {
             let Rule::OrOperator = operator.as_rule() else {
                 bail!(
-                    "invalid operator encountered during evaluation of logical expression: {:?}",
+                    "invalid operator encountered during evaluation of LogicalExpression: {:?}",
                     operator.as_rule()
                 );
             };
 
             let right = inner
                 .next()
-                .ok_or_else(|| anyhow!("no right operand found for logical expression"))?;
+                .ok_or_else(|| anyhow!("no right operand found for LogicalExpression"))?;
 
             // short circuit: once the left side is true the overall result is
             // true, so the right side must not be evaluated at all.
@@ -333,6 +379,11 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
         Ok(result)
     }
 
+}
+
+impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: WritableRuntimeExprContext>
+    EvalExpr<'a> for CommonExprExecutor<'a, T, RCtx, WCtx>
+{
     fn eval(&self, expr: &'a str) -> Result<ExprValue<'a>> {
         let mut pairs = ExprParser::parse(Rule::Full, expr)?;
         let pair = pairs.next().ok_or_else(|| anyhow!("no expression found"))?;

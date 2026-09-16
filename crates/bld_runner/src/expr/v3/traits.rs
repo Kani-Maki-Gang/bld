@@ -216,6 +216,18 @@ impl<'a, 'b> ExprValue<'a> {
         };
         Ok(ExprValue::<'b>::Boolean(value))
     }
+
+    pub fn try_negate(&self) -> Result<ExprValue<'b>> {
+        let value = match self {
+            ExprValue::Boolean(val) => ExprValue::Boolean(!val),
+            ExprValue::Unknown => ExprValue::Unknown,
+            val => bail!(
+                "NotExpression cannot be evaluated on a {} value",
+                val.type_as_string()
+            ),
+        };
+        Ok(value)
+    }
 }
 
 impl<'b> TryFrom<&'b str> for ExprValue<'_> {
@@ -335,10 +347,6 @@ pub trait EvalObject<'a> {
 }
 
 pub trait EvalExpr<'a> {
-    fn eval_cmp(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
-    fn eval_symbol(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
-    fn eval_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
-    fn eval_logical_expr(&self, expr: Pair<'a, Rule>) -> Result<ExprValue<'a>>;
     fn eval(&self, expr: &'a str) -> Result<ExprValue<'a>>;
 }
 
