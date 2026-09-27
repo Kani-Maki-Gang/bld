@@ -1,5 +1,11 @@
-use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use serde::{
+    Deserialize, Serialize,
+    de::{self, Deserializer, SeqAccess, Visitor},
+};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+};
 
 #[cfg(feature = "all")]
 use {
@@ -16,11 +22,79 @@ use {
     anyhow::{Result, bail},
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum MatrixValue {
     Array(Vec<String>),
     Expr(String),
+}
+
+/// A single element of a matrix array. YAML lets a user write a plain number
+/// or boolean instead of a quoted string, so this type accepts any scalar and
+/// converts it to text without changing its representation, e.g. an integer
+/// does not gain a trailing `.0`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum MatrixScalar {
+    Boolean(bool),
+    Integer(i64),
+    Float(f64),
+    Text(String),
+}
+
+impl fmt::Display for MatrixScalar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Boolean(value) => write!(f, "{value}"),
+            Self::Integer(value) => write!(f, "{value}"),
+            Self::Float(value) => write!(f, "{value}"),
+            Self::Text(value) => write!(f, "{value}"),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for MatrixValue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct MatrixValueVisitor;
+
+        impl<'de> Visitor<'de> for MatrixValueVisitor {
+            type Value = MatrixValue;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("a string expression or a list of scalar values")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(MatrixValue::Expr(value.to_string()))
+            }
+
+            fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(MatrixValue::Expr(value))
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut items = Vec::new();
+                while let Some(item) = seq.next_element::<MatrixScalar>()? {
+                    items.push(item.to_string());
+                }
+                Ok(MatrixValue::Array(items))
+            }
+        }
+
+        deserializer.deserialize_any(MatrixValueVisitor)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -207,6 +281,36 @@ mod tests {
     }
 
     #[test]
+    pub fn matrix_value_array_number_serde_roundtrip() {
+        let yaml = "n:\n  - 1\n  - 2\n";
+        let value: HashMap<String, MatrixValue> = serde_yaml_ng::from_str(yaml).unwrap();
+        let n = value.get("n").unwrap();
+        assert!(
+            matches!(n, MatrixValue::Array(items) if items == &vec!["1".to_string(), "2".to_string()])
+        );
+    }
+
+    #[test]
+    pub fn matrix_value_array_float_serde_roundtrip() {
+        let yaml = "n:\n  - 1.5\n  - 2.25\n";
+        let value: HashMap<String, MatrixValue> = serde_yaml_ng::from_str(yaml).unwrap();
+        let n = value.get("n").unwrap();
+        assert!(
+            matches!(n, MatrixValue::Array(items) if items == &vec!["1.5".to_string(), "2.25".to_string()])
+        );
+    }
+
+    #[test]
+    pub fn matrix_value_array_boolean_serde_roundtrip() {
+        let yaml = "flags:\n  - true\n  - false\n";
+        let value: HashMap<String, MatrixValue> = serde_yaml_ng::from_str(yaml).unwrap();
+        let flags = value.get("flags").unwrap();
+        assert!(
+            matches!(flags, MatrixValue::Array(items) if items == &vec!["true".to_string(), "false".to_string()])
+        );
+    }
+
+    #[test]
     pub fn matrix_value_expr_serde_roundtrip() {
         let yaml = "os: ${{ inputs.oses }}\n";
         let value: HashMap<String, MatrixValue> = serde_yaml_ng::from_str(yaml).unwrap();
@@ -300,6 +404,31 @@ mod exec_tests {
             assert!(combination.contains_key("os"));
             assert!(combination.contains_key("version"));
         }
+    }
+
+    #[test]
+    pub fn combinations_literal_number_array_success() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let yaml = "n:\n  - 1\n  - 2\n";
+        let matrix: HashMap<String, MatrixValue> = serde_yaml_ng::from_str(yaml).unwrap();
+        let strategy = Strategy {
+            matrix,
+            fail_fast: None,
+        };
+
+        let combinations = strategy.combinations(&exec).unwrap();
+        assert_eq!(combinations.len(), 2);
+
+        let mut values: Vec<&String> = combinations
+            .iter()
+            .map(|combination| combination.get("n").unwrap())
+            .collect();
+        values.sort();
+        assert_eq!(values, vec!["1", "2"]);
     }
 
     #[test]
