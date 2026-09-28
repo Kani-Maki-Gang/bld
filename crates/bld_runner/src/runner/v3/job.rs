@@ -759,7 +759,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let job = JobRunner {
@@ -815,7 +814,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let job = JobRunner {
@@ -876,7 +874,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let mut job = JobRunner {
@@ -952,7 +949,6 @@ mod tests {
             expr_rctx: expr_rctx.into_arc(),
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
 
@@ -1061,7 +1057,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
 
@@ -1271,7 +1266,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1341,7 +1335,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1407,7 +1400,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1483,7 +1475,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1557,7 +1548,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1631,7 +1621,6 @@ mod tests {
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1704,7 +1693,6 @@ steps:
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         JobRunner {
@@ -1758,7 +1746,6 @@ steps:
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1821,7 +1808,6 @@ steps:
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1889,7 +1875,6 @@ steps:
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         let runner = JobRunner {
@@ -1954,7 +1939,6 @@ steps:
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
 
@@ -2098,7 +2082,6 @@ steps:
             expr_rctx,
             package_manager,
             artifacts,
-            is_child: false,
             state,
         };
         JobRunner {

@@ -352,6 +352,8 @@ mod tests {
         job::v3::{Job, Needs},
         outputs::v3::Output,
         pipeline::v3::Pipeline,
+        runner::v3::test_utils::TempDir,
+        step::v3::{ShellCommand, Step},
     };
 
     use super::PipelineRunner;
@@ -478,6 +480,61 @@ mod tests {
                 .run_layer(&names, &std::collections::HashMap::new())
                 .await
                 .is_ok()
+        );
+    }
+
+    fn machine_job(steps: Vec<(&str, &str)>) -> Job {
+        Job {
+            steps: steps
+                .into_iter()
+                .map(|(id, run)| {
+                    Step::ComplexSh(Box::new(ShellCommand {
+                        id: id.to_string(),
+                        run: run.to_string(),
+                        ..Default::default()
+                    }))
+                })
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    #[actix_web::test]
+    async fn run_layer_of_parallel_machine_jobs_keeps_each_working_directory() {
+        let dir = TempDir::new("parallel_machine_jobs");
+        let logger = Logger::in_memory().into_arc();
+        let mut runner = create_runner(
+            vec![
+                ("fast", machine_job(vec![("s", "echo fast done")])),
+                (
+                    "slow",
+                    machine_job(vec![
+                        ("a", "echo data > shared.txt && sleep 1"),
+                        ("b", "cat shared.txt"),
+                    ]),
+                ),
+            ],
+            logger.clone(),
+        );
+        runner.config = BldConfig {
+            root_dir: dir.root_dir(),
+            ..Default::default()
+        }
+        .into_arc();
+
+        let names = vec!["fast".to_string(), "slow".to_string()];
+        let result = runner
+            .run_layer(&names, &std::collections::HashMap::new())
+            .await;
+
+        let output = logger.try_retrieve_output().await.unwrap();
+        assert!(
+            result.is_ok(),
+            "expected both machine jobs to complete, got: {result:?}, output: {output}"
+        );
+        assert!(
+            output.contains("data"),
+            "expected the slow job to read its own file, got: {output}"
         );
     }
 

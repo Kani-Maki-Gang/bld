@@ -170,9 +170,14 @@ impl Machine {
 
 #[cfg(test)]
 mod tests {
-    use super::copy_path;
+    use super::{Machine, copy_path};
     use bld_config::BldConfig;
-    use std::fs::{create_dir_all, read_to_string, remove_dir_all, write};
+    use bld_utils::sync::IntoArc;
+    use std::{
+        collections::HashMap,
+        fs::{create_dir_all, read_to_string, remove_dir_all, write},
+        path::Path,
+    };
     use uuid::Uuid;
 
     #[tokio::test]
@@ -212,5 +217,32 @@ mod tests {
         assert_eq!(nested_content, "nested file");
 
         let _ = remove_dir_all(&base);
+    }
+
+    #[tokio::test]
+    async fn dispose_keeps_the_directory_of_a_different_machine() {
+        let config = BldConfig::default().into_arc();
+        let pipeline_env = HashMap::new();
+        let env = HashMap::new().into_arc();
+        let first_id = format!("machine-dispose-test-{}", Uuid::new_v4());
+        let second_id = format!("machine-dispose-test-{}", Uuid::new_v4());
+
+        let first = Machine::new(&first_id, config.clone(), &pipeline_env, env.clone())
+            .await
+            .unwrap();
+        let second = Machine::new(&second_id, config.clone(), &pipeline_env, env)
+            .await
+            .unwrap();
+
+        let second_file = Path::new(&second.tmp_dir).join("shared.txt");
+        write(&second_file, b"data").unwrap();
+
+        first.dispose().await.unwrap();
+
+        assert!(!Path::new(&first.tmp_dir).exists());
+        assert!(Path::new(&second.tmp_dir).is_dir());
+        assert_eq!(read_to_string(&second_file).unwrap(), "data");
+
+        let _ = remove_dir_all(&second.tmp_dir);
     }
 }

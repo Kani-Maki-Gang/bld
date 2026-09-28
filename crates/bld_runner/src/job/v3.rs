@@ -607,4 +607,15 @@ mod tests {
         needs.sort();
         assert_eq!(needs, vec!["a", "b", "c"]);
     }
+
+    #[test]
+    fn deserialized_jobs_get_a_unique_internal_id() {
+        let yaml = "runs_on: machine\nsteps: []";
+        let first: Job = serde_yaml_ng::from_str(yaml).unwrap();
+        let second: Job = serde_yaml_ng::from_str(yaml).unwrap();
+
+        assert!(!first.internal_id.is_empty());
+        assert!(!second.internal_id.is_empty());
+        assert_ne!(first.internal_id, second.internal_id);
+    }
 }
