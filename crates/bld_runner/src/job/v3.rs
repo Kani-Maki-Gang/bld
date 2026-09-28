@@ -35,6 +35,8 @@ pub enum Needs {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Job {
+    #[serde(skip, default = "Job::default_id")]
+    pub internal_id: String,
     #[serde(default = "Job::default_id")]
     pub id: String,
     pub runs_on: RunsOn,
@@ -80,6 +82,7 @@ impl Job {
 impl Default for Job {
     fn default() -> Self {
         Self {
+            internal_id: Self::default_id(),
             id: Self::default_id(),
             runs_on: RunsOn::default(),
             condition: None,
@@ -603,5 +606,16 @@ mod tests {
         let mut needs: Vec<&str> = job.needs_iter().collect();
         needs.sort();
         assert_eq!(needs, vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn deserialized_jobs_get_a_unique_internal_id() {
+        let yaml = "runs_on: machine\nsteps: []";
+        let first: Job = serde_yaml_ng::from_str(yaml).unwrap();
+        let second: Job = serde_yaml_ng::from_str(yaml).unwrap();
+
+        assert!(!first.internal_id.is_empty());
+        assert!(!second.internal_id.is_empty());
+        assert_ne!(first.internal_id, second.internal_id);
     }
 }
