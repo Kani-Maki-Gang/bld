@@ -26,7 +26,7 @@ pub enum PlatformOptions<'a> {
 
 #[derive(Default)]
 pub struct PlatformBuilder<'a> {
-    run_id: Option<&'a str>,
+    platform_id: Option<&'a str>,
     options: PlatformOptions<'a>,
     config: Option<Arc<BldConfig>>,
     pipeline_env: Option<&'a HashMap<String, String>>,
@@ -36,8 +36,8 @@ pub struct PlatformBuilder<'a> {
 }
 
 impl<'a> PlatformBuilder<'a> {
-    pub fn run_id(mut self, run_id: &'a str) -> Self {
-        self.run_id = Some(run_id);
+    pub fn platform_id(mut self, platform_id: &'a str) -> Self {
+        self.platform_id = Some(platform_id);
         self
     }
 
@@ -72,9 +72,9 @@ impl<'a> PlatformBuilder<'a> {
     }
 
     pub async fn build(self) -> Result<Arc<Platform>> {
-        let run_id = self
-            .run_id
-            .ok_or_else(|| anyhow!("no run id provided for target platform builder"))?;
+        let platform_id = self
+            .platform_id
+            .ok_or_else(|| anyhow!("no platform id provided for target platform builder"))?;
 
         let config = self
             .config
@@ -98,7 +98,7 @@ impl<'a> PlatformBuilder<'a> {
                 docker_url,
                 volumes,
             } => {
-                let context = PlatformContext::new(run_id, self.conn);
+                let context = PlatformContext::new(platform_id, self.conn);
                 let options = ContainerOptions {
                     config,
                     docker_url,
@@ -120,7 +120,7 @@ impl<'a> PlatformBuilder<'a> {
             }
 
             PlatformOptions::Machine => {
-                let machine = Machine::new(run_id, config, pipeline_env, env).await?;
+                let machine = Machine::new(platform_id, config, pipeline_env, env).await?;
                 Platform::machine(Box::new(machine))
             }
         }

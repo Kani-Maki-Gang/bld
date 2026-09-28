@@ -387,7 +387,7 @@ impl Runner {
 
         let conn = self.context.get_conn();
         let platform = PlatformBuilder::default()
-            .run_id(&self.run_id)
+            .platform_id(&self.run_id)
             .config(self.config.clone())
             .options(options)
             .pipeline_env(&self.pipeline.environment)

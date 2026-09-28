@@ -35,6 +35,8 @@ pub enum Needs {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Job {
+    #[serde(skip, default = "Job::default_id")]
+    pub internal_id: String,
     #[serde(default = "Job::default_id")]
     pub id: String,
     pub runs_on: RunsOn,
@@ -80,6 +82,7 @@ impl Job {
 impl Default for Job {
     fn default() -> Self {
         Self {
+            internal_id: Self::default_id(),
             id: Self::default_id(),
             runs_on: RunsOn::default(),
             condition: None,

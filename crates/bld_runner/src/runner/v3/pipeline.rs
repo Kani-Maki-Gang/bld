@@ -132,7 +132,6 @@ impl PipelineRunner {
             expr_rctx: self.expr_rctx.clone(),
             package_manager: self.package_manager.clone(),
             artifacts: self.artifacts.clone(),
-            is_child: self.is_child,
             state,
         };
         JobRunner::new(options).await

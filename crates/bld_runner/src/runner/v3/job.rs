@@ -50,7 +50,6 @@ pub struct JobRunnerOptions<S: RootState> {
     pub expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
     pub package_manager: Arc<PackageManager>,
     pub artifacts: Arc<Artifacts>,
-    pub is_child: bool,
     pub state: S,
 }
 
@@ -166,6 +165,7 @@ impl<S: RootState> JobRunner<S> {
         if self.platform.is_none() {
             let platform = build_platform(
                 &self.runs_on,
+                &job.internal_id,
                 self.options.config.clone(),
                 self.options.logger.clone(),
                 self.options.run_ctx.clone(),
@@ -532,7 +532,7 @@ impl<S: RootState> JobRunner<S> {
     async fn dispose_platform(&self, job: &Job) -> Result<()> {
         if job.dispose {
             debug!("executing dispose operations for platform");
-            self.platform()?.dispose(self.options.is_child).await?;
+            self.platform()?.dispose(false).await?;
         } else {
             debug!("keeping platform alive");
             self.platform()?.keep_alive().await?;
@@ -566,21 +566,37 @@ impl RunningJob {
 
 pub async fn build_platform(
     runs_on: &RunsOn,
+    job_internal_id: &str,
     config: Arc<BldConfig>,
     logger: Arc<Logger>,
     run_ctx: Arc<Context>,
     expr_rctx: Arc<CommonReadonlyRuntimeExprContext>,
 ) -> Result<Arc<Platform>> {
     let volumes = runs_on.volumes().to_vec();
+    let conn = run_ctx.get_conn();
+    let mut builder = PlatformBuilder::default()
+        .config(config.clone())
+        .pipeline_env(expr_rctx.env.as_ref())
+        .env(expr_rctx.env.clone())
+        .logger(logger.clone())
+        .conn(conn);
 
-    let options = match runs_on {
-        RunsOn::ContainerOrMachine(image) if image == "machine" => PlatformOptions::Machine,
+    match runs_on {
+        RunsOn::ContainerOrMachine(image) if image == "machine" => {
+            builder = builder
+                .platform_id(job_internal_id)
+                .options(PlatformOptions::Machine);
+        }
 
-        RunsOn::ContainerOrMachine(image) => PlatformOptions::Container {
-            image: Image::Use(image),
-            docker_url: None,
-            volumes,
-        },
+        RunsOn::ContainerOrMachine(image) => {
+            builder = builder
+                .platform_id(&expr_rctx.run_id)
+                .options(PlatformOptions::Container {
+                    image: Image::Use(image),
+                    docker_url: None,
+                    volumes,
+                });
+        }
 
         RunsOn::Pull {
             image,
@@ -598,11 +614,13 @@ pub async fn build_platform(
             } else {
                 Image::Use(image)
             };
-            PlatformOptions::Container {
-                docker_url: docker_url.as_deref(),
-                image,
-                volumes,
-            }
+            builder = builder
+                .platform_id(&expr_rctx.run_id)
+                .options(PlatformOptions::Container {
+                    docker_url: docker_url.as_deref(),
+                    image,
+                    volumes,
+                });
         }
 
         RunsOn::Build {
@@ -611,11 +629,15 @@ pub async fn build_platform(
             dockerfile,
             docker_url,
             volumes: _,
-        } => PlatformOptions::Container {
-            image: Image::build(name, dockerfile, tag),
-            docker_url: docker_url.as_deref(),
-            volumes,
-        },
+        } => {
+            builder = builder
+                .platform_id(&expr_rctx.run_id)
+                .options(PlatformOptions::Container {
+                    image: Image::build(name, dockerfile, tag),
+                    docker_url: docker_url.as_deref(),
+                    volumes,
+                });
+        }
 
         RunsOn::SshFromGlobalConfig { ssh_config } => {
             let config = config.ssh(ssh_config)?;
@@ -631,12 +653,14 @@ pub async fn build_platform(
                     private_key,
                 },
             };
-            PlatformOptions::Ssh(SshConnectOptions::new(
-                &config.host,
-                port,
-                &config.user,
-                auth,
-            ))
+            builder = builder
+                .platform_id(&expr_rctx.run_id)
+                .options(PlatformOptions::Ssh(SshConnectOptions::new(
+                    &config.host,
+                    port,
+                    &config.user,
+                    auth,
+                )));
         }
 
         RunsOn::Ssh(config) => {
@@ -652,26 +676,18 @@ pub async fn build_platform(
                     private_key,
                 },
             };
-            PlatformOptions::Ssh(SshConnectOptions::new(
-                &config.host,
-                port,
-                &config.user,
-                auth,
-            ))
+            builder = builder
+                .platform_id(&expr_rctx.run_id)
+                .options(PlatformOptions::Ssh(SshConnectOptions::new(
+                    &config.host,
+                    port,
+                    &config.user,
+                    auth,
+                )));
         }
-    };
+    }
 
-    let conn = run_ctx.get_conn();
-    let platform = PlatformBuilder::default()
-        .run_id(&expr_rctx.run_id)
-        .config(config.clone())
-        .options(options)
-        .pipeline_env(expr_rctx.env.as_ref())
-        .env(expr_rctx.env.clone())
-        .logger(logger.clone())
-        .conn(conn)
-        .build()
-        .await?;
+    let platform = builder.build().await?;
 
     run_ctx.add_platform(platform.clone()).await?;
     Ok(platform)
