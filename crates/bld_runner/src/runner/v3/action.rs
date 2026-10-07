@@ -378,6 +378,7 @@ mod tests {
         runner::v3::{
             ActionRunner, ActionState, RootState, State, state::MockRootState, test_utils::TempDir,
         },
+        scalar::ScalarValue,
         step::v3::{ShellCommand, Step},
         strategy::v3::{FailFastValue, MatrixValue, Strategy},
     };
@@ -767,7 +768,10 @@ mod tests {
         let mut matrix = HashMap::new();
         matrix.insert(
             "os".to_string(),
-            MatrixValue::Array(vec!["linux".to_string(), "windows".to_string()]),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("linux".to_string()),
+                ScalarValue::Text("windows".to_string()),
+            ]),
         );
 
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
@@ -827,7 +831,11 @@ mod tests {
         let mut matrix = HashMap::new();
         matrix.insert(
             "n".to_string(),
-            MatrixValue::Array(vec!["1".to_string(), "2".to_string(), "3".to_string()]),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("1".to_string()),
+                ScalarValue::Text("2".to_string()),
+                ScalarValue::Text("3".to_string()),
+            ]),
         );
 
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
@@ -887,7 +895,11 @@ mod tests {
         let mut matrix = HashMap::new();
         matrix.insert(
             "n".to_string(),
-            MatrixValue::Array(vec!["1".to_string(), "2".to_string(), "3".to_string()]),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("1".to_string()),
+                ScalarValue::Text("2".to_string()),
+                ScalarValue::Text("3".to_string()),
+            ]),
         );
 
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
@@ -1215,7 +1227,10 @@ steps:
         let mut matrix = HashMap::new();
         matrix.insert(
             "os".to_string(),
-            MatrixValue::Array(vec!["linux".to_string(), "windows".to_string()]),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("linux".to_string()),
+                ScalarValue::Text("windows".to_string()),
+            ]),
         );
 
         let mut action = Action::default();

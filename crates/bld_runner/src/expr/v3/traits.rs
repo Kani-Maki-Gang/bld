@@ -8,6 +8,8 @@ use pest::{
 };
 use std::{collections::HashMap, fmt::Display, iter::Peekable};
 
+use crate::scalar::ScalarValue;
+
 #[cfg(test)]
 use mockall::automock;
 
@@ -287,6 +289,19 @@ impl TryFrom<String> for ExprValue<'_> {
     }
 }
 
+impl From<&ScalarValue> for ExprValue<'_> {
+    fn from(value: &ScalarValue) -> Self {
+        match value {
+            ScalarValue::Text(t) => Self::Text(ExprText::Owned(t.to_owned())),
+            ScalarValue::Number(v) => Self::Number {
+                value: *v,
+                raw: ExprText::Owned(v.to_string()),
+            },
+            ScalarValue::Boolean(b) => Self::Boolean(*b),
+        }
+    }
+}
+
 impl Display for ExprValue<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let value = match self {
@@ -331,7 +346,7 @@ pub trait WritableRuntimeExprContext {
     fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
     fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
     #[allow(clippy::needless_lifetimes)]
-    fn get_matrix_value<'a>(&'a self, name: &str) -> Result<&'a str>;
+    fn get_matrix_value<'a>(&'a self, name: &str) -> Result<ExprValue<'a>>;
 }
 
 pub trait EvalObject<'a> {
@@ -357,6 +372,31 @@ pub mod tests {
             value,
             raw: ExprText::Owned(value.to_string()),
         }
+    }
+
+    #[test]
+    fn scalar_number_into_expr_value_success() {
+        let value: ExprValue = (&ScalarValue::Number(1.0)).into();
+        assert_eq!(value.to_string(), "1");
+        let ExprValue::Number { value: num, .. } = value else {
+            panic!("expected number");
+        };
+        assert_eq!(num, 1.0);
+    }
+
+    #[test]
+    fn scalar_boolean_into_expr_value_success() {
+        let value: ExprValue = (&ScalarValue::Boolean(true)).into();
+        assert_eq!(value, ExprValue::Boolean(true));
+    }
+
+    #[test]
+    fn scalar_text_into_expr_value_success() {
+        let value: ExprValue = (&ScalarValue::Text("a".to_string())).into();
+        let ExprValue::Text(text) = value else {
+            panic!("expected text");
+        };
+        assert_eq!(text.inner(), "a");
     }
 
     #[test]

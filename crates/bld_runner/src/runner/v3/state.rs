@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use anyhow::{Result, anyhow, bail};
 use uuid::Uuid;
 
-use crate::expr::v3::traits::{ExprValue, OutputScope, WritableRuntimeExprContext};
+use crate::{
+    expr::v3::traits::{ExprValue, OutputScope, WritableRuntimeExprContext},
+    scalar::ScalarValue,
+};
 
 #[cfg(test)]
 use mockall::{automock, mock};
@@ -21,7 +24,7 @@ pub trait RootState: WritableRuntimeExprContext {
     fn add_node(&mut self, node_id: &str);
     fn update_node_state(&mut self, node_id: &str, state: State);
     fn get_node_state<'a>(&'a self, node_id: &str) -> Option<&'a State>;
-    fn set_matrix(&mut self, matrix: HashMap<String, String>);
+    fn set_matrix(&mut self, matrix: HashMap<String, ScalarValue>);
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -102,7 +105,7 @@ impl WritableRuntimeExprContext for StepState {
         Ok(())
     }
 
-    fn get_matrix_value<'a>(&'a self, _name: &str) -> Result<&'a str> {
+    fn get_matrix_value<'a>(&'a self, _name: &str) -> Result<ExprValue<'a>> {
         bail!("matrix values are not accessible from step state")
     }
 }
@@ -112,7 +115,7 @@ pub struct JobState {
     name: String,
     state: State,
     steps: HashMap<String, StepState>,
-    matrix: HashMap<String, String>,
+    matrix: HashMap<String, ScalarValue>,
     // TECH DEBT: Change 'static lifetime to a specific lifetime.
     // Changing this will require a lot of type annotation changes.
     job_outputs: HashMap<String, HashMap<String, ExprValue<'static>>>,
@@ -180,7 +183,7 @@ impl RootState for JobState {
         self.steps.get(node_id).map(|x| &x.state)
     }
 
-    fn set_matrix(&mut self, matrix: HashMap<String, String>) {
+    fn set_matrix(&mut self, matrix: HashMap<String, ScalarValue>) {
         self.matrix = matrix;
     }
 }
@@ -226,11 +229,11 @@ impl WritableRuntimeExprContext for JobState {
         step_state.set_outputs(id, outputs)
     }
 
-    fn get_matrix_value<'a>(&'a self, name: &str) -> Result<&'a str> {
+    fn get_matrix_value<'a>(&'a self, name: &str) -> Result<ExprValue<'a>> {
         self.matrix
             .get(name)
-            .map(|x| x.as_str())
             .ok_or_else(|| anyhow!("matrix value '{name}' not found"))
+            .map(|x| x.into())
     }
 }
 
@@ -238,7 +241,7 @@ pub struct ActionState {
     id: String,
     state: State,
     steps: HashMap<String, StepState>,
-    matrix: HashMap<String, String>,
+    matrix: HashMap<String, ScalarValue>,
 }
 
 impl Default for ActionState {
@@ -277,7 +280,7 @@ impl RootState for ActionState {
         self.steps.get(node_id).map(|x| &x.state)
     }
 
-    fn set_matrix(&mut self, matrix: HashMap<String, String>) {
+    fn set_matrix(&mut self, matrix: HashMap<String, ScalarValue>) {
         self.matrix = matrix;
     }
 }
@@ -311,11 +314,11 @@ impl WritableRuntimeExprContext for ActionState {
         step_state.set_outputs(id, outputs)
     }
 
-    fn get_matrix_value<'a>(&'a self, name: &str) -> Result<&'a str> {
+    fn get_matrix_value<'a>(&'a self, name: &str) -> Result<ExprValue<'a>> {
         self.matrix
             .get(name)
-            .map(|x| x.as_str())
             .ok_or_else(|| anyhow!("matrix value '{name}' not found"))
+            .map(|x| x.into())
     }
 }
 
@@ -332,7 +335,7 @@ mod mocks {
             fn add_node(&mut self, node_id: &str);
             fn update_node_state(&mut self, node_id: &str, state: State);
             fn get_node_state<'a>(&'a self, node_id: &str) -> Option<&'a State>;
-            fn set_matrix(&mut self, matrix: HashMap<String, String>);
+            fn set_matrix(&mut self, matrix: HashMap<String, ScalarValue>);
         }
 
         impl WritableRuntimeExprContext for RootState {
@@ -340,7 +343,7 @@ mod mocks {
             fn get_output<'a>(&'a self, scope: OutputScope, id: &str, name: &str) -> Result<ExprValue<'a>>;
             fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
             fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
-            fn get_matrix_value<'a>(&'a self, name: &str) -> Result<&'a str>;
+            fn get_matrix_value<'a>(&'a self, name: &str) -> Result<ExprValue<'a>>;
         }
     }
 }
@@ -357,6 +360,7 @@ mod tests {
     use crate::{
         expr::v3::traits::{ExprText, ExprValue, OutputScope, WritableRuntimeExprContext},
         runner::v3::state::{ActionState, JobState, NodeState, RootState, State, StepState},
+        scalar::ScalarValue,
     };
 
     #[test]
@@ -802,5 +806,39 @@ mod tests {
         );
         let result = state.set_outputs(&step_id, outputs);
         assert!(result.is_ok())
+    }
+
+    fn assert_matrix_values<S: RootState>(mut state: S) {
+        let matrix: HashMap<String, ScalarValue> = vec![
+            ("n", ScalarValue::Number(1.0)),
+            ("flag", ScalarValue::Boolean(true)),
+            ("os", ScalarValue::Text("linux".to_string())),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v))
+        .collect();
+        state.set_matrix(matrix);
+
+        let n = state.get_matrix_value("n").unwrap();
+        assert!(matches!(n, ExprValue::Number { value, .. } if value == 1.0));
+
+        let flag = state.get_matrix_value("flag").unwrap();
+        assert_eq!(flag, ExprValue::Boolean(true));
+
+        let os = state.get_matrix_value("os").unwrap();
+        assert!(matches!(os, ExprValue::Text(ref t) if t.inner() == "linux"));
+
+        let err = state.get_matrix_value("missing").unwrap_err();
+        assert!(err.to_string().contains("matrix value 'missing' not found"));
+    }
+
+    #[test]
+    pub fn job_state_get_matrix_value_success() {
+        assert_matrix_values(JobState::new("main"));
+    }
+
+    #[test]
+    pub fn action_state_get_matrix_value_success() {
+        assert_matrix_values(ActionState::default());
     }
 }

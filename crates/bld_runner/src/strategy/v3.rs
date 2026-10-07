@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
+use crate::scalar::ScalarValue;
+
 #[cfg(feature = "all")]
 use {
     crate::{
@@ -19,7 +21,7 @@ use {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum MatrixValue {
-    Array(Vec<String>),
+    Array(Vec<ScalarValue>),
     Expr(String),
 }
 
@@ -52,7 +54,7 @@ impl Strategy {
     pub fn combinations<'a, T, RCtx, WCtx>(
         &'a self,
         exec: &CommonExprExecutor<'a, T, RCtx, WCtx>,
-    ) -> Result<Vec<HashMap<String, String>>>
+    ) -> Result<Vec<HashMap<String, ScalarValue>>>
     where
         T: EvalObject<'a>,
         RCtx: ReadonlyRuntimeExprContext<'a>,
@@ -61,7 +63,7 @@ impl Strategy {
         let mut keys: Vec<&String> = self.matrix.keys().collect();
         keys.sort();
 
-        let mut combinations: Vec<HashMap<String, String>> = vec![HashMap::new()];
+        let mut combinations: Vec<HashMap<String, ScalarValue>> = vec![HashMap::new()];
 
         for key in keys {
             let value = self
@@ -69,7 +71,7 @@ impl Strategy {
                 .get(key)
                 .ok_or_else(|| anyhow::anyhow!("matrix key '{key}' not found"))?;
 
-            let values: Vec<String> = match value {
+            let values: Vec<ScalarValue> = match value {
                 MatrixValue::Array(items) => items.clone(),
                 MatrixValue::Expr(expr) => {
                     let result = exec.eval(expr)?;
@@ -79,7 +81,16 @@ impl Strategy {
                             result.type_as_string()
                         );
                     };
-                    items.iter().map(|x| x.to_string()).collect()
+                    items
+                        .iter()
+                        .map(|x| match x {
+                            ExprValue::Array(_) | ExprValue::Unknown => bail!(
+                                "matrix key '{key}' contains a value of type {}",
+                                x.type_as_string()
+                            ),
+                            _ => Ok(ScalarValue::Text(x.to_string())),
+                        })
+                        .collect::<Result<Vec<_>>>()?
                 }
             };
 
@@ -202,7 +213,7 @@ mod tests {
         let value: HashMap<String, MatrixValue> = serde_yaml_ng::from_str(yaml).unwrap();
         let os = value.get("os").unwrap();
         assert!(
-            matches!(os, MatrixValue::Array(items) if items == &vec!["linux".to_string(), "windows".to_string()])
+            matches!(os, MatrixValue::Array(items) if items == &vec![ScalarValue::Text("linux".to_string()), ScalarValue::Text("windows".to_string())])
         );
     }
 
@@ -212,6 +223,26 @@ mod tests {
         let value: HashMap<String, MatrixValue> = serde_yaml_ng::from_str(yaml).unwrap();
         let os = value.get("os").unwrap();
         assert!(matches!(os, MatrixValue::Expr(expr) if expr == "${{ inputs.oses }}"));
+    }
+
+    #[test]
+    pub fn matrix_value_number_array_serde_success() {
+        let yaml = "n: [1, 2]\n";
+        let value: HashMap<String, MatrixValue> = serde_yaml_ng::from_str(yaml).unwrap();
+        let n = value.get("n").unwrap();
+        assert!(
+            matches!(n, MatrixValue::Array(items) if items == &vec![ScalarValue::Number(1.0), ScalarValue::Number(2.0)])
+        );
+    }
+
+    #[test]
+    pub fn matrix_value_boolean_array_serde_success() {
+        let yaml = "flags: [true, false]\n";
+        let value: HashMap<String, MatrixValue> = serde_yaml_ng::from_str(yaml).unwrap();
+        let flags = value.get("flags").unwrap();
+        assert!(
+            matches!(flags, MatrixValue::Array(items) if items == &vec![ScalarValue::Boolean(true), ScalarValue::Boolean(false)])
+        );
     }
 
     #[test]
@@ -269,6 +300,7 @@ mod exec_tests {
         },
         inputs::v3::Input,
         pipeline::v3::Pipeline,
+        scalar::ScalarValue,
         strategy::v3::{FailFastValue, MatrixValue, Strategy},
     };
 
@@ -282,11 +314,17 @@ mod exec_tests {
         let mut matrix = HashMap::new();
         matrix.insert(
             "os".to_string(),
-            MatrixValue::Array(vec!["linux".to_string(), "windows".to_string()]),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("linux".to_string()),
+                ScalarValue::Text("windows".to_string()),
+            ]),
         );
         matrix.insert(
             "version".to_string(),
-            MatrixValue::Array(vec!["v2".to_string(), "v3".to_string()]),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("v2".to_string()),
+                ScalarValue::Text("v3".to_string()),
+            ]),
         );
         let strategy = Strategy {
             matrix,
@@ -344,6 +382,63 @@ mod exec_tests {
         };
 
         assert!(strategy.combinations(&exec).is_err());
+    }
+
+    fn single_key_values(value: MatrixValue) -> Vec<ScalarValue> {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let mut matrix = HashMap::new();
+        matrix.insert("n".to_string(), value);
+        let strategy = Strategy {
+            matrix,
+            fail_fast: None,
+        };
+
+        strategy
+            .combinations(&exec)
+            .unwrap()
+            .into_iter()
+            .map(|mut x| x.remove("n").unwrap())
+            .collect()
+    }
+
+    #[test]
+    pub fn combinations_literal_number_array_success() {
+        let values = single_key_values(MatrixValue::Array(vec![
+            ScalarValue::Number(1.0),
+            ScalarValue::Number(2.0),
+        ]));
+        assert_eq!(
+            values,
+            vec![ScalarValue::Number(1.0), ScalarValue::Number(2.0)]
+        );
+    }
+
+    #[test]
+    pub fn combinations_expr_number_array_keeps_raw_text_success() {
+        let values = single_key_values(MatrixValue::Expr("${{ [3.10, 3.11] }}".to_string()));
+        assert_eq!(
+            values,
+            vec![
+                ScalarValue::Text("3.10".to_string()),
+                ScalarValue::Text("3.11".to_string())
+            ]
+        );
+    }
+
+    #[test]
+    pub fn combinations_expr_boolean_array_success() {
+        let values = single_key_values(MatrixValue::Expr("${{ [true, false] }}".to_string()));
+        assert_eq!(
+            values,
+            vec![
+                ScalarValue::Text("true".to_string()),
+                ScalarValue::Text("false".to_string())
+            ]
+        );
     }
 
     #[test]

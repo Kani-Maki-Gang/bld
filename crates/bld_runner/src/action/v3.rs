@@ -169,7 +169,6 @@ impl<'a> EvalObject<'a> for Action {
                 };
                 let name = part.as_span().as_str();
                 wctx.get_matrix_value(name)
-                    .map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
             "steps" => {
@@ -280,7 +279,7 @@ mod tests {
 
         wctx.expect_get_matrix_value()
             .with(mockall::predicate::eq("version"))
-            .returning(|_| Ok("v3"));
+            .returning(|_| Ok(ExprValue::Text(ExprText::Owned("v3".to_string()))));
 
         let exec = CommonExprExecutor::new(&action, &rctx, &wctx);
         let actual = exec.eval("${{ matrix.version }}").unwrap();
