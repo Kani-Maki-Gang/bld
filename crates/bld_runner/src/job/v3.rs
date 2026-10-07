@@ -1,5 +1,3 @@
-#[cfg(feature = "all")]
-use crate::expr::v3::traits::ExprText;
 use crate::{outputs::v3::Output, runs_on::v3::RunsOn, step::v3::Step, strategy::v3::Strategy};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -152,8 +150,7 @@ impl<'a> EvalObject<'a> for Job {
                     bail!("expected name of matrix variable in object path");
                 };
                 let name = part.as_span().as_str();
-                wctx.get_matrix_value(name)
-                    .map(|x| ExprValue::Text(ExprText::Ref(x)))?
+                wctx.get_matrix_value(name)?
             }
 
             "steps" => {

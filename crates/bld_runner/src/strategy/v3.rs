@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
+use crate::scalar::ScalarValue;
+
 #[cfg(feature = "all")]
 use {
     crate::{
@@ -19,7 +21,7 @@ use {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum MatrixValue {
-    Array(Vec<String>),
+    Array(Vec<ScalarValue>),
     Expr(String),
 }
 
@@ -52,7 +54,7 @@ impl Strategy {
     pub fn combinations<'a, T, RCtx, WCtx>(
         &'a self,
         exec: &CommonExprExecutor<'a, T, RCtx, WCtx>,
-    ) -> Result<Vec<HashMap<String, String>>>
+    ) -> Result<Vec<HashMap<String, ScalarValue>>>
     where
         T: EvalObject<'a>,
         RCtx: ReadonlyRuntimeExprContext<'a>,
@@ -61,7 +63,7 @@ impl Strategy {
         let mut keys: Vec<&String> = self.matrix.keys().collect();
         keys.sort();
 
-        let mut combinations: Vec<HashMap<String, String>> = vec![HashMap::new()];
+        let mut combinations: Vec<HashMap<String, ScalarValue>> = vec![HashMap::new()];
 
         for key in keys {
             let value = self
@@ -69,7 +71,7 @@ impl Strategy {
                 .get(key)
                 .ok_or_else(|| anyhow::anyhow!("matrix key '{key}' not found"))?;
 
-            let values: Vec<String> = match value {
+            let values: Vec<ScalarValue> = match value {
                 MatrixValue::Array(items) => items.clone(),
                 MatrixValue::Expr(expr) => {
                     let result = exec.eval(expr)?;
@@ -79,7 +81,16 @@ impl Strategy {
                             result.type_as_string()
                         );
                     };
-                    items.iter().map(|x| x.to_string()).collect()
+                    items
+                        .iter()
+                        .map(|x| match x {
+                            ExprValue::Array(_) | ExprValue::Unknown => bail!(
+                                "matrix key '{key}' contains a value of type {}",
+                                x.type_as_string()
+                            ),
+                            _ => Ok(ScalarValue::Text(x.to_string())),
+                        })
+                        .collect::<Result<Vec<_>>>()?
                 }
             };
 

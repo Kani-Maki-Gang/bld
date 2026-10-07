@@ -169,7 +169,6 @@ impl<'a> EvalObject<'a> for Action {
                 };
                 let name = part.as_span().as_str();
                 wctx.get_matrix_value(name)
-                    .map(|x| ExprValue::Text(ExprText::Ref(x)))
             }
 
             "steps" => {

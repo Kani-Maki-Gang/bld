@@ -15,8 +15,7 @@ use tracing::debug;
 use crate::expr::v3::{
     context::START_OF_RUN_WCTX,
     exec::CommonExprExecutor,
-    parser,
-    parser::{ExprParser, Rule},
+    parser::{self, ExprParser, Rule},
     traits::{
         EvalExpr, EvalObject, ExprValue, OutputScope, ReadonlyRuntimeExprContext,
         WritableRuntimeExprContext,
@@ -98,8 +97,8 @@ impl<'a> WritableRuntimeExprContext for ValidatorWritableRuntimeExprContext<'a> 
         Ok(())
     }
 
-    fn get_matrix_value<'b>(&'b self, _name: &str) -> Result<&'b str> {
-        Ok("")
+    fn get_matrix_value<'b>(&'b self, _name: &str) -> Result<ExprValue<'b>> {
+        Ok(ExprValue::Unknown)
     }
 }
 

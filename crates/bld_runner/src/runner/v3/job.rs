@@ -35,6 +35,7 @@ use crate::{
     registry::v3::Registry,
     runner::v3::state::{JobState, RootState, State},
     runs_on::v3::RunsOn,
+    scalar::ScalarValue,
     step::v3::{ShellCommand, Step},
 };
 
@@ -249,7 +250,7 @@ impl<S: RootState> JobRunner<S> {
     async fn run_step(
         &mut self,
         step: &Step,
-        job_matrix: Option<&HashMap<String, String>>,
+        job_matrix: Option<&HashMap<String, ScalarValue>>,
     ) -> Result<()> {
         let Some(strategy) = step.strategy() else {
             if let Some(job_matrix) = job_matrix {

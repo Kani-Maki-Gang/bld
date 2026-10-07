@@ -8,6 +8,8 @@ use pest::{
 };
 use std::{collections::HashMap, fmt::Display, iter::Peekable};
 
+use crate::scalar::ScalarValue;
+
 #[cfg(test)]
 use mockall::automock;
 
@@ -287,6 +289,19 @@ impl TryFrom<String> for ExprValue<'_> {
     }
 }
 
+impl From<&ScalarValue> for ExprValue<'_> {
+    fn from(value: &ScalarValue) -> Self {
+        match value {
+            ScalarValue::Text(t) => Self::Text(ExprText::Owned(t.to_owned())),
+            ScalarValue::Number(v) => Self::Number {
+                value: *v,
+                raw: ExprText::Owned(v.to_string()),
+            },
+            ScalarValue::Boolean(b) => Self::Boolean(*b),
+        }
+    }
+}
+
 impl Display for ExprValue<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let value = match self {
@@ -331,7 +346,7 @@ pub trait WritableRuntimeExprContext {
     fn set_output(&mut self, id: &str, name: String, value: String) -> Result<()>;
     fn set_outputs(&mut self, id: &str, outputs: HashMap<String, String>) -> Result<()>;
     #[allow(clippy::needless_lifetimes)]
-    fn get_matrix_value<'a>(&'a self, name: &str) -> Result<&'a str>;
+    fn get_matrix_value<'a>(&'a self, name: &str) -> Result<ExprValue<'a>>;
 }
 
 pub trait EvalObject<'a> {
