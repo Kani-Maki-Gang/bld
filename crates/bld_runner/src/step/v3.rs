@@ -372,6 +372,7 @@ mod tests {
         job::v3::Job,
         outputs::v3::Output,
         pipeline::v3::Pipeline,
+        scalar::ScalarValue,
         step::v3::{ShellCommand, Step},
         strategy::v3::{MatrixValue, Strategy},
         validator::v3::{
@@ -1133,7 +1134,10 @@ mod tests {
         let mut matrix = HashMap::new();
         matrix.insert(
             "my-key".to_string(),
-            MatrixValue::Array(vec!["a".to_string(), "b".to_string()]),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("a".to_string()),
+                ScalarValue::Text("b".to_string()),
+            ]),
         );
 
         let mut action = Action::default();
@@ -1176,7 +1180,10 @@ mod tests {
         let mut matrix = HashMap::new();
         matrix.insert(
             "os".to_string(),
-            MatrixValue::Array(vec!["linux".to_string(), "windows".to_string()]),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("linux".to_string()),
+                ScalarValue::Text("windows".to_string()),
+            ]),
         );
 
         let mut action = Action::default();

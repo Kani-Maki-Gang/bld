@@ -726,6 +726,7 @@ mod tests {
         pipeline::v3::Pipeline,
         runner::v3::{MockRootState, RootState, State, state::JobState, test_utils::TempDir},
         runs_on::v3::RunsOn,
+        scalar::ScalarValue,
         step::v3::{ShellCommand, Step},
         strategy::v3::{FailFastValue, MatrixValue, Strategy},
     };
@@ -1300,11 +1301,17 @@ mod tests {
         let mut matrix = HashMap::new();
         matrix.insert(
             "os".to_string(),
-            MatrixValue::Array(vec!["linux".to_string(), "windows".to_string()]),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("linux".to_string()),
+                ScalarValue::Text("windows".to_string()),
+            ]),
         );
         matrix.insert(
             "version".to_string(),
-            MatrixValue::Array(vec!["v2".to_string(), "v3".to_string()]),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("v2".to_string()),
+                ScalarValue::Text("v3".to_string()),
+            ]),
         );
 
         let mut pipeline = Pipeline::default();
@@ -1369,7 +1376,10 @@ mod tests {
         let mut matrix = HashMap::new();
         matrix.insert(
             "os".to_string(),
-            MatrixValue::Array(vec!["linux".to_string(), "windows".to_string()]),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("linux".to_string()),
+                ScalarValue::Text("windows".to_string()),
+            ]),
         );
 
         let mut pipeline = Pipeline::default();
@@ -1434,13 +1444,19 @@ mod tests {
         let mut job_matrix = HashMap::new();
         job_matrix.insert(
             "os".to_string(),
-            MatrixValue::Array(vec!["linux".to_string(), "windows".to_string()]),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("linux".to_string()),
+                ScalarValue::Text("windows".to_string()),
+            ]),
         );
 
         let mut step_matrix = HashMap::new();
         step_matrix.insert(
             "version".to_string(),
-            MatrixValue::Array(vec!["v2".to_string(), "v3".to_string()]),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("v2".to_string()),
+                ScalarValue::Text("v3".to_string()),
+            ]),
         );
 
         let mut pipeline = Pipeline::default();
@@ -1516,7 +1532,11 @@ mod tests {
         let mut matrix = HashMap::new();
         matrix.insert(
             "n".to_string(),
-            MatrixValue::Array(vec!["1".to_string(), "2".to_string(), "3".to_string()]),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("1".to_string()),
+                ScalarValue::Text("2".to_string()),
+                ScalarValue::Text("3".to_string()),
+            ]),
         );
 
         let mut pipeline = Pipeline::default();
@@ -1589,7 +1609,11 @@ mod tests {
         let mut matrix = HashMap::new();
         matrix.insert(
             "n".to_string(),
-            MatrixValue::Array(vec!["1".to_string(), "2".to_string(), "3".to_string()]),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("1".to_string()),
+                ScalarValue::Text("2".to_string()),
+                ScalarValue::Text("3".to_string()),
+            ]),
         );
 
         let mut pipeline = Pipeline::default();
@@ -1654,6 +1678,14 @@ steps:
 "#;
 
     fn job_runner_calling_action(dir: &TempDir, step: External) -> JobRunner<JobState> {
+        job_runner_calling_action_with_strategy(dir, step, None)
+    }
+
+    fn job_runner_calling_action_with_strategy(
+        dir: &TempDir,
+        step: External,
+        strategy: Option<Strategy>,
+    ) -> JobRunner<JobState> {
         let job_name = "main".to_string();
         let config = BldConfig {
             root_dir: dir.root_dir(),
@@ -1677,6 +1709,7 @@ steps:
         pipeline.jobs.insert(
             job_name.clone(),
             Job {
+                strategy,
                 steps: vec![Step::ExternalFile(Box::new(step))],
                 ..Default::default()
             },
@@ -1989,6 +2022,62 @@ steps:
         );
     }
 
+    async fn single_matrix_value_output(dir_name: &str, value: MatrixValue) -> String {
+        let dir = TempDir::new(dir_name);
+        dir.write("inner.yaml", ACTION_WITH_OUTPUT);
+
+        let mut with = HashMap::new();
+        with.insert("tag".to_string(), "${{ matrix.tag }}".to_string());
+
+        let mut matrix = HashMap::new();
+        matrix.insert("tag".to_string(), value);
+
+        let runner = job_runner_calling_action_with_strategy(
+            &dir,
+            External {
+                id: "call_action".to_string(),
+                uses: "inner.yaml".to_string(),
+                with,
+                ..Default::default()
+            },
+            Some(Strategy {
+                matrix,
+                fail_fast: None,
+            }),
+        );
+
+        let result = runner.run().await;
+        assert!(result.is_ok(), "error: {:?}", result.err());
+
+        result
+            .unwrap()
+            .options
+            .state
+            .get_output(OutputScope::Step, "call_action", "echoed")
+            .unwrap()
+            .to_string()
+    }
+
+    #[actix_web::test]
+    pub async fn job_step_with_number_matrix_value_success() {
+        let output = single_matrix_value_output(
+            "job_step_with_number_matrix_value",
+            MatrixValue::Array(vec![ScalarValue::Number(1.0)]),
+        )
+        .await;
+        assert_eq!(output, "1");
+    }
+
+    #[actix_web::test]
+    pub async fn job_step_with_expr_number_matrix_value_keeps_raw_text_success() {
+        let output = single_matrix_value_output(
+            "job_step_with_expr_number_matrix_value_keeps_raw_text",
+            MatrixValue::Expr("${{ [3.10] }}".to_string()),
+        )
+        .await;
+        assert_eq!(output, "3.10");
+    }
+
     #[actix_web::test]
     pub async fn job_step_with_strategy_calling_action_stores_no_outputs_success() {
         let dir = TempDir::new("job_step_with_strategy_calling_action_stores_no_outputs");
@@ -2000,7 +2089,10 @@ steps:
         let mut matrix = HashMap::new();
         matrix.insert(
             "tag".to_string(),
-            MatrixValue::Array(vec!["one".to_string(), "two".to_string()]),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("one".to_string()),
+                ScalarValue::Text("two".to_string()),
+            ]),
         );
 
         let runner = job_runner_calling_action(

@@ -811,7 +811,7 @@ mod tests {
 
         wctx.expect_get_matrix_value()
             .with(mockall::predicate::eq("os"))
-            .returning(|_| Ok("linux"));
+            .returning(|_| Ok(ExprValue::Text(ExprText::Owned("linux".to_string()))));
 
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
         let actual = exec.eval("${{ matrix.os }}").unwrap();

@@ -260,6 +260,7 @@ mod tests {
 
     use crate::{
         pipeline::v3::Pipeline,
+        scalar::ScalarValue,
         step::v3::{ShellCommand, Step},
         strategy::v3::{FailFastValue, MatrixValue, Strategy},
         validator::v3::{
@@ -300,7 +301,11 @@ mod tests {
             .map(|(k, v)| {
                 (
                     k.to_string(),
-                    MatrixValue::Array(v.into_iter().map(|x| x.to_string()).collect()),
+                    MatrixValue::Array(
+                        v.into_iter()
+                            .map(|x| ScalarValue::Text(x.to_string()))
+                            .collect(),
+                    ),
                 )
             })
             .collect()
@@ -320,6 +325,31 @@ mod tests {
                     matrix: matrix_of(vec![("version", vec!["v2", "v3"])]),
                     fail_fast: None,
                 }),
+                ..Default::default()
+            }))],
+            ..Default::default()
+        };
+
+        let result = validate_job(job).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn matrix_number_value_in_comparison_success() {
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "n".to_string(),
+            MatrixValue::Array(vec![ScalarValue::Number(1.0), ScalarValue::Number(2.0)]),
+        );
+        let job = Job {
+            strategy: Some(Strategy {
+                matrix,
+                fail_fast: None,
+            }),
+            steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                id: "build".to_string(),
+                run: "echo ${{ matrix.n }}".to_string(),
+                condition: Some("${{ matrix.n > 1 }}".to_string()),
                 ..Default::default()
             }))],
             ..Default::default()

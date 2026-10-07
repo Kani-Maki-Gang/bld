@@ -360,6 +360,7 @@ mod tests {
     use crate::{
         expr::v3::traits::{ExprText, ExprValue, OutputScope, WritableRuntimeExprContext},
         runner::v3::state::{ActionState, JobState, NodeState, RootState, State, StepState},
+        scalar::ScalarValue,
     };
 
     #[test]
@@ -805,5 +806,39 @@ mod tests {
         );
         let result = state.set_outputs(&step_id, outputs);
         assert!(result.is_ok())
+    }
+
+    fn assert_matrix_values<S: RootState>(mut state: S) {
+        let matrix: HashMap<String, ScalarValue> = vec![
+            ("n", ScalarValue::Number(1.0)),
+            ("flag", ScalarValue::Boolean(true)),
+            ("os", ScalarValue::Text("linux".to_string())),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v))
+        .collect();
+        state.set_matrix(matrix);
+
+        let n = state.get_matrix_value("n").unwrap();
+        assert!(matches!(n, ExprValue::Number { value, .. } if value == 1.0));
+
+        let flag = state.get_matrix_value("flag").unwrap();
+        assert_eq!(flag, ExprValue::Boolean(true));
+
+        let os = state.get_matrix_value("os").unwrap();
+        assert!(matches!(os, ExprValue::Text(ref t) if t.inner() == "linux"));
+
+        let err = state.get_matrix_value("missing").unwrap_err();
+        assert!(err.to_string().contains("matrix value 'missing' not found"));
+    }
+
+    #[test]
+    pub fn job_state_get_matrix_value_success() {
+        assert_matrix_values(JobState::new("main"));
+    }
+
+    #[test]
+    pub fn action_state_get_matrix_value_success() {
+        assert_matrix_values(ActionState::default());
     }
 }

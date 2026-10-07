@@ -375,6 +375,31 @@ pub mod tests {
     }
 
     #[test]
+    fn scalar_number_into_expr_value_success() {
+        let value: ExprValue = (&ScalarValue::Number(1.0)).into();
+        assert_eq!(value.to_string(), "1");
+        let ExprValue::Number { value: num, .. } = value else {
+            panic!("expected number");
+        };
+        assert_eq!(num, 1.0);
+    }
+
+    #[test]
+    fn scalar_boolean_into_expr_value_success() {
+        let value: ExprValue = (&ScalarValue::Boolean(true)).into();
+        assert_eq!(value, ExprValue::Boolean(true));
+    }
+
+    #[test]
+    fn scalar_text_into_expr_value_success() {
+        let value: ExprValue = (&ScalarValue::Text("a".to_string())).into();
+        let ExprValue::Text(text) = value else {
+            panic!("expected text");
+        };
+        assert_eq!(text.inner(), "a");
+    }
+
+    #[test]
     fn number_conversion_keeps_leading_and_trailing_zeros() {
         let value: ExprValue = "007".try_into().unwrap();
         assert_eq!(value.to_string(), "007");
