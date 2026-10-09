@@ -174,23 +174,25 @@ impl<S: RootState> ActionRunner<S> {
             })
     }
 
-    async fn complex_shell(&mut self, complex: &ShellCommand) -> Result<()> {
-        if let Some(name) = complex.name.as_ref() {
+    async fn step_name(&mut self, name: Option<&String>) -> Result<()> {
+        if let Some(name) = name {
+            let name = self.eval_all_expr(name)?;
             let mut message = String::new();
             writeln!(message, "{:<15}: {name}", "Step")?;
             self.logger.write_line(message).await?;
         }
+        Ok(())
+    }
+
+    async fn complex_shell(&mut self, complex: &ShellCommand) -> Result<()> {
+        self.step_name(complex.name.as_ref()).await?;
         self.shell(&complex.id, &complex.working_dir, &complex.run)
             .await?;
         Ok(())
     }
 
     async fn external(&mut self, external: &External) -> Result<()> {
-        if let Some(name) = external.name.as_ref() {
-            let mut message = String::new();
-            writeln!(message, "{:<15}: {name}", "Step")?;
-            self.logger.write_line(message).await?;
-        }
+        self.step_name(external.name.as_ref()).await?;
 
         debug!("calling external pipeline or action {}", external.uses);
 
@@ -1274,5 +1276,140 @@ steps:
 
         let result = runner.execute().await;
         assert!(result.is_err());
+    }
+
+    #[actix_web::test]
+    pub async fn step_name_with_matrix_value_is_evaluated_success() {
+        let logger = Logger::in_memory().into_arc();
+        let mut action = Action::default();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex = Regex::new(EXPR_REGEX).unwrap();
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "os".to_string(),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("linux".to_string()),
+                ScalarValue::Text("mac".to_string()),
+            ]),
+        );
+
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "build".to_string(),
+            name: Some("Build for ${{ matrix.os }}".to_string()),
+            run: "echo build".to_string(),
+            condition: None,
+            working_dir: None,
+            strategy: Some(Strategy {
+                matrix,
+                fail_fast: None,
+            }),
+        })));
+
+        let mut state = ActionState::default();
+        for step in &action.steps {
+            state.add_node(step.id());
+        }
+
+        let runner = ActionRunner {
+            logger: logger.clone(),
+            action,
+            platform,
+            artifacts,
+            expr_regex: regex,
+            expr_rctx: rctx,
+            state,
+            config,
+            fs,
+            run_ctx,
+            regex_cache,
+            package_manager,
+        };
+
+        let result = runner.execute().await;
+        assert!(result.is_ok(), "error: {:?}", result.err());
+
+        let output = logger.try_retrieve_output().await.unwrap();
+        assert!(output.contains("Build for linux"), "{output}");
+        assert!(output.contains("Build for mac"), "{output}");
+        assert!(!output.contains("${{"), "{output}");
+    }
+
+    #[actix_web::test]
+    pub async fn external_step_name_with_input_is_evaluated_success() {
+        let dir = TempDir::new("action_external_step_name_is_evaluated");
+        dir.write(
+            "inner.yaml",
+            r#"
+version: 3
+type: action
+name: Inner
+
+steps:
+  - id: noop
+    run: echo noop
+"#,
+        );
+
+        let logger = Logger::in_memory().into_arc();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex = Regex::new(EXPR_REGEX).unwrap();
+        let mut inputs = HashMap::new();
+        inputs.insert("target".to_string(), "inner".to_string());
+        let rctx = CommonReadonlyRuntimeExprContext {
+            inputs: inputs.into_arc(),
+            ..Default::default()
+        };
+        let config = BldConfig {
+            root_dir: dir.root_dir(),
+            ..Default::default()
+        }
+        .into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+
+        let mut action = Action::default();
+        action.steps.push(Step::ExternalFile(Box::new(External {
+            id: "call_inner".to_string(),
+            name: Some("Call ${{ inputs.target }}".to_string()),
+            uses: "inner.yaml".to_string(),
+            ..Default::default()
+        })));
+
+        let mut state = ActionState::default();
+        for step in &action.steps {
+            state.add_node(step.id());
+        }
+
+        let runner = ActionRunner {
+            logger: logger.clone(),
+            action,
+            platform,
+            artifacts,
+            expr_regex: regex,
+            expr_rctx: rctx,
+            state,
+            config,
+            fs,
+            run_ctx,
+            regex_cache,
+            package_manager,
+        };
+
+        let result = runner.execute().await;
+        assert!(result.is_ok(), "error: {:?}", result.err());
+
+        let output = logger.try_retrieve_output().await.unwrap();
+        assert!(output.contains("Call inner"), "{output}");
     }
 }

@@ -331,23 +331,25 @@ impl<S: RootState> JobRunner<S> {
             })
     }
 
-    async fn complex_shell(&mut self, complex: &ShellCommand) -> Result<()> {
-        if let Some(name) = complex.name.as_ref() {
+    async fn step_name(&mut self, name: Option<&String>) -> Result<()> {
+        if let Some(name) = name {
+            let name = self.eval_all_expr(name)?;
             let mut message = String::new();
             writeln!(message, "{:<15}: {name}", "Step")?;
             self.options.logger.write_line(message).await?;
         }
+        Ok(())
+    }
+
+    async fn complex_shell(&mut self, complex: &ShellCommand) -> Result<()> {
+        self.step_name(complex.name.as_ref()).await?;
         self.shell(&complex.id, &complex.working_dir, &complex.run)
             .await?;
         Ok(())
     }
 
     async fn external(&mut self, external: &External) -> Result<()> {
-        if let Some(name) = external.name.as_ref() {
-            let mut message = String::new();
-            writeln!(message, "{:<15}: {name}", "Step")?;
-            self.options.logger.write_line(message).await?;
-        }
+        self.step_name(external.name.as_ref()).await?;
 
         debug!("calling external pipeline or action {}", external.uses);
 
@@ -2299,5 +2301,131 @@ steps:
             error.contains("version") && error.contains("build"),
             "{error}"
         );
+    }
+
+    fn job_runner_with_named_step(step: Step, strategy: Option<Strategy>) -> JobRunner<JobState> {
+        let job_name = "main".to_string();
+        let config = BldConfig::default().into_arc();
+        let logger = Logger::in_memory().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let run_ctx = Context::mock().into_arc();
+        let platform = Platform::mock().into_arc();
+        let artifacts = Artifacts::mock().into_arc();
+        let regex_cache = RegexCache::mock().into_arc();
+        let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();
+        let expr_rctx = CommonReadonlyRuntimeExprContext::default().into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        let mut state = JobState::new(&job_name);
+        state.add_node(step.id());
+
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            job_name.clone(),
+            Job {
+                strategy,
+                steps: vec![step],
+                ..Default::default()
+            },
+        );
+
+        let options = JobRunnerOptions {
+            job_name,
+            logger,
+            config,
+            fs,
+            run_ctx,
+            pipeline: pipeline.into_arc(),
+            regex_cache,
+            expr_regex,
+            expr_rctx,
+            package_manager,
+            artifacts,
+            state,
+        };
+        JobRunner {
+            options,
+            platform: Some(platform),
+            runs_on: RunsOn::default(),
+            working_dir: None,
+            outputs: HashMap::new(),
+        }
+    }
+
+    #[actix_web::test]
+    pub async fn step_name_with_matrix_value_is_evaluated_success() {
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "os".to_string(),
+            MatrixValue::Array(vec![
+                ScalarValue::Text("linux".to_string()),
+                ScalarValue::Text("mac".to_string()),
+            ]),
+        );
+
+        let runner = job_runner_with_named_step(
+            Step::ComplexSh(Box::new(ShellCommand {
+                id: "build".to_string(),
+                name: Some("Build for ${{ matrix.os }}".to_string()),
+                run: "echo build".to_string(),
+                ..Default::default()
+            })),
+            Some(Strategy {
+                matrix,
+                fail_fast: None,
+            }),
+        );
+        let logger = runner.options.logger.clone();
+
+        let result = runner.run().await;
+        assert!(result.is_ok(), "error: {:?}", result.err());
+
+        let output = logger.try_retrieve_output().await.unwrap();
+        assert!(output.contains("Build for linux"), "{output}");
+        assert!(output.contains("Build for mac"), "{output}");
+        assert!(!output.contains("${{"), "{output}");
+    }
+
+    #[actix_web::test]
+    pub async fn step_name_with_invalid_expression_fails_the_step() {
+        let runner = job_runner_with_named_step(
+            Step::ComplexSh(Box::new(ShellCommand {
+                id: "build".to_string(),
+                name: Some("Build for ${{ matrix.os }}".to_string()),
+                run: "echo build".to_string(),
+                ..Default::default()
+            })),
+            None,
+        );
+
+        let result = runner.run().await;
+        assert!(result.is_err());
+    }
+
+    #[actix_web::test]
+    pub async fn external_step_name_is_evaluated_success() {
+        let dir = TempDir::new("external_step_name_is_evaluated");
+        dir.write("inner.yaml", ACTION_WITH_OUTPUT);
+
+        let mut with = HashMap::new();
+        with.insert("tag".to_string(), "static-tag".to_string());
+
+        let mut runner = job_runner_calling_action(
+            &dir,
+            External {
+                id: "call_action".to_string(),
+                name: Some("Call ${{ \"inner\" }}".to_string()),
+                uses: "inner.yaml".to_string(),
+                with,
+                ..Default::default()
+            },
+        );
+        let logger = Logger::in_memory().into_arc();
+        runner.options.logger = logger.clone();
+
+        let result = runner.run().await;
+        assert!(result.is_ok(), "error: {:?}", result.err());
+
+        let output = logger.try_retrieve_output().await.unwrap();
+        assert!(output.contains("Call inner"), "{output}");
     }
 }

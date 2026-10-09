@@ -20,7 +20,10 @@ use tracing::debug;
 
 use crate::{
     dag::Dag,
-    expr::v3::context::CommonReadonlyRuntimeExprContext,
+    expr::v3::{
+        context::{CommonReadonlyRuntimeExprContext, START_OF_RUN_WCTX},
+        exec::{CommonExprExecutor, eval_all_expressions},
+    },
     pipeline::v3::Pipeline,
     runner::v3::{
         job::JobRunnerOptions,
@@ -94,6 +97,14 @@ impl PipelineRunner {
         let mut message = String::new();
 
         if let Some(name) = &self.pipeline.name {
+            // The name is printed before any job has run, so it can only use the start of
+            // run expressions.
+            let exec = CommonExprExecutor::new(
+                self.pipeline.as_ref(),
+                self.expr_rctx.as_ref(),
+                &START_OF_RUN_WCTX,
+            );
+            let name = eval_all_expressions(&exec, &self.expr_regex, name)?;
             writeln!(message, "{:<15}: {name}", "Name")?;
         }
         writeln!(message, "{:<15}: 3", "Version")?;
@@ -103,7 +114,6 @@ impl PipelineRunner {
 
     async fn start(&mut self) -> Result<()> {
         self.register_start().await?;
-        self.info().await?;
         Ok(())
     }
 
@@ -264,7 +274,14 @@ impl PipelineRunner {
         // using let expression to log the errors and let an empty string be used
         // by the final print_error of main.
 
-        let Err(e) = self.jobs().await else {
+        // The info is printed here so that a failure evaluating the pipeline name
+        // marks the run as faulted, the same as a failure of a job.
+        let result = match self.info().await {
+            Ok(()) => self.jobs().await,
+            Err(e) => Err(e),
+        };
+
+        let Err(e) = result else {
             self.stop().await?;
             return Ok(HashMap::new());
         };
@@ -336,7 +353,7 @@ impl PipelineRunner {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{collections::HashMap, sync::Arc};
 
     use bld_config::BldConfig;
     use bld_core::{
@@ -647,5 +664,43 @@ mod tests {
             error.contains("version") && error.contains("build"),
             "{error}"
         );
+    }
+
+    fn runner_with_name(name: &str, inputs: Vec<(&str, &str)>) -> PipelineRunner {
+        let logger = Logger::in_memory().into_arc();
+        let mut runner = create_runner(vec![], logger);
+        let inputs: HashMap<String, String> = inputs
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        runner.expr_rctx = CommonReadonlyRuntimeExprContext {
+            inputs: inputs.into_arc(),
+            ..Default::default()
+        }
+        .into_arc();
+        runner.pipeline = Pipeline {
+            name: Some(name.to_string()),
+            ..Default::default()
+        }
+        .into_arc();
+        runner
+    }
+
+    #[actix_web::test]
+    async fn info_evaluates_pipeline_name_with_input() {
+        let runner = runner_with_name("Build ${{ inputs.label }}", vec![("label", "nightly")]);
+
+        runner.info().await.unwrap();
+
+        let output = runner.logger.try_retrieve_output().await.unwrap();
+        assert!(output.contains("Build nightly"), "{output}");
+        assert!(!output.contains("${{"), "{output}");
+    }
+
+    #[actix_web::test]
+    async fn info_with_runtime_expression_in_pipeline_name_fails() {
+        let runner = runner_with_name("Build ${{ matrix.os }}", vec![]);
+
+        assert!(runner.info().await.is_err());
     }
 }
