@@ -17,7 +17,7 @@ use bld_pkg::PackageManager;
 use bld_utils::sync::IntoArc;
 use chrono::Utc;
 use regex::Regex;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use tracing::debug;
@@ -194,6 +194,13 @@ impl<'a> RunnerBuilder<'a> {
             .inputs
             .ok_or_else(|| anyhow!("no inputs instance provided"))?;
 
+        if let Some(required_inputs) = metadata.file.required_inputs() {
+            let missing = missing_required_inputs(required_inputs, &inputs);
+            if !missing.is_empty() {
+                bail!("missing required inputs: {}", missing.join(", "));
+            }
+        }
+
         let context = self
             .context
             .ok_or_else(|| anyhow!("no context instance provided"))?;
@@ -366,5 +373,49 @@ impl<'a> RunnerBuilder<'a> {
         };
 
         Ok(runner)
+    }
+}
+
+fn missing_required_inputs<'a>(
+    required: HashSet<&'a str>,
+    supplied: &HashMap<String, String>,
+) -> Vec<&'a str> {
+    let mut missing: Vec<&str> = required
+        .into_iter()
+        .filter(|name| !supplied.contains_key(*name))
+        .collect();
+    missing.sort_unstable();
+    missing
+}
+
+#[cfg(test)]
+mod tests {
+    use super::missing_required_inputs;
+    use std::collections::{HashMap, HashSet};
+
+    #[test]
+    pub fn missing_required_inputs_reports_input_without_supplied_value() {
+        let required = HashSet::from(["target"]);
+        let supplied = HashMap::new();
+
+        assert_eq!(missing_required_inputs(required, &supplied), vec!["target"]);
+    }
+
+    #[test]
+    pub fn missing_required_inputs_is_empty_when_input_is_supplied() {
+        let required = HashSet::from(["target"]);
+        let mut supplied = HashMap::new();
+        supplied.insert("target".to_string(), "production".to_string());
+
+        assert!(missing_required_inputs(required, &supplied).is_empty());
+    }
+
+    #[test]
+    pub fn missing_required_inputs_reports_only_the_unsupplied_ones() {
+        let required = HashSet::from(["target", "region"]);
+        let mut supplied = HashMap::new();
+        supplied.insert("target".to_string(), "production".to_string());
+
+        assert_eq!(missing_required_inputs(required, &supplied), vec!["region"]);
     }
 }

@@ -70,7 +70,7 @@ impl Pipeline {
             let inputs = self
                 .inputs
                 .iter()
-                .filter(|(_, v)| v.is_required())
+                .filter(|(_, v)| v.is_required() && v.default_value().is_none())
                 .map(|(k, _)| k.as_str())
                 .collect();
             Some(inputs)
@@ -1065,5 +1065,54 @@ mod tests {
             error.contains("is not available at the start of a run"),
             "{error}"
         );
+    }
+
+    #[test]
+    pub fn required_inputs_includes_required_input_without_default() {
+        let mut pipeline = Pipeline::default();
+        pipeline.inputs.insert(
+            "target".to_string(),
+            Input::Complex {
+                description: None,
+                default: None,
+                required: true,
+            },
+        );
+
+        let required = pipeline
+            .required_inputs()
+            .expect("expected required inputs");
+        assert!(required.contains("target"));
+    }
+
+    #[test]
+    pub fn required_inputs_excludes_required_input_with_default() {
+        let mut pipeline = Pipeline::default();
+        pipeline.inputs.insert(
+            "target".to_string(),
+            Input::Complex {
+                description: None,
+                default: Some("production".to_string()),
+                required: true,
+            },
+        );
+
+        let required = pipeline
+            .required_inputs()
+            .expect("expected required inputs");
+        assert!(!required.contains("target"));
+    }
+
+    #[test]
+    pub fn required_inputs_excludes_non_required_input() {
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .inputs
+            .insert("target".to_string(), Input::Simple("staging".to_string()));
+
+        let required = pipeline
+            .required_inputs()
+            .expect("expected required inputs");
+        assert!(!required.contains("target"));
     }
 }

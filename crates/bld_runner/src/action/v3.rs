@@ -72,7 +72,7 @@ impl Action {
             let map = self
                 .inputs
                 .iter()
-                .filter(|(_, v)| v.is_required())
+                .filter(|(_, v)| v.is_required() && v.default_value().is_none())
                 .map(|(k, _)| k.as_str())
                 .collect();
             Some(map)
