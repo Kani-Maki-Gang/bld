@@ -2071,13 +2071,13 @@ steps:
     }
 
     #[actix_web::test]
-    pub async fn job_step_with_expr_number_matrix_value_keeps_raw_text_success() {
+    pub async fn job_step_with_expr_number_matrix_value_is_typed_success() {
         let output = single_matrix_value_output(
-            "job_step_with_expr_number_matrix_value_keeps_raw_text",
+            "job_step_with_expr_number_matrix_value_is_typed",
             MatrixValue::Expr("${{ [3.10] }}".to_string()),
         )
         .await;
-        assert_eq!(output, "3.10");
+        assert_eq!(output, "3.1");
     }
 
     #[actix_web::test]

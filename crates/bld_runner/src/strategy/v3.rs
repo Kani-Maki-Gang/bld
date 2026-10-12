@@ -75,20 +75,32 @@ impl Strategy {
                 MatrixValue::Array(items) => items.clone(),
                 MatrixValue::Expr(expr) => {
                     let result = exec.eval(expr)?;
-                    let ExprValue::Array(items) = result else {
-                        bail!(
+                    let items = match result {
+                        ExprValue::Array(items) => items,
+                        ExprValue::Text(ref text) => match ExprValue::try_from(text.inner()) {
+                            Ok(ExprValue::Array(items)) => items,
+                            _ => bail!(
+                                "matrix key '{key}' must evaluate to an array, found {}",
+                                result.type_as_string()
+                            ),
+                        },
+                        other => bail!(
                             "matrix key '{key}' must evaluate to an array, found {}",
-                            result.type_as_string()
-                        );
+                            other.type_as_string()
+                        ),
                     };
                     items
                         .iter()
                         .map(|x| match x {
+                            ExprValue::Boolean(value) => Ok(ScalarValue::Boolean(*value)),
+                            ExprValue::Number { value, .. } => Ok(ScalarValue::Number(*value)),
+                            ExprValue::Text(text) => {
+                                Ok(ScalarValue::Text(text.inner().to_string()))
+                            }
                             ExprValue::Array(_) | ExprValue::Unknown => bail!(
                                 "matrix key '{key}' contains a value of type {}",
                                 x.type_as_string()
                             ),
-                            _ => Ok(ScalarValue::Text(x.to_string())),
                         })
                         .collect::<Result<Vec<_>>>()?
                 }
@@ -124,13 +136,13 @@ impl Strategy {
         match self.fail_fast.as_ref() {
             None => Ok(Self::default_fail_fast()),
             Some(FailFastValue::Bool(value)) => Ok(*value),
-            Some(FailFastValue::Expr(expr)) => match exec.eval(expr)? {
-                ExprValue::Boolean(value) => Ok(value),
-                other => bail!(
-                    "fail_fast must evaluate to a boolean, found {}",
-                    other.type_as_string()
-                ),
-            },
+            Some(FailFastValue::Expr(expr)) => {
+                let value = exec.eval(expr)?;
+                let type_name = value.type_as_string();
+                value.try_into().map_err(|_| {
+                    anyhow::anyhow!("fail_fast must evaluate to a boolean, found {type_name}")
+                })
+            }
         }
     }
 }
@@ -293,6 +305,8 @@ matrix:
 mod exec_tests {
     use std::collections::HashMap;
 
+    use bld_utils::sync::IntoArc;
+
     use crate::{
         expr::v3::{
             context::CommonReadonlyRuntimeExprContext, exec::CommonExprExecutor,
@@ -418,27 +432,45 @@ mod exec_tests {
     }
 
     #[test]
-    pub fn combinations_expr_number_array_keeps_raw_text_success() {
+    pub fn combinations_expr_number_array_is_typed_success() {
         let values = single_key_values(MatrixValue::Expr("${{ [3.10, 3.11] }}".to_string()));
         assert_eq!(
             values,
-            vec![
-                ScalarValue::Text("3.10".to_string()),
-                ScalarValue::Text("3.11".to_string())
-            ]
+            vec![ScalarValue::Number(3.10), ScalarValue::Number(3.11)]
         );
     }
 
     #[test]
-    pub fn combinations_expr_boolean_array_success() {
+    pub fn combinations_expr_boolean_array_is_typed_success() {
         let values = single_key_values(MatrixValue::Expr("${{ [true, false] }}".to_string()));
         assert_eq!(
             values,
-            vec![
-                ScalarValue::Text("true".to_string()),
-                ScalarValue::Text("false".to_string())
-            ]
+            vec![ScalarValue::Boolean(true), ScalarValue::Boolean(false)]
         );
+    }
+
+    #[test]
+    pub fn combinations_expr_string_array_from_input_success() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext {
+            inputs: HashMap::from([("oses".to_string(), r#"["a","b"]"#.to_string())]).into_arc(),
+            ..Default::default()
+        };
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "os".to_string(),
+            MatrixValue::Expr("${{ inputs.oses }}".to_string()),
+        );
+        let strategy = Strategy {
+            matrix,
+            fail_fast: None,
+        };
+
+        let combinations = strategy.combinations(&exec).unwrap();
+        assert_eq!(combinations.len(), 2);
     }
 
     #[test]
@@ -484,5 +516,47 @@ mod exec_tests {
         };
 
         assert!(!strategy.resolve_fail_fast(&exec).unwrap());
+    }
+
+    /// An input is always text, so the text 'false' has to resolve the same way
+    /// the boolean does.
+    #[test]
+    pub fn resolve_fail_fast_text_input_expr_success() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext {
+            inputs: HashMap::from([("ff".to_string(), "false".to_string())]).into_arc(),
+            ..Default::default()
+        };
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let strategy = Strategy {
+            matrix: HashMap::new(),
+            fail_fast: Some(FailFastValue::Expr("${{ inputs.ff }}".to_string())),
+        };
+
+        assert!(!strategy.resolve_fail_fast(&exec).unwrap());
+    }
+
+    #[test]
+    pub fn resolve_fail_fast_non_boolean_text_input_expr_failure() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext {
+            inputs: HashMap::from([("ff".to_string(), "nope".to_string())]).into_arc(),
+            ..Default::default()
+        };
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let strategy = Strategy {
+            matrix: HashMap::new(),
+            fail_fast: Some(FailFastValue::Expr("${{ inputs.ff }}".to_string())),
+        };
+
+        let error = strategy.resolve_fail_fast(&exec).unwrap_err().to_string();
+        assert!(
+            error.contains("fail_fast must evaluate to a boolean, found text"),
+            "{error}"
+        );
     }
 }
