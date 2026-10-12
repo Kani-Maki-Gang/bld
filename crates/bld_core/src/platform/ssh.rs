@@ -5,7 +5,7 @@ use std::{
 use anyhow::{Result, anyhow, bail};
 use async_ssh2_lite::{AsyncSession, AsyncSftp, TokioTcpStream};
 use bld_config::{BldConfig, definitions::BLD_OUTPUTS_ENV_VAR_V3, path};
-use bld_utils::{sync::IntoArc, variables::parse_variables_iter};
+use bld_utils::{sync::IntoArc, variables::parse_variables};
 use futures_util::{
     AsyncReadExt as FuturesUtilAsyncReadExt, AsyncWriteExt as FuturesUtilAsyncWriteExt,
 };
@@ -405,7 +405,7 @@ impl Ssh {
             .run_internal_cmd(vec!["cat", &outputs_file])
             .await
             .unwrap_or_default();
-        let outputs = parse_variables_iter(outputs.lines());
+        let outputs = parse_variables(outputs.lines());
 
         Ok(outputs)
     }

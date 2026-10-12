@@ -1,7 +1,7 @@
 use crate::logger::Logger;
 use anyhow::{Result, anyhow, bail};
 use bld_config::{BldConfig, definitions::BLD_OUTPUTS_ENV_VAR_V3, path};
-use bld_utils::{shell::get_shell, variables::parse_variables_iter};
+use bld_utils::{shell::get_shell, variables::parse_variables};
 use std::{
     collections::HashMap,
     fmt::Write,
@@ -152,7 +152,7 @@ impl Machine {
         let mut outputs = HashMap::new();
         if outputs_file.exists() {
             let output_content = read_to_string(&outputs_file).await?;
-            outputs = parse_variables_iter(output_content.lines());
+            outputs = parse_variables(output_content.lines());
 
             if outputs.is_empty() {
                 debug!("the executed command created {} outputs", outputs.len());

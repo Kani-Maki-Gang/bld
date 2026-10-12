@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path, path::PathBuf, sync::Arc};
 
 use anyhow::{Result, anyhow, bail};
 use bld_config::{BldConfig, definitions::BLD_OUTPUTS_ENV_VAR_V3, path};
-use bld_utils::variables::parse_variables_iter;
+use bld_utils::variables::parse_variables;
 use bollard::{
     Docker,
     container::{
@@ -298,7 +298,7 @@ impl Container {
             .run_internal_cmd(vec!["cat", &outputs_path])
             .await
             .unwrap_or_default();
-        let outputs = parse_variables_iter(outputs.lines());
+        let outputs = parse_variables(outputs.lines());
 
         Ok(outputs)
     }
