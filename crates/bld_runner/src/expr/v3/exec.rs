@@ -104,8 +104,11 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
                 .ok_or_else(|| anyhow!("no right operand found for and expression"))?;
 
             // short circuit: once the left side is false the overall result is
-            // false, so the right side must not be evaluated at all.
-            if matches!(result, ExprValue::Boolean(false)) {
+            // false, so the right side must not be evaluated at all. The text
+            // 'false' of an input or an env variable short circuits the same way
+            // as the boolean does.
+            if result.as_logical() == Some(false) {
+                result = ExprValue::Boolean(false);
                 continue;
             }
 
@@ -367,8 +370,11 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
                 .ok_or_else(|| anyhow!("no right operand found for logical expression"))?;
 
             // short circuit: once the left side is true the overall result is
-            // true, so the right side must not be evaluated at all.
-            if matches!(result, ExprValue::Boolean(true)) {
+            // true, so the right side must not be evaluated at all. The text
+            // 'true' of an input or an env variable short circuits the same way
+            // as the boolean does.
+            if result.as_logical() == Some(true) {
+                result = ExprValue::Boolean(true);
                 continue;
             }
 
@@ -1862,7 +1868,7 @@ mod tests {
     #[test]
     pub fn not_object_eval() {
         let data: Vec<(&str, Result<ExprValue>)> = vec![
-            ("${{ !inputs.flag }}", Err(anyhow!("text value"))),
+            ("${{ !inputs.flag }}", Ok(ExprValue::Boolean(false))),
             (
                 "${{ !(inputs.flag == \"true\") }}",
                 Ok(ExprValue::Boolean(false)),
@@ -1886,5 +1892,148 @@ mod tests {
             ("${{ !\"a\" == \"b\" }}", Err(anyhow!("text value"))),
         ];
         assert_boolean_eval(&CommonReadonlyRuntimeExprContext::default(), data);
+    }
+
+    fn assert_exact_eval(rctx: &CommonReadonlyRuntimeExprContext, data: Vec<(&str, ExprValue)>) {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, rctx, &wctx);
+
+        for (expr, expected) in data {
+            let value = exec
+                .eval(expr)
+                .unwrap_or_else(|e| panic!("failed to evaluate {expr}: {e:#}"));
+            assert_eq!(value, expected, "unexpected result for {expr}");
+        }
+    }
+
+    /// An input is always text, so it has to be usable against a typed value of
+    /// any other source.
+    #[test]
+    pub fn text_input_compared_to_boolean_eval_success() {
+        let data = vec![
+            ("${{ inputs.deploy == true }}", ExprValue::Boolean(false)),
+            ("${{ true == inputs.deploy }}", ExprValue::Boolean(false)),
+            ("${{ inputs.deploy == false }}", ExprValue::Boolean(true)),
+            ("${{ inputs.deploy != true }}", ExprValue::Boolean(true)),
+        ];
+        assert_exact_eval(&rctx_with(vec![("deploy", "false")], vec![]), data);
+    }
+
+    #[test]
+    pub fn text_input_compared_to_number_eval_success() {
+        let data = vec![
+            ("${{ inputs.count > 3 }}", ExprValue::Boolean(true)),
+            ("${{ inputs.count < 3 }}", ExprValue::Boolean(false)),
+            ("${{ inputs.count >= 5 }}", ExprValue::Boolean(true)),
+            ("${{ inputs.count == 5 }}", ExprValue::Boolean(true)),
+            ("${{ 3 < inputs.count }}", ExprValue::Boolean(true)),
+        ];
+        assert_exact_eval(&rctx_with(vec![("count", "5")], vec![]), data);
+    }
+
+    #[test]
+    pub fn text_input_in_logical_operators_eval_success() {
+        let data = vec![
+            ("${{ !inputs.deploy }}", ExprValue::Boolean(true)),
+            ("${{ inputs.deploy && true }}", ExprValue::Boolean(false)),
+            ("${{ true && inputs.deploy }}", ExprValue::Boolean(false)),
+            ("${{ inputs.deploy || true }}", ExprValue::Boolean(true)),
+            (
+                "${{ inputs.deploy || inputs.other }}",
+                ExprValue::Boolean(true),
+            ),
+        ];
+        assert_exact_eval(
+            &rctx_with(vec![("deploy", "false"), ("other", "true")], vec![]),
+            data,
+        );
+    }
+
+    /// A text operand that cannot be read as a boolean is still an error.
+    #[test]
+    pub fn non_boolean_text_input_in_logical_operators_eval_failure() {
+        let data: Vec<(&str, Result<ExprValue>)> = vec![
+            ("${{ !inputs.name }}", Err(anyhow!("text value"))),
+            ("${{ inputs.name && true }}", Err(anyhow!("text value"))),
+            ("${{ inputs.name || true }}", Err(anyhow!("text value"))),
+        ];
+        assert_boolean_eval(&rctx_with(vec![("name", "nope")], vec![]), data);
+    }
+
+    /// The text 'false' of an input short circuits an AND the same way the
+    /// boolean does, so the right operand is never evaluated.
+    #[test]
+    pub fn text_input_short_circuits_logical_operators() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = rctx_with(vec![("deploy", "false"), ("force", "true")], vec![]);
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        // 'inputs.missing' would fail if it was evaluated.
+        assert_eq!(
+            exec.eval("${{ inputs.deploy && inputs.missing }}").unwrap(),
+            ExprValue::Boolean(false)
+        );
+        assert_eq!(
+            exec.eval("${{ inputs.force || inputs.missing }}").unwrap(),
+            ExprValue::Boolean(true)
+        );
+    }
+
+    /// A step output is typed, so a quoted literal has to be comparable to it.
+    #[test]
+    pub fn step_output_compared_to_quoted_literal_eval_success() {
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        wctx.expect_get_exec_id().returning(|| Some("main"));
+        wctx.expect_get_output()
+            .with(
+                predicate::eq(OutputScope::Step),
+                predicate::eq("s"),
+                predicate::eq("ok"),
+            )
+            .returning(|_, _, _| Ok(ExprValue::Boolean(true)));
+
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = pipeline_with_step("main", "s");
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        assert_eq!(
+            exec.eval("${{ steps.s.outputs.ok == 'true' }}").unwrap(),
+            ExprValue::Boolean(true)
+        );
+        assert_eq!(
+            exec.eval("${{ steps.s.outputs.ok == true }}").unwrap(),
+            ExprValue::Boolean(true)
+        );
+        assert_eq!(
+            exec.eval("${{ steps.s.outputs.ok && true }}").unwrap(),
+            ExprValue::Boolean(true)
+        );
+    }
+
+    /// A matrix value of an expression list keeps its type, so a number stays
+    /// comparable to a number.
+    #[test]
+    pub fn number_matrix_value_compared_to_number_eval_success() {
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        wctx.expect_get_exec_id().returning(|| Some("main"));
+        wctx.expect_get_matrix_value()
+            .with(predicate::eq("n"))
+            .returning(|_| {
+                Ok(ExprValue::Number {
+                    value: 1.0,
+                    raw: ExprText::Owned("1".to_string()),
+                })
+            });
+
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let pipeline = pipeline_with_step("main", "s");
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        assert_eq!(
+            exec.eval("${{ matrix.n == 1 }}").unwrap(),
+            ExprValue::Boolean(true)
+        );
     }
 }

@@ -116,6 +116,45 @@ pub enum ExprValue<'a> {
     Unknown, // Placeholder for expression results that aren't known at validation time
 }
 
+/// Converts `text` into the same variant as `target`, so that a value coming from an
+/// always-text source (inputs, env, a quoted literal) can be compared against a typed one
+/// (a step output, a matrix value, a literal number/boolean/array) instead of failing outright.
+fn coerce_text_like<'c>(text: &str, target: &ExprValue<'c>) -> Option<ExprValue<'c>> {
+    match target {
+        ExprValue::Number { .. } => {
+            text.parse::<f64>()
+                .ok()
+                .filter(|n| n.is_finite())
+                .map(|value| ExprValue::Number {
+                    value,
+                    raw: ExprText::Owned(text.to_string()),
+                })
+        }
+        ExprValue::Boolean(_) => text.parse::<bool>().ok().map(ExprValue::Boolean),
+        ExprValue::Array(_) => match ExprValue::try_from(text) {
+            Ok(value @ ExprValue::Array(_)) => Some(value),
+            _ => None,
+        },
+        ExprValue::Text(_) | ExprValue::Unknown => None,
+    }
+}
+
+/// Coerces either operand that is text into the other operand's type, when possible, so that
+/// comparisons behave the same no matter which source the value came from.
+fn coerce_for_cmp<'c>(l: &ExprValue<'c>, r: &ExprValue<'c>) -> (ExprValue<'c>, ExprValue<'c>) {
+    match (l, r) {
+        (ExprValue::Text(t), _) => match coerce_text_like(t.inner(), r) {
+            Some(coerced) => (coerced, r.clone()),
+            None => (l.clone(), r.clone()),
+        },
+        (_, ExprValue::Text(t)) => match coerce_text_like(t.inner(), l) {
+            Some(coerced) => (l.clone(), coerced),
+            None => (l.clone(), r.clone()),
+        },
+        _ => (l.clone(), r.clone()),
+    }
+}
+
 impl<'a, 'b> ExprValue<'a> {
     pub fn type_as_string(&self) -> &'static str {
         match self {
@@ -127,12 +166,24 @@ impl<'a, 'b> ExprValue<'a> {
         }
     }
 
+    /// Reads a logical value out of a boolean, or out of the text `true`/`false`, the same way
+    /// a condition already does.
+    pub fn as_logical(&self) -> Option<bool> {
+        match self {
+            Self::Boolean(value) => Some(*value),
+            Self::Text(text) if text.inner() == "true" => Some(true),
+            Self::Text(text) if text.inner() == "false" => Some(false),
+            _ => None,
+        }
+    }
+
     pub fn try_eq(&self, other: &'a Self) -> Result<ExprValue<'b>> {
         if matches!(self, Self::Unknown) || matches!(other, Self::Unknown) {
             return Ok(ExprValue::<'b>::Boolean(true));
         }
 
-        let value = match (self, other) {
+        let (l, r) = coerce_for_cmp(self, other);
+        let value = match (&l, &r) {
             (Self::Boolean(l), Self::Boolean(r)) => l == r,
             (Self::Number { value: l, .. }, Self::Number { value: r, .. }) => l == r,
             (Self::Text(l), Self::Text(r)) => l.inner() == r.inner(),
@@ -174,7 +225,8 @@ impl<'a, 'b> ExprValue<'a> {
             return Ok(ExprValue::<'b>::Boolean(true));
         }
 
-        let value = match (self, other) {
+        let (l, r) = coerce_for_cmp(self, other);
+        let value = match (&l, &r) {
             (Self::Number { value: l, .. }, Self::Number { value: r, .. }) => l > r,
             (Self::Text(l), Self::Text(r)) => l.inner() > r.inner(),
             (Self::Boolean(l), Self::Boolean(r)) => l > r,
@@ -192,15 +244,14 @@ impl<'a, 'b> ExprValue<'a> {
             return Ok(ExprValue::<'b>::Boolean(true));
         }
 
-        let value = match (self, other) {
-            (Self::Boolean(l), Self::Boolean(r)) => *l && *r,
+        match (self.as_logical(), other.as_logical()) {
+            (Some(l), Some(r)) => Ok(ExprValue::<'b>::Boolean(l && r)),
             _ => bail!(
                 "cannot use logical AND comparison on type {} and {}",
                 self.type_as_string(),
                 other.type_as_string()
             ),
-        };
-        Ok(ExprValue::<'b>::Boolean(value))
+        }
     }
 
     pub fn try_or(&self, other: &'a Self) -> Result<ExprValue<'b>> {
@@ -208,24 +259,24 @@ impl<'a, 'b> ExprValue<'a> {
             return Ok(ExprValue::<'b>::Boolean(true));
         }
 
-        let value = match (self, other) {
-            (Self::Boolean(l), Self::Boolean(r)) => *l || *r,
+        match (self.as_logical(), other.as_logical()) {
+            (Some(l), Some(r)) => Ok(ExprValue::<'b>::Boolean(l || r)),
             _ => bail!(
                 "cannot use logical OR comparison on type {} and {}",
                 self.type_as_string(),
                 other.type_as_string()
             ),
-        };
-        Ok(ExprValue::<'b>::Boolean(value))
+        }
     }
 
     pub fn try_negate(&self) -> Result<ExprValue<'b>> {
-        let value = match self {
-            ExprValue::Boolean(val) => ExprValue::Boolean(!val),
-            ExprValue::Unknown => ExprValue::Unknown,
-            val => bail!("cannot use logical NOT on type {}", val.type_as_string()),
-        };
-        Ok(value)
+        match self {
+            ExprValue::Unknown => Ok(ExprValue::Unknown),
+            other => match other.as_logical() {
+                Some(value) => Ok(ExprValue::Boolean(!value)),
+                None => bail!("cannot use logical NOT on type {}", other.type_as_string()),
+            },
+        }
     }
 }
 
@@ -541,8 +592,16 @@ pub mod tests {
     }
 
     #[test]
-    fn try_negate_failure() {
+    fn try_negate_accepts_text_true_and_false() {
         let text = ExprValue::Text(ExprText::Owned("true".to_string()));
+        assert_eq!(text.try_negate().unwrap(), ExprValue::Boolean(false));
+        let text = ExprValue::Text(ExprText::Owned("false".to_string()));
+        assert_eq!(text.try_negate().unwrap(), ExprValue::Boolean(true));
+    }
+
+    #[test]
+    fn try_negate_failure() {
+        let text = ExprValue::Text(ExprText::Owned("yes".to_string()));
         assert!(text.try_negate().unwrap_err().to_string().contains("text"));
         assert!(
             expr_number(1.0)
@@ -558,5 +617,81 @@ pub mod tests {
                 .to_string()
                 .contains("array")
         );
+    }
+
+    #[test]
+    fn try_eq_coerces_text_to_boolean() {
+        let text = ExprValue::Text(ExprText::Owned("true".to_string()));
+        assert_eq!(
+            text.try_eq(&ExprValue::Boolean(true)).unwrap(),
+            ExprValue::Boolean(true)
+        );
+        assert_eq!(
+            ExprValue::Boolean(true).try_eq(&text).unwrap(),
+            ExprValue::Boolean(true)
+        );
+    }
+
+    #[test]
+    fn try_eq_coerces_text_to_number() {
+        let text = ExprValue::Text(ExprText::Owned("3".to_string()));
+        assert_eq!(
+            text.try_eq(&expr_number(3.0)).unwrap(),
+            ExprValue::Boolean(true)
+        );
+    }
+
+    #[test]
+    fn try_eq_leaves_non_convertible_text_as_is() {
+        let text = ExprValue::Text(ExprText::Owned("abc".to_string()));
+        let error = text.try_eq(&expr_number(3.0)).unwrap_err().to_string();
+        assert!(
+            error.contains("text") && error.contains("number"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn try_ord_coerces_text_to_number() {
+        let count = ExprValue::Text(ExprText::Owned("10".to_string()));
+        assert_eq!(
+            count.try_ord(&expr_number(3.0)).unwrap(),
+            ExprValue::Boolean(true)
+        );
+    }
+
+    #[test]
+    fn try_and_accepts_text_true_and_false() {
+        let deploy = ExprValue::Text(ExprText::Owned("false".to_string()));
+        assert_eq!(
+            deploy.try_and(&ExprValue::Boolean(true)).unwrap(),
+            ExprValue::Boolean(false)
+        );
+        let deploy = ExprValue::Text(ExprText::Owned("true".to_string()));
+        assert_eq!(
+            deploy.try_and(&ExprValue::Boolean(true)).unwrap(),
+            ExprValue::Boolean(true)
+        );
+    }
+
+    #[test]
+    fn try_or_accepts_text_true_and_false() {
+        let deploy = ExprValue::Text(ExprText::Owned("false".to_string()));
+        assert_eq!(
+            deploy.try_or(&ExprValue::Boolean(false)).unwrap(),
+            ExprValue::Boolean(false)
+        );
+        let deploy = ExprValue::Text(ExprText::Owned("true".to_string()));
+        assert_eq!(
+            deploy.try_or(&ExprValue::Boolean(false)).unwrap(),
+            ExprValue::Boolean(true)
+        );
+    }
+
+    #[test]
+    fn try_eq_coerces_text_to_array() {
+        let oses = ExprValue::Text(ExprText::Owned(r#"["a","b"]"#.to_string()));
+        let literal: ExprValue = r#"["a","b"]"#.try_into().unwrap();
+        assert_eq!(oses.try_eq(&literal).unwrap(), ExprValue::Boolean(true));
     }
 }
