@@ -1,143 +1,96 @@
+use super::DialogField;
 use crate::{
     api,
-    components::{
-        button::{Button, IconButton},
-        card::Card,
-        colors::Colors,
-        input::Input,
-    },
-    context::{AppDialog, AppDialogContent, RefreshPipelines},
-    error::SmallError,
+    components::button::{Button, ButtonSize, ButtonVariant},
+    context::{RefreshPipelines, use_app_dialog},
+    error::{DialogCard, ErrorBanner},
 };
 use bld_models::dtos::PipelinePathRequest;
-use leptos::{html::Dialog, leptos_dom::logging, *};
+use leptos::*;
 use leptos_router::*;
 
-type CopyActionArgs = (
-    String,
-    String,
-    RwSignal<Option<String>>,
-    Option<RefreshPipelines>,
-    bool,
-    NodeRef<Dialog>,
-);
-
 #[component]
-fn PipelineCopyButtonDialog(
-    #[prop(into)] name: Signal<String>,
-    #[prop(into)] app_dialog: NodeRef<Dialog>,
-    #[prop()] refresh: Option<RefreshPipelines>,
-    #[prop(into)] redirect: bool,
-) -> impl IntoView {
-    let name_rw = create_rw_signal(String::new());
+fn PipelineCopyDialog(#[prop()] name: String, #[prop()] redirect: bool) -> impl IntoView {
+    let dialog = use_app_dialog();
+    let refresh = use_context::<RefreshPipelines>();
+    let source = create_rw_signal(name.clone());
     let target = create_rw_signal(String::new());
-    let error = create_rw_signal(None);
+    let error = create_rw_signal(None::<String>);
 
-    let copy_action = create_action(|args: &CopyActionArgs| {
-        let (pipeline, target, error, refresh, redirect, dialog) = args.clone();
+    let copy_action = create_action(move |(pipeline, target): &(String, String)| {
+        let params = PipelinePathRequest {
+            pipeline: pipeline.clone(),
+            target: target.clone(),
+        };
         async move {
-            let params = PipelinePathRequest { pipeline, target };
             match api::copy(params).await {
-                Ok(_) if redirect => {
-                    let nav = use_navigate();
-                    nav("/pipelines", NavigateOptions::default());
-                    let _ = dialog.get().map(|x| x.close());
-                }
                 Ok(_) => {
-                    let _ = refresh.map(|x| x.set());
-                    let _ = dialog.get().map(|x| x.close());
+                    dialog.close();
+                    if redirect {
+                        let nav = use_navigate();
+                        nav("/files", NavigateOptions::default());
+                    } else if let Some(refresh) = refresh {
+                        refresh.set();
+                    }
                 }
-                Err(e) => {
-                    error.set(Some(e.to_string()));
-                }
+                Err(e) => error.set(Some(e.to_string())),
             }
         }
     });
 
-    create_effect(move |_| {
-        name_rw.set(name.get());
-    });
-
     view! {
-        <Card>
-            <div class="flex flex-col px-8 py-10 gap-5 w-[480px]">
-                <div class="text-base font-semibold text-white">"Copy pipeline"</div>
-                <div class="grow flex flex-col gap-4">
-                    <div>
-                        <label for="pipeline">Pipeline:</label>
-                        <Input id="pipeline" disabled=true value=name_rw />
-                    </div>
-                    <div>
-                        <label for="target">Copy:</label>
-                        <Input id="target" value=target />
-                    </div>
+        <DialogCard
+            title="Copy pipeline"
+            subtitle="Creates a new pipeline file with the same content."
+        >
+            <DialogField label="Source" value=source disabled=true />
+            <DialogField label="Copy to" value=target placeholder="dev/copy.yaml" />
+            <Show when=move || error.get().is_some() fallback=|| view! {}>
+                <div class="mt-3.5">
+                    <ErrorBanner error=Signal::derive(move || error.get().unwrap_or_default()) />
                 </div>
-                <Show when=move || error.get().is_some() fallback=|| view! {}>
-                    <SmallError error=move || error.get().unwrap() />
-                </Show>
-                <div class="flex gap-3">
-                    <Button on:click=move |_| {
-                        copy_action
-                            .dispatch((
-                                name.get(),
-                                target.get(),
-                                error,
-                                refresh,
-                                redirect,
-                                app_dialog,
-                            ));
-                    }>"Copy"</Button>
-                    <Button
-                        ghost=true
-                        on:click=move |_| {
-                            let _ = app_dialog.get().map(|x| x.close());
-                        }
-                    >
-                        "Cancel"
-                    </Button>
-                </div>
+            </Show>
+            <div class="mt-5 flex gap-2">
+                <Button
+                    size=ButtonSize::Lg
+                    class="flex-1"
+                    on:click={
+                        let name = name.clone();
+                        move |_| copy_action.dispatch((name.clone(), target.get_untracked()))
+                    }
+                >
+                    "Copy"
+                </Button>
+                <Button
+                    variant=ButtonVariant::Ghost
+                    size=ButtonSize::Lg
+                    class="flex-1"
+                    on:click=move |_| dialog.close()
+                >
+                    "Cancel"
+                </Button>
             </div>
-        </Card>
+        </DialogCard>
     }
 }
 
 #[component]
 pub fn PipelineCopyButton(
     #[prop(into)] name: Signal<String>,
-    #[prop(into, optional)] redirect: bool,
+    #[prop(optional)] redirect: bool,
+    #[prop(optional)] size: ButtonSize,
 ) -> impl IntoView {
-    let app_dialog = use_context::<AppDialog>();
-    let app_dialog_content = use_context::<AppDialogContent>();
-    let refresh = use_context::<RefreshPipelines>();
+    let dialog = use_app_dialog();
     view! {
-        <IconButton
-            icon="iconoir-copy"
-            color=Colors::Zinc
-            ghost=true
+        <Button
+            variant=ButtonVariant::Ghost
+            size=size
             on:click=move |_| {
-                let Some(AppDialog(dialog)) = app_dialog else {
-                    logging::console_error("App dialog context not found");
-                    return;
-                };
-                let Some(AppDialogContent(content)) = app_dialog_content else {
-                    logging::console_error("App dialog context not found");
-                    return;
-                };
-                content
-                    .set(
-                        Some(
-                            view! {
-                                <PipelineCopyButtonDialog
-                                    name=move || name.get()
-                                    app_dialog=dialog
-                                    refresh=refresh
-                                    redirect=redirect
-                                />
-                            },
-                        ),
-                    );
-                let _ = dialog.get().map(|x| x.show_modal());
+                let name = name.get_untracked();
+                dialog.open(move || view! { <PipelineCopyDialog name=name redirect=redirect /> })
             }
-        />
+        >
+            "Copy"
+        </Button>
     }
 }

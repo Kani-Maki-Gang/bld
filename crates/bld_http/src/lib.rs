@@ -389,7 +389,12 @@ impl HttpClient {
         name: Option<String>,
         limit: u64,
     ) -> Result<Vec<HistoryEntry>> {
-        let params = HistQueryParams { state, name, limit };
+        let params = HistQueryParams {
+            state,
+            name,
+            limit,
+            ..Default::default()
+        };
         let response = self.hist_inner(&params).await;
 
         if Self::unauthorized(&response) {

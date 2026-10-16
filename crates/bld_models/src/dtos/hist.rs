@@ -6,7 +6,16 @@ use serde::{Deserialize, Serialize};
 pub struct HistQueryParams {
     pub state: Option<String>,
     pub name: Option<String>,
+    pub search: Option<String>,
     pub limit: u64,
+    pub offset: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
+pub struct HistCountQueryParams {
+    pub state: Option<String>,
+    pub name: Option<String>,
+    pub search: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -2,16 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
-.bg-grid {
-  background: url("grid.svg");
+html,
+body {
+  @apply bg-canvas;
 }
 
 body {
-  font-family: "Inter", sans-serif;
-  @apply text-white;
+  @apply font-sans text-sm text-ink antialiased;
+  line-height: 1.45;
 }
 
 dialog {
-  font-family: "Inter", sans-serif;
-  @apply text-white;
+  @apply font-sans text-sm text-ink;
+}
+
+dialog::backdrop {
+  background: rgba(6, 7, 10, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+::selection {
+  background: rgba(108, 92, 245, 0.35);
 }

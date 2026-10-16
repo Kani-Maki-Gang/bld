@@ -12,6 +12,7 @@ pub struct Model {
     pub is_default: bool,
     pub date_created: DateTime,
     pub date_updated: Option<DateTime>,
+    pub is_enabled: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

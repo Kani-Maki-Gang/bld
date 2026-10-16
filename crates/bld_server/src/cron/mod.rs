@@ -8,7 +8,10 @@ use bld_models::{
     },
     cron_job_variables::{self, CronJobVariable, InsertCronJobVariable},
     cron_jobs::{self, CronJob, InsertCronJob, UpdateCronJob},
-    dtos::{AddJobRequest, CronJobResponse, ExecClientMessage, JobFiltersParams, UpdateJobRequest},
+    dtos::{
+        AddJobRequest, CRON_USER, CronJobResponse, ExecClientMessage, JobFiltersParams,
+        UpdateJobRequest,
+    },
     pipeline::{self, Pipeline},
 };
 use sea_orm::DatabaseConnection;
@@ -171,6 +174,7 @@ impl CronScheduler {
         let conn = self.conn.clone();
         let supervisor = self.supervisor.clone();
         let pipeline_id = pipeline_id.to_owned();
+        let cron_job_id = job_id.to_string();
         let inputs = inputs.clone();
         let env = env.clone();
 
@@ -179,9 +183,18 @@ impl CronScheduler {
             let conn = conn.clone();
             let supervisor = supervisor.clone();
             let pipeline_id = pipeline_id.to_owned();
+            let cron_job_id = cron_job_id.to_owned();
             let inputs = inputs.clone();
             let env = env.clone();
             Box::pin(async move {
+                match cron_jobs::select_by_id(conn.as_ref(), &cron_job_id).await {
+                    Ok(cron_job) if !cron_job.is_enabled => return,
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("unable to load cron job with id: {cron_job_id} due to: {e}");
+                        return;
+                    }
+                }
                 let Ok(pipeline) = pipeline::select_by_id(conn.as_ref(), &pipeline_id).await else {
                     error!("unable to find pipeline with id: {pipeline_id}");
                     return;
@@ -191,7 +204,7 @@ impl CronScheduler {
                     env,
                     inputs,
                 };
-                if let Err(e) = enqueue_worker("Cron", fs, conn, supervisor, data).await {
+                if let Err(e) = enqueue_worker(CRON_USER, fs, conn, supervisor, data).await {
                     error!("unable to enqueue cron run due to: {e}");
                 }
             })
@@ -200,6 +213,7 @@ impl CronScheduler {
 
         let mut job_data = job.job_data()?;
         job_data.id.replace(job_id.into());
+        job.set_job_data(job_data)?;
 
         Ok(job)
     }
@@ -299,6 +313,12 @@ impl CronScheduler {
         }
     }
 
+    pub async fn set_enabled(&self, job_id: &str, is_enabled: bool) -> Result<()> {
+        let conn = self.conn.as_ref();
+        cron_jobs::select_by_id(conn, job_id).await?;
+        cron_jobs::update_enabled(conn, job_id, is_enabled).await
+    }
+
     pub async fn remove(&self, job_id: &str) -> Result<()> {
         let conn = self.conn.as_ref();
         cron_jobs::select_by_id(conn, job_id).await?;
@@ -361,6 +381,7 @@ impl CronScheduler {
                 inputs,
                 env: environment,
                 is_default: job.is_default,
+                is_enabled: job.is_enabled,
                 date_created: job.date_created.to_string(),
                 date_updated: job.date_updated.map(|x| x.to_string()),
             });

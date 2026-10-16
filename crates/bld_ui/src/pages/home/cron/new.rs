@@ -1,120 +1,78 @@
 use crate::{
     api,
     components::{
-        button::{Button, IconButton},
-        card::Card,
-        colors::Colors,
-        input::Input,
-        list::List,
+        button::{Button, ButtonSize, ButtonVariant},
+        input::SearchInput,
+        page::LoadingState,
     },
-    context::{AppDialog, AppDialogContent},
-    error::Error,
+    context::use_app_dialog,
+    error::{DialogCard, ErrorBanner},
 };
-use bld_models::dtos::ListResponse;
-use leptos::{html::Dialog, leptos_dom::logging, *};
+use leptos::*;
 use leptos_router::*;
 
 #[component]
-fn CronJobsNewDialog(#[prop(into)] app_dialog: NodeRef<Dialog>) -> impl IntoView {
+fn CronJobsNewDialog() -> impl IntoView {
+    let dialog = use_app_dialog();
     let search = create_rw_signal(String::new());
-
     let data = create_resource(
-        move || (),
+        || (),
         |_| async move { api::list().await.map_err(|e| e.to_string()) },
     );
 
-    let filtered_pipelines = move || {
-        let search = search.get();
-        let data = data
-            .get()
-            .map(|x| x.unwrap_or_default())
-            .unwrap_or_default();
-        if search.is_empty() {
-            data
-        } else {
-            data.into_iter()
-                .filter(|x: &ListResponse| x.pipeline.contains(&search))
-                .collect()
-        }
-    };
-
     view! {
-        <Card>
-            <div class="flex flex-col px-8 py-8 gap-y-4 min-w-[560px] min-h-[540px]">
-                <div class="text-base font-semibold text-white">"Add new cron job"</div>
-                <Show when=move || matches!(data.get(), Some(Err(_))) fallback=|| view! {}>
-                    <div class="grow">
-                        <Error error=move || data.get().unwrap().unwrap_err() />
-                    </div>
-                </Show>
-                <Show when=move || matches!(data.get(), Some(Ok(_))) fallback=|| view! {}>
-                    <Input placeholder="Pipeline name" value=search />
-                    <div class="grow">
-                        <List>
-                            <For
-                                each=move || {
-                                    filtered_pipelines()
-                                        .into_iter()
-                                        .enumerate()
-                                        .map(|(i, x)| (i, x.pipeline.clone(), x))
+        <DialogCard title="New schedule" subtitle="Pick the pipeline that the schedule runs.">
+            <SearchInput placeholder="Pipeline name" value=search class="mt-4" />
+            <div class="mt-3 max-h-[360px] overflow-y-auto flex flex-col">
+                {move || match data.get() {
+                    None => view! { <LoadingState /> }.into_view(),
+                    Some(Err(e)) => view! { <ErrorBanner error=e /> }.into_view(),
+                    Some(Ok(list)) => {
+                        let search = search.get();
+                        list.into_iter()
+                            .filter(|p| search.is_empty() || p.pipeline.contains(&search))
+                            .map(|p| {
+                                let name = p.pipeline.clone();
+                                view! {
+                                    <button
+                                        class="text-left px-3 py-2.5 rounded-lg hover:bg-hover font-mono text-[12.5px] text-ink-soft hover:text-ink truncate"
+                                        on:click=move |_| {
+                                            dialog.close();
+                                            let nav = use_navigate();
+                                            nav(
+                                                &format!("/cron/insert?name={name}"),
+                                                NavigateOptions::default(),
+                                            );
+                                        }
+                                    >
+                                        {p.pipeline}
+                                    </button>
                                 }
-
-                                key=|(i, _, _)| *i
-                                let:child
-                            >
-                                <button
-                                    class="w-full py-3 px-4 rounded-lg hover:bg-zinc-800 cursor-pointer flex items-center text-sm text-zinc-200 transition-colors duration-150"
-                                    on:click=move |_| {
-                                        let _ = app_dialog.get().map(|x| x.close());
-                                        let nav = use_navigate();
-                                        nav(
-                                            &format!("/cron/insert?name={}", child.1),
-                                            NavigateOptions::default(),
-                                        );
-                                    }
-                                >
-
-                                    {child.2.pipeline}
-                                </button>
-                            </For>
-                        </List>
-                    </div>
-                </Show>
-                <Button
-                    ghost=true
-                    on:click=move |_| {
-                        let _ = app_dialog.get().map(|x| x.close());
+                            })
+                            .collect_view()
                     }
+                }}
+            </div>
+            <div class="mt-4 flex">
+                <Button
+                    variant=ButtonVariant::Ghost
+                    size=ButtonSize::Lg
+                    class="flex-1"
+                    on:click=move |_| dialog.close()
                 >
                     "Close"
                 </Button>
             </div>
-        </Card>
+        </DialogCard>
     }
 }
 
 #[component]
 pub fn CronJobsNewButton() -> impl IntoView {
-    let app_dialog = use_context::<AppDialog>();
-    let app_dialog_content = use_context::<AppDialogContent>();
-
+    let dialog = use_app_dialog();
     view! {
-        <IconButton
-            icon="iconoir-plus"
-            ghost=true
-            color=Colors::Violet
-            on:click=move |_| {
-                let Some(AppDialogContent(content)) = app_dialog_content else {
-                    logging::console_error("App dialog content is not set");
-                    return;
-                };
-                let Some(AppDialog(dialog)) = app_dialog else {
-                    logging::console_error("App dialog node ref is not set");
-                    return;
-                };
-                let _ = dialog.get().map(|x| x.show_modal());
-                content.set(Some(view! { <CronJobsNewDialog app_dialog=dialog /> }));
-            }
-        />
+        <Button on:click=move |_| {
+            dialog.open(|| view! { <CronJobsNewDialog /> })
+        }>"New schedule"</Button>
     }
 }

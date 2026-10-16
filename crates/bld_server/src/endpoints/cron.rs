@@ -42,6 +42,21 @@ pub async fn patch(
     }
 }
 
+#[patch("/v1/cron/{cron_job_id}/enabled")]
+pub async fn patch_enabled(
+    _: User,
+    cron: Data<CronScheduler>,
+    path: Path<String>,
+    body: Json<bool>,
+) -> impl Responder {
+    info!("Reached handler for PATCH /cron/{{cron_job_id}}/enabled route");
+    let cron_job_id = path.into_inner();
+    match cron.set_enabled(&cron_job_id, body.into_inner()).await {
+        Ok(_) => HttpResponse::Ok().json(""),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    }
+}
+
 #[delete("/v1/cron/{cron_job_id}")]
 pub async fn delete(_: User, cron: Data<CronScheduler>, path: Path<String>) -> impl Responder {
     info!("Reached handler for DELETE /cron route");

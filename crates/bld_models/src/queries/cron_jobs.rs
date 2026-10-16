@@ -185,6 +185,7 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
         pipeline_id: Set(cj_model.pipeline_id.to_owned()),
         schedule: Set(cj_model.schedule.to_owned()),
         is_default: Set(cj_model.is_default),
+        is_enabled: Set(true),
         date_created: Set(Utc::now().naive_utc()),
         ..Default::default()
     };
@@ -242,6 +243,30 @@ pub async fn update<C: ConnectionTrait + TransactionTrait>(
     txn.commit().await?;
     debug!("updated cron job successfully");
     Ok(())
+}
+
+pub async fn update_enabled<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    id: &str,
+    is_enabled: bool,
+) -> Result<()> {
+    debug!("setting is_enabled to {is_enabled} for cron job with id: {id}");
+    CronJobEntity::update_many()
+        .col_expr(cron_jobs::Column::IsEnabled, Expr::value(is_enabled))
+        .col_expr(
+            cron_jobs::Column::DateUpdated,
+            Expr::value(Utc::now().naive_utc()),
+        )
+        .filter(cron_jobs::Column::Id.eq(id))
+        .exec(conn)
+        .await
+        .map(|_| {
+            debug!("updated cron job is_enabled successfully");
+        })
+        .map_err(|e| {
+            error!("couldn't update cron job is_enabled due to: {e}");
+            anyhow!(e)
+        })
 }
 
 pub async fn delete_by_cron_job_id<C: ConnectionTrait + TransactionTrait>(

@@ -1,26 +1,22 @@
-use crate::components::card::Card;
+use crate::components::{button::ButtonVariant, card::Card, link::LinkButton};
 use leptos::*;
-use leptos_router::*;
 
 #[component]
 pub fn NotFound() -> impl IntoView {
     view! {
-        <div class="w-full flex justify-center self-center">
-            <div class="w-96">
-                <Card>
-                    <div class="flex flex-col p-8">
-                        <div class="flex items-center space-x-4 mb-12">
-                            <div class="text-6xl text-red-400">
-                                <i class="iconoir-info-circle"></i>
-                            </div>
-                            <div class="text-2xl">"Page not found!"</div>
-                        </div>
-                        <div class="flex justify-center text-xl text-blue-400 underline">
-                            <A href="/">Go home</A>
-                        </div>
-                    </div>
-                </Card>
-            </div>
+        <div class="min-h-screen grid place-items-center px-5">
+            <Card class="w-full max-w-[380px] px-6 py-10 flex flex-col items-center gap-2.5 text-center">
+                <div class="font-mono text-[11px] tracking-[.09em] uppercase text-ink-faint">
+                    "404"
+                </div>
+                <div class="text-[17px] font-semibold">"Page not found"</div>
+                <div class="text-[12.5px] text-ink-muted">
+                    "The page you asked for does not exist."
+                </div>
+                <LinkButton href="/" variant=ButtonVariant::Secondary class="mt-2">
+                    "Go to overview"
+                </LinkButton>
+            </Card>
         </div>
     }
 }

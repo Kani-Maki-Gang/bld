@@ -2,9 +2,9 @@ use anyhow::{Result, anyhow};
 use bld_migrations::Expr;
 use chrono::{Duration, Utc};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, DatabaseBackend,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, DatabaseBackend,
     DatabaseConnection, EntityTrait, FromQueryResult, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, Statement, TransactionTrait, prelude::DateTime,
+    QuerySelect, Select, Statement, TransactionTrait, prelude::DateTime,
 };
 use tracing::{debug, error};
 
@@ -117,14 +117,11 @@ pub async fn select_last<C: ConnectionTrait + TransactionTrait>(conn: &C) -> Res
     Ok(model)
 }
 
-pub async fn select_with_filters<C: ConnectionTrait + TransactionTrait>(
-    conn: &C,
+fn find_with_filters(
     flt_state: &Option<String>,
     flt_name: &Option<String>,
-    limit_by: u64,
-) -> anyhow::Result<Vec<PipelineRuns>> {
-    debug!("loading pipeline runs from the database with filters:");
-
+    flt_search: &Option<String>,
+) -> Select<PipelineRunsEntity> {
     let mut find = PipelineRunsEntity::find();
 
     if let Some(flt_state) = flt_state {
@@ -135,7 +132,31 @@ pub async fn select_with_filters<C: ConnectionTrait + TransactionTrait>(
         find = find.filter(pipeline_runs::Column::Name.eq(flt_name));
     }
 
-    find.limit(limit_by)
+    if let Some(flt_search) = flt_search.as_deref().filter(|x| !x.is_empty()) {
+        find = find.filter(
+            Condition::any()
+                .add(pipeline_runs::Column::Id.contains(flt_search))
+                .add(pipeline_runs::Column::Name.contains(flt_search))
+                .add(pipeline_runs::Column::AppUser.contains(flt_search)),
+        );
+    }
+
+    find
+}
+
+pub async fn select_with_filters<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    flt_state: &Option<String>,
+    flt_name: &Option<String>,
+    flt_search: &Option<String>,
+    limit_by: u64,
+    offset_by: Option<u64>,
+) -> anyhow::Result<Vec<PipelineRuns>> {
+    debug!("loading pipeline runs from the database with filters:");
+
+    find_with_filters(flt_state, flt_name, flt_search)
+        .limit(limit_by)
+        .offset(offset_by)
         .order_by_desc(pipeline_runs::Column::DateCreated)
         .all(conn)
         .await
@@ -148,6 +169,104 @@ pub async fn select_with_filters<C: ConnectionTrait + TransactionTrait>(
             error!("could not load pipeline runs due to: {e}");
             anyhow!(e)
         })
+}
+
+pub async fn count_with_filters<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    flt_state: &Option<String>,
+    flt_name: &Option<String>,
+    flt_search: &Option<String>,
+) -> Result<u64> {
+    debug!("counting pipeline runs from the database with filters");
+
+    find_with_filters(flt_state, flt_name, flt_search)
+        .count(conn)
+        .await
+        .inspect(|_| debug!("counted pipeline runs successfully"))
+        .map_err(|e| {
+            error!("could not count pipeline runs due to: {e}");
+            anyhow!(e)
+        })
+}
+
+pub async fn select_last_finished_by_name<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    flt_name: &str,
+) -> Result<Option<PipelineRuns>> {
+    debug!("loading the last finished run of pipeline: {flt_name}");
+    PipelineRunsEntity::find()
+        .filter(pipeline_runs::Column::Name.eq(flt_name))
+        .filter(pipeline_runs::Column::State.eq(PR_STATE_FINISHED))
+        .order_by_desc(pipeline_runs::Column::DateCreated)
+        .one(conn)
+        .await
+        .map_err(|e| {
+            error!("could not load the last finished run due to: {e}");
+            anyhow!(e)
+        })
+}
+
+fn find_faulted_after(flt_name: &str, after: Option<DateTime>) -> Select<PipelineRunsEntity> {
+    let mut find = PipelineRunsEntity::find()
+        .filter(pipeline_runs::Column::Name.eq(flt_name))
+        .filter(pipeline_runs::Column::State.eq(PR_STATE_FAULTED));
+    if let Some(after) = after {
+        find = find.filter(pipeline_runs::Column::DateCreated.gt(after));
+    }
+    find
+}
+
+pub async fn count_faulted_after<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    flt_name: &str,
+    after: Option<DateTime>,
+) -> Result<u64> {
+    debug!("counting the faulted runs of pipeline: {flt_name} after {after:?}");
+    find_faulted_after(flt_name, after)
+        .count(conn)
+        .await
+        .map_err(|e| {
+            error!("could not count the faulted runs due to: {e}");
+            anyhow!(e)
+        })
+}
+
+pub async fn select_first_faulted_after<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    flt_name: &str,
+    after: Option<DateTime>,
+) -> Result<Option<PipelineRuns>> {
+    debug!("loading the first faulted run of pipeline: {flt_name} after {after:?}");
+    find_faulted_after(flt_name, after)
+        .order_by_asc(pipeline_runs::Column::DateCreated)
+        .one(conn)
+        .await
+        .map_err(|e| {
+            error!("could not load the first faulted run due to: {e}");
+            anyhow!(e)
+        })
+}
+
+pub async fn count_started_since<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    since: DateTime,
+    flt_user: Option<&str>,
+) -> Result<u64> {
+    debug!("counting the started runs since {since} for user {flt_user:?}");
+    let mut find = PipelineRunsEntity::find()
+        .filter(pipeline_runs::Column::DateCreated.gte(since))
+        .filter(pipeline_runs::Column::State.is_in([
+            PR_STATE_RUNNING,
+            PR_STATE_FINISHED,
+            PR_STATE_FAULTED,
+        ]));
+    if let Some(flt_user) = flt_user {
+        find = find.filter(pipeline_runs::Column::AppUser.eq(flt_user));
+    }
+    find.count(conn).await.map_err(|e| {
+        error!("could not count the started runs due to: {e}");
+        anyhow!(e)
+    })
 }
 
 pub async fn count_queued(conn: &DatabaseConnection) -> Result<u64> {

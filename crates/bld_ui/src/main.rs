@@ -1,8 +1,10 @@
 mod api;
 mod app;
+mod browser;
 mod components;
 mod context;
 mod error;
+mod format;
 mod pages;
 
 use app::App;

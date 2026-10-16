@@ -37,3 +37,28 @@ pub struct PipelineRunsPerMonthKpi {
     pub month: i64,
     pub count: f64,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PipelineHealthRun {
+    pub id: String,
+    pub state: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PipelineHealthKpi {
+    pub id: String,
+    pub pipeline: String,
+    pub runs: Vec<PipelineHealthRun>,
+    pub success_percentage: Option<f64>,
+    pub last_run_id: Option<String>,
+    pub last_run_date: Option<String>,
+    pub faulted_streak: u64,
+    pub faulted_streak_start: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThroughputKpi {
+    pub total: u64,
+    pub cron: u64,
+    pub manual: u64,
+}

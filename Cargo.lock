@@ -998,9 +998,9 @@ dependencies = [
  "bld_runner",
  "chrono",
  "codee",
+ "croner",
  "js-sys",
  "leptos",
- "leptos-chartistry",
  "leptos-use",
  "leptos_router",
  "reqwest 0.12.9",
@@ -3007,19 +3007,6 @@ dependencies = [
  "typed-builder",
  "typed-builder-macro",
  "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
-name = "leptos-chartistry"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ede17b10c1c637841760f3737c3bc7299db48298b6195cfabcf02280e076f7e"
-dependencies = [
- "chrono",
- "leptos",
- "leptos-use",
- "log",
  "web-sys",
 ]
 
