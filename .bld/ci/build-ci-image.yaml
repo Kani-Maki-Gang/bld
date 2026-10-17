@@ -1,6 +1,6 @@
 version: 2
 
-name: Build and push container image
+name: Build and push container image to registry
 runs_on: machine
 
 variables:
@@ -27,6 +27,6 @@ jobs:
     - name: Build and push image
       working_dir: bld
       exec:
-        - docker build -t ${{ registry }}/${{ image_name }}:${{ sha }} -t ${{ registry }}/${{ image_name }}:latest -f ${{ bld_root_dir }}/dockerfiles/Dockerfile .
-        - docker push ${{ registry }}/${{ image_name }}:${{ sha }}
-        - docker push ${{ registry }}/${{ image_name }}:latest
+        - docker build -t ${{ registry }}/bld-ci:${{ sha }} -t ${{ registry }}/bld-ci:latest -f ${{ bld_root_dir }}/dockerfiles/Dockerfile .
+        - docker push ${{ registry }}/bld-ci:${{ sha }}
+        - docker push ${{ registry }}/bld-ci:latest
