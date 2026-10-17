@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+pub const CRON_USER: &str = "Cron";
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AddJobRequest {
     pub schedule: String,
@@ -88,6 +90,7 @@ pub struct CronJobResponse {
     pub inputs: Option<HashMap<String, String>>,
     pub env: Option<HashMap<String, String>>,
     pub is_default: bool,
+    pub is_enabled: bool,
     pub date_created: String,
     pub date_updated: Option<String>,
 }

@@ -1,58 +1,46 @@
+use super::DialogField;
 use crate::{
     api,
-    components::{
-        button::{Button, IconButton},
-        card::Card,
-        colors::Colors,
-        input::Input,
-    },
-    context::{AppDialog, AppDialogContent, RefreshPipelines},
-    error::SmallError,
+    components::button::{Button, ButtonSize, ButtonVariant},
+    context::{RefreshPipelines, use_app_dialog},
+    error::{DialogCard, ErrorBanner},
 };
 use bld_models::dtos::PipelinePathRequest;
-use leptos::{html::Dialog, leptos_dom::logging, *};
+use leptos::*;
 use leptos_router::*;
 
-type MoveActionArgs = (
-    String,
-    String,
-    String,
-    RwSignal<Option<String>>,
-    Option<RefreshPipelines>,
-    bool,
-    NodeRef<Dialog>,
-);
-
 #[component]
-fn PipelineMoveButtonDialog(
-    #[prop(into)] id: Signal<String>,
-    #[prop(into)] name: Signal<String>,
-    #[prop(into)] app_dialog: NodeRef<Dialog>,
-    #[prop()] refresh: Option<RefreshPipelines>,
-    #[prop(into, optional)] redirect: bool,
+fn PipelineMoveDialog(
+    #[prop()] id: String,
+    #[prop()] name: String,
+    #[prop()] redirect: bool,
 ) -> impl IntoView {
-    let name_rw = create_rw_signal(name.get_untracked());
+    let dialog = use_app_dialog();
+    let refresh = use_context::<RefreshPipelines>();
+    let current = create_rw_signal(name.clone());
     let target = create_rw_signal(String::new());
-    let error = create_rw_signal(None);
+    let error = create_rw_signal(None::<String>);
 
-    let delete_action = create_action(|args: &MoveActionArgs| {
-        let (id, pipeline, target, error, refresh, redirect, dialog) = args.clone();
+    let move_action = create_action(move |(pipeline, target): &(String, String)| {
+        let params = PipelinePathRequest {
+            pipeline: pipeline.clone(),
+            target: target.clone(),
+        };
+        let id = id.clone();
         async move {
-            let params = PipelinePathRequest {
-                pipeline,
-                target: target.clone(),
-            };
+            let target = params.target.clone();
             match api::pipeline_move(params).await {
-                Ok(_) if redirect => {
-                    let nav = use_navigate();
-                    let route = format!("/pipelines/info?id={id}&name={target}");
-                    logging::console_log(&format!("rerouting to {route}"));
-                    nav(&route, NavigateOptions::default());
-                    let _ = dialog.get().map(|x| x.close());
-                }
                 Ok(_) => {
-                    let _ = refresh.map(|x| x.set());
-                    let _ = dialog.get().map(|x| x.close());
+                    dialog.close();
+                    if redirect {
+                        let nav = use_navigate();
+                        nav(
+                            &format!("/files/info?id={id}&name={target}"),
+                            NavigateOptions::default(),
+                        );
+                    } else if let Some(refresh) = refresh {
+                        refresh.set();
+                    }
                 }
                 Err(e) => error.set(Some(e.to_string())),
             }
@@ -60,46 +48,38 @@ fn PipelineMoveButtonDialog(
     });
 
     view! {
-        <Card>
-            <div class="flex flex-col px-8 py-10 gap-5 w-[480px]">
-                <div class="text-base font-semibold text-white">"Rename pipeline"</div>
-                <div class="grow flex flex-col gap-4">
-                    <div>
-                        <label for="pipeline">Current:</label>
-                        <Input id="pipeline" disabled=true value=name_rw />
-                    </div>
-                    <div>
-                        <label for="target">New:</label>
-                        <Input id="target" value=target />
-                    </div>
+        <DialogCard
+            title="Rename pipeline"
+            subtitle="The pipeline file moves to the new path on the server."
+        >
+            <DialogField label="Current" value=current disabled=true />
+            <DialogField label="New" value=target placeholder="dev/new-name.yaml" />
+            <Show when=move || error.get().is_some() fallback=|| view! {}>
+                <div class="mt-3.5">
+                    <ErrorBanner error=Signal::derive(move || error.get().unwrap_or_default()) />
                 </div>
-                <Show when=move || error.get().is_some() fallback=|| view! {}>
-                    <SmallError error=move || error.get().unwrap() />
-                </Show>
-                <div class="flex gap-3">
-                    <Button on:click=move |_| {
-                        delete_action
-                            .dispatch((
-                                id.get(),
-                                name.get(),
-                                target.get(),
-                                error,
-                                refresh,
-                                redirect,
-                                app_dialog,
-                            ));
-                    }>"Rename"</Button>
-                    <Button
-                        ghost=true
-                        on:click=move |_| {
-                            let _ = app_dialog.get().map(|x| x.close());
-                        }
-                    >
-                        "Cancel"
-                    </Button>
-                </div>
+            </Show>
+            <div class="mt-5 flex gap-2">
+                <Button
+                    size=ButtonSize::Lg
+                    class="flex-1"
+                    on:click={
+                        let name = name.clone();
+                        move |_| move_action.dispatch((name.clone(), target.get_untracked()))
+                    }
+                >
+                    "Rename"
+                </Button>
+                <Button
+                    variant=ButtonVariant::Ghost
+                    size=ButtonSize::Lg
+                    class="flex-1"
+                    on:click=move |_| dialog.close()
+                >
+                    "Cancel"
+                </Button>
             </div>
-        </Card>
+        </DialogCard>
     }
 }
 
@@ -107,41 +87,23 @@ fn PipelineMoveButtonDialog(
 pub fn PipelineMoveButton(
     #[prop(into)] id: Signal<String>,
     #[prop(into)] name: Signal<String>,
-    #[prop(into, optional)] redirect: bool,
+    #[prop(optional)] redirect: bool,
+    #[prop(optional)] size: ButtonSize,
 ) -> impl IntoView {
-    let app_dialog = use_context::<AppDialog>();
-    let app_dialog_content = use_context::<AppDialogContent>();
-    let refresh = use_context::<RefreshPipelines>();
+    let dialog = use_app_dialog();
     view! {
-        <IconButton
-            icon="iconoir-scissor"
-            color=Colors::Zinc
-            ghost=true
+        <Button
+            variant=ButtonVariant::Ghost
+            size=size
             on:click=move |_| {
-                let Some(AppDialog(dialog)) = app_dialog else {
-                    logging::console_error("App dialog context not found");
-                    return;
-                };
-                let Some(AppDialogContent(content)) = app_dialog_content else {
-                    logging::console_error("App dialog context not found");
-                    return;
-                };
-                content
-                    .set(
-                        Some(
-                            view! {
-                                <PipelineMoveButtonDialog
-                                    id=move || id.get()
-                                    name=move || name.get()
-                                    app_dialog=dialog
-                                    refresh=refresh
-                                    redirect=redirect
-                                />
-                            },
-                        ),
-                    );
-                let _ = dialog.get().map(|x| x.show_modal());
+                let (id, name) = (id.get_untracked(), name.get_untracked());
+                dialog
+                    .open(move || {
+                        view! { <PipelineMoveDialog id=id name=name redirect=redirect /> }
+                    })
             }
-        />
+        >
+            "Rename"
+        </Button>
     }
 }

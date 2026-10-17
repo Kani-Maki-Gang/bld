@@ -3,46 +3,175 @@ mod logs;
 
 use crate::{
     api::{self, build_ws_url, get_access_token},
+    browser::save_bytes_as_file,
     components::{
-        button::Button,
-        colors::Colors,
-        tabs::{Tab, Tabs, TabsDirection},
+        badge::RunState,
+        button::{Button, ButtonVariant},
+        link::BackLink,
+        tabs::{Tab, Tabs},
     },
-    context::{AppDialog, AppDialogContent, RefreshArtifacts},
-    error::ErrorDialog,
+    context::use_app_dialog,
+    format,
 };
-use bld_models::dtos::MonitInfo;
+use bld_models::dtos::{HistQueryParams, HistoryEntry, MonitInfo};
 use codee::string::FromToStringCodec;
-use leptos::{html::Dialog, leptos_dom::logging, *};
+use leptos::*;
 use leptos_router::*;
 use leptos_use::{
     ReconnectLimit, UseWebSocketOptions, UseWebSocketReturn, core::ConnectionReadyState,
-    use_websocket_with_options,
+    use_interval_fn, use_websocket_with_options,
 };
 
-use {artifacts::MonitArtifacts, logs::MonitLogs};
+use {
+    artifacts::MonitArtifacts,
+    logs::{LogStatus, MonitLogs},
+};
 
-type StopActionArgs = (String, NodeRef<Dialog>, RwSignal<Option<View>>);
-
-#[derive(Clone, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Default, Eq, PartialEq)]
 enum MenuItem {
     #[default]
     Logs,
     Artifacts,
 }
 
+async fn get_run(id: Option<String>) -> Option<HistoryEntry> {
+    let id = id?;
+    let params = HistQueryParams {
+        search: Some(id.clone()),
+        limit: 5,
+        ..Default::default()
+    };
+    api::hist(params)
+        .await
+        .ok()?
+        .into_iter()
+        .find(|r| r.id == id)
+}
+
+#[component]
+fn MonitHeader(
+    #[prop(into)] id: Signal<Option<String>>,
+    #[prop(into)] run: Signal<Option<HistoryEntry>>,
+    #[prop(into)] lines: Signal<Vec<String>>,
+) -> impl IntoView {
+    let dialog = use_app_dialog();
+    let state = move || {
+        run.get()
+            .map(|r| RunState::parse(&r.state))
+            .unwrap_or(RunState::NoRun)
+    };
+    let subtitle = move || {
+        let Some(run) = run.get() else {
+            return String::new();
+        };
+        let mut parts = vec![run.name.clone(), format::trigger_label(&run.user)];
+        if let Some(start) = run.start_date_time.as_deref()
+            && let Some(date) = format::parse_date(start)
+        {
+            parts.push(format!("started {}", date.format("%Y-%m-%d %H:%M:%S")));
+        }
+        let duration =
+            format::run_duration(run.start_date_time.as_deref(), run.end_date_time.as_deref());
+        if run.end_date_time.is_some() {
+            parts.push(format!("took {duration}"));
+        } else if run.start_date_time.is_some() {
+            parts.push(format!("{} elapsed", duration.trim_end_matches('…')));
+        }
+        parts.join(" · ")
+    };
+
+    let stop_action = create_action(move |id: &String| {
+        let id = id.clone();
+        async move {
+            if let Err(e) = api::stop(id).await {
+                dialog.error(e.to_string());
+            }
+        }
+    });
+
+    let download = move |_| {
+        let content = lines.get_untracked().join("\n");
+        let name = format!(
+            "{}.log",
+            id.get_untracked().unwrap_or_else(|| "run".to_string())
+        );
+        if let Err(e) = save_bytes_as_file(content.as_bytes(), &name) {
+            dialog.error(e.to_string());
+        }
+    };
+
+    view! {
+        <div class="flex items-start justify-between gap-5 flex-wrap">
+            <div class="min-w-0">
+                <BackLink href="/history">"History"</BackLink>
+                <div class="flex items-center gap-[11px] flex-wrap">
+                    <span class=move || {
+                        format!("size-[7px] rounded-full {}", state().dot_class())
+                    }></span>
+                    <span
+                        class="font-mono text-lg font-semibold tracking-[-.02em]"
+                        title=move || id.get().unwrap_or_default()
+                    >
+                        {move || id.get().map(|i| format::short_id(&i)).unwrap_or_default()}
+                    </span>
+                    <span class=move || {
+                        format!("text-xs {}", state().text_class())
+                    }>{move || state().label()}</span>
+                </div>
+                <div class="text-ink-muted text-[12.5px] mt-1.5 font-mono break-words">
+                    {subtitle}
+                </div>
+            </div>
+            <div class="flex gap-[7px]">
+                <Button variant=ButtonVariant::Ghost on:click=download>
+                    "Download log"
+                </Button>
+                <Show
+                    when=move || {
+                        matches!(state(), RunState::Running | RunState::Queued | RunState::Initial)
+                    }
+                    fallback=|| view! {}
+                >
+                    <Button
+                        variant=ButtonVariant::Danger
+                        on:click=move |_| {
+                            if let Some(id) = id.get_untracked() {
+                                stop_action.dispatch(id);
+                            }
+                        }
+                    >
+                        "Stop run"
+                    </Button>
+                </Show>
+            </div>
+        </div>
+    }
+}
+
 #[component]
 pub fn Monit() -> impl IntoView {
     let params = use_query_map();
-    let id = move || params.with(|p| p.get("id").cloned());
+    let id = Signal::derive(move || params.with(|p| p.get("id").cloned()));
     let selected = create_rw_signal(MenuItem::Logs);
-    let app_dialog = use_context::<AppDialog>();
-    let app_dialog_content = use_context::<AppDialogContent>();
+    let dialog = use_app_dialog();
+    let (lines, set_lines) = create_signal(Vec::<String>::new());
 
-    provide_context(RefreshArtifacts(create_rw_signal(())));
-
-    let info = move || MonitInfo::new(id(), None, false);
-    let (history, set_history) = create_signal(vec![]);
+    let run = create_resource(move || id.get(), get_run);
+    let run_signal = Signal::derive(move || run.get().flatten());
+    let done = move || {
+        run_signal
+            .get()
+            .map(|r| RunState::parse(&r.state).is_done())
+            .unwrap_or(false)
+    };
+    let _ = use_interval_fn(
+        move || {
+            if !done() {
+                run.refetch();
+            }
+        },
+        5_000,
+    );
 
     let Ok(access_token) = get_access_token() else {
         return view! {}.into_view();
@@ -66,30 +195,12 @@ pub fn Monit() -> impl IntoView {
         &url,
         UseWebSocketOptions::default()
             .reconnect_limit(ReconnectLimit::Limited(0))
-            .on_error(move |e| {
-                let Some(AppDialog(app_dialog)) = app_dialog else {
-                    return;
-                };
-                let Some(AppDialogContent(app_dialog_content)) = app_dialog_content else {
-                    return;
-                };
-                app_dialog_content.set(Some(
-                    view! { <ErrorDialog dialog=app_dialog error=move || e.to_string() /> },
-                ));
-                let _ = app_dialog.get().map(|x| x.show_modal());
-            }),
+            .on_error(move |e| dialog.error(e.to_string())),
     );
-
-    let socket_state = move || match ready_state.get() {
-        ConnectionReadyState::Connecting => "Connecting",
-        ConnectionReadyState::Open => "Open",
-        ConnectionReadyState::Closing => "Closing",
-        ConnectionReadyState::Closed => "Closed",
-    };
 
     create_effect(move |_| {
         if ready_state.get() == ConnectionReadyState::Open {
-            let info = info();
+            let info = MonitInfo::new(id.get_untracked(), None, false);
             let body: String = serde_json::to_string(&info).unwrap_or_default();
             send(&body);
         }
@@ -97,85 +208,38 @@ pub fn Monit() -> impl IntoView {
 
     create_effect(move |_| {
         if let Some(data) = message.get() {
-            set_history.update(|v: &mut Vec<String>| v.push(data));
+            set_lines.update(|v| v.push(data));
         }
     });
 
-    let stop_action = create_action(|args: &StopActionArgs| {
-        let (id, dialog, content) = args.clone();
-        async move {
-            if let Err(e) = api::stop(id).await {
-                content.set(Some(
-                    view! { <ErrorDialog dialog=dialog error=move || e.to_string() /> },
-                ));
-                let _ = dialog.get().map(|x| x.show_modal());
-            }
-        }
+    let status = Signal::derive(move || match ready_state.get() {
+        ConnectionReadyState::Connecting => LogStatus::Connecting,
+        ConnectionReadyState::Open if !done() => LogStatus::Following,
+        _ => LogStatus::Ended,
     });
 
     view! {
-        <div class="flex flex-col min-h-full">
-            <div class="px-6 py-5 border-b border-zinc-800 grid grid-cols-4 items-center gap-4">
-                <div class="grow">
-                    <div class="text-lg font-semibold text-white">"Monitoring pipeline run"</div>
-                    <div class="text-xs text-zinc-500 mt-0.5">
-                        "Run id: " {move || id().unwrap_or_default()}
-                    </div>
-                </div>
-                <div class="col-span-2 flex justify-center">
-                    <Tabs direction=move || TabsDirection::Horizontal>
-                        <Tab
-                            is_selected=move || selected.get() == MenuItem::Logs
-                            on:click=move |_| selected.set(MenuItem::Logs)
-                        >
-                            "Logs"
-                        </Tab>
-                        <Tab
-                            is_selected=move || selected.get() == MenuItem::Artifacts
-                            on:click=move |_| selected.set(MenuItem::Artifacts)
-                        >
-                            "Artifacts"
-                        </Tab>
-                    </Tabs>
-                </div>
-                <div class="flex items-center justify-end gap-4">
-                    <div class="text-xs text-zinc-500">"Socket: " {move || socket_state()}</div>
-                    <div class="w-24 shrink-0">
-                        <Button
-                            color=Colors::Red
-                            on:click=move |_| {
-                                let Some(id) = id() else {
-                                    logging::console_error("Pipeline run id not provided in url");
-                                    return;
-                                };
-                                let Some(AppDialog(dialog)) = app_dialog else {
-                                    logging::console_error("App dialog context not found");
-                                    return;
-                                };
-                                let Some(AppDialogContent(content)) = app_dialog_content else {
-                                    logging::console_error("App dialog context not found");
-                                    return;
-                                };
-                                stop_action.dispatch((id, dialog, content));
-                            }
-                        >
-                            "Stop"
-                        </Button>
-                    </div>
-                </div>
-            </div>
-            <div class="grow flex flex-col">
-                <Show when=move || matches!(selected.get(), MenuItem::Logs) fallback=|| view! {}>
-                    <MonitLogs history=history />
-                </Show>
-                <Show
-                    when=move || matches!(selected.get(), MenuItem::Artifacts)
-                    fallback=|| view! {}
-                >
-                    <MonitArtifacts run_id=Signal::derive(id) />
-                </Show>
-            </div>
-        </div>
+        <MonitHeader id=id run=run_signal lines=lines />
+        <Tabs>
+            <Tab
+                is_selected=Signal::derive(move || selected.get() == MenuItem::Logs)
+                on:click=move |_| selected.set(MenuItem::Logs)
+            >
+                "Log"
+            </Tab>
+            <Tab
+                is_selected=Signal::derive(move || selected.get() == MenuItem::Artifacts)
+                on:click=move |_| selected.set(MenuItem::Artifacts)
+            >
+                "Artifacts"
+            </Tab>
+        </Tabs>
+        <Show when=move || selected.get() == MenuItem::Logs fallback=|| view! {}>
+            <MonitLogs lines=lines status=status />
+        </Show>
+        <Show when=move || selected.get() == MenuItem::Artifacts fallback=|| view! {}>
+            <MonitArtifacts run_id=id />
+        </Show>
     }
     .into_view()
 }

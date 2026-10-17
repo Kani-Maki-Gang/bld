@@ -1,14 +1,9 @@
 pub mod badge;
 pub mod button;
-pub mod button_group;
 pub mod card;
-pub mod colors;
+pub mod dag;
 pub mod input;
-pub mod kpi;
 pub mod link;
-pub mod list;
-pub mod sidebar;
-pub mod table;
+pub mod page;
 pub mod tabs;
 pub mod topbar;
-pub mod user_pill;

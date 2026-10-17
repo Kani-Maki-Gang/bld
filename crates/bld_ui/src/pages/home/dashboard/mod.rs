@@ -1,38 +1,46 @@
-mod kpis;
-mod most_runs;
-mod pipelines;
-mod runs_per_month;
+mod attention;
+mod health;
+mod stats;
 
-use kpis::DashboardKpis;
+use crate::{
+    api,
+    components::{button::ButtonVariant, link::LinkButton, page::PageHeader},
+};
+use attention::DashboardAttention;
+use health::DashboardHealth;
 use leptos::*;
-use most_runs::DashboardMostRunsPerUser;
-use pipelines::DashboardPipelines;
-use runs_per_month::DashboardRunsPerMonth;
+use leptos_use::use_interval_fn;
+use stats::DashboardStats;
 
 #[component]
-pub fn dashboard() -> impl IntoView {
+pub fn Dashboard() -> impl IntoView {
+    let health = create_resource(
+        || (),
+        |_| async move { api::pipeline_health().await.map_err(|e| e.to_string()) },
+    );
+    let refresh = create_rw_signal(());
+    let _ = use_interval_fn(
+        move || {
+            health.refetch();
+            refresh.set(());
+        },
+        15_000,
+    );
+
+    let subtitle = Signal::derive(move || match health.get() {
+        Some(Ok(h)) if h.len() == 1 => "1 pipeline · last 30 runs each".to_string(),
+        Some(Ok(h)) => format!("{} pipelines · last 30 runs each", h.len()),
+        _ => String::new(),
+    });
+
     view! {
-        <div class="flex flex-col min-h-full">
-            <div class="px-6 py-5 border-b border-zinc-800">
-                <div class="text-lg font-semibold text-white">"Dashboard"</div>
-                <div class="text-xs text-zinc-500 mt-0.5">
-                    "Server overview and pipeline analytics"
-                </div>
-            </div>
-            <div class="px-6 py-5 flex flex-col gap-5">
-                <div class="grid grid-cols-4 gap-4">
-                    <DashboardKpis />
-                </div>
-                <div class="grid grid-cols-5 gap-4">
-                    <div class="col-span-3">
-                        <DashboardRunsPerMonth />
-                    </div>
-                    <div class="col-span-2">
-                        <DashboardMostRunsPerUser />
-                    </div>
-                </div>
-                <DashboardPipelines />
-            </div>
-        </div>
+        <PageHeader title="Overview" subtitle=subtitle>
+            <LinkButton href="/files" variant=ButtonVariant::Primary>
+                "Run pipeline"
+            </LinkButton>
+        </PageHeader>
+        <DashboardAttention health=health />
+        <DashboardStats refresh=refresh />
+        <DashboardHealth health=health />
     }
 }

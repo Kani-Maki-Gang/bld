@@ -1,10 +1,10 @@
 use anyhow::{Result, anyhow, bail};
 use bld_models::dtos::{
-    AddJobRequest, ArtifactResponse, ArtifactsQueryParams, AuthTokens, CompletedPipelinesKpi,
-    CronJobResponse, ExecClientMessage, HistQueryParams, HistoryEntry, JobFiltersParams,
-    ListResponse, PipelineInfoQueryParams, PipelinePathRequest, PipelinePerCompletedStateKpi,
+    AddJobRequest, ArtifactResponse, ArtifactsQueryParams, AuthTokens, CronJobResponse,
+    ExecClientMessage, HistCountQueryParams, HistQueryParams, HistoryEntry, JobFiltersParams,
+    ListResponse, PipelineHealthKpi, PipelineInfoQueryParams, PipelinePathRequest,
     PipelineQueryParams, PipelineRunsPerMonthKpi, QueuedPipelinesKpi, RunningPipelinesKpi,
-    RunsPerUserKpi, UpdateJobRequest,
+    ThroughputKpi, UpdateJobRequest,
 };
 use leptos::leptos_dom::logging;
 use leptos_router::{NavigateOptions, use_navigate};
@@ -238,37 +238,25 @@ pub async fn running_pipelines() -> Result<RunningPipelinesKpi> {
     }
 }
 
-pub async fn completed_pipelines() -> Result<CompletedPipelinesKpi> {
-    let url = build_url("/v1/ui/kpis/completed-pipelines")?;
+pub async fn pipeline_health() -> Result<Vec<PipelineHealthKpi>> {
+    let url = build_url("/v1/ui/kpis/pipeline-health")?;
     let request = add_authorization_header(Client::builder().build()?.get(&url))?;
     let response = request.send().await?;
     let status = response.status();
     if !status.is_success() {
-        handle_error(status, response.json().await?)
+        handle_error(status, response.text().await?)
     } else {
         Ok(response.json().await?)
     }
 }
 
-pub async fn most_runs_per_user() -> Result<Vec<RunsPerUserKpi>> {
-    let url = build_url("/v1/ui/kpis/most-runs-per-user")?;
+pub async fn throughput() -> Result<ThroughputKpi> {
+    let url = build_url("/v1/ui/kpis/throughput")?;
     let request = add_authorization_header(Client::builder().build()?.get(&url))?;
     let response = request.send().await?;
     let status = response.status();
     if !status.is_success() {
-        handle_error(status, response.json().await?)
-    } else {
-        Ok(response.json().await?)
-    }
-}
-
-pub async fn pipelines_per_completed_state() -> Result<Vec<PipelinePerCompletedStateKpi>> {
-    let url = build_url("/v1/ui/kpis/pipelines-per-completed-state")?;
-    let request = add_authorization_header(Client::builder().build()?.get(&url))?;
-    let response = request.send().await?;
-    let status = response.status();
-    if !status.is_success() {
-        handle_error(status, response.json().await?)
+        handle_error(status, response.text().await?)
     } else {
         Ok(response.json().await?)
     }
@@ -322,6 +310,18 @@ pub async fn cron_update(data: UpdateJobRequest) -> Result<()> {
     }
 }
 
+pub async fn cron_set_enabled(id: String, is_enabled: bool) -> Result<()> {
+    let url = build_url(format!("/v1/cron/{id}/enabled"))?;
+    let request = add_authorization_header(Client::builder().build()?.patch(&url))?;
+    let response = request.json(&is_enabled).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        Ok(())
+    }
+}
+
 pub async fn cron_delete(id: String) -> Result<()> {
     let url = build_url(format!("/v1/cron/{id}"))?;
     let request = add_authorization_header(Client::builder().build()?.delete(&url))?;
@@ -348,6 +348,18 @@ pub async fn list() -> Result<Vec<ListResponse>> {
 
 pub async fn hist(params: HistQueryParams) -> Result<Vec<HistoryEntry>> {
     let url = build_url("/v1/hist")?;
+    let request = add_authorization_header(Client::builder().build()?.get(&url))?;
+    let response = request.query(&params).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        handle_error(status, response.text().await?)
+    } else {
+        Ok(response.json().await?)
+    }
+}
+
+pub async fn hist_count(params: HistCountQueryParams) -> Result<u64> {
+    let url = build_url("/v1/hist/count")?;
     let request = add_authorization_header(Client::builder().build()?.get(&url))?;
     let response = request.query(&params).send().await?;
     let status = response.status();

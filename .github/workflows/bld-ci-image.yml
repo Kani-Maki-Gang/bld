@@ -1,7 +1,11 @@
-name: Push container image workflow
+name: Build and Push Bld CI Image
 
 on:
   workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   main:
@@ -19,11 +23,11 @@ jobs:
       - name: Run bld pipeline
         uses: Kani-Maki-Gang/bld-github-action@v0.3.1-alpha
         with:
-          pipeline: 'ci/container-image.yaml'
+          pipeline: 'ci/build-ci-image.yaml'
           variables: |-
             branch=${{ steps.get_branch_name.outputs.branch }}
-            sha=$GITHUB_SHA
-            registry=ghcr.io/Kani-Maki-Gang
+            sha=${{ github.sha }}
+            registry=ghcr.io/kani-maki-gang
             username=${{ github.actor }}
             password=${{ secrets.GITHUB_TOKEN }}
 

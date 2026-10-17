@@ -11,9 +11,9 @@ bld_models = { path = "../bld_models", features = ["web_socket"] }
 bld_runner = { path = "../bld_runner" }
 chrono = "0.4.38"
 codee = "^0.1"
+croner = "2.0.6"
 js-sys = "^0.3"
 leptos = { version = "0.6.15", features = ["csr"] }
-leptos-chartistry = "0.1.7"
 leptos-use = "^0.12"
 leptos_router = { version = "0.6.15", features = ["csr"] }
 reqwest = { version = "0.12.9", features = ["json"] }
@@ -27,6 +27,7 @@ web-sys = { version = "^0.3", features = [
     "HtmlAnchorElement",
     "HtmlElement",
     "Location",
+    "Navigator",
     "Node",
     "Url",
     "Window",

@@ -1,90 +1,88 @@
-use super::colors::Colors;
 use leptos::*;
 
-pub fn get_button_color_classes(color: Option<Colors>) -> &'static str {
-    let color = color.unwrap_or(Colors::Violet);
-    match color {
-        Colors::Slate => "bg-slate-700 hover:bg-slate-600 focus:bg-slate-600",
-        Colors::Gray => "bg-gray-700 hover:bg-gray-600 focus:bg-gray-600",
-        Colors::Zinc => "bg-zinc-700 hover:bg-zinc-600 focus:bg-zinc-600",
-        Colors::Neutral => "bg-neutral-700 hover:bg-neutral-600 focus:bg-neutral-600",
-        Colors::Stone => "bg-stone-700 hover:bg-stone-600 focus:bg-stone-600",
-        Colors::Red => "bg-red-600 hover:bg-red-500 focus:bg-red-500",
-        Colors::Orange => "bg-orange-600 hover:bg-orange-500 focus:bg-orange-500",
-        Colors::Amber => "bg-amber-600 hover:bg-amber-500 focus:bg-amber-500",
-        Colors::Yellow => "bg-yellow-600 hover:bg-yellow-500 focus:bg-yellow-500",
-        Colors::Lime => "bg-lime-600 hover:bg-lime-500 focus:bg-lime-500",
-        Colors::Green => "bg-green-600 hover:bg-green-500 focus:bg-green-500",
-        Colors::Emerald => "bg-emerald-600 hover:bg-emerald-500 focus:bg-emerald-500",
-        Colors::Teal => "bg-teal-600 hover:bg-teal-500 focus:bg-teal-500",
-        Colors::Cyan => "bg-cyan-600 hover:bg-cyan-500 focus:bg-cyan-500",
-        Colors::Sky => "bg-sky-600 hover:bg-sky-500 focus:bg-sky-500",
-        Colors::Blue => "bg-blue-600 hover:bg-blue-500 focus:bg-blue-500",
-        Colors::Indigo => "bg-indigo-600 hover:bg-indigo-500 focus:bg-indigo-500",
-        Colors::Violet => "bg-violet-600 hover:bg-violet-500 focus:bg-violet-500",
-        Colors::Purple => "bg-purple-600 hover:bg-purple-500 focus:bg-purple-500",
-        Colors::Fuchsia => "bg-fuchsia-600 hover:bg-fuchsia-500 focus:bg-fuchsia-500",
-        Colors::Pink => "bg-pink-600 hover:bg-pink-500 focus:bg-pink-500",
-        Colors::Rose => "bg-rose-600 hover:bg-rose-500 focus:bg-rose-500",
-    }
+#[derive(Clone, Copy, Default, PartialEq)]
+pub enum ButtonVariant {
+    #[default]
+    Primary,
+    Secondary,
+    Ghost,
+    Danger,
+    DangerGhost,
 }
 
-pub fn get_ghost_icon_button_color_classes(color: Option<Colors>) -> &'static str {
-    match color.unwrap_or(Colors::Zinc) {
-        Colors::Red | Colors::Rose => "text-zinc-500 hover:text-red-400 hover:bg-red-500/10",
-        Colors::Green | Colors::Emerald | Colors::Teal => {
-            "text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/10"
+#[derive(Clone, Copy, Default, PartialEq)]
+pub enum ButtonSize {
+    Xs,
+    Sm,
+    #[default]
+    Md,
+    Lg,
+}
+
+pub fn button_classes(variant: ButtonVariant, size: ButtonSize) -> String {
+    let size = match size {
+        ButtonSize::Xs => "h-[26px] px-[9px] rounded-[7px] text-[11.5px]",
+        ButtonSize::Sm => "h-[28px] px-[11px] rounded-lg text-xs",
+        ButtonSize::Md => "h-8 px-[13px] rounded-[9px] text-[12.5px]",
+        ButtonSize::Lg => "h-9 px-[15px] rounded-[9px] text-[13px]",
+    };
+    let variant = match variant {
+        ButtonVariant::Primary => {
+            "border-0 bg-accent text-white font-semibold hover:bg-accent-hover"
         }
-        Colors::Violet | Colors::Purple | Colors::Indigo => {
-            "text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10"
+        ButtonVariant::Secondary => {
+            "border border-line-bright bg-raised text-ink font-medium hover:border-line-brighter"
         }
-        Colors::Blue | Colors::Sky | Colors::Cyan => {
-            "text-zinc-500 hover:text-sky-400 hover:bg-sky-500/10"
+        ButtonVariant::Ghost => {
+            "border border-line-strong bg-transparent text-ink-soft hover:text-ink hover:border-line-bright"
         }
-        _ => "text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800",
-    }
+        ButtonVariant::Danger => {
+            "border border-bad-line bg-bad/[.08] text-bad font-medium hover:bg-bad/[.16]"
+        }
+        ButtonVariant::DangerGhost => {
+            "border border-line-strong bg-transparent text-ink-muted hover:text-bad hover:border-bad-line"
+        }
+    };
+    format!(
+        "inline-flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed {size} {variant}"
+    )
 }
 
 #[component]
 pub fn Button(
-    #[prop(into, optional)] color: Option<Colors>,
-    #[prop(into, optional)] ghost: bool,
+    #[prop(into, optional)] variant: ButtonVariant,
+    #[prop(into, optional)] size: ButtonSize,
     #[prop(into, optional)] class: String,
+    #[prop(into, optional)] title: MaybeSignal<String>,
+    #[prop(into, optional)] disabled: MaybeSignal<bool>,
     children: Children,
 ) -> impl IntoView {
-    let class = if ghost {
-        format!(
-            "h-[38px] w-full rounded-lg px-4 py-2 text-sm font-medium bg-transparent border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500/40 transition-colors duration-150 {class}"
-        )
-    } else {
-        let color = get_button_color_classes(color);
-        format!(
-            "h-[38px] w-full rounded-lg px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-violet-500/40 transition-colors duration-150 {color} {class}"
-        )
-    };
-    view! { <button class=class>{children()}</button> }
+    let class = format!("{} {class}", button_classes(variant, size));
+    view! {
+        <button class=class title=move || title.get() prop:disabled=move || disabled.get()>
+            {children()}
+        </button>
+    }
 }
 
 #[component]
 pub fn IconButton(
-    #[prop(into, optional)] color: Option<Colors>,
-    #[prop(into, optional)] ghost: bool,
+    #[prop(into, optional)] variant: Option<ButtonVariant>,
     #[prop(into, optional)] class: String,
+    #[prop(into, optional)] title: String,
     #[prop(into)] icon: String,
 ) -> impl IntoView {
-    let class = if ghost {
-        let color = get_ghost_icon_button_color_classes(color);
-        format!(
-            "h-[34px] w-[34px] text-base rounded-lg flex items-center justify-center focus:outline-none transition-colors duration-150 {color} {class}"
-        )
-    } else {
-        let color = get_button_color_classes(color);
-        format!(
-            "h-[38px] w-[38px] text-base rounded-lg flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-violet-500/40 transition-colors duration-150 {color} {class}"
-        )
+    let variant = match variant.unwrap_or(ButtonVariant::Ghost) {
+        ButtonVariant::DangerGhost | ButtonVariant::Danger => {
+            "text-ink-muted hover:text-bad hover:border-bad-line"
+        }
+        _ => "text-ink-muted hover:text-ink hover:border-line-bright",
     };
+    let class = format!(
+        "size-7 inline-flex items-center justify-center rounded-lg border border-line-strong bg-transparent text-[13px] cursor-pointer transition-colors duration-150 {variant} {class}"
+    );
     view! {
-        <button class=class>
+        <button class=class title=title>
             <i class=icon></i>
         </button>
     }

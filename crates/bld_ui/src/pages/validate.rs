@@ -20,8 +20,14 @@ pub fn Validate() -> impl IntoView {
     );
 
     view! {
-        <Show when=move || matches!(resource.get(), Some(Err(_))) fallback=|| view! {}>
-            <ErrorCard error=move || resource.get().unwrap().unwrap_err() />
-        </Show>
+        <div class="min-h-screen grid place-items-center px-5">
+            {move || match resource.get() {
+                Some(Err(e)) => view! { <ErrorCard error=e /> }.into_view(),
+                _ => {
+                    view! { <div class="text-[12.5px] text-ink-faint">"Signing you in…"</div> }
+                        .into_view()
+                }
+            }}
+        </div>
     }
 }
