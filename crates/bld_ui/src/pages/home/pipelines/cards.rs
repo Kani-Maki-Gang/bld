@@ -38,10 +38,7 @@ fn PipelineCard(
     let id = pipeline.id.clone();
     let name = pipeline.pipeline.clone();
     let info_href = pipeline_href(&pipeline.id, &pipeline.pipeline);
-    let run_href = format!(
-        "/files/run?id={}&name={}",
-        pipeline.id, pipeline.pipeline
-    );
+    let run_href = format!("/files/run?id={}&name={}", pipeline.id, pipeline.pipeline);
     view! {
         <Card class="px-5 py-[18px] flex flex-col gap-3.5 hover:border-[#2f3543] transition-colors">
             <div class="flex items-start justify-between gap-3">

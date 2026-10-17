@@ -242,11 +242,7 @@ pub fn RunPipeline() -> impl IntoView {
         Some(Err(e)) => view! { <ErrorCard error=e /> }.into_view(),
         Some(Ok(file)) => {
             let name = name().unwrap_or_default();
-            let back = format!(
-                "/files/info?id={}&name={}",
-                id().unwrap_or_default(),
-                name
-            );
+            let back = format!("/files/info?id={}&name={}", id().unwrap_or_default(), name);
             view! { <RunForm name=name back=back file=file /> }.into_view()
         }
     }

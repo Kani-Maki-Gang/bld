@@ -113,11 +113,7 @@ where
                     }
                         .into_view()
                 >
-                    <LinkButton
-                        href="/files"
-                        variant=ButtonVariant::Secondary
-                        size=ButtonSize::Sm
-                    >
+                    <LinkButton href="/files" variant=ButtonVariant::Secondary size=ButtonSize::Sm>
                         "Run a pipeline"
                     </LinkButton>
                 </EmptyState>
