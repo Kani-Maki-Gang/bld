@@ -1,5 +1,7 @@
 use crate::components::card::CardHeader;
-use bld_runner::{VersionedFile, files::v3::RunnerFile, traits::IntoVariables};
+use bld_runner::{
+    VersionedFile, files::v3::RunnerFile, inputs::v3::input_default_text, traits::IntoVariables,
+};
 use leptos::*;
 use std::collections::HashMap;
 
@@ -72,14 +74,12 @@ pub fn file_fields(
             .inputs
             .iter()
             .map(|(name, input)| {
-                let hint = match input {
-                    bld_runner::inputs::v3::Input::Complex {
-                        description: Some(d),
-                        ..
-                    } => d.trim().to_string(),
-                    _ => String::new(),
-                };
-                let default = input.default_value().unwrap_or_default().to_string();
+                let hint = input
+                    .description
+                    .as_deref()
+                    .map(|d| d.trim().to_string())
+                    .unwrap_or_default();
+                let default = input_default_text(input);
                 let value = inputs.remove(name);
                 InputField::new(name.clone(), hint, default, input.is_required(), value)
             })
