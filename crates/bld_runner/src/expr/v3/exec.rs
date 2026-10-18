@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use crate::expr::v3::parser::{ExprParser, Rule};
 
 use super::traits::{
-    EvalExpr, EvalObject, ExprValue, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
-    array_from_pair,
+    EvalExpr, EvalObject, ExprType, ExprValue, ReadonlyRuntimeExprContext,
+    WritableRuntimeExprContext, array_from_pair,
 };
 use anyhow::{Result, anyhow, bail};
 use pest::{Parser, iterators::Pair};
@@ -134,19 +134,11 @@ impl<'a, T: EvalObject<'a>, RCtx: ReadonlyRuntimeExprContext<'a>, WCtx: Writable
 
             // The real value of a step output or an input is not known during
             // validation, so an index into it can't be checked either.
-            ExprValue::Unknown => return Ok(ExprValue::Unknown),
-
-            ExprValue::Text(text) => {
-                let raw = text.inner();
-                match TryInto::<ExprValue<'a>>::try_into(raw) {
-                    Ok(ExprValue::Array(items)) => items,
-                    Ok(other) => bail!(
-                        "cannot index into a value of type {}: '{raw}'",
-                        other.type_as_string()
-                    ),
-                    Err(_) => bail!("the value is not an array: '{raw}'"),
-                }
+            ExprValue::Unknown(None) => return Ok(ExprValue::Unknown(None)),
+            ExprValue::Unknown(Some(ExprType::Array(elem))) => {
+                return Ok(ExprValue::Unknown(elem.map(|x| *x)));
             }
+            ExprValue::Unknown(Some(ty)) => bail!("cannot index into a value of type {ty}"),
 
             other => bail!(
                 "cannot index into a value of type {}: '{other}'",
@@ -407,7 +399,9 @@ mod tests {
     use crate::{
         expr::v3::{
             context::CommonReadonlyRuntimeExprContext,
-            traits::{ExprText, MockWritableRuntimeExprContext, OutputScope, tests::expr_number},
+            traits::{
+                ExprText, ExprType, MockWritableRuntimeExprContext, OutputScope, tests::expr_number,
+            },
         },
         job::v3::Job,
         pipeline::v3::Pipeline,
@@ -418,7 +412,7 @@ mod tests {
     use anyhow::Result;
     use bld_utils::sync::IntoArc;
     use mockall::predicate;
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
 
     use super::*;
 
@@ -437,6 +431,17 @@ mod tests {
         pipeline
     }
 
+    fn typed_rctx_with(inputs: Vec<(&str, &str)>) -> CommonReadonlyRuntimeExprContext {
+        CommonReadonlyRuntimeExprContext {
+            inputs: inputs
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), ExprValue::try_from(v).unwrap().into_owned()))
+                .collect::<HashMap<_, _>>()
+                .into_arc(),
+            ..Default::default()
+        }
+    }
+
     fn rctx_with(
         inputs: Vec<(&str, &str)>,
         env: Vec<(&str, &str)>,
@@ -449,7 +454,7 @@ mod tests {
         };
 
         CommonReadonlyRuntimeExprContext {
-            inputs: owned(inputs).into_arc(),
+            inputs: crate::expr::v3::context::text_inputs(&owned(inputs)),
             env: owned(env).into_arc(),
             ..Default::default()
         }
@@ -769,14 +774,11 @@ mod tests {
     #[test]
     pub fn array_index_access_eval_success() {
         let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = rctx_with(
-            vec![
-                ("names", "[\"john\", \"jane\", \"jim\"]"),
-                ("numbers", "[100, 200, 300]"),
-                ("flags", "[true, false]"),
-            ],
-            vec![],
-        );
+        let rctx = typed_rctx_with(vec![
+            ("names", "[\"john\", \"jane\", \"jim\"]"),
+            ("numbers", "[100, 200, 300]"),
+            ("flags", "[true, false]"),
+        ]);
 
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
@@ -809,7 +811,7 @@ mod tests {
     #[test]
     pub fn array_index_access_out_of_bounds_eval_failure() {
         let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = rctx_with(vec![("numbers", "[100, 200, 300]")], vec![]);
+        let rctx = typed_rctx_with(vec![("numbers", "[100, 200, 300]")]);
 
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
@@ -894,7 +896,7 @@ mod tests {
     #[test]
     pub fn input_array_with_comma_index_access_eval_success() {
         let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = rctx_with(vec![("list", r#"["a,b", "c"]"#)], vec![]);
+        let rctx = typed_rctx_with(vec![("list", r#"["a,b", "c"]"#)]);
 
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
@@ -908,7 +910,7 @@ mod tests {
     #[test]
     pub fn empty_input_array_index_access_eval_failure() {
         let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = rctx_with(vec![("list", "[]")], vec![]);
+        let rctx = typed_rctx_with(vec![("list", "[]")]);
 
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
@@ -924,7 +926,7 @@ mod tests {
     #[test]
     pub fn index_into_number_input_eval_failure() {
         let wctx = MockWritableRuntimeExprContext::new();
-        let rctx = rctx_with(vec![("count", "5")], vec![]);
+        let rctx = typed_rctx_with(vec![("count", "5")]);
 
         let pipeline = Pipeline::default();
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
@@ -938,7 +940,7 @@ mod tests {
     }
 
     #[test]
-    pub fn text_step_output_index_access_eval_success() {
+    pub fn text_step_output_index_access_eval_failure() {
         let mut wctx = MockWritableRuntimeExprContext::new();
         wctx.expect_get_exec_id().returning(|| Some("main"));
         wctx.expect_get_output()
@@ -958,13 +960,14 @@ mod tests {
         let pipeline = pipeline_with_step("main", "build");
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
-        let value = exec
+        let err = exec
             .eval("${{ steps.build.outputs.items[1] }}")
-            .expect("failed to eval indexed step output");
-        assert!(matches!(
-            value.try_eq(&ExprValue::Text(ExprText::Owned("y".to_string()))),
-            Ok(ExprValue::Boolean(true))
-        ));
+            .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("cannot index into a value of type text"),
+            "error was: {err}"
+        );
     }
 
     #[test]
@@ -999,7 +1002,13 @@ mod tests {
     pub fn index_into_unknown_validation_value_gives_unknown() {
         let wctx = MockWritableRuntimeExprContext::new();
         let rctx = ValidatorReadonlyRuntimeExprContext {
-            inputs: HashSet::from(["list".to_string()]),
+            inputs: HashMap::from([
+                ("list".to_string(), ExprType::Array(None)),
+                (
+                    "numbers".to_string(),
+                    ExprType::Array(Some(Box::new(ExprType::Number))),
+                ),
+            ]),
             ..Default::default()
         };
 
@@ -1009,7 +1018,12 @@ mod tests {
         let value = exec
             .eval("${{ inputs.list[0] }}")
             .expect("indexing an unknown value must not error");
-        assert!(matches!(value, ExprValue::Unknown));
+        assert_eq!(value, ExprValue::Unknown(None));
+
+        let value = exec
+            .eval("${{ inputs.numbers[0] }}")
+            .expect("indexing an unknown value must not error");
+        assert_eq!(value, ExprValue::Unknown(Some(ExprType::Number)));
     }
 
     /// Outside of validation a blank value is a real one, so an index into it has
@@ -1886,5 +1900,109 @@ mod tests {
             ("${{ !\"a\" == \"b\" }}", Err(anyhow!("text value"))),
         ];
         assert_boolean_eval(&CommonReadonlyRuntimeExprContext::default(), data);
+    }
+
+    fn validator_rctx(inputs: Vec<(&str, ExprType)>) -> ValidatorReadonlyRuntimeExprContext {
+        ValidatorReadonlyRuntimeExprContext {
+            inputs: inputs
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect(),
+            env: ["NAME".to_string()].into_iter().collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    pub fn typed_input_validation_eval_success() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = validator_rctx(vec![
+            ("deploy", ExprType::Boolean),
+            ("count", ExprType::Number),
+            ("oses", ExprType::Array(Some(Box::new(ExprType::Text)))),
+        ]);
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let data = [
+            "${{ inputs.deploy == true }}",
+            "${{ inputs.count > 3 }}",
+            "${{ !inputs.deploy }}",
+            "${{ inputs.deploy && true }}",
+            "${{ inputs.deploy || false }}",
+            "${{ inputs.oses[0] == 'linux' }}",
+            "${{ env.NAME == 'bld' }}",
+        ];
+        for expr in data {
+            let value = exec
+                .eval(expr)
+                .unwrap_or_else(|e| panic!("failed to evaluate {expr}: {e:#}"));
+            assert_eq!(
+                value,
+                ExprValue::Unknown(Some(ExprType::Boolean)),
+                "unexpected result for {expr}"
+            );
+        }
+    }
+
+    #[test]
+    pub fn typed_input_validation_eval_failure() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = validator_rctx(vec![
+            ("deploy", ExprType::Text),
+            ("count", ExprType::Text),
+            ("flag", ExprType::Boolean),
+        ]);
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let data = [
+            (
+                "${{ inputs.deploy == true }}",
+                "cannot compare text and boolean",
+            ),
+            ("${{ inputs.count > 3 }}", "cannot compare text and number"),
+            (
+                "${{ !inputs.deploy }}",
+                "cannot use logical NOT on type text",
+            ),
+            (
+                "${{ inputs.deploy && true }}",
+                "logical AND comparison on type text",
+            ),
+            (
+                "${{ inputs.flag == 'true' }}",
+                "cannot compare boolean and text",
+            ),
+            ("${{ env.NAME == 1 }}", "cannot compare text and number"),
+            (
+                "${{ inputs.deploy[0] }}",
+                "cannot index into a value of type text",
+            ),
+        ];
+        for (expr, expected) in data {
+            let error = exec.eval(expr).unwrap_err().to_string();
+            assert!(error.contains(expected), "{expr}: {error}");
+        }
+    }
+
+    #[test]
+    pub fn typed_input_does_not_short_circuit_validation_eval_failure() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = validator_rctx(vec![("flag", ExprType::Boolean)]);
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let error = exec
+            .eval("${{ inputs.flag && inputs.missing }}")
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("input 'missing' not found"), "{error}");
+
+        let error = exec
+            .eval("${{ inputs.flag || inputs.missing }}")
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("input 'missing' not found"), "{error}");
     }
 }

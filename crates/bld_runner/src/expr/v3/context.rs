@@ -1,12 +1,13 @@
 use crate::expr::v3::exec::{CommonExprExecutor, eval_all_expressions};
 use crate::expr::v3::parser;
-use crate::expr::v3::traits::{EvalObject, ExprText};
-use crate::inputs::v3::Input;
+use crate::expr::v3::traits::{EvalObject, ExprText, ExprType};
+use crate::inputs::v3::{Input, InputValue};
+use crate::scalar::{ScalarType, ScalarValue};
 
 use super::traits::{
-    ExprValue, OutputScope, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
+    EvalExpr, ExprValue, OutputScope, ReadonlyRuntimeExprContext, WritableRuntimeExprContext,
 };
-use anyhow::{Context, Error, Result, anyhow};
+use anyhow::{Context, Error, Result, anyhow, bail};
 use bld_config::BldConfig;
 use bld_config::definitions::{
     KEYWORD_BLD_DIR_V3, KEYWORD_PROJECT_DIR_V3, KEYWORD_RUN_PROPS_ID_V3,
@@ -53,7 +54,7 @@ impl WritableRuntimeExprContext for StartOfRunWritableExprContext {
 #[derive(Clone, Debug, Default)]
 pub struct CommonReadonlyRuntimeExprContext {
     pub config: Arc<BldConfig>,
-    pub inputs: Arc<HashMap<String, String>>,
+    pub inputs: Arc<HashMap<String, ExprValue<'static>>>,
     pub env: Arc<HashMap<String, String>>,
     pub run_id: String,
     pub run_start_time: String,
@@ -62,7 +63,7 @@ pub struct CommonReadonlyRuntimeExprContext {
 impl CommonReadonlyRuntimeExprContext {
     pub fn new(
         config: Arc<BldConfig>,
-        inputs: Arc<HashMap<String, String>>,
+        inputs: Arc<HashMap<String, ExprValue<'static>>>,
         env: Arc<HashMap<String, String>>,
         run_id: String,
         run_start_time: String,
@@ -95,7 +96,7 @@ impl<'a> ReadonlyRuntimeExprContext<'a> for CommonReadonlyRuntimeExprContext {
     fn get_input(&'a self, name: &'a str) -> Result<ExprValue<'a>> {
         self.inputs
             .get(name)
-            .map(|x| ExprValue::Text(ExprText::Ref(x.as_str())))
+            .cloned()
             .ok_or_else(|| anyhow!("input '{name}' not found"))
     }
 
@@ -126,27 +127,94 @@ pub struct CommonReadonlyRuntimeExprContextOptions<'a, T: for<'x> EvalObject<'x>
     pub run_start_time: String,
 }
 
+#[cfg(test)]
+pub fn text_inputs(values: &HashMap<String, String>) -> Arc<HashMap<String, ExprValue<'static>>> {
+    values
+        .iter()
+        .map(|(k, v)| (k.clone(), ExprValue::Text(ExprText::Owned(v.clone()))))
+        .collect::<HashMap<_, _>>()
+        .into_arc()
+}
+
+pub fn input_from_text(name: &str, ty: ScalarType, raw: &str) -> Result<ExprValue<'static>> {
+    let value = match ty {
+        ScalarType::Text => Some(ExprValue::Text(ExprText::Owned(raw.to_string()))),
+        ScalarType::Number => raw
+            .parse::<f64>()
+            .ok()
+            .filter(|x| x.is_finite())
+            .map(|value| ExprValue::Number {
+                value,
+                raw: ExprText::Owned(raw.to_string()),
+            }),
+        ScalarType::Boolean => raw.parse::<bool>().ok().map(ExprValue::Boolean),
+        ScalarType::Array => match ExprValue::try_from(raw) {
+            Ok(value @ ExprValue::Array(_)) => Some(value),
+            _ => None,
+        },
+    };
+    value.ok_or_else(|| anyhow!("input '{name}' must be a {}, found '{raw}'", ty.as_str()))
+}
+
+fn input_from_default<'a, E: EvalExpr<'a>>(
+    exec: &E,
+    regex: &regex::Regex,
+    name: &str,
+    input: &Input,
+    default: &'a InputValue,
+) -> Result<ExprValue<'static>> {
+    let value = match default {
+        InputValue::Array(items) => ExprValue::Array(items.iter().map(ExprValue::from).collect()),
+        InputValue::Scalar(ScalarValue::Text(raw))
+            if input.scalar_type != ScalarType::Text && regex.is_match(raw) =>
+        {
+            exec.eval(raw.trim())?.into_owned()
+        }
+        InputValue::Scalar(ScalarValue::Text(raw)) => {
+            ExprValue::Text(ExprText::Owned(eval_all_expressions(exec, regex, raw)?))
+        }
+        InputValue::Scalar(value) => ExprValue::from(value),
+    };
+
+    let expected = ExprType::from(input.scalar_type);
+    if !value.expr_type().is_some_and(|x| x.matches(&expected)) {
+        bail!(
+            "input '{name}' must be a {expected}, found {}",
+            value.type_as_string()
+        );
+    }
+    Ok(value)
+}
+
 pub fn expr_rctx<'a, T: for<'x> EvalObject<'x>>(
     options: CommonReadonlyRuntimeExprContextOptions<'a, T>,
 ) -> Result<CommonReadonlyRuntimeExprContext> {
     let regex = parser::new_regex()?;
-    let mut inputs = (*options.inputs).clone();
     let mut env = (*options.env).clone();
 
     // Supplied values always take precedence over the ones declared in the file.
+    let mut inputs = HashMap::new();
+    for (name, raw) in options.inputs.iter() {
+        let value = match options.declared_inputs.get(name) {
+            Some(input) => input_from_text(name, input.scalar_type, raw)?,
+            None => ExprValue::Text(ExprText::Owned(raw.to_string())),
+        };
+        inputs.insert(name.to_string(), value);
+    }
+
     let rctx = CommonReadonlyRuntimeExprContext::new(
         options.config.clone(),
-        options.inputs.clone(),
+        inputs.clone().into_arc(),
         options.env.clone(),
         options.run_id.clone(),
         options.run_start_time.clone(),
     );
     let exec = CommonExprExecutor::new(options.obj, &rctx, &START_OF_RUN_WCTX);
     for (name, input) in options.declared_inputs {
-        let Some(raw) = input.default_value().filter(|_| !inputs.contains_key(name)) else {
+        let Some(default) = input.default_value().filter(|_| !inputs.contains_key(name)) else {
             continue;
         };
-        let value = eval_all_expressions(&exec, &regex, raw)
+        let value = input_from_default(&exec, &regex, name, input, default)
             .with_context(|| format!("unable to resolve inputs.{name} at the start of the run"))?;
         inputs.insert(name.to_string(), value);
     }
@@ -186,11 +254,7 @@ mod tests {
     use super::*;
 
     fn complex_input(default: &str) -> Input {
-        Input::Complex {
-            description: None,
-            default: Some(default.to_string()),
-            required: false,
-        }
+        Input::text(default)
     }
 
     fn resolve(
@@ -293,10 +357,9 @@ mod tests {
         let mut pipeline = Pipeline::default();
         pipeline.inputs.insert(
             "image".to_string(),
-            Input::Complex {
-                description: None,
-                default: None,
+            Input {
                 required: true,
+                ..Input::typed(ScalarType::Text, None)
             },
         );
 
@@ -326,5 +389,138 @@ mod tests {
                 "{error}"
             );
         }
+    }
+
+    #[test]
+    pub fn supplied_inputs_are_converted_to_their_type_resolve_success() {
+        let mut pipeline = Pipeline::default();
+        for (name, ty) in [
+            ("deploy", ScalarType::Boolean),
+            ("count", ScalarType::Number),
+            ("oses", ScalarType::Array),
+            ("name", ScalarType::Text),
+        ] {
+            pipeline
+                .inputs
+                .insert(name.to_string(), Input::typed(ty, None));
+        }
+
+        let rctx = resolve(
+            &pipeline,
+            vec![
+                ("deploy", "false"),
+                ("count", "5"),
+                ("oses", r#"["a","b"]"#),
+                ("name", "5"),
+                ("undeclared", "true"),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(rctx.get_input("deploy").unwrap(), ExprValue::Boolean(false));
+        assert_eq!(
+            rctx.get_input("count").unwrap().expr_type(),
+            Some(ExprType::Number)
+        );
+        assert_eq!(
+            rctx.get_input("oses").unwrap(),
+            ExprValue::try_from(r#"["a","b"]"#).unwrap()
+        );
+        assert_eq!(
+            rctx.get_input("name").unwrap(),
+            ExprValue::Text(ExprText::Owned("5".to_string()))
+        );
+        assert_eq!(
+            rctx.get_input("undeclared").unwrap(),
+            ExprValue::Text(ExprText::Owned("true".to_string()))
+        );
+    }
+
+    #[test]
+    pub fn supplied_input_of_another_type_resolve_failure() {
+        let data = [
+            (ScalarType::Number, "abc"),
+            (ScalarType::Boolean, "yes"),
+            (ScalarType::Array, "linux"),
+            (ScalarType::Array, r#"["a", 1]"#),
+        ];
+
+        for (ty, raw) in data {
+            let mut pipeline = Pipeline::default();
+            pipeline
+                .inputs
+                .insert("value".to_string(), Input::typed(ty, None));
+
+            let error = format!(
+                "{:#}",
+                resolve(&pipeline, vec![("value", raw)]).unwrap_err()
+            );
+            assert!(
+                error.contains(&format!("input 'value' must be a {}", ty.as_str())),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
+    pub fn typed_defaults_resolve_success() {
+        let mut pipeline = Pipeline::default();
+        pipeline.inputs.insert(
+            "deploy".to_string(),
+            Input::typed(
+                ScalarType::Boolean,
+                Some(InputValue::Scalar(ScalarValue::Boolean(true))),
+            ),
+        );
+        pipeline.inputs.insert(
+            "oses".to_string(),
+            Input::typed(
+                ScalarType::Array,
+                Some(InputValue::Array(vec![ScalarValue::Text(
+                    "linux".to_string(),
+                )])),
+            ),
+        );
+        pipeline.inputs.insert(
+            "count".to_string(),
+            Input::typed(
+                ScalarType::Number,
+                Some(InputValue::Scalar(ScalarValue::Text(
+                    "${{ 3 }}".to_string(),
+                ))),
+            ),
+        );
+
+        let rctx = resolve(&pipeline, vec![]).unwrap();
+
+        assert_eq!(rctx.get_input("deploy").unwrap(), ExprValue::Boolean(true));
+        assert_eq!(
+            rctx.get_input("oses").unwrap(),
+            ExprValue::Array(vec![ExprValue::Text(ExprText::Owned("linux".to_string()))])
+        );
+        assert_eq!(
+            rctx.get_input("count").unwrap().expr_type(),
+            Some(ExprType::Number)
+        );
+    }
+
+    #[test]
+    pub fn default_expression_of_another_type_resolve_failure() {
+        let mut pipeline = Pipeline::default();
+        pipeline.inputs.insert(
+            "count".to_string(),
+            Input::typed(
+                ScalarType::Number,
+                Some(InputValue::Scalar(ScalarValue::Text(
+                    "${{ bld_project_dir }}".to_string(),
+                ))),
+            ),
+        );
+
+        let error = format!("{:#}", resolve(&pipeline, vec![]).unwrap_err());
+        assert!(
+            error.contains("input 'count' must be a number, found text"),
+            "{error}"
+        );
     }
 }

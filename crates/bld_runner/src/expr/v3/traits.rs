@@ -1,14 +1,14 @@
 #![allow(dead_code)]
 
 use super::parser::{ExprParser, Rule};
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 use pest::{
     Parser,
     iterators::{Pair, Pairs},
 };
 use std::{collections::HashMap, fmt::Display, iter::Peekable};
 
-use crate::scalar::ScalarValue;
+use crate::scalar::{ScalarType, ScalarValue};
 
 #[cfg(test)]
 use mockall::automock;
@@ -105,6 +105,50 @@ pub fn array_from_pair<'a>(pair: Pair<'_, Rule>) -> Result<ExprValue<'a>> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum ExprType {
+    Boolean,
+    Number,
+    Text,
+    Array(Option<Box<ExprType>>), // the type of the elements, when known
+}
+
+impl ExprType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Boolean => "boolean",
+            Self::Number => "number",
+            Self::Text => "text",
+            Self::Array(_) => "array",
+        }
+    }
+
+    pub fn matches(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Array(Some(l)), Self::Array(Some(r))) => l.matches(r),
+            (Self::Array(_), Self::Array(_)) => true,
+            (l, r) => l == r,
+        }
+    }
+}
+
+impl Display for ExprType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl From<ScalarType> for ExprType {
+    fn from(value: ScalarType) -> Self {
+        match value {
+            ScalarType::Boolean => Self::Boolean,
+            ScalarType::Number => Self::Number,
+            ScalarType::Text => Self::Text,
+            ScalarType::Array => Self::Array(None),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum ExprValue<'a> {
     Boolean(bool),
     Number {
@@ -113,7 +157,7 @@ pub enum ExprValue<'a> {
     },
     Text(ExprText<'a>),
     Array(Vec<ExprValue<'a>>),
-    Unknown, // Placeholder for expression results that aren't known at validation time
+    Unknown(Option<ExprType>), // Placeholder for expression results that aren't known at validation time
 }
 
 impl<'a, 'b> ExprValue<'a> {
@@ -123,13 +167,65 @@ impl<'a, 'b> ExprValue<'a> {
             Self::Number { .. } => "number",
             Self::Text(_) => "text",
             Self::Array(_) => "array",
-            Self::Unknown => "unknown",
+            Self::Unknown(Some(ty)) => ty.as_str(),
+            Self::Unknown(None) => "unknown",
+        }
+    }
+
+    pub fn expr_type(&self) -> Option<ExprType> {
+        match self {
+            Self::Boolean(_) => Some(ExprType::Boolean),
+            Self::Number { .. } => Some(ExprType::Number),
+            Self::Text(_) => Some(ExprType::Text),
+            Self::Array(items) => Some(ExprType::Array(
+                items.first().and_then(|x| x.expr_type()).map(Box::new),
+            )),
+            Self::Unknown(ty) => ty.clone(),
+        }
+    }
+
+    pub fn into_owned(self) -> ExprValue<'static> {
+        match self {
+            Self::Boolean(value) => ExprValue::Boolean(value),
+            Self::Number { value, raw } => ExprValue::Number {
+                value,
+                raw: ExprText::Owned(raw.inner().to_string()),
+            },
+            Self::Text(text) => ExprValue::Text(ExprText::Owned(text.inner().to_string())),
+            Self::Array(items) => {
+                ExprValue::Array(items.into_iter().map(|x| x.into_owned()).collect())
+            }
+            Self::Unknown(ty) => ExprValue::Unknown(ty),
+        }
+    }
+
+    fn is_unknown(&self) -> bool {
+        matches!(self, Self::Unknown(_))
+    }
+
+    fn try_unknown_operation(
+        &self,
+        other: &Self,
+        allowed: impl Fn(&ExprType, &ExprType) -> bool,
+        error: impl FnOnce() -> anyhow::Error,
+    ) -> Result<ExprValue<'b>> {
+        match (self.expr_type(), other.expr_type()) {
+            (Some(l), Some(r)) if !allowed(&l, &r) => Err(error()),
+            _ => Ok(ExprValue::<'b>::Unknown(Some(ExprType::Boolean))),
         }
     }
 
     pub fn try_eq(&self, other: &'a Self) -> Result<ExprValue<'b>> {
-        if matches!(self, Self::Unknown) || matches!(other, Self::Unknown) {
-            return Ok(ExprValue::<'b>::Boolean(true));
+        let cmp_error = || {
+            anyhow!(
+                "cannot compare {} and {}",
+                self.type_as_string(),
+                other.type_as_string()
+            )
+        };
+
+        if self.is_unknown() || other.is_unknown() {
+            return self.try_unknown_operation(other, |l, r| l.matches(r), cmp_error);
         }
 
         let value = match (self, other) {
@@ -153,68 +249,81 @@ impl<'a, 'b> ExprValue<'a> {
                     equal
                 }
             }
-            _ => bail!(
-                "cannot compare {} and {}",
-                self.type_as_string(),
-                other.type_as_string()
-            ),
+            _ => return Err(cmp_error()),
         };
         Ok(ExprValue::<'b>::Boolean(value))
     }
 
     pub fn try_not_eq(&self, other: &'a Self) -> Result<ExprValue<'b>> {
-        let ExprValue::Boolean(value) = self.try_eq(other)? else {
-            bail!("non boolean type is an invalid comparison result");
-        };
-        Ok(ExprValue::<'b>::Boolean(!value))
+        match self.try_eq(other)? {
+            ExprValue::Boolean(value) => Ok(ExprValue::<'b>::Boolean(!value)),
+            value @ ExprValue::Unknown(_) => Ok(value),
+            _ => bail!("non boolean type is an invalid comparison result"),
+        }
     }
 
     pub fn try_ord(&self, other: &'a Self) -> Result<ExprValue<'b>> {
-        if matches!(self, Self::Unknown) || matches!(other, Self::Unknown) {
-            return Ok(ExprValue::<'b>::Boolean(true));
+        let cmp_error = || {
+            anyhow!(
+                "cannot compare {} and {}",
+                self.type_as_string(),
+                other.type_as_string()
+            )
+        };
+
+        if self.is_unknown() || other.is_unknown() {
+            return self.try_unknown_operation(
+                other,
+                |l, r| l == r && !matches!(l, ExprType::Array(_)),
+                cmp_error,
+            );
         }
 
         let value = match (self, other) {
             (Self::Number { value: l, .. }, Self::Number { value: r, .. }) => l > r,
             (Self::Text(l), Self::Text(r)) => l.inner() > r.inner(),
             (Self::Boolean(l), Self::Boolean(r)) => l > r,
-            _ => bail!(
-                "cannot compare {} and {}",
-                self.type_as_string(),
-                other.type_as_string()
-            ),
+            _ => return Err(cmp_error()),
         };
         Ok(ExprValue::<'b>::Boolean(value))
     }
 
     pub fn try_and(&self, other: &'a Self) -> Result<ExprValue<'b>> {
-        if matches!(self, Self::Unknown) || matches!(other, Self::Unknown) {
-            return Ok(ExprValue::<'b>::Boolean(true));
+        let and_error = || {
+            anyhow!(
+                "cannot use logical AND comparison on type {} and {}",
+                self.type_as_string(),
+                other.type_as_string()
+            )
+        };
+
+        if self.is_unknown() || other.is_unknown() {
+            return self.try_unknown_operation(other, both_boolean, and_error);
         }
 
         let value = match (self, other) {
             (Self::Boolean(l), Self::Boolean(r)) => *l && *r,
-            _ => bail!(
-                "cannot use logical AND comparison on type {} and {}",
-                self.type_as_string(),
-                other.type_as_string()
-            ),
+            _ => return Err(and_error()),
         };
         Ok(ExprValue::<'b>::Boolean(value))
     }
 
     pub fn try_or(&self, other: &'a Self) -> Result<ExprValue<'b>> {
-        if matches!(self, Self::Unknown) || matches!(other, Self::Unknown) {
-            return Ok(ExprValue::<'b>::Boolean(true));
+        let or_error = || {
+            anyhow!(
+                "cannot use logical OR comparison on type {} and {}",
+                self.type_as_string(),
+                other.type_as_string()
+            )
+        };
+
+        if self.is_unknown() || other.is_unknown() {
+            return self.try_unknown_operation(other, both_boolean, or_error);
         }
 
         let value = match (self, other) {
             (Self::Boolean(l), Self::Boolean(r)) => *l || *r,
-            _ => bail!(
-                "cannot use logical OR comparison on type {} and {}",
-                self.type_as_string(),
-                other.type_as_string()
-            ),
+            _ => return Err(or_error()),
         };
         Ok(ExprValue::<'b>::Boolean(value))
     }
@@ -222,11 +331,17 @@ impl<'a, 'b> ExprValue<'a> {
     pub fn try_negate(&self) -> Result<ExprValue<'b>> {
         let value = match self {
             ExprValue::Boolean(val) => ExprValue::Boolean(!val),
-            ExprValue::Unknown => ExprValue::Unknown,
+            ExprValue::Unknown(None | Some(ExprType::Boolean)) => {
+                ExprValue::Unknown(Some(ExprType::Boolean))
+            }
             val => bail!("cannot use logical NOT on type {}", val.type_as_string()),
         };
         Ok(value)
     }
+}
+
+fn both_boolean(l: &ExprType, r: &ExprType) -> bool {
+    matches!((l, r), (ExprType::Boolean, ExprType::Boolean))
 }
 
 impl<'b> TryFrom<&'b str> for ExprValue<'_> {
@@ -317,7 +432,7 @@ impl Display for ExprValue<'_> {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            Self::Unknown => "unknown".to_string(),
+            Self::Unknown(_) => "unknown".to_string(),
         };
         f.write_str(&value)
     }
@@ -537,7 +652,10 @@ pub mod tests {
             ExprValue::Boolean(false).try_negate().unwrap(),
             ExprValue::Boolean(true)
         );
-        assert_eq!(ExprValue::Unknown.try_negate().unwrap(), ExprValue::Unknown);
+        assert_eq!(
+            ExprValue::Unknown(None).try_negate().unwrap(),
+            ExprValue::Unknown(Some(ExprType::Boolean))
+        );
     }
 
     #[test]
@@ -558,5 +676,105 @@ pub mod tests {
                 .to_string()
                 .contains("array")
         );
+    }
+
+    fn typed(ty: ExprType) -> ExprValue<'static> {
+        ExprValue::Unknown(Some(ty))
+    }
+
+    #[test]
+    fn typed_unknown_comparison_of_the_same_type_success() {
+        let boolean = typed(ExprType::Boolean);
+        let number = typed(ExprType::Number);
+        let unknown_bool = ExprValue::Unknown(Some(ExprType::Boolean));
+
+        assert_eq!(
+            boolean.try_eq(&ExprValue::Boolean(true)).unwrap(),
+            unknown_bool
+        );
+        assert_eq!(
+            boolean.try_not_eq(&ExprValue::Boolean(true)).unwrap(),
+            unknown_bool
+        );
+        assert_eq!(number.try_ord(&expr_number(3.0)).unwrap(), unknown_bool);
+        assert_eq!(
+            boolean.try_and(&ExprValue::Boolean(true)).unwrap(),
+            unknown_bool
+        );
+        assert_eq!(
+            ExprValue::Boolean(false).try_or(&boolean).unwrap(),
+            unknown_bool
+        );
+        assert_eq!(boolean.try_negate().unwrap(), unknown_bool);
+    }
+
+    #[test]
+    fn typed_unknown_comparison_of_different_types_failure() {
+        let text = typed(ExprType::Text);
+        let error = text
+            .try_eq(&ExprValue::Boolean(true))
+            .unwrap_err()
+            .to_string();
+        assert_eq!(error, "cannot compare text and boolean");
+
+        let error = text.try_ord(&expr_number(3.0)).unwrap_err().to_string();
+        assert_eq!(error, "cannot compare text and number");
+
+        let error = text
+            .try_and(&ExprValue::Boolean(true))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("logical AND"), "{error}");
+
+        let error = typed(ExprType::Number)
+            .try_or(&typed(ExprType::Boolean))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("logical OR"), "{error}");
+
+        let error = text.try_negate().unwrap_err().to_string();
+        assert!(error.contains("logical NOT on type text"), "{error}");
+
+        let array = typed(ExprType::Array(None));
+        assert!(array.try_ord(&array.clone()).is_err());
+    }
+
+    #[test]
+    fn unknown_output_comparison_with_any_type_success() {
+        let output = ExprValue::Unknown(None);
+        let unknown_bool = ExprValue::Unknown(Some(ExprType::Boolean));
+        assert_eq!(
+            output.try_eq(&ExprValue::Boolean(true)).unwrap(),
+            unknown_bool
+        );
+        assert_eq!(output.try_eq(&typed(ExprType::Text)).unwrap(), unknown_bool);
+        assert_eq!(output.try_ord(&expr_number(3.0)).unwrap(), unknown_bool);
+        assert_eq!(
+            output.try_and(&ExprValue::Boolean(true)).unwrap(),
+            unknown_bool
+        );
+    }
+
+    #[test]
+    fn typed_unknown_array_comparison_matches_unknown_element_type() {
+        let any = typed(ExprType::Array(None));
+        let numbers = typed(ExprType::Array(Some(Box::new(ExprType::Number))));
+        let texts: ExprValue = r#"["a"]"#.try_into().unwrap();
+        assert!(any.try_eq(&texts).is_ok());
+        assert!(numbers.try_eq(&texts).is_err());
+    }
+
+    #[test]
+    fn expr_type_of_array_uses_the_type_of_its_elements() {
+        let numbers: ExprValue = "[1, 2]".try_into().unwrap();
+        assert_eq!(
+            numbers.expr_type(),
+            Some(ExprType::Array(Some(Box::new(ExprType::Number))))
+        );
+        assert_eq!(
+            ExprValue::Array(vec![]).expr_type(),
+            Some(ExprType::Array(None))
+        );
+        assert_eq!(ExprValue::Unknown(None).expr_type(), None);
     }
 }
