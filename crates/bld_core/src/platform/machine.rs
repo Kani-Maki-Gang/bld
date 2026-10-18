@@ -226,9 +226,14 @@ mod tests {
     async fn copy_from_resolves_relative_path_against_tmp_dir() {
         let config = BldConfig::default().into_arc();
         let id = format!("machine-copy-from-test-{}", Uuid::new_v4());
-        let machine = Machine::new(&id, config.clone(), &HashMap::new(), HashMap::new().into_arc())
-            .await
-            .unwrap();
+        let machine = Machine::new(
+            &id,
+            config.clone(),
+            &HashMap::new(),
+            HashMap::new().into_arc(),
+        )
+        .await
+        .unwrap();
         write(Path::new(&machine.tmp_dir).join("out.txt"), b"hello").unwrap();
         let staging = config.tmp_full_path(&format!("{id}-staging"));
         create_dir_all(&staging).unwrap();
@@ -248,9 +253,14 @@ mod tests {
     async fn copy_into_resolves_relative_path_against_tmp_dir() {
         let config = BldConfig::default().into_arc();
         let id = format!("machine-copy-into-test-{}", Uuid::new_v4());
-        let machine = Machine::new(&id, config.clone(), &HashMap::new(), HashMap::new().into_arc())
-            .await
-            .unwrap();
+        let machine = Machine::new(
+            &id,
+            config.clone(),
+            &HashMap::new(),
+            HashMap::new().into_arc(),
+        )
+        .await
+        .unwrap();
         let source = config.tmp_full_path(&format!("{id}-source"));
         create_dir_all(&source).unwrap();
         write(source.join("file.txt"), b"hello").unwrap();
