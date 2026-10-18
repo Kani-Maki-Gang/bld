@@ -57,10 +57,11 @@ pub const DEFAULT_EDITOR: &str = "vi";
 
 pub const DEFAULT_V3_PIPELINE_CONTENT: &str = r"version: 3
 type: pipeline
-runs_on: machine
 
 jobs:
   main:
-    - name: Say hello
-      run: echo 'hello world'
+    runs_on: machine
+    steps:
+      - name: Say hello
+        run: echo 'hello world'
 ";

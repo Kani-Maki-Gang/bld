@@ -1138,6 +1138,18 @@ mod tests {
     }
 
     #[tokio::test]
+    pub async fn default_pipeline_template_validation_success() {
+        let file: crate::VersionedFile =
+            serde_yaml_ng::from_str(bld_config::definitions::DEFAULT_V3_PIPELINE_CONTENT)
+                .expect("the default pipeline template must parse");
+
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        file.validate(config, fs, package_manager).await.unwrap();
+    }
+
+    #[tokio::test]
     pub async fn typed_inputs_in_conditions_and_strategy_validation_success() {
         let yaml = r#"
 inputs:

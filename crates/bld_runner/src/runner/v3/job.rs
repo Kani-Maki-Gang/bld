@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Write, sync::Arc};
+use std::{collections::HashMap, fmt::Write, path::Path, sync::Arc};
 
 use anyhow::{Result, anyhow, bail};
 use bld_config::{BldConfig, SshUserAuth};
@@ -361,8 +361,18 @@ impl<S: RootState> JobRunner<S> {
         Ok(())
     }
 
+    fn resolve_artifact_path(&mut self, path: &str) -> Result<String> {
+        let path = self.eval_all_expr(path)?;
+        match self.resolve_working_dir(&None)? {
+            Some(wd) if Path::new(&path).is_relative() => {
+                Ok(Path::new(&wd).join(&path).display().to_string())
+            }
+            _ => Ok(path),
+        }
+    }
+
     async fn download_artifact(&mut self, download: &DownloadArtifact) -> Result<()> {
-        let local_path = self.eval_all_expr(&download.to)?;
+        let local_path = self.resolve_artifact_path(&download.to)?;
         self.options
             .artifacts
             .download(self.platform()?.clone(), &download.download, &local_path)
@@ -370,7 +380,7 @@ impl<S: RootState> JobRunner<S> {
     }
 
     async fn upload_artifact(&mut self, upload: &UploadArtifact) -> Result<()> {
-        let local_path = self.eval_all_expr(&upload.upload)?;
+        let local_path = self.resolve_artifact_path(&upload.upload)?;
         self.options
             .artifacts
             .upload(self.platform()?.clone(), &upload.name, &local_path)
@@ -919,6 +929,51 @@ mod tests {
             job.resolve_working_dir(&None).unwrap(),
             Some("/tmp/some-worktree".to_string())
         );
+    }
+
+    #[test]
+    pub fn resolve_artifact_path_joins_the_job_working_dir() {
+        let config = BldConfig::default().into_arc();
+        let fs = FileSystem::local(config.clone()).into_arc();
+        let package_manager = PackageManager::new(config.clone()).into_arc();
+        let options = JobRunnerOptions {
+            job_name: "main".to_string(),
+            logger: Logger::mock().into_arc(),
+            config,
+            fs,
+            run_ctx: Context::mock().into_arc(),
+            pipeline: Pipeline::default().into_arc(),
+            regex_cache: RegexCache::mock().into_arc(),
+            expr_regex: Regex::new(EXPR_REGEX).unwrap().into_arc(),
+            expr_rctx: CommonReadonlyRuntimeExprContext::default().into_arc(),
+            package_manager,
+            artifacts: Artifacts::mock().into_arc(),
+            state: JobState::default(),
+        };
+        let mut job = JobRunner {
+            options,
+            platform: Some(Platform::mock().into_arc()),
+            runs_on: RunsOn::default(),
+            working_dir: None,
+            outputs: HashMap::new(),
+        };
+
+        // Without a job working directory the platform resolves the path.
+        assert_eq!(job.resolve_artifact_path("out.txt").unwrap(), "out.txt");
+
+        job.working_dir = Some("/job/dir".to_string());
+        assert_eq!(
+            job.resolve_artifact_path("dist/out.txt").unwrap(),
+            "/job/dir/dist/out.txt"
+        );
+        assert_eq!(
+            job.resolve_artifact_path("/abs/out.txt").unwrap(),
+            "/abs/out.txt"
+        );
+
+        // A relative job working directory stays relative for the platform to resolve.
+        job.working_dir = Some("sub".to_string());
+        assert_eq!(job.resolve_artifact_path("out.txt").unwrap(), "sub/out.txt");
     }
 
     fn job_runner_for_env_test(
