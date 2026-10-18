@@ -5,15 +5,19 @@ name: Implement a single GitHub project item
 
 inputs:
   item:
+    type: text
     description: GitHub issue/project item number being implemented
     required: true
   branch:
+    type: text
     description: Branch name already checked out in the worktree
     required: true
   worktree_dir:
+    type: text
     description: Absolute host path to the git worktree for this item (bind-mounted into the container at the same path)
     required: true
   repo_dir:
+    type: text
     description: >-
       Absolute host path to the main repository clone. A linked worktree keeps its
       git directory under the main clone's .git/worktrees, so the main clone has to
@@ -22,9 +26,11 @@ inputs:
       defaults are used verbatim instead of being evaluated.
     required: true
   claude_dir:
+    type: text
     description: Absolute host path to the user's ~/.claude directory (bind-mounted so Claude Code is authenticated inside the container)
     required: true
   claude_config_file:
+    type: text
     description: >-
       Absolute host path to the user's ~/.claude.json. Claude Code keeps the logged
       in account there rather than in ~/.claude, so without it the CLI reports
@@ -32,6 +38,7 @@ inputs:
       the container's own home, since the CLI rewrites that file as it runs.
     required: true
   gh_config_dir:
+    type: text
     description: Absolute host path to the user's gh config directory, e.g. ~/.config/gh (bind-mounted so the GitHub CLI is authenticated inside the container)
     required: true
 env:

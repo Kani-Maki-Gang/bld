@@ -5,22 +5,27 @@ name: Development workflow orchestrator
 
 inputs:
   project_owner:
+    type: text
     description: Owner (org or user) of the GitHub project to query
     required: false
     default: Kani-Maki-Gang
   project_number:
+    type: text
     description: GitHub project number to query
     required: false
     default: "7"
   repo:
+    type: text
     description: Repository the project items are issues of, in owner/name form
     default: Kani-Maki-Gang/bld
     required: false
   repo_dir:
+    type: text
     description: The local clone of the repository on the current machine
     default: ${{ bld_project_dir }}
     required: false
   assignee:
+    type: text
     description: >-
       Only project items assigned to this GitHub login are picked up, and the pull
       requests opened for them are assigned to it. Defaults to @me, which the fetch
@@ -28,22 +33,27 @@ inputs:
     default: "@me"
     required: false
   status_field:
+    type: text
     description: Project field name holding the item's development status
     default: Status
     required: false
   ready_status_value:
+    type: text
     description: Field value that marks an item ready for development
     default: Ready
     required: false
   in_progress_status_value:
+    type: text
     description: Field value set on an item once its implementation run starts
     default: In progress
     required: false
   in_review_status_value:
+    type: text
     description: Field value set on an item once its pull request is open
     default: In review
     required: false
   worktree_root:
+    type: text
     description: >-
       Directory under which per-item git worktrees are created. Defaults to
       <project dir>/../worktrees/bld, resolved by the fetch step below - input
