@@ -98,16 +98,24 @@ impl Machine {
         map
     }
 
+    fn resolve_path(&self, path: &str) -> String {
+        if Path::new(path).is_relative() {
+            path![&self.tmp_dir, path].display().to_string()
+        } else {
+            path.to_string()
+        }
+    }
+
     async fn copy(&self, from: &str, to: &str) -> Result<()> {
         copy_path(Path::new(from), Path::new(to)).await
     }
 
     pub async fn copy_from(&self, from: &str, to: &str) -> Result<()> {
-        self.copy(from, to).await
+        self.copy(&self.resolve_path(from), to).await
     }
 
     pub async fn copy_into(&self, from: &str, to: &str) -> Result<()> {
-        self.copy(from, to).await
+        self.copy(from, &self.resolve_path(to)).await
     }
 
     pub async fn sh(
@@ -119,12 +127,7 @@ impl Machine {
         let id = Uuid::new_v4();
         let outputs_file = path![&self.tmp_dir, id.to_string()];
 
-        let current_dir = working_dir.as_ref().unwrap_or(&self.tmp_dir).to_string();
-        let current_dir = if Path::new(&current_dir).is_relative() {
-            path![&self.tmp_dir, current_dir].display().to_string()
-        } else {
-            current_dir
-        };
+        let current_dir = self.resolve_path(working_dir.as_ref().unwrap_or(&self.tmp_dir));
         debug!("resolved working directory to {current_dir}");
 
         let mut shell = get_shell(&mut vec![input])?;
@@ -217,6 +220,51 @@ mod tests {
         assert_eq!(nested_content, "nested file");
 
         let _ = remove_dir_all(&base);
+    }
+
+    #[tokio::test]
+    async fn copy_from_resolves_relative_path_against_tmp_dir() {
+        let config = BldConfig::default().into_arc();
+        let id = format!("machine-copy-from-test-{}", Uuid::new_v4());
+        let machine = Machine::new(&id, config.clone(), &HashMap::new(), HashMap::new().into_arc())
+            .await
+            .unwrap();
+        write(Path::new(&machine.tmp_dir).join("out.txt"), b"hello").unwrap();
+        let staging = config.tmp_full_path(&format!("{id}-staging"));
+        create_dir_all(&staging).unwrap();
+
+        machine
+            .copy_from("out.txt", &staging.display().to_string())
+            .await
+            .unwrap();
+
+        assert_eq!(read_to_string(staging.join("out.txt")).unwrap(), "hello");
+
+        let _ = remove_dir_all(&staging);
+        machine.dispose().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn copy_into_resolves_relative_path_against_tmp_dir() {
+        let config = BldConfig::default().into_arc();
+        let id = format!("machine-copy-into-test-{}", Uuid::new_v4());
+        let machine = Machine::new(&id, config.clone(), &HashMap::new(), HashMap::new().into_arc())
+            .await
+            .unwrap();
+        let source = config.tmp_full_path(&format!("{id}-source"));
+        create_dir_all(&source).unwrap();
+        write(source.join("file.txt"), b"hello").unwrap();
+
+        machine
+            .copy_into(&source.display().to_string(), "in")
+            .await
+            .unwrap();
+
+        let copied = Path::new(&machine.tmp_dir).join("in").join("file.txt");
+        assert_eq!(read_to_string(copied).unwrap(), "hello");
+
+        let _ = remove_dir_all(&source);
+        machine.dispose().await.unwrap();
     }
 
     #[tokio::test]
