@@ -674,7 +674,7 @@ mod tests {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
         runner.expr_rctx = CommonReadonlyRuntimeExprContext {
-            inputs: inputs.into_arc(),
+            inputs: crate::expr::v3::context::text_inputs(&inputs),
             ..Default::default()
         }
         .into_arc();
