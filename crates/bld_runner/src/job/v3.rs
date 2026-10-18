@@ -231,8 +231,11 @@ impl<'a> Validate<'a> for Job {
                 ctx.append_error(&format!("Duplicate step id '{step_id}' found in job"));
                 ctx.pop_section();
             }
-            step.validate(ctx).await;
             step.validate_matrix(ctx, Some(&job_matrix_keys)).await;
+            step.validate(ctx).await;
+            if let Some(strategy) = step.strategy() {
+                strategy.clear_matrix_types(ctx);
+            }
         }
         ctx.pop_section();
 

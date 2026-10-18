@@ -1,5 +1,5 @@
 use crate::{
-    inputs::v3::Input,
+    inputs::v3::{Input, input_default_text},
     job::v3::Job,
     traits::{IntoVariables, Variables},
 };
@@ -51,18 +51,10 @@ pub struct Pipeline {
 
 impl Pipeline {
     pub fn inputs_map(&self) -> HashMap<String, String> {
-        let mut inputs = HashMap::new();
-        for (name, input) in &self.inputs {
-            match input {
-                Input::Simple(v) => {
-                    inputs.insert(name.to_owned(), v.to_owned());
-                }
-                Input::Complex { default, .. } => {
-                    inputs.insert(name.to_owned(), default.to_owned().unwrap_or_default());
-                }
-            }
-        }
-        inputs
+        self.inputs
+            .iter()
+            .map(|(name, input)| (name.to_owned(), input_default_text(input)))
+            .collect()
     }
 
     pub fn required_inputs(&self) -> Option<HashSet<&str>> {
@@ -147,9 +139,9 @@ impl IntoVariables for Pipeline {
             let map = self
                 .inputs
                 .into_iter()
-                .map(|(name, input)| match input {
-                    Input::Simple(v) => (name, v),
-                    Input::Complex { default, .. } => (name, default.unwrap_or_default()),
+                .map(|(name, input)| {
+                    let default = input_default_text(&input);
+                    (name, default)
                 })
                 .collect();
             inputs = Some(map);
@@ -337,10 +329,14 @@ mod tests {
         expr::v3::{
             context::CommonReadonlyRuntimeExprContext,
             exec::CommonExprExecutor,
-            traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext, OutputScope},
+            traits::{
+                EvalExpr, ExprText, ExprType, ExprValue, MockWritableRuntimeExprContext,
+                OutputScope,
+            },
         },
-        inputs::v3::Input,
+        inputs::v3::{Input, InputValue},
         job::v3::{Job, Needs},
+        scalar::{ScalarType, ScalarValue},
         step::v3::{ShellCommand, Step},
         validator::v3::{ExprScope, RunnerFileValidator, Validate, ValidatorContext},
     };
@@ -406,7 +402,25 @@ mod tests {
 
         fn validate_env(&mut self, _env: &'a HashMap<String, String>, _scope: ExprScope) {}
 
-        fn validate_array_expression(&mut self, _symbol: &'a str, _scope: ExprScope) {}
+        fn validate_array_expression(
+            &mut self,
+            _symbol: &'a str,
+            _scope: ExprScope,
+        ) -> Option<ExprType> {
+            None
+        }
+
+        fn validate_typed_expression(
+            &mut self,
+            _symbol: &'a str,
+            _scope: ExprScope,
+            _expected: &ExprType,
+        ) {
+        }
+
+        fn set_matrix_type(&mut self, _key: &str, _ty: Option<ExprType>) {}
+
+        fn remove_matrix_type(&mut self, _key: &str) {}
 
         fn validate_condition(&mut self, _condition: &'a str, _scope: ExprScope) {}
 
@@ -431,11 +445,7 @@ mod tests {
     }
 
     fn complex_input(default: &str) -> Input {
-        Input::Complex {
-            description: None,
-            default: Some(default.to_string()),
-            required: false,
-        }
+        Input::text(default)
     }
 
     fn with_single_job(mut pipeline: Pipeline) -> Pipeline {
@@ -490,10 +500,9 @@ mod tests {
         let mut pipeline = Pipeline::default();
         pipeline.inputs.insert(
             "worktree_dir".to_string(),
-            Input::Complex {
-                description: None,
-                default: None,
+            Input {
                 required: true,
+                ..Input::typed(ScalarType::Text, None)
             },
         );
         pipeline.jobs.insert(
@@ -513,14 +522,16 @@ mod tests {
         assert!(result.is_ok(), "unexpected error: {:?}", result.err());
     }
 
-    /// An input is always text and validation stands in an empty value for it, so a
-    /// condition that uses an input can only be checked when the run evaluates it.
     #[tokio::test]
     pub async fn condition_that_uses_an_input_validation_success() {
         let mut pipeline = Pipeline::default();
-        pipeline
-            .inputs
-            .insert("flag".to_string(), complex_input("true"));
+        pipeline.inputs.insert(
+            "flag".to_string(),
+            Input::typed(
+                ScalarType::Boolean,
+                Some(InputValue::Scalar(ScalarValue::Boolean(true))),
+            ),
+        );
         pipeline.jobs.insert(
             "main".to_string(),
             Job {
@@ -544,9 +555,16 @@ mod tests {
     #[tokio::test]
     pub async fn index_into_input_and_step_output_validation_success() {
         let mut pipeline = Pipeline::default();
-        pipeline
-            .inputs
-            .insert("list".to_string(), complex_input(r#"["a", "b"]"#));
+        pipeline.inputs.insert(
+            "list".to_string(),
+            Input::typed(
+                ScalarType::Array,
+                Some(InputValue::Array(vec![
+                    ScalarValue::Text("a".to_string()),
+                    ScalarValue::Text("b".to_string()),
+                ])),
+            ),
+        );
         pipeline.jobs.insert(
             "main".to_string(),
             Job {
@@ -853,7 +871,7 @@ mod tests {
 
         let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext {
-            inputs: data.clone().into_arc(),
+            inputs: crate::expr::v3::context::text_inputs(&data),
             ..Default::default()
         };
         let pipeline = Pipeline::default();
@@ -1072,10 +1090,9 @@ mod tests {
         let mut pipeline = Pipeline::default();
         pipeline.inputs.insert(
             "target".to_string(),
-            Input::Complex {
-                description: None,
-                default: None,
+            Input {
                 required: true,
+                ..Input::typed(ScalarType::Text, None)
             },
         );
 
@@ -1090,10 +1107,9 @@ mod tests {
         let mut pipeline = Pipeline::default();
         pipeline.inputs.insert(
             "target".to_string(),
-            Input::Complex {
-                description: None,
-                default: Some("production".to_string()),
+            Input {
                 required: true,
+                ..Input::text("production")
             },
         );
 
@@ -1108,11 +1124,180 @@ mod tests {
         let mut pipeline = Pipeline::default();
         pipeline
             .inputs
-            .insert("target".to_string(), Input::Simple("staging".to_string()));
+            .insert("target".to_string(), Input::text("staging"));
 
         let required = pipeline
             .required_inputs()
             .expect("expected required inputs");
         assert!(!required.contains("target"));
+    }
+
+    async fn validate_yaml(yaml: &str) -> anyhow::Result<()> {
+        let pipeline: Pipeline = serde_yaml_ng::from_str(yaml).unwrap();
+        validate_pipeline(pipeline).await
+    }
+
+    #[tokio::test]
+    pub async fn typed_inputs_in_conditions_and_strategy_validation_success() {
+        let yaml = r#"
+inputs:
+  deploy:
+    type: boolean
+    default: false
+  count:
+    type: number
+    default: 5
+  ff:
+    type: boolean
+    default: true
+  oses:
+    type: array
+    default: [linux, mac]
+jobs:
+  main:
+    runs_on: machine
+    if: ${{ inputs.deploy == true && inputs.count > 3 && !inputs.deploy }}
+    strategy:
+      fail_fast: ${{ inputs.ff }}
+      matrix:
+        os: ${{ inputs.oses }}
+        n: ${{ [1, 2] }}
+        flag: [true, false]
+    steps:
+      - id: s
+        run: echo "ok=true" >> $BLD_OUTPUTS
+      - if: ${{ steps.s.outputs.ok == true && matrix.n == 1 && matrix.os == 'linux' && matrix.flag }}
+        run: echo ${{ matrix.os }}
+"#;
+        let result = validate_yaml(yaml).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn mismatched_types_validation_failure() {
+        let yaml = r#"
+inputs:
+  deploy:
+    type: text
+    default: "false"
+  oses:
+    type: text
+    default: '["linux"]'
+jobs:
+  main:
+    runs_on: machine
+    if: ${{ inputs.deploy == true }}
+    strategy:
+      fail_fast: ${{ inputs.deploy }}
+      matrix:
+        os: ${{ inputs.oses }}
+        n: [a, b]
+    steps:
+      - id: s
+        run: echo ok
+        if: ${{ matrix.n == 1 }}
+"#;
+        let error = validate_yaml(yaml).await.unwrap_err().to_string();
+        for expected in [
+            "[jobs > main > if] cannot compare text and boolean",
+            "[jobs > main > strategy > fail_fast] expected boolean, found text",
+            "[jobs > main > strategy > matrix > os] expected an array, found text",
+            "cannot compare text and number",
+        ] {
+            assert!(error.contains(expected), "missing '{expected}' in: {error}");
+        }
+    }
+
+    #[tokio::test]
+    pub async fn step_matrix_types_are_scoped_to_their_step_validation() {
+        let yaml = r#"
+jobs:
+  main:
+    runs_on: machine
+    steps:
+      - id: a
+        strategy:
+          matrix:
+            n: [1, 2]
+        if: ${{ matrix.n > 1 }}
+        run: echo ${{ matrix.n }}
+      - id: b
+        strategy:
+          matrix:
+            n: [a, b]
+        if: ${{ matrix.n == 'a' }}
+        run: echo ${{ matrix.n }}
+"#;
+        let result = validate_yaml(yaml).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn mixed_matrix_list_validation_failure() {
+        let yaml = r#"
+jobs:
+  main:
+    runs_on: machine
+    strategy:
+      matrix:
+        os: [linux, 1]
+    steps:
+      - run: echo ${{ matrix.os }}
+"#;
+        let error = validate_yaml(yaml).await.unwrap_err().to_string();
+        assert!(
+            error.contains("Matrix key must contain values of a single type"),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    pub async fn input_default_type_validation_failure() {
+        let yaml = r#"
+inputs:
+  count:
+    type: number
+    default: "5"
+  flag:
+    type: boolean
+    default: [true]
+  list:
+    type: array
+    default: [a, 1]
+  expr_count:
+    type: number
+    default: ${{ bld_project_dir }}
+  interpolated:
+    type: number
+    default: count ${{ 1 }}
+"#;
+        let error = validate_yaml(yaml).await.unwrap_err().to_string();
+        for expected in [
+            "[inputs > count > default] default must be of type number, found text",
+            "[inputs > flag > default] default must be of type boolean, found array",
+            "[inputs > list > default] array default must contain values of a single type",
+            "[inputs > expr_count > default] expected number, found text",
+            "[inputs > interpolated > default] default of a number input must be a single expression",
+        ] {
+            assert!(error.contains(expected), "missing '{expected}' in: {error}");
+        }
+    }
+
+    #[tokio::test]
+    pub async fn input_default_expression_of_its_type_validation_success() {
+        let yaml = r#"
+inputs:
+  count:
+    type: number
+    default: ${{ 5 }}
+  list:
+    type: array
+    default: ${{ ["a", "b"] }}
+  root:
+    type: text
+    default: ${{ bld_project_dir }}/root
+"#;
+        let result = validate_yaml(yaml).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
     }
 }

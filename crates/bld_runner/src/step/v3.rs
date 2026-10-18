@@ -359,7 +359,7 @@ mod tests {
     use bld_pkg::PackageManager;
     use bld_utils::sync::IntoArc;
     use mockall::predicate;
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
 
     use crate::{
         action::v3::Action,
@@ -367,7 +367,10 @@ mod tests {
         expr::v3::{
             context::CommonReadonlyRuntimeExprContext,
             exec::CommonExprExecutor,
-            traits::{EvalExpr, ExprText, ExprValue, MockWritableRuntimeExprContext, OutputScope},
+            traits::{
+                EvalExpr, ExprText, ExprType, ExprValue, MockWritableRuntimeExprContext,
+                OutputScope,
+            },
         },
         job::v3::Job,
         outputs::v3::Output,
@@ -1208,10 +1211,9 @@ mod tests {
     #[tokio::test]
     pub async fn output_reading_input_and_declared_step_output_passes_validation() {
         let mut action = Action::default();
-        action.inputs.insert(
-            "tag".to_string(),
-            crate::inputs::v3::Input::Simple(String::new()),
-        );
+        action
+            .inputs
+            .insert("tag".to_string(), crate::inputs::v3::Input::text(""));
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
             id: "build".to_string(),
             name: None,
@@ -1236,7 +1238,7 @@ mod tests {
         let fs = FileSystem::local(config.clone()).into_arc();
         let package_manager = PackageManager::new(config.clone()).into_arc();
         let expr_rctx = ValidatorReadonlyRuntimeExprContext {
-            inputs: HashSet::from(["tag".to_string()]),
+            inputs: HashMap::from([("tag".to_string(), ExprType::Text)]),
             ..Default::default()
         };
         let expr_wctx = vec![ValidatorWritableRuntimeExprContext::new("action")];

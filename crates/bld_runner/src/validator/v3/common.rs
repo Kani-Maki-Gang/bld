@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     collections::{HashMap, HashSet},
     fmt::Write,
     path::PathBuf,
@@ -17,7 +18,7 @@ use crate::expr::v3::{
     exec::CommonExprExecutor,
     parser::{self, ExprParser, Rule},
     traits::{
-        EvalExpr, EvalObject, ExprValue, OutputScope, ReadonlyRuntimeExprContext,
+        EvalExpr, EvalObject, ExprType, ExprValue, OutputScope, ReadonlyRuntimeExprContext,
         WritableRuntimeExprContext,
     },
 };
@@ -62,6 +63,7 @@ impl<'a> Section<'a> {
 pub struct ValidatorWritableRuntimeExprContext<'a> {
     exec_id: &'a str,
     outputs: HashMap<String, String>,
+    matrix: RefCell<HashMap<String, Option<ExprType>>>,
 }
 
 impl<'a> ValidatorWritableRuntimeExprContext<'a> {
@@ -69,7 +71,16 @@ impl<'a> ValidatorWritableRuntimeExprContext<'a> {
         Self {
             exec_id,
             outputs: HashMap::new(),
+            matrix: RefCell::new(HashMap::new()),
         }
+    }
+
+    pub fn set_matrix_type(&self, key: &str, ty: Option<ExprType>) {
+        self.matrix.borrow_mut().insert(key.to_string(), ty);
+    }
+
+    pub fn remove_matrix_type(&self, key: &str) {
+        self.matrix.borrow_mut().remove(key);
     }
 }
 
@@ -84,7 +95,7 @@ impl<'a> WritableRuntimeExprContext for ValidatorWritableRuntimeExprContext<'a> 
         _id: &str,
         _name: &str,
     ) -> Result<ExprValue<'b>> {
-        Ok(ExprValue::Unknown)
+        Ok(ExprValue::Unknown(None))
     }
 
     fn set_output(&mut self, _id: &str, name: String, value: String) -> Result<()> {
@@ -97,15 +108,16 @@ impl<'a> WritableRuntimeExprContext for ValidatorWritableRuntimeExprContext<'a> 
         Ok(())
     }
 
-    fn get_matrix_value<'b>(&'b self, _name: &str) -> Result<ExprValue<'b>> {
-        Ok(ExprValue::Unknown)
+    fn get_matrix_value<'b>(&'b self, name: &str) -> Result<ExprValue<'b>> {
+        let ty = self.matrix.borrow().get(name).cloned().flatten();
+        Ok(ExprValue::Unknown(ty))
     }
 }
 
 #[derive(Debug, Default)]
 pub struct ValidatorReadonlyRuntimeExprContext {
     pub config: Arc<BldConfig>,
-    pub inputs: HashSet<String>,
+    pub inputs: HashMap<String, ExprType>,
     pub env: HashSet<String>,
     pub run_id: String,
     pub run_start_time: String,
@@ -114,7 +126,7 @@ pub struct ValidatorReadonlyRuntimeExprContext {
 impl ValidatorReadonlyRuntimeExprContext {
     pub fn new(
         config: Arc<BldConfig>,
-        inputs: HashSet<String>,
+        inputs: HashMap<String, ExprType>,
         env: HashSet<String>,
         run_id: String,
         run_start_time: String,
@@ -141,14 +153,14 @@ impl<'a> ReadonlyRuntimeExprContext<'a> for ValidatorReadonlyRuntimeExprContext 
     fn get_input(&'a self, name: &'a str) -> Result<ExprValue<'a>> {
         self.inputs
             .get(name)
-            .map(|_| ExprValue::Unknown)
+            .map(|ty| ExprValue::Unknown(Some(ty.clone())))
             .ok_or_else(|| anyhow!("input '{name}' not found"))
     }
 
     fn get_env(&'a self, name: &'a str) -> Result<ExprValue<'a>> {
         self.env
             .get(name)
-            .map(|_| ExprValue::Unknown)
+            .map(|_| ExprValue::Unknown(Some(ExprType::Text)))
             .ok_or_else(|| anyhow!("env variable '{name}' not found"))
     }
 
@@ -273,21 +285,43 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
         &mut self,
         value: &'a str,
         wctx: &'a W,
+    ) -> Option<ExprType> {
+        let expr_exec = CommonExprExecutor::new(self.validatable, self.rctx(), wctx);
+        let mut element_type = None;
+        for entry in self.expr_regex.find_iter(value) {
+            let result = expr_exec.eval(entry.as_str());
+            match result.as_ref().map(|x| x.expr_type()) {
+                Ok(Some(ExprType::Array(elem))) => element_type = elem.map(|x| *x),
+                // The value of a step output isn't known during validation, so an
+                // expression that uses one can't be checked against the array type.
+                Ok(None) => {}
+                Ok(Some(other)) => {
+                    let section = self.section_txt();
+                    let _ = writeln!(self.errors, "[{section}] expected an array, found {other}");
+                }
+                Err(e) => {
+                    let section = self.section_txt();
+                    let _ = writeln!(self.errors, "[{section}] {}", e);
+                }
+            }
+        }
+        element_type
+    }
+
+    fn eval_typed_expression<W: WritableRuntimeExprContext>(
+        &mut self,
+        value: &'a str,
+        wctx: &'a W,
+        expected: &ExprType,
     ) {
         let expr_exec = CommonExprExecutor::new(self.validatable, self.rctx(), wctx);
         for entry in self.expr_regex.find_iter(value) {
-            match expr_exec.eval(entry.as_str()) {
-                // The value of a step output isn't known during validation, so an
-                // expression that uses one can't be checked against the array type.
-                Ok(ExprValue::Array(_) | ExprValue::Unknown) => {}
-                Ok(other) => {
+            match expr_exec.eval(entry.as_str()).map(|x| x.expr_type()) {
+                Ok(Some(ty)) if !ty.matches(expected) => {
                     let section = self.section_txt();
-                    let _ = writeln!(
-                        self.errors,
-                        "[{section}] expected an array, found {}",
-                        other.type_as_string()
-                    );
+                    let _ = writeln!(self.errors, "[{section}] expected {expected}, found {ty}");
                 }
+                Ok(_) => {}
                 Err(e) => {
                     let section = self.section_txt();
                     let _ = writeln!(self.errors, "[{section}] {}", e);
@@ -303,14 +337,13 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
     ) {
         let expr_exec = CommonExprExecutor::new(self.validatable, self.rctx(), wctx);
         for entry in self.expr_regex.find_iter(value) {
-            match expr_exec.eval(entry.as_str()) {
-                Ok(ExprValue::Boolean(_)) | Ok(ExprValue::Text(_)) | Ok(ExprValue::Unknown) => {}
-                Ok(value) => {
+            match expr_exec.eval(entry.as_str()).map(|x| x.expr_type()) {
+                Ok(None | Some(ExprType::Boolean | ExprType::Text)) => {}
+                Ok(Some(ty)) => {
                     let section = self.section_txt();
                     let _ = writeln!(
                         self.errors,
-                        "[{section}] a condition must give a boolean value, but it gives {}",
-                        value.type_as_string()
+                        "[{section}] a condition must give a boolean value, but it gives {ty}"
                     );
                 }
                 Err(e) => {
@@ -385,16 +418,41 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for Comm
         }
     }
 
-    fn validate_array_expression(&mut self, value: &'a str, scope: ExprScope) {
+    fn validate_array_expression(&mut self, value: &'a str, scope: ExprScope) -> Option<ExprType> {
         match scope {
             ExprScope::StartOfRun => self.eval_array_expression(value, &START_OF_RUN_WCTX),
+            ExprScope::Runtime => {
+                self.validate_job_output_refs(value);
+                let expr_wctx = self.runtime_wctx()?;
+                self.eval_array_expression(value, expr_wctx)
+            }
+        }
+    }
+
+    fn validate_typed_expression(&mut self, value: &'a str, scope: ExprScope, expected: &ExprType) {
+        match scope {
+            ExprScope::StartOfRun => {
+                self.eval_typed_expression(value, &START_OF_RUN_WCTX, expected)
+            }
             ExprScope::Runtime => {
                 self.validate_job_output_refs(value);
                 let Some(expr_wctx) = self.runtime_wctx() else {
                     return;
                 };
-                self.eval_array_expression(value, expr_wctx)
+                self.eval_typed_expression(value, expr_wctx, expected)
             }
+        }
+    }
+
+    fn set_matrix_type(&mut self, key: &str, ty: Option<ExprType>) {
+        if let Some(expr_wctx) = self.runtime_wctx() {
+            expr_wctx.set_matrix_type(key, ty);
+        }
+    }
+
+    fn remove_matrix_type(&mut self, key: &str) {
+        if let Some(expr_wctx) = self.runtime_wctx() {
+            expr_wctx.remove_matrix_type(key);
         }
     }
 

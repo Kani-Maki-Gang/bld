@@ -445,7 +445,7 @@ mod tests {
                 .into_iter()
                 .collect();
         let rctx = CommonReadonlyRuntimeExprContext {
-            inputs: inputs.into_arc(),
+            inputs: crate::expr::v3::context::text_inputs(&inputs),
             ..Default::default()
         };
         let state = MockRootState::new();
@@ -574,7 +574,7 @@ mod tests {
         let mut inputs = HashMap::new();
         inputs.insert("region".to_string(), "eu-west".to_string());
         let rctx = CommonReadonlyRuntimeExprContext {
-            inputs: inputs.into_arc(),
+            inputs: crate::expr::v3::context::text_inputs(&inputs),
             ..Default::default()
         };
 
@@ -993,7 +993,7 @@ mod tests {
         let mut inputs = HashMap::new();
         inputs.insert("tag".to_string(), "my-image:latest".to_string());
         let rctx = CommonReadonlyRuntimeExprContext {
-            inputs: inputs.into_arc(),
+            inputs: crate::expr::v3::context::text_inputs(&inputs),
             ..Default::default()
         };
         let config = BldConfig::default().into_arc();
@@ -1057,7 +1057,7 @@ mod tests {
         let mut inputs = HashMap::new();
         inputs.insert("tag".to_string(), "my-image:latest".to_string());
         let rctx = CommonReadonlyRuntimeExprContext {
-            inputs: inputs.into_arc(),
+            inputs: crate::expr::v3::context::text_inputs(&inputs),
             ..Default::default()
         };
         let config = BldConfig::default().into_arc();
@@ -1113,6 +1113,7 @@ name: Inner
 
 inputs:
   tag:
+    type: text
     required: true
 
 outputs:
@@ -1131,7 +1132,7 @@ steps:
         let mut inputs = HashMap::new();
         inputs.insert("tag".to_string(), "my-image:latest".to_string());
         let rctx = CommonReadonlyRuntimeExprContext {
-            inputs: inputs.into_arc(),
+            inputs: crate::expr::v3::context::text_inputs(&inputs),
             ..Default::default()
         };
         let config = BldConfig {
@@ -1197,6 +1198,7 @@ name: Inner
 
 inputs:
   tag:
+    type: text
     required: true
 
 outputs:
@@ -1365,7 +1367,7 @@ steps:
         let mut inputs = HashMap::new();
         inputs.insert("target".to_string(), "inner".to_string());
         let rctx = CommonReadonlyRuntimeExprContext {
-            inputs: inputs.into_arc(),
+            inputs: crate::expr::v3::context::text_inputs(&inputs),
             ..Default::default()
         };
         let config = BldConfig {

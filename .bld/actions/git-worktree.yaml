@@ -5,18 +5,22 @@ name: Create a branch and git worktree for a GitHub project item
 
 inputs:
   item:
+    type: text
     description: GitHub issue/project item number to work on
     required: true
   worktree_root:
+    type: text
     description: Directory under which per-item worktrees are created
     required: true
   repo_dir:
+    type: text
     description: >-
       The main repository clone the worktree is created from. Pass
       ${{ bld_project_dir }} from the caller - it cannot be an input default here,
       since defaults are used verbatim instead of being evaluated.
     required: true
   base_branch:
+    type: text
     description: Branch the new item branch starts from
     default: master
     required: false

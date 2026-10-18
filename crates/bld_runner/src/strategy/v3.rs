@@ -9,10 +9,11 @@ use {
         expr::v3::{
             exec::CommonExprExecutor,
             traits::{
-                EvalExpr, EvalObject, ExprValue, ReadonlyRuntimeExprContext,
+                EvalExpr, EvalObject, ExprType, ExprValue, ReadonlyRuntimeExprContext,
                 WritableRuntimeExprContext,
             },
         },
+        scalar::single_scalar_type,
         validator::v3::{ExprScope, Validate, ValidatorContext},
     },
     anyhow::{Result, bail},
@@ -84,11 +85,15 @@ impl Strategy {
                     items
                         .iter()
                         .map(|x| match x {
-                            ExprValue::Array(_) | ExprValue::Unknown => bail!(
+                            ExprValue::Boolean(value) => Ok(ScalarValue::Boolean(*value)),
+                            ExprValue::Number { value, .. } => Ok(ScalarValue::Number(*value)),
+                            ExprValue::Text(text) => {
+                                Ok(ScalarValue::Text(text.inner().to_string()))
+                            }
+                            ExprValue::Array(_) | ExprValue::Unknown(_) => bail!(
                                 "matrix key '{key}' contains a value of type {}",
                                 x.type_as_string()
                             ),
-                            _ => Ok(ScalarValue::Text(x.to_string())),
                         })
                         .collect::<Result<Vec<_>>>()?
                 }
@@ -158,20 +163,27 @@ impl Strategy {
 
         for (key, value) in self.matrix.iter() {
             ctx.push_section(key);
-            match value {
+            let ty = match value {
                 MatrixValue::Array(items) => {
                     if items.is_empty() {
                         ctx.append_error("Matrix key must have at least one value defined");
                     }
+                    let ty = single_scalar_type(items);
+                    if ty.is_none() && !items.is_empty() {
+                        ctx.append_error("Matrix key must contain values of a single type");
+                    }
+                    ty.map(ExprType::from)
                 }
                 MatrixValue::Expr(expr) => {
                     if ctx.expression_count(expr) > 1 {
                         ctx.append_error("Matrix value must contain at most one expression");
+                        None
                     } else {
-                        ctx.validate_array_expression(expr, scope);
+                        ctx.validate_array_expression(expr, scope)
                     }
                 }
-            }
+            };
+            ctx.set_matrix_type(key, ty);
             ctx.pop_section();
         }
         ctx.pop_section();
@@ -182,10 +194,16 @@ impl Strategy {
                 if ctx.expression_count(expr) > 1 {
                     ctx.append_error("fail_fast must contain at most one expression");
                 } else {
-                    ctx.validate_expressions(expr, scope);
+                    ctx.validate_typed_expression(expr, scope, &ExprType::Boolean);
                 }
             }
             ctx.pop_section();
+        }
+    }
+
+    pub fn clear_matrix_types<'a, C: ValidatorContext<'a>>(&self, ctx: &mut C) {
+        for key in self.matrix.keys() {
+            ctx.remove_matrix_type(key);
         }
     }
 }
@@ -293,10 +311,13 @@ matrix:
 mod exec_tests {
     use std::collections::HashMap;
 
+    use bld_utils::sync::IntoArc;
+
     use crate::{
         expr::v3::{
-            context::CommonReadonlyRuntimeExprContext, exec::CommonExprExecutor,
-            traits::MockWritableRuntimeExprContext,
+            context::CommonReadonlyRuntimeExprContext,
+            exec::CommonExprExecutor,
+            traits::{ExprValue, MockWritableRuntimeExprContext},
         },
         inputs::v3::Input,
         pipeline::v3::Pipeline,
@@ -368,7 +389,7 @@ mod exec_tests {
         let mut pipeline = Pipeline::default();
         pipeline
             .inputs
-            .insert("oses".to_string(), Input::Simple("linux".to_string()));
+            .insert("oses".to_string(), Input::text("linux"));
         let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
 
         let mut matrix = HashMap::new();
@@ -418,26 +439,20 @@ mod exec_tests {
     }
 
     #[test]
-    pub fn combinations_expr_number_array_keeps_raw_text_success() {
+    pub fn combinations_expr_number_array_is_typed_success() {
         let values = single_key_values(MatrixValue::Expr("${{ [3.10, 3.11] }}".to_string()));
         assert_eq!(
             values,
-            vec![
-                ScalarValue::Text("3.10".to_string()),
-                ScalarValue::Text("3.11".to_string())
-            ]
+            vec![ScalarValue::Number(3.10), ScalarValue::Number(3.11)]
         );
     }
 
     #[test]
-    pub fn combinations_expr_boolean_array_success() {
+    pub fn combinations_expr_boolean_array_is_typed_success() {
         let values = single_key_values(MatrixValue::Expr("${{ [true, false] }}".to_string()));
         assert_eq!(
             values,
-            vec![
-                ScalarValue::Text("true".to_string()),
-                ScalarValue::Text("false".to_string())
-            ]
+            vec![ScalarValue::Boolean(true), ScalarValue::Boolean(false)]
         );
     }
 
@@ -481,6 +496,52 @@ mod exec_tests {
         let strategy = Strategy {
             matrix: HashMap::new(),
             fail_fast: Some(FailFastValue::Expr("${{ false }}".to_string())),
+        };
+
+        assert!(!strategy.resolve_fail_fast(&exec).unwrap());
+    }
+
+    #[test]
+    pub fn combinations_expr_array_input_success() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext {
+            inputs: HashMap::from([(
+                "oses".to_string(),
+                ExprValue::try_from(r#"["a","b"]"#).unwrap().into_owned(),
+            )])
+            .into_arc(),
+            ..Default::default()
+        };
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "os".to_string(),
+            MatrixValue::Expr("${{ inputs.oses }}".to_string()),
+        );
+        let strategy = Strategy {
+            matrix,
+            fail_fast: None,
+        };
+
+        let combinations = strategy.combinations(&exec).unwrap();
+        assert_eq!(combinations.len(), 2);
+    }
+
+    #[test]
+    pub fn resolve_fail_fast_boolean_input_expr_success() {
+        let wctx = MockWritableRuntimeExprContext::new();
+        let rctx = CommonReadonlyRuntimeExprContext {
+            inputs: HashMap::from([("ff".to_string(), ExprValue::Boolean(false))]).into_arc(),
+            ..Default::default()
+        };
+        let pipeline = Pipeline::default();
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let strategy = Strategy {
+            matrix: HashMap::new(),
+            fail_fast: Some(FailFastValue::Expr("${{ inputs.ff }}".to_string())),
         };
 
         assert!(!strategy.resolve_fail_fast(&exec).unwrap());

@@ -5,11 +5,14 @@ name: Build and push the dev agent image
 
 inputs:
   branch:
+    type: text
     default: master
     required: false
   sha:
+    type: text
     required: true
   registry:
+    type: text
     required: true
 
 env:

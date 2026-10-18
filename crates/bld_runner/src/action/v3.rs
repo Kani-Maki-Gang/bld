@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    inputs::v3::Input,
+    inputs::v3::{Input, input_default_text},
     outputs::v3::Output,
     step::v3::Step,
     traits::{IntoVariables, Variables},
@@ -53,18 +53,10 @@ pub struct Action {
 
 impl Action {
     pub fn inputs_map(&self) -> HashMap<String, String> {
-        let mut inputs = HashMap::new();
-        for (name, input) in &self.inputs {
-            match input {
-                Input::Simple(v) => {
-                    inputs.insert(name.to_owned(), v.to_owned());
-                }
-                Input::Complex { default, .. } => {
-                    inputs.insert(name.to_owned(), default.to_owned().unwrap_or_default());
-                }
-            }
-        }
-        inputs
+        self.inputs
+            .iter()
+            .map(|(name, input)| (name.to_owned(), input_default_text(input)))
+            .collect()
     }
 
     pub fn required_inputs(&self) -> Option<HashSet<&str>> {
@@ -91,17 +83,7 @@ impl Action {
 
 impl IntoVariables for Action {
     fn into_variables(self) -> Variables {
-        let mut inputs = HashMap::new();
-        for (name, input) in self.inputs {
-            match input {
-                Input::Simple(v) => {
-                    inputs.insert(name, v);
-                }
-                Input::Complex { default, .. } => {
-                    inputs.insert(name, default.unwrap_or_default());
-                }
-            }
-        }
+        let inputs = self.inputs_map();
         (Some(inputs), None)
     }
 }
@@ -240,8 +222,11 @@ impl<'a> Validate<'a> for Action {
                 ctx.append_error(&format!("Duplicate step id '{step_id}' found in action"));
                 ctx.pop_section();
             }
-            step.validate(ctx).await;
             step.validate_matrix(ctx, None).await;
+            step.validate(ctx).await;
+            if let Some(strategy) = step.strategy() {
+                strategy.clear_matrix_types(ctx);
+            }
         }
         ctx.pop_section();
 
@@ -260,8 +245,6 @@ impl<'a> Validate<'a> for Action {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-
-    use bld_utils::sync::IntoArc;
 
     use crate::expr::v3::{
         context::CommonReadonlyRuntimeExprContext,
@@ -342,7 +325,7 @@ mod tests {
 
         let wctx = MockWritableRuntimeExprContext::new();
         let rctx = CommonReadonlyRuntimeExprContext {
-            inputs: data.clone().into_arc(),
+            inputs: crate::expr::v3::context::text_inputs(&data),
             ..Default::default()
         };
         let action = Action::default();

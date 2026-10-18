@@ -11,19 +11,24 @@ name: Run Claude Code against a worktree
 
 inputs:
   worktree_dir:
+    type: text
     description: Absolute path to the git worktree Claude Code works in (bind-mounted into the job container at the same path)
     required: true
   model:
+    type: text
     description: Full Claude model id, e.g. claude-sonnet-5 or claude-opus-5
     required: true
   effort:
+    type: text
     description: Reasoning effort level (low, medium, high, xhigh, max)
     default: medium
     required: false
   prompt:
+    type: text
     description: The prompt to send to Claude Code
     required: true
   permission_mode:
+    type: text
     description: >-
       Claude Code --permission-mode value for this run. bypassPermissions is
       refused by the CLI when it runs as root, which is the case inside the dev
@@ -32,10 +37,12 @@ inputs:
     default: acceptEdits
     required: false
   allowed_tools:
+    type: text
     description: Comma separated list of tools pre-approved for the run, passed to --allowedTools
     default: Bash,Edit,Write,Read,Glob,Grep,TodoWrite
     required: false
   session_key:
+    type: text
     description: >-
       Identifies an independent Claude session within the worktree (e.g.
       "implement" vs "review"). Two steps using different keys get separate
