@@ -9,6 +9,7 @@ use bld_core::fs::FileSystem;
 use bld_pkg::PackageManager;
 
 use crate::{
+    expr::v3::traits::ExprType,
     files::v3::RunnerFile,
     validator::v3::{ValidatorReadonlyRuntimeExprContext, ValidatorWritableRuntimeExprContext},
 };
@@ -42,7 +43,11 @@ impl ConsumeValidator for RunnerFileValidator<'_> {
     async fn validate(self) -> Result<()> {
         match self.file {
             RunnerFile::PipelineFileType(pip) => {
-                let inputs: HashSet<String> = pip.inputs.keys().cloned().collect();
+                let inputs: HashMap<String, ExprType> = pip
+                    .inputs
+                    .iter()
+                    .map(|(name, input)| (name.clone(), input.expr_type()))
+                    .collect();
                 let env: HashSet<String> = pip.env.keys().cloned().collect();
                 let expr_rctx = ValidatorReadonlyRuntimeExprContext::new(
                     self.config.clone(),
@@ -102,7 +107,11 @@ impl ConsumeValidator for RunnerFileValidator<'_> {
             RunnerFile::ActionFileType(action) => {
                 let expr_rctx = ValidatorReadonlyRuntimeExprContext::new(
                     self.config.clone(),
-                    action.inputs.keys().cloned().collect(),
+                    action
+                        .inputs
+                        .iter()
+                        .map(|(name, input)| (name.clone(), input.expr_type()))
+                        .collect(),
                     HashSet::new(),
                     String::new(),
                     String::new(),

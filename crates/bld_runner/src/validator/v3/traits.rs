@@ -5,6 +5,8 @@ use bld_config::BldConfig;
 use bld_core::fs::FileSystem;
 use bld_pkg::PackageManager;
 
+use crate::expr::v3::traits::ExprType;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExprScope {
     StartOfRun,
@@ -24,7 +26,10 @@ pub trait ValidatorContext<'a> {
     fn expression_count(&self, value: &str) -> usize;
     fn contains_expressions(&mut self, value: &str) -> bool;
     fn validate_expressions(&mut self, symbol: &'a str, scope: ExprScope);
-    fn validate_array_expression(&mut self, symbol: &'a str, scope: ExprScope);
+    fn validate_array_expression(&mut self, symbol: &'a str, scope: ExprScope) -> Option<ExprType>;
+    fn validate_typed_expression(&mut self, symbol: &'a str, scope: ExprScope, expected: &ExprType);
+    fn set_matrix_type(&mut self, key: &str, ty: Option<ExprType>);
+    fn remove_matrix_type(&mut self, key: &str);
     fn matrix_refs(&self, value: &str) -> Vec<String>;
     fn job_output_refs(&self, value: &str) -> Vec<String>;
     fn validate_file_path(&mut self, value: &'a str);
