@@ -21,6 +21,33 @@ use crate::logger::Logger;
 
 type RecursiveFuture = Pin<Box<dyn Future<Output = Result<()>>>>;
 
+fn sh_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
+}
+
+fn command_with_env(
+    env: &HashMap<String, String>,
+    outputs_file: &str,
+    working_dir: &Option<String>,
+    input: &str,
+) -> String {
+    let mut vars: Vec<(&str, &str)> = env.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+    vars.sort();
+    vars.push((BLD_OUTPUTS_ENV_VAR_V3, outputs_file));
+
+    let exports: Vec<String> = vars
+        .into_iter()
+        .map(|(k, v)| format!("{k}={}", sh_quote(v)))
+        .collect();
+
+    let mut command = format!("export {} && ", exports.join(" "));
+    if let Some(wd) = working_dir {
+        command.push_str(&format!("cd {wd} && "));
+    }
+    command.push_str(input);
+    command
+}
+
 pub enum SshAuthOptions<'a> {
     Keys {
         public_key: Option<&'a str>,
@@ -360,25 +387,13 @@ impl Ssh {
         working_dir: &Option<String>,
         input: &str,
     ) -> Result<HashMap<String, String>> {
-        let mut command = String::new();
-        if let Some(wd) = working_dir {
-            command.push_str(&format!("cd {wd} && "));
-        }
-        command.push_str(input);
-
         let mut channel = self.session.channel_session().await?;
 
         let outputs_file = path![&self.outputs_dir, Uuid::new_v4().to_string()]
             .display()
             .to_string();
 
-        for (k, v) in self.env.iter() {
-            channel.setenv(k, v).await?;
-        }
-        channel
-            .setenv(BLD_OUTPUTS_ENV_VAR_V3, &outputs_file)
-            .await?;
-
+        let command = command_with_env(&self.env, &outputs_file, working_dir, input);
         channel.exec(&command).await?;
 
         let mut output = String::new();
@@ -416,5 +431,43 @@ impl Ssh {
             .await;
         self.session.disconnect(None, "", None).await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::command_with_env;
+    use std::collections::HashMap;
+
+    #[test]
+    fn command_with_env_exports_variables_before_the_command() {
+        let env: HashMap<String, String> = [
+            ("B".to_string(), "two words".to_string()),
+            ("A".to_string(), "it's".to_string()),
+        ]
+        .into_iter()
+        .collect();
+
+        let command = command_with_env(&env, "tmp/bld_outputs/id", &None, "echo $A");
+
+        assert_eq!(
+            command,
+            "export A='it'\\''s' B='two words' BLD_OUTPUTS='tmp/bld_outputs/id' && echo $A"
+        );
+    }
+
+    #[test]
+    fn command_with_env_changes_to_the_working_dir() {
+        let command = command_with_env(
+            &HashMap::new(),
+            "tmp/bld_outputs/id",
+            &Some("/opt/app".to_string()),
+            "make",
+        );
+
+        assert_eq!(
+            command,
+            "export BLD_OUTPUTS='tmp/bld_outputs/id' && cd /opt/app && make"
+        );
     }
 }
