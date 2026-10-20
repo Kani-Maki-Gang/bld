@@ -18,7 +18,7 @@ use crate::{
     action::v3::Action,
     artifacts::v3::{DownloadArtifact, UploadArtifact},
     expr::v3::{
-        context::CommonReadonlyRuntimeExprContext,
+        context::{CommonReadonlyRuntimeExprContext, START_OF_RUN_WCTX},
         exec::{CommonExprExecutor, eval_all_expressions, eval_all_expressions_map},
         traits::EvalExpr,
     },
@@ -51,7 +51,11 @@ impl<S: RootState> ActionRunner<S> {
 
         let mut message = String::new();
 
-        writeln!(message, "{:<15}: {}", "Name", self.action.name)?;
+        // The name is printed before any step has run, so it can only use the start of
+        // run expressions.
+        let exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &START_OF_RUN_WCTX);
+        let name = eval_all_expressions(&exec, &self.expr_regex, &self.action.name)?;
+        writeln!(message, "{:<15}: {name}", "Name")?;
         writeln!(message, "{:<15}: 3", "Version")?;
 
         self.logger.write_line(message).await
@@ -1413,5 +1417,57 @@ steps:
 
         let output = logger.try_retrieve_output().await.unwrap();
         assert!(output.contains("Call inner"), "{output}");
+    }
+
+    fn runner_with_name(name: &str, inputs: Vec<(&str, &str)>) -> ActionRunner<ActionState> {
+        let inputs: HashMap<String, String> = inputs
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        let config = BldConfig::default().into_arc();
+        ActionRunner::new(
+            Logger::in_memory().into_arc(),
+            Action {
+                name: name.to_string(),
+                ..Default::default()
+            },
+            Platform::mock().into_arc(),
+            Artifacts::mock().into_arc(),
+            Regex::new(EXPR_REGEX).unwrap(),
+            CommonReadonlyRuntimeExprContext {
+                inputs: crate::expr::v3::context::text_inputs(&inputs),
+                ..Default::default()
+            },
+            config.clone(),
+            FileSystem::local(config.clone()).into_arc(),
+            Context::mock().into_arc(),
+            RegexCache::mock().into_arc(),
+            PackageManager::new(config).into_arc(),
+        )
+    }
+
+    #[actix_web::test]
+    pub async fn info_evaluates_action_name_with_input() {
+        let runner = runner_with_name("Deploy ${{ inputs.target }}", vec![("target", "prod")]);
+
+        runner.info().await.unwrap();
+
+        let output = runner.logger.try_retrieve_output().await.unwrap();
+        assert!(output.contains("Deploy prod"), "{output}");
+        assert!(!output.contains("${{"), "{output}");
+    }
+
+    #[actix_web::test]
+    pub async fn info_with_runtime_expression_in_action_name_fails() {
+        let runner = runner_with_name("Deploy ${{ matrix.os }}", vec![]);
+
+        assert!(runner.info().await.is_err());
+    }
+
+    #[actix_web::test]
+    pub async fn execute_with_invalid_action_name_fails() {
+        let runner = runner_with_name("Deploy ${{ matrix.os }}", vec![]);
+        let result = runner.execute().await;
+        assert!(result.is_err());
     }
 }
