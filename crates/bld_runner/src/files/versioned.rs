@@ -107,15 +107,14 @@ impl<'a> VersionedFileLoader<'a> {
     }
 
     pub async fn load(&self, name: &str) -> Result<VersionedFileMetadata> {
-        let source = self
-            .get_source(name)
-            .await
-            .ok_or_else(|| anyhow!("Unable to deduce file source (local file or package)"))?;
-
-        let raw = match source {
-            VersionedFileSource::LocalFile => self.load_local(name).await,
-            VersionedFileSource::Package => self.load_package(name).await,
-        }?;
+        let raw = match self.load_local(name).await {
+            Ok(raw) => raw,
+            Err(local_error) => self.load_package(name).await.map_err(|package_error| {
+                debug!("unable to load {name} as a local file due to {local_error}");
+                debug!("unable to load {name} as a package due to {package_error}");
+                anyhow!("Unable to identify value as local action or package")
+            })?,
+        };
 
         let file = self.parse_content(&raw)?;
 
@@ -276,5 +275,88 @@ impl IntoVariables for VersionedFile {
             Self::Version2(pip) => pip.into_variables(),
             Self::Version3(file) => file.into_variables(),
         }
+    }
+}
+
+#[cfg(all(test, feature = "all"))]
+mod tests {
+    use super::VersionedFileLoader;
+    use bld_config::{BldConfig, BldPackages};
+    use bld_core::fs::FileSystem;
+    use bld_pkg::PackageManager;
+    use std::{path::PathBuf, sync::Arc};
+
+    struct TestEnv {
+        dir: PathBuf,
+        fs: FileSystem,
+        package_manager: PackageManager,
+    }
+
+    impl TestEnv {
+        fn new(name: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!("bld_runner_versioned_{name}"));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            let mut config = BldConfig {
+                root_dir: dir.to_string_lossy().into_owned(),
+                ..Default::default()
+            };
+            config.local.packages = BldPackages {
+                cache: dir.join("packages").to_string_lossy().into_owned(),
+                strict_sync: false,
+            };
+            let config = Arc::new(config);
+            Self {
+                dir,
+                fs: FileSystem::local(config.clone()),
+                package_manager: PackageManager::new(config),
+            }
+        }
+
+        async fn load_error(&self, name: &str) -> String {
+            VersionedFileLoader::new(&self.package_manager, &self.fs, false)
+                .load(name)
+                .await
+                .err()
+                .unwrap()
+                .to_string()
+        }
+    }
+
+    impl Drop for TestEnv {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    #[tokio::test]
+    async fn load_reports_a_missing_local_file_with_a_directory() {
+        let env = TestEnv::new("missing_nested");
+        assert_eq!(
+            env.load_error("actions/missing.yaml").await,
+            "Unable to identify value as local action or package"
+        );
+    }
+
+    #[tokio::test]
+    async fn load_reports_a_missing_local_file() {
+        let env = TestEnv::new("missing");
+        assert_eq!(
+            env.load_error("missing.yaml").await,
+            "Unable to identify value as local action or package"
+        );
+    }
+
+    #[tokio::test]
+    async fn load_reads_an_existing_local_file() {
+        let env = TestEnv::new("existing");
+        let raw =
+            "version: 3\ntype: action\nname: probe\nsteps:\n  - id: noop\n    run: echo noop\n";
+        std::fs::write(env.dir.join("existing.yaml"), raw).unwrap();
+        let metadata = VersionedFileLoader::new(&env.package_manager, &env.fs, false)
+            .load("existing.yaml")
+            .await
+            .unwrap();
+        assert_eq!(metadata.raw, raw);
     }
 }
