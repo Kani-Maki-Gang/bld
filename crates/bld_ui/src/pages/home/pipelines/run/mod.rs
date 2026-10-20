@@ -240,6 +240,10 @@ pub fn RunPipeline() -> impl IntoView {
     move || match data.get() {
         None => view! { <LoadingState /> }.into_view(),
         Some(Err(e)) => view! { <ErrorCard error=e /> }.into_view(),
+        Some(Ok(VersionedFile::Version3(RunnerFile::ActionFileType(_)))) => view! {
+            <ErrorCard error="Action files can't be run directly. Use them from a pipeline step." />
+        }
+        .into_view(),
         Some(Ok(file)) => {
             let name = name().unwrap_or_default();
             let back = format!("/files/info?id={}&name={}", id().unwrap_or_default(), name);

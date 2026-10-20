@@ -1,4 +1,7 @@
-use crate::generated::pipeline::{self, Entity as PipelineEntity};
+use crate::{
+    dtos::FileType,
+    generated::pipeline::{self, Entity as PipelineEntity},
+};
 use anyhow::{Result, anyhow};
 use bld_migrations::Expr;
 use chrono::Utc;
@@ -99,6 +102,24 @@ pub async fn update_name<C: ConnectionTrait + TransactionTrait>(
         })
 }
 
+pub async fn update_file_type<C: ConnectionTrait + TransactionTrait>(
+    conn: &C,
+    pip_name: &str,
+    file_type: FileType,
+) -> Result<()> {
+    debug!("updating pipeline with name: {pip_name} with file type: {file_type:?}");
+    PipelineEntity::update_many()
+        .col_expr(pipeline::Column::FileType, Expr::value(file_type.as_str()))
+        .filter(pipeline::Column::Name.eq(pip_name))
+        .exec(conn)
+        .await
+        .map(|_| debug!("pipeline file type updated successfully"))
+        .map_err(|e| {
+            error!("could not update pipeline file type due to {e}");
+            anyhow!(e)
+        })
+}
+
 pub async fn insert<C: ConnectionTrait + TransactionTrait>(
     conn: &C,
     model: InsertPipeline,
@@ -109,6 +130,7 @@ pub async fn insert<C: ConnectionTrait + TransactionTrait>(
         id: Set(model.id),
         name: Set(model.name),
         date_created: Set(Utc::now().naive_utc()),
+        file_type: Set(FileType::Pipeline.as_str().to_owned()),
     };
 
     active_model
@@ -143,4 +165,63 @@ pub async fn delete_by_name<C: ConnectionTrait + TransactionTrait>(
         })?;
     txn.commit().await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{InsertPipeline, insert, select_by_name, update_file_type};
+    use crate::dtos::FileType;
+    use bld_migrations::{Migrator, MigratorTrait};
+    use sea_orm::{ConnectionTrait, Database, DatabaseConnection};
+
+    async fn connection() -> DatabaseConnection {
+        let conn = Database::connect("sqlite::memory:").await.unwrap();
+        Migrator::up(&conn, None).await.unwrap();
+        conn
+    }
+
+    #[tokio::test]
+    async fn existing_entries_default_to_pipeline_after_migration() {
+        let conn = Database::connect("sqlite::memory:").await.unwrap();
+        let pending = Migrator::get_pending_migrations(&conn).await.unwrap().len();
+        Migrator::up(&conn, Some(pending as u32 - 1)).await.unwrap();
+        conn.execute_unprepared(
+            "insert into pipeline (id, name, date_created) values ('1', 'old.yaml', '2026-01-01 00:00:00')",
+        )
+        .await
+        .unwrap();
+        Migrator::up(&conn, None).await.unwrap();
+
+        let model = select_by_name(&conn, "old.yaml").await.unwrap();
+        assert_eq!(FileType::from(model.file_type.as_str()), FileType::Pipeline);
+    }
+
+    #[tokio::test]
+    async fn file_type_is_updated_by_name() {
+        let conn = connection().await;
+        let model = InsertPipeline {
+            id: "1".to_owned(),
+            name: "action.yaml".to_owned(),
+        };
+        insert(&conn, model).await.unwrap();
+        assert_eq!(
+            select_by_name(&conn, "action.yaml")
+                .await
+                .unwrap()
+                .file_type,
+            "pipeline"
+        );
+
+        update_file_type(&conn, "action.yaml", FileType::Action)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            select_by_name(&conn, "action.yaml")
+                .await
+                .unwrap()
+                .file_type,
+            "action"
+        );
+    }
 }

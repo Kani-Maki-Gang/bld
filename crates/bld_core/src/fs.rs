@@ -215,9 +215,16 @@ impl FileSystem {
                 copy(source_path, target_path).await?;
                 Ok(())
             }
-            Self::Server { .. } => {
+            Self::Server { conn, .. } => {
                 let content = self.read(source).await?;
-                self.create(target, &content, false).await
+                self.create(target, &content, false).await?;
+                let source_pipeline = pipeline::select_by_name(conn.as_ref(), source).await?;
+                pipeline::update_file_type(
+                    conn.as_ref(),
+                    target,
+                    source_pipeline.file_type.as_str().into(),
+                )
+                .await
             }
         }
     }

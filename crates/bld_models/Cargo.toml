@@ -29,3 +29,6 @@ sea-orm = { version = "1.1.1", features = ["sqlx-postgres", "sqlx-mysql", "sqlx-
 serde = { version = "1.0.215", features = ["derive"] }
 tracing = { version = "0.1.40", optional = true }
 uuid = { version = "1.11.0", features = ["v4"], optional = true }
+
+[dev-dependencies]
+tokio = { version = "1.43.1", features = ["macros", "rt"] }

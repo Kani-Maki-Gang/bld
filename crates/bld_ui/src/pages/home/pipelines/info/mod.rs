@@ -134,20 +134,34 @@ pub fn PipelineInfo() -> impl IntoView {
             .unwrap_or_default()
     });
 
+    let is_action = move || {
+        data.with(|d| {
+            matches!(
+                d,
+                Some(Ok(PipelineFile {
+                    file: Some(VersionedFile::Version3(RunnerFile::ActionFileType(_))),
+                    ..
+                }))
+            )
+        })
+    };
+
     view! {
         <PageHeader
             title=name
             mono=true
             back=view! { <BackLink href="/files">"Files"</BackLink> }.into_view()
         >
-            <LinkButton
-                href=Signal::derive(move || {
-                    format!("/files/run?id={}&name={}", id_label.get(), name.get())
-                })
-                variant=ButtonVariant::Primary
-            >
-                "Run"
-            </LinkButton>
+            <Show when=move || !is_action() fallback=|| view! {}>
+                <LinkButton
+                    href=Signal::derive(move || {
+                        format!("/files/run?id={}&name={}", id_label.get(), name.get())
+                    })
+                    variant=ButtonVariant::Primary
+                >
+                    "Run"
+                </LinkButton>
+            </Show>
             <PipelineMoveButton id=id_label name=name redirect=true />
             <PipelineCopyButton name=name redirect=true />
             <PipelineDeleteButton name=name redirect=true />
