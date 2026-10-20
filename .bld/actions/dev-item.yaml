@@ -1,0 +1,310 @@
+version: 3
+type: action
+
+name: Implement, review and open a pull request for one GitHub project item
+
+inputs:
+  item:
+    type: number
+    description: GitHub issue/project item number
+    required: true
+  repo:
+    type: text
+    description: Repository the item is an issue of, in owner/name form
+    required: true
+  repo_dir:
+    type: text
+    description: The local clone of the repository on the current machine
+    required: true
+  worktree_root:
+    type: text
+    description: Absolute directory under which the item worktree is created
+    required: true
+  assignee:
+    type: text
+    description: GitHub login that the pull request is assigned to
+    required: true
+  project_owner:
+    type: text
+    description: Owner (org or user) of the GitHub project
+    required: true
+  project_number:
+    type: number
+    description: GitHub project number
+    required: true
+  status_field:
+    type: text
+    description: Project field name holding the item's development status
+    required: true
+  in_progress_status_value:
+    type: text
+    description: Field value set on the item once its implementation run starts
+    required: true
+  in_review_status_value:
+    type: text
+    description: Field value set on the item once its pull request is open
+    required: true
+  claude_dir:
+    type: text
+    description: Absolute host path to the user's ~/.claude directory
+    required: true
+  claude_config_file:
+    type: text
+    description: Absolute host path to the user's ~/.claude.json
+    required: true
+  gh_config_dir:
+    type: text
+    description: Absolute host path to the user's gh config directory
+    required: true
+  dry_run:
+    type: boolean
+    description: When true, the action implements and reviews the item but does not change the project status, commit, push or open a pull request
+    default: false
+    required: false
+
+steps:
+  - id: worktree
+    name: Create the branch and worktree
+    uses: actions/git-worktree.yaml
+    with:
+      item: ${{ inputs.item }}
+      worktree_root: ${{ inputs.worktree_root }}
+      repo_dir: ${{ inputs.repo_dir }}
+
+  - id: dry_run_guard
+    name: Stop a dry run on a worktree that existed before the run
+    if: ${{ inputs.dry_run && steps.worktree.outputs.worktree_created == false }}
+    run: |
+      echo "Item ${{ inputs.item }}: ${{ steps.worktree.outputs.worktree_dir }} existed before the run."
+      echo "A dry run does not change a worktree that it did not create. Remove the worktree or do a real run."
+      exit 1
+
+  - id: issue
+    name: Write the issue content to the worktree
+    working_dir: ${{ steps.worktree.outputs.worktree_dir }}
+    run: |
+      set -euo pipefail
+
+      # The issue is fetched here, on the machine, rather than by the agents in
+      # the container: the host keeps its GitHub token in the OS keyring, which
+      # the mounted gh config directory does not carry, so gh is not
+      # authenticated inside the container.
+      gh issue view ${{ inputs.item }} --repo ${{ inputs.repo }} \
+        --json number,title,body,labels,url \
+        | jq -r '"# Issue #\(.number): \(.title)\n\nURL: \(.url)\nLabels: \([.labels[].name] | join(", "))\n\n\(.body)"' \
+        > .bld_issue.md
+
+      echo "Item ${{ inputs.item }}: wrote $(wc -l < .bld_issue.md) lines of issue content to .bld_issue.md"
+
+  - id: in_progress
+    name: Move the item to in progress
+    if: ${{ !inputs.dry_run }}
+    uses: actions/gh-project-status.yaml
+    with:
+      project_owner: ${{ inputs.project_owner }}
+      project_number: ${{ inputs.project_number }}
+      item: ${{ inputs.item }}
+      field: ${{ inputs.status_field }}
+      value: ${{ inputs.in_progress_status_value }}
+
+  - id: implement
+    name: Run the implementation pipeline
+    uses: dev/implementation.yaml
+    with:
+      item: ${{ inputs.item }}
+      branch: item-${{ inputs.item }}
+      worktree_dir: ${{ steps.worktree.outputs.worktree_dir }}
+      repo_dir: ${{ inputs.repo_dir }}
+      claude_dir: ${{ inputs.claude_dir }}
+      claude_config_file: ${{ inputs.claude_config_file }}
+      gh_config_dir: ${{ inputs.gh_config_dir }}
+
+  - id: verdict
+    name: Read the review verdict
+    working_dir: ${{ steps.worktree.outputs.worktree_dir }}
+    run: |
+      set -euo pipefail
+
+      if [ -f .bld_review_status ] && grep -q '^OK' .bld_review_status; then
+        echo "ok=true" >> $BLD_OUTPUTS
+        echo "Item ${{ inputs.item }}: review confirmed OK."
+      else
+        echo "ok=false" >> $BLD_OUTPUTS
+        echo "Item ${{ inputs.item }}: review did not confirm OK, skipping commit."
+        echo "Review status:"
+        cat .bld_review_status 2>/dev/null || echo "(no .bld_review_status file found)"
+        echo "The item stays in ${{ inputs.in_progress_status_value }} for an engineer to pick up."
+      fi
+
+  - id: stage
+    name: Stage the changes
+    working_dir: ${{ steps.worktree.outputs.worktree_dir }}
+    run: |
+      set -euo pipefail
+
+      if [ "${{ steps.verdict.outputs.ok }}" != "true" ]; then
+        echo "changed=false" >> $BLD_OUTPUTS
+        exit 0
+      fi
+
+      # Exclude bld's own worktree helper files (.bld_claude_session_*,
+      # .bld_last_output_*.md, .bld_review_status, .bld_commit_msg,
+      # .bld_pr_body.md) from the commit.
+      git add -A -- . ':!.bld_*'
+      if git diff --cached --quiet; then
+        echo "changed=false" >> $BLD_OUTPUTS
+        echo "Item ${{ inputs.item }}: no changes to commit."
+      else
+        echo "changed=true" >> $BLD_OUTPUTS
+        git diff --cached --stat
+      fi
+
+  - id: commit
+    name: Commit the changes
+    if: ${{ steps.stage.outputs.changed == true && !inputs.dry_run }}
+    working_dir: ${{ steps.worktree.outputs.worktree_dir }}
+    run: |
+      set -euo pipefail
+
+      # The review agent writes the conventional commit message, since it is the
+      # step that sees the final diff. Fall back to a generic message rather than
+      # failing the item when it did not write one.
+      if [ ! -s .bld_commit_msg ]; then
+        echo "chore: implement item ${{ inputs.item }}" > .bld_commit_msg
+      fi
+
+      git commit -F .bld_commit_msg
+
+  - id: push
+    name: Push the branch
+    if: ${{ steps.stage.outputs.changed == true && !inputs.dry_run }}
+    working_dir: ${{ steps.worktree.outputs.worktree_dir }}
+    run: |
+      set -euo pipefail
+      git push -u origin "item-${{ inputs.item }}"
+
+  - id: pr
+    name: Open or reuse the pull request
+    if: ${{ steps.stage.outputs.changed == true && !inputs.dry_run }}
+    working_dir: ${{ steps.worktree.outputs.worktree_dir }}
+    run: |
+      set -euo pipefail
+
+      branch="item-${{ inputs.item }}"
+      body_file=".bld_pr_body.md"
+
+      # gh pr create fails when a pull request for the branch already exists, which
+      # is the normal case on a re-run, so reuse the open one instead. No --base is
+      # needed: it defaults to the repository's default branch, which is what
+      # actions/git-worktree.yaml branched from.
+      pr_url="$(gh pr list --repo ${{ inputs.repo }} --head "$branch" --state open --json url -q '.[0].url // empty')"
+      if [ -z "$pr_url" ]; then
+        # The review agent writes the "### In this PR" body; fall back to a single
+        # bullet with the commit subject when it did not. Any Closes line is
+        # stripped first so a re-run cannot append a second one. The body is held
+        # in a variable because redirecting into the file being read truncates it.
+        if [ -s "$body_file" ]; then
+          body="$(grep -v '^Closes #' "$body_file" || true)"
+        fi
+        if [ -z "${body:-}" ]; then
+          body="$(printf '### In this PR\n\n- %s' "$(head -n 1 .bld_commit_msg)")"
+        fi
+        printf '%s\n\nCloses #%s\n' "$body" "${{ inputs.item }}" > "$body_file"
+
+        pr_url="$(gh pr create --repo ${{ inputs.repo }} --head "$branch" \
+          --assignee "${{ inputs.assignee }}" \
+          --title "$(head -n 1 .bld_commit_msg)" \
+          --body-file "$body_file")"
+      fi
+
+      echo "pr_url=$pr_url" >> $BLD_OUTPUTS
+      echo "Item ${{ inputs.item }}: $pr_url"
+
+  - id: in_review
+    name: Move the item to in review
+    if: ${{ steps.stage.outputs.changed == true && !inputs.dry_run }}
+    uses: actions/gh-project-status.yaml
+    with:
+      project_owner: ${{ inputs.project_owner }}
+      project_number: ${{ inputs.project_number }}
+      item: ${{ inputs.item }}
+      field: ${{ inputs.status_field }}
+      value: ${{ inputs.in_review_status_value }}
+
+  - id: dry_run_report
+    name: Report what a real run would do
+    if: ${{ inputs.dry_run }}
+    working_dir: ${{ steps.worktree.outputs.worktree_dir }}
+    run: |
+      set -euo pipefail
+
+      echo "Item ${{ inputs.item }}: dry run, verdict ok=${{ steps.verdict.outputs.ok }}, changed=${{ steps.stage.outputs.changed }}."
+      echo "A real run moves the item to ${{ inputs.in_progress_status_value }} in project ${{ inputs.project_number }}."
+      if [ "${{ steps.stage.outputs.changed }}" = "true" ]; then
+        echo "Staged changes:"
+        git diff --cached --stat
+        echo "Commit message: $(head -n 1 .bld_commit_msg 2>/dev/null || echo "chore: implement item ${{ inputs.item }}")"
+        echo "Pull request body:"
+        cat .bld_pr_body.md 2>/dev/null || echo "(no .bld_pr_body.md)"
+        echo "A real run pushes ${{ steps.worktree.outputs.branch }}, opens the pull request for ${{ inputs.assignee }} and moves the item to ${{ inputs.in_review_status_value }}."
+      fi
+
+  - id: cleanup
+    name: Remove the worktree
+    if: ${{ steps.stage.outputs.changed == true || inputs.dry_run }}
+    working_dir: ${{ inputs.repo_dir }}
+    run: |
+      set -euo pipefail
+
+      worktree_dir="${{ steps.worktree.outputs.worktree_dir }}"
+
+      if [ "${{ inputs.dry_run }}" = "true" ]; then
+        git -C "$worktree_dir" reset -q
+        if [ "${{ steps.worktree.outputs.worktree_created }}" = "true" ]; then
+          git worktree remove --force "$worktree_dir"
+          echo "Item ${{ inputs.item }}: dry run, removed $worktree_dir."
+        else
+          echo "Item ${{ inputs.item }}: dry run, $worktree_dir existed before the run, kept it."
+        fi
+        if [ "${{ steps.worktree.outputs.branch_created }}" = "true" ]; then
+          git branch -D "${{ steps.worktree.outputs.branch }}"
+        else
+          echo "Item ${{ inputs.item }}: dry run, ${{ steps.worktree.outputs.branch }} existed before the run, kept it."
+        fi
+        exit 0
+      fi
+
+      # Refuse to throw away real work. Only the pipeline's own .bld_ scratch files
+      # may be left behind, and every commit must already be on the remote.
+      if [ -n "$(git -C "$worktree_dir" status --porcelain -- . ':!.bld_*')" ]; then
+        echo "Item ${{ inputs.item }}: uncommitted changes in $worktree_dir, keeping it."
+        git -C "$worktree_dir" status --short -- . ':!.bld_*'
+        exit 0
+      fi
+
+      # A branch with no upstream has never been pushed, so treat a missing upstream
+      # as unpushed work rather than as an empty diff.
+      if ! upstream="$(git -C "$worktree_dir" rev-parse --abbrev-ref '@{u}' 2>/dev/null)"; then
+        echo "Item ${{ inputs.item }}: branch has no upstream, keeping $worktree_dir."
+        exit 0
+      fi
+
+      if [ -n "$(git -C "$worktree_dir" log --oneline "$upstream..HEAD")" ]; then
+        echo "Item ${{ inputs.item }}: unpushed commits in $worktree_dir, keeping it."
+        exit 0
+      fi
+
+      # --force is needed only because the .bld_ scratch files are untracked; the
+      # checks above already established there is nothing of value left here.
+      git worktree remove --force "$worktree_dir"
+
+      echo "Item ${{ inputs.item }}: removed $worktree_dir."
+      echo "Item ${{ inputs.item }}: branch item-${{ inputs.item }} is kept, the pull request is open on it."
+
+outputs:
+  verdict:
+    value: ${{ steps.verdict.outputs.ok }}
+    description: true when the review agent confirmed the implementation as OK
+  changed:
+    value: ${{ steps.stage.outputs.changed }}
+    description: true when the implementation left changes to commit

@@ -1,0 +1,46 @@
+version: 3
+type: action
+
+name: Resolve the Claude Code and GitHub CLI paths on the host
+
+steps:
+  - id: resolve
+    name: Resolve and check the host paths
+    run: |
+      set -euo pipefail
+
+      if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
+        claude_dir="$CLAUDE_CONFIG_DIR"
+        claude_config_file="$CLAUDE_CONFIG_DIR/.claude.json"
+      else
+        claude_dir="$HOME/.claude"
+        claude_config_file="$HOME/.claude.json"
+      fi
+
+      for path in "$claude_dir" "$claude_config_file"; do
+        if [ ! -e "$path" ]; then
+          echo "Expected Claude Code path $path does not exist. Run claude once on this machine first."
+          exit 1
+        fi
+      done
+
+      gh_config_dir="${GH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/gh}"
+
+      echo "claude_dir=$claude_dir" >> $BLD_OUTPUTS
+      echo "claude_config_file=$claude_config_file" >> $BLD_OUTPUTS
+      echo "gh_config_dir=$gh_config_dir" >> $BLD_OUTPUTS
+
+      echo "Claude dir        : $claude_dir"
+      echo "Claude config file: $claude_config_file"
+      echo "gh config dir     : $gh_config_dir"
+
+outputs:
+  claude_dir:
+    value: ${{ steps.resolve.outputs.claude_dir }}
+    description: Absolute host path to the Claude Code config directory
+  claude_config_file:
+    value: ${{ steps.resolve.outputs.claude_config_file }}
+    description: Absolute host path to the Claude Code account file (.claude.json)
+  gh_config_dir:
+    value: ${{ steps.resolve.outputs.gh_config_dir }}
+    description: Absolute host path to the GitHub CLI config directory

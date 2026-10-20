@@ -1,0 +1,308 @@
+version: 3
+type: pipeline
+
+name: Bug hunt
+
+inputs:
+  area:
+    type: text
+    description: Path in the repository that the agents search for bugs
+    default: crates/bld_runner/src
+    required: false
+  min_grade:
+    type: text
+    description: Lowest grade that is filed as an issue (Critical, Major or Minor)
+    default: Major
+    required: false
+  max_issues:
+    type: number
+    description: Maximum number of issues that one run creates. With 0 the run only hunts and uploads the hunt-results artifact
+    default: 10
+    required: false
+  dry_run:
+    type: boolean
+    description: When true, the run builds the issue bodies and the report but creates no issues
+    default: false
+    required: false
+  model:
+    type: text
+    description: Claude model id used by the hunt and the review agents
+    default: claude-opus-5-5
+    required: false
+  repo:
+    type: text
+    description: Repository that the issues are created in, in owner/name form
+    default: Kani-Maki-Gang/bld
+    required: false
+  repo_dir:
+    type: text
+    description: The local clone of the repository on the current machine, or a linked worktree of it
+    default: ${{ bld_project_dir }}
+    required: false
+  base_branch:
+    type: text
+    description: Remote branch that the hunt worktree is created from
+    default: master
+    required: false
+  worktree_root:
+    type: text
+    description: Directory under which the hunt worktree is created
+    default: ${{ bld_project_dir }}/../worktrees/bld
+    required: false
+
+jobs:
+  prepare:
+    runs_on: machine
+    steps:
+      - id: validate
+        name: Validate the inputs
+        run: |
+          set -euo pipefail
+
+          case "${{ inputs.min_grade }}" in
+            Critical|Major|Minor) ;;
+            *) echo "min_grade must be Critical, Major or Minor."; exit 1 ;;
+          esac
+
+      - id: paths
+        name: Resolve the Claude Code and gh paths
+        uses: actions/claude-host-paths.yaml
+
+      - id: worktree
+        name: Create the detached hunt worktree
+        run: |
+          set -euo pipefail
+
+          repo_dir="$(dirname "$(git -C "${{ inputs.repo_dir }}" rev-parse --path-format=absolute --git-common-dir)")"
+          worktree_root="$(realpath -m "${{ inputs.worktree_root }}")"
+          worktree_dir="$worktree_root/bug-hunt-${{ bld_run_id }}"
+
+          mkdir -p "$worktree_root"
+          git -C "$repo_dir" fetch origin "${{ inputs.base_branch }}"
+          git -C "$repo_dir" worktree add --detach "$worktree_dir" "origin/${{ inputs.base_branch }}"
+
+          if [ ! -e "$worktree_dir/${{ inputs.area }}" ]; then
+            echo "Area ${{ inputs.area }} does not exist in ${{ inputs.base_branch }}."
+            git -C "$repo_dir" worktree remove --force "$worktree_dir"
+            exit 1
+          fi
+
+          commit="$(git -C "$worktree_dir" rev-parse --short HEAD)"
+          echo "repo_dir=$repo_dir" >> $BLD_OUTPUTS
+          echo "path=$worktree_dir" >> $BLD_OUTPUTS
+          echo "commit=$commit" >> $BLD_OUTPUTS
+          echo "Main clone: $repo_dir"
+          echo "Worktree  : $worktree_dir"
+          echo "Commit    : $commit"
+
+      - id: context
+        name: Save the open issues and the labels to the worktree
+        working_dir: ${{ steps.worktree.outputs.path }}
+        run: |
+          set -euo pipefail
+
+          gh issue list --repo "${{ inputs.repo }}" --state open --limit 500 \
+            --json number,title,body,labels > .bld_open_issues.json
+          gh label list --repo "${{ inputs.repo }}" --limit 100 \
+            --json name,description > .bld_labels.json
+
+          if ! jq -e 'any(.[]; .name == "untriaged")' .bld_labels.json > /dev/null; then
+            echo "The label untriaged does not exist in ${{ inputs.repo }}."
+            exit 1
+          fi
+
+          echo "Open issues: $(jq length .bld_open_issues.json)"
+          echo "Labels     : $(jq length .bld_labels.json)"
+
+    outputs:
+      repo_dir:
+        value: ${{ steps.worktree.outputs.repo_dir }}
+        description: Absolute path to the main clone of the repository
+      worktree:
+        value: ${{ steps.worktree.outputs.path }}
+        description: Absolute path to the detached hunt worktree
+      commit:
+        value: ${{ steps.worktree.outputs.commit }}
+        description: Short hash of the commit that the hunt searches
+      claude_dir:
+        value: ${{ steps.paths.outputs.claude_dir }}
+        description: Absolute host path to the Claude Code config directory
+      claude_config_file:
+        value: ${{ steps.paths.outputs.claude_config_file }}
+        description: Absolute host path to the Claude Code account file
+      gh_config_dir:
+        value: ${{ steps.paths.outputs.gh_config_dir }}
+        description: Absolute host path to the GitHub CLI config directory
+
+  hunt:
+    runs_on: machine
+    needs: prepare
+    working_dir: ${{ jobs.prepare.outputs.worktree }}
+    steps:
+      - id: agents
+        name: Find, prove and review bugs
+        uses: dev/bug-hunt-agents.yaml
+        with:
+          worktree_dir: ${{ jobs.prepare.outputs.worktree }}
+          repo_dir: ${{ jobs.prepare.outputs.repo_dir }}
+          claude_dir: ${{ jobs.prepare.outputs.claude_dir }}
+          claude_config_file: ${{ jobs.prepare.outputs.claude_config_file }}
+          gh_config_dir: ${{ jobs.prepare.outputs.gh_config_dir }}
+          area: ${{ inputs.area }}
+          min_grade: ${{ inputs.min_grade }}
+          model: ${{ inputs.model }}
+
+      - id: collect
+        name: Collect the hunt results
+        run: |
+          set -euo pipefail
+
+          rm -rf .bld_hunt_results
+          mkdir -p .bld_hunt_results
+          cp .bld_bugs.json .bld_hunt_results/bugs.json
+          cp .bld_open_issues.json .bld_hunt_results/open_issues.json
+          cp .bld_labels.json .bld_hunt_results/labels.json
+          if [ -f crates/bld_runner/src/bug_probe.rs ]; then
+            cp crates/bld_runner/src/bug_probe.rs .bld_hunt_results/bug_probe.rs
+          fi
+          ls .bld_hunt_results
+
+      - upload: .bld_hunt_results
+        name: hunt-results
+
+      - id: cleanup
+        name: Remove the hunt worktree
+        working_dir: ${{ jobs.prepare.outputs.repo_dir }}
+        run: |
+          set -euo pipefail
+          git worktree remove --force "${{ jobs.prepare.outputs.worktree }}"
+          echo "Removed ${{ jobs.prepare.outputs.worktree }}. The results are in the hunt-results artifact."
+
+  file:
+    runs_on: machine
+    needs: [prepare, hunt]
+    if: ${{ inputs.max_issues > 0 }}
+    working_dir: ${{ bld_root_dir }}/tmp/bug-hunt-${{ bld_run_id }}
+    steps:
+      - download: hunt-results
+        to: ${{ bld_root_dir }}/tmp/bug-hunt-${{ bld_run_id }}
+
+      - id: select
+        name: Select the bugs to file
+        run: |
+          set -euo pipefail
+
+          titles="$(jq -c '[.[].title]' open_issues.json)"
+
+          jq -c --arg min "${{ inputs.min_grade }}" \
+            '{"Critical": 3, "Major": 2, "Minor": 1} as $rank
+             | [.bugs[]
+                | select(.review.verdict == "accept")
+                | select($rank[.grade] >= $rank[$min])
+                | select(.grade == "Minor" or .evidence.kind != "code")]
+             | sort_by(-$rank[.grade])' bugs.json > eligible.json
+
+          jq --argjson titles "$titles" \
+            '[.[] | select(.title | IN($titles[])) | {id, title, skipped: "duplicate title"}]' \
+            eligible.json > skipped.json
+
+          jq -c --argjson titles "$titles" --argjson max "${{ inputs.max_issues }}" \
+            '[.[] | select(.title | IN($titles[]) | not)] | .[:$max]' \
+            eligible.json > selected.json
+
+          jq -r '.[] | "\(.id): an open issue has the title \(.title), skipped."' skipped.json
+          jq -r '.[] | "\(.id): selected, \(.grade), \(.title)"' selected.json
+
+      - id: bodies
+        name: Build the issue body and labels for each selected bug
+        run: |
+          set -euo pipefail
+
+          mkdir -p bodies
+          allowed="$(jq -c '[.[].name]' labels.json)"
+          planned="[]"
+
+          while IFS= read -r bug; do
+            id="$(jq -r '.id' <<< "$bug")"
+            title="$(jq -r '.title' <<< "$bug")"
+
+            labels="$(jq -r --argjson allowed "$allowed" \
+              '([.labels[] | select(IN($allowed[]))] + ["bug", "untriaged"]) | unique | join(",")' <<< "$bug")"
+
+            jq -r --arg run "${{ bld_run_id }}" --arg start "${{ bld_start_time }}" --arg commit "${{ jobs.prepare.outputs.commit }}" \
+              '"## Grade\n**\(.grade)**: \(.grade_reason)\nEvidence (\(.evidence.kind)): \(.evidence.detail)\n\n"
+               + "## Problem\n\(.problem)\n\n"
+               + "## Example\n\(.example)\n\n"
+               + "## Technical analysis\n\(.technical_analysis)\n\n"
+               + "## Suggested fix\n\(.suggested_fix | map("- " + .) | join("\n"))\n\n"
+               + "## Acceptance criteria\n\(.acceptance_criteria | map("- " + .) | join("\n"))\n\n"
+               + "<sub>Found by dev/bug-hunt.yaml on commit \($commit), run \($run), started at \($start).</sub>"' <<< "$bug" > "bodies/$id.md"
+
+            planned="$(jq -c --arg id "$id" --arg title "$title" --arg labels "$labels" \
+              '. + [{id: $id, title: $title, labels: $labels, url: ""}]' <<< "$planned")"
+          done < <(jq -c '.[]' selected.json)
+
+          echo "$planned" > planned.json
+          echo "Built $(jq length planned.json) issue bodies."
+
+      - id: create
+        name: Create an issue for each selected bug
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          filed="[]"
+          while IFS= read -r issue; do
+            id="$(jq -r '.id' <<< "$issue")"
+            title="$(jq -r '.title' <<< "$issue")"
+            labels="$(jq -r '.labels' <<< "$issue")"
+
+            url="$(gh issue create --repo "${{ inputs.repo }}" --title "$title" \
+              --body-file "bodies/$id.md" --label "$labels" --type Bug)"
+            echo "$id: $url"
+
+            filed="$(jq -c --arg url "$url" '. + [$issue | fromjson | .url = $url]' --arg issue "$issue" <<< "$filed")"
+          done < <(jq -c '.[]' planned.json)
+
+          echo "$filed" > planned.json
+
+      - id: dry_run_summary
+        name: Report the issues that a real run would create
+        if: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          jq -r '.[] | "\(.id): dry run, issue \(.title) with labels \(.labels) not created."' planned.json
+
+      - id: report
+        name: Collect the report
+        run: |
+          set -euo pipefail
+
+          rm -rf report
+          mkdir -p report
+          jq --slurpfile skipped skipped.json '$skipped[0] + .' planned.json > report/filed.json
+          cp bugs.json report/bugs.json
+          cp -r bodies report/bodies
+          if [ -f bug_probe.rs ]; then
+            cp bug_probe.rs report/bug_probe.rs
+          fi
+
+          selected="$(jq length planned.json)"
+          skipped="$(jq length skipped.json)"
+          total="$(jq '.bugs | length' bugs.json)"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "Dry run: selected $selected of $total findings, skipped $skipped as duplicates."
+          else
+            echo "Filed $selected of $total findings, skipped $skipped as duplicates."
+          fi
+
+      - upload: report
+        name: bug-report
+
+      - id: cleanup
+        name: Remove the job directory
+        working_dir: ${{ bld_root_dir }}/tmp
+        run: |
+          set -euo pipefail
+          rm -rf "bug-hunt-${{ bld_run_id }}"
+          echo "Removed the job directory. The report is in the bug-report artifact."
