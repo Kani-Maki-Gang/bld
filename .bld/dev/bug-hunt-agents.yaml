@@ -1,0 +1,229 @@
+version: 3
+type: pipeline
+
+name: Find, prove and review bugs in an area of the repository
+
+inputs:
+  worktree_dir:
+    type: text
+    description: Absolute host path to the detached git worktree that the agents search (bind-mounted into the container at the same path)
+    required: true
+  repo_dir:
+    type: text
+    description: Absolute host path to the main repository clone, which holds the git directory of the worktree
+    required: true
+  claude_dir:
+    type: text
+    description: Absolute host path to the user's ~/.claude directory
+    required: true
+  claude_config_file:
+    type: text
+    description: Absolute host path to the user's ~/.claude.json
+    required: true
+  gh_config_dir:
+    type: text
+    description: Absolute host path to the user's gh config directory
+    required: true
+  area:
+    type: text
+    description: Path in the repository that the agents search for bugs
+    required: true
+  min_grade:
+    type: text
+    description: Lowest grade that the review agent accepts (Critical, Major or Minor)
+    required: true
+  model:
+    type: text
+    description: Claude model id used by both agents
+    default: claude-opus-5-5
+    required: false
+
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ""
+  ANTHROPIC_API_KEY: ""
+
+jobs:
+  agents:
+    runs_on:
+      image: ghcr.io/kani-maki-gang/bld-dev-agent:latest
+      pull: false
+      volumes:
+        - ${{ inputs.claude_dir }}:/root/.claude:z
+        - ${{ inputs.claude_config_file }}:/root/.bld_claude_config.json:z,ro
+        - ${{ inputs.gh_config_dir }}:/root/.config/gh:z
+        - ${{ inputs.repo_dir }}:${{ inputs.repo_dir }}:z
+        - ${{ inputs.worktree_dir }}:${{ inputs.worktree_dir }}:z
+    env:
+      CARGO_TERM_COLOR: never
+    steps:
+      - id: claude_config
+        name: Seed the Claude Code config in the container
+        run: |
+          set -euo pipefail
+
+          if [ -f /root/.bld_claude_config.json ]; then
+            cp /root/.bld_claude_config.json /root/.claude.json
+            chmod 600 /root/.claude.json
+          fi
+
+      - id: inputs_check
+        name: Check the hunt inputs in the worktree
+        working_dir: ${{ inputs.worktree_dir }}
+        run: |
+          set -euo pipefail
+
+          for file in .bld_open_issues.json .bld_labels.json; do
+            if ! jq -e . "$file" > /dev/null; then
+              echo "$file is missing or is not valid json. Run dev/bug-hunt.yaml."
+              exit 1
+            fi
+          done
+
+          if [ ! -e "${{ inputs.area }}" ]; then
+            echo "Area ${{ inputs.area }} does not exist in the worktree."
+            exit 1
+          fi
+
+          echo "Worktree   : $(pwd)"
+          echo "Commit     : $(git rev-parse --short HEAD)"
+          echo "Area       : ${{ inputs.area }}"
+          echo "Min grade  : ${{ inputs.min_grade }}"
+          echo "Open issues: $(jq length .bld_open_issues.json)"
+
+      - id: hunt
+        name: Hunt agent
+        uses: actions/claude-agent.yaml
+        with:
+          worktree_dir: ${{ inputs.worktree_dir }}
+          model: ${{ inputs.model }}
+          effort: high
+          session_key: hunt
+          prompt: |
+            You are doing a bug hunt on the Kani-Maki-Gang/bld repository, in this
+            worktree, at the current commit. Limit the hunt to this area:
+            ${{ inputs.area }}. Do not fix any bug. Your task is to find, prove and
+            describe bugs.
+
+            Grades:
+            - Critical: an obvious bug that is easy to identify and must be fixed.
+            - Major: a bug that comes from an edge case, but users will probably
+              hit it, so a fix must be considered.
+            - Minor: an obscure issue that users will possibly never hit, or behavior
+              that is intended but confusing.
+
+            Method. Use these steps for each suspected bug, in this order:
+            1. Read before you suspect. Read the full function and its callers. Do
+               not decide from a single line or from a name.
+            2. Trace the data. Start at the YAML field. Follow the value through
+               deserialization, the validator, the expression evaluator, the runner
+               and the platform. Find where the value becomes wrong. That place is
+               the root cause, not the place where the error shows.
+            3. Compare. Find similar code in the repository that works, for example
+               the same field in another step type or in the action runner. Write
+               down each difference. A difference is often the cause.
+            4. Make one hypothesis: "X is the root cause because Y". Test only that
+               hypothesis, with the smallest test that can prove it false.
+            5. Read the errors. When a test or a run fails, read the full message and
+               the location. Do not guess the cause of a failure.
+            6. If the test does not confirm the hypothesis, make a new hypothesis.
+               Do not change the test until it passes. After three hypotheses that
+               fail, stop and record the item as not proved.
+            7. Check the validator and the runtime together. A bug is often a
+               difference between what bld check accepts and what the runner does.
+            8. No claim without evidence. Grade a bug only after step 4 to step 6.
+               Say "not proved" when you do not know.
+
+            Evidence:
+            - Prove every Critical and Major bug. Use a unit test in a new file
+              crates/bld_runner/src/bug_probe.rs (registered in lib.rs under
+              cfg(all(test, feature = "all"))), or a run of target/debug/bld on a
+              throwaway project in /tmp. Run tests with
+              cargo test -p bld_runner --features all.
+            - If you cannot prove a bug, set evidence.kind to code and give it the
+              grade Minor.
+            - You cannot use a container engine here. Bugs that only a container run
+              can show must use evidence.kind code.
+
+            Scope rules:
+            - Read .bld_open_issues.json. Do not report a bug that an open issue
+              already describes.
+            - If two or more findings have one root cause, report them as one bug.
+            - Do not change any file outside bug_probe.rs and lib.rs. Do not commit.
+
+            Output: write .bld_bugs.json in the root of the worktree. Follow the
+            schema in the example below exactly, and do not write the review field.
+            Ids are B1, B2 and so on. grade is Critical, Major or Minor.
+            evidence.kind is test, run or code. suggested_fix and
+            acceptance_criteria are arrays of short sentences. Take labels only
+            from .bld_labels.json, and do not use bug or untriaged. Write all text
+            in ASD-STE100 Simplified Technical English. Be concise. Do not use em
+            dashes. In example, give a minimal v3 YAML file and the wrong output.
+            In technical_analysis, give file paths and function names.
+
+            {"schema":1,"area":"crates/bld_runner/src","commit":"77d48f6","bugs":[{"id":"B1","title":"Output values are cut at the second equals sign","grade":"Critical","grade_reason":"Silent data change on a common value; easy to find.","evidence":{"kind":"run","detail":"An output token=YWJj== gave the value YWJj."},"locations":["crates/bld_utils/src/variables.rs:20"],"labels":["runner"],"problem":"markdown text","example":"markdown text","technical_analysis":"markdown text","suggested_fix":["sentence"],"acceptance_criteria":["sentence"],"merged_from":[]}]}
+
+      - id: review
+        name: Review agent
+        uses: actions/claude-agent.yaml
+        with:
+          worktree_dir: ${{ inputs.worktree_dir }}
+          model: ${{ inputs.model }}
+          effort: high
+          session_key: review
+          prompt: |
+            Review the findings in .bld_bugs.json in the root of this worktree. A
+            different agent wrote them. Do not trust them: check each one yourself.
+            Do not fix any bug.
+
+            For each bug:
+            1. Read the code at the locations again. Run the probe test in
+               crates/bld_runner/src/bug_probe.rs or repeat the run. If you cannot
+               reproduce the bug, reject it.
+            1a. No verdict without evidence. Accept a bug only after you reproduced
+                it yourself in this session. If the probe test or the run gives a
+                different result from evidence.detail, reject the bug and give the
+                result that you got.
+            2. Check the grade against these definitions, and change it if it is
+               wrong:
+               - Critical: an obvious bug that is easy to identify and must be fixed.
+               - Major: a bug that comes from an edge case, but users will probably
+                 hit it, so a fix must be considered.
+               - Minor: an obscure issue that users will possibly never hit, or
+                 behavior that is intended but confusing.
+            3. A Critical or Major bug must have evidence.kind test or run. If it
+               does not, change the grade to Minor.
+            4. Compare the bug with .bld_open_issues.json. If an open issue already
+               describes it, reject it with the reason "duplicate of #N".
+            5. If two bugs have one root cause, merge them into the bug with the
+               higher grade, and list the other id in merged_from. Reject the other
+               bug with the reason "merged into Bx".
+            6. Reject bugs with a grade below ${{ inputs.min_grade }}. The order is
+               Minor, Major, Critical.
+            7. Make sure that every section is concise and correct, and that the
+               example reproduces the bug. Make sure that the text is in ASD-STE100
+               Simplified Technical English and has no em dashes. Correct the text
+               if necessary.
+
+            Write the review field on every bug, as
+            {"verdict":"accept","reason":"one line"} or
+            {"verdict":"reject","reason":"one line"}. Keep the rejected bugs in the
+            file. Change no other files.
+
+      - id: check
+        name: Check the review result
+        working_dir: ${{ inputs.worktree_dir }}
+        run: |
+          set -euo pipefail
+
+          if ! jq -e '.bugs | type == "array"' .bld_bugs.json > /dev/null; then
+            echo ".bld_bugs.json is missing or has no bugs array."
+            exit 1
+          fi
+
+          missing="$(jq '[.bugs[] | select((.review.verdict // "") | IN("accept", "reject") | not)] | length' .bld_bugs.json)"
+          if [ "$missing" != "0" ]; then
+            echo "$missing bugs have no review verdict."
+            exit 1
+          fi
+
+          jq -r '.bugs[] | "\(.id) \(.review.verdict) \(.grade) \(.title)"' .bld_bugs.json

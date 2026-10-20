@@ -1,37 +1,60 @@
 version: 3
 type: pipeline
 
-name: Build and push the dev agent image
+name: Build, check and publish the dev agent image
 
 inputs:
-  branch:
+  tag:
     type: text
-    default: master
+    description: Tag of the image
+    default: latest
     required: false
-  sha:
-    type: text
-    required: true
+  tools:
+    type: array
+    description: Commands that must run in the image. The smoke job runs each one with --version
+    default: [claude, gh, cargo, rustfmt, cargo-clippy, jq, git]
+    required: false
   registry:
     type: text
-    required: true
+    description: Registry that the image is tagged for
+    default: ghcr.io/kani-maki-gang
+    required: false
+  push:
+    type: boolean
+    description: When true, the publish job pushes the image to the registry
+    default: false
+    required: false
 
 env:
   image_name: bld-dev-agent
 
 jobs:
-  build:
-    runs_on: machine
+  smoke:
+    runs_on:
+      name: bld-dev-agent
+      tag: ${{ inputs.tag }}
+      dockerfile: ${{ bld_root_dir }}/images/Dockerfile.dev-agent
+    strategy:
+      fail_fast: true
+      matrix:
+        tool: ${{ inputs.tools }}
     steps:
-      - id: clone
-        name: Clone repository
-        run: git clone -b ${{ inputs.branch }} https://github.com/Kani-Maki-Gang/bld.git
+      - id: version
+        name: Run the tool in the image
+        run: ${{ matrix.tool }} --version
 
-      - id: build
-        name: Build dev agent image
-        working_dir: bld
-        run: >-
-          podman build
-          -t ${{ inputs.registry }}/${{ env.image_name }}:${{ inputs.sha }}
-          -t ${{ inputs.registry }}/${{ env.image_name }}:latest
-          -f ${{ bld_root_dir }}/images/Dockerfile.dev-agent
-          .
+  publish:
+    runs_on: machine
+    needs: smoke
+    steps:
+      - id: tag
+        name: Tag the image for the registry
+        run: |
+          set -euo pipefail
+          podman tag "${{ env.image_name }}:${{ inputs.tag }}" "${{ inputs.registry }}/${{ env.image_name }}:${{ inputs.tag }}"
+          echo "Tagged ${{ inputs.registry }}/${{ env.image_name }}:${{ inputs.tag }}"
+
+      - id: push
+        name: Push the image to the registry
+        if: ${{ inputs.push }}
+        run: podman push "${{ inputs.registry }}/${{ env.image_name }}:${{ inputs.tag }}"

@@ -1,0 +1,74 @@
+version: 3
+type: action
+
+name: Set a single select field of a GitHub project item
+
+inputs:
+  project_owner:
+    type: text
+    description: Owner (org or user) of the GitHub project
+    required: true
+  project_number:
+    type: number
+    description: GitHub project number
+    required: true
+  item:
+    type: number
+    description: Issue number of the project item
+    required: true
+  field:
+    type: text
+    description: Name of the single select field, e.g. Status
+    required: true
+  value:
+    type: text
+    description: Name of the option to set, e.g. In progress
+    required: true
+
+steps:
+  - id: ids
+    name: Resolve the project, field and option ids
+    run: |
+      set -euo pipefail
+
+      project_id="$(gh project view ${{ inputs.project_number }} --owner ${{ inputs.project_owner }} --format json | jq -r '.id')"
+
+      field_json="$(gh project field-list ${{ inputs.project_number }} --owner ${{ inputs.project_owner }} --format json)"
+      field_id="$(jq -r --arg name "${{ inputs.field }}" '.fields[] | select(.name == $name) | .id' <<< "$field_json")"
+      option_id="$(jq -r --arg name "${{ inputs.field }}" --arg value "${{ inputs.value }}" '.fields[] | select(.name == $name) | .options[] | select(.name == $value) | .id' <<< "$field_json")"
+
+      if [ -z "$field_id" ] || [ -z "$option_id" ]; then
+        echo "Could not resolve field '${{ inputs.field }}' or value '${{ inputs.value }}' on project ${{ inputs.project_number }}."
+        exit 1
+      fi
+
+      echo "project_id=$project_id" >> $BLD_OUTPUTS
+      echo "field_id=$field_id" >> $BLD_OUTPUTS
+      echo "option_id=$option_id" >> $BLD_OUTPUTS
+
+  - id: item
+    name: Resolve the project item id
+    run: |
+      set -euo pipefail
+
+      item_id="$(gh project item-list ${{ inputs.project_number }} --owner ${{ inputs.project_owner }} --format json --limit 200 \
+        | jq -r --argjson number ${{ inputs.item }} '.items[] | select((.content.number // empty) == $number) | .id')"
+
+      if [ -z "$item_id" ]; then
+        echo "Could not find item ${{ inputs.item }} on project ${{ inputs.project_number }}."
+        exit 1
+      fi
+
+      echo "item_id=$item_id" >> $BLD_OUTPUTS
+
+  - id: edit
+    name: Set the field value
+    run: |
+      set -euo pipefail
+
+      gh project item-edit --id "${{ steps.item.outputs.item_id }}" \
+        --project-id "${{ steps.ids.outputs.project_id }}" \
+        --field-id "${{ steps.ids.outputs.field_id }}" \
+        --single-select-option-id "${{ steps.ids.outputs.option_id }}"
+
+      echo "Item ${{ inputs.item }}: ${{ inputs.field }} set to ${{ inputs.value }}"

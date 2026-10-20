@@ -5,7 +5,7 @@ name: Implement a single GitHub project item
 
 inputs:
   item:
-    type: text
+    type: number
     description: GitHub issue/project item number being implemented
     required: true
   branch:
@@ -21,9 +21,7 @@ inputs:
     description: >-
       Absolute host path to the main repository clone. A linked worktree keeps its
       git directory under the main clone's .git/worktrees, so the main clone has to
-      be visible at the same path inside the container for git to work there. Pass
-      ${{ bld_project_dir }} from the caller; it cannot be an input default, since
-      defaults are used verbatim instead of being evaluated.
+      be visible at the same path inside the container for git to work there.
     required: true
   claude_dir:
     type: text
@@ -41,6 +39,22 @@ inputs:
     type: text
     description: Absolute host path to the user's gh config directory, e.g. ~/.config/gh (bind-mounted so the GitHub CLI is authenticated inside the container)
     required: true
+  agent_image:
+    type: text
+    description: Container image that the agents run in (built by dev/agent-image.yaml)
+    default: ghcr.io/kani-maki-gang/bld-dev-agent:latest
+    required: false
+  implement_model:
+    type: text
+    description: Claude model id used by the implementation agent
+    default: claude-opus-5-5
+    required: false
+  review_model:
+    type: text
+    description: Claude model id used by the review agent
+    default: claude-opus-5-5
+    required: false
+
 env:
   # Optional headless credentials for Claude Code, for when the mounted ~/.claude
   # does not hold a usable login (a fresh CI machine, or a host that keeps its
@@ -52,21 +66,11 @@ env:
 
 jobs:
   implement:
-    # Run on the dev agent image with the volumes the goal requires:
-    #   - the user's ~/.claude (auth/config/sessions)
-    #   - the git worktree, mounted at the same absolute path so paths line up
-    # plus the main clone (which holds the worktree's git dir), the user's
-    # ~/.claude.json and the gh config dir so `gh issue view` is authenticated.
-    #
     # The `:z` suffix on every bind is needed on SELinux hosts (Fedora and
     # friends), otherwise the container is denied access to the mounted paths.
-    #
-    # `pull` stays false so the locally built image is used; the ghcr copy is not
-    # publicly pullable at the moment. Flip it to true once the image is published.
-    # The image is spelled out because the runner only evaluates expressions in the
-    # `volumes` list of runs_on, not in `image`.
+    # `pull` stays false so the locally built image is used.
     runs_on:
-      image: ghcr.io/kani-maki-gang/bld-dev-agent:latest
+      image: ${{ inputs.agent_image }}
       pull: false
       volumes:
         - ${{ inputs.claude_dir }}:/root/.claude:z
@@ -74,10 +78,11 @@ jobs:
         - ${{ inputs.gh_config_dir }}:/root/.config/gh:z
         - ${{ inputs.repo_dir }}:${{ inputs.repo_dir }}:z
         - ${{ inputs.worktree_dir }}:${{ inputs.worktree_dir }}:z
+    env:
+      CARGO_TERM_COLOR: never
     steps:
-      - id: setup
-        name: Prepare the agent environment
-        working_dir: ${{ inputs.worktree_dir }}
+      - id: claude_config
+        name: Seed the Claude Code config in the container
         run: |
           set -euo pipefail
 
@@ -89,10 +94,16 @@ jobs:
             chmod 600 /root/.claude.json
           fi
 
+      - id: issue_file
+        name: Make sure the issue content is in the worktree
+        working_dir: ${{ inputs.worktree_dir }}
+        run: |
+          set -euo pipefail
+
           # The agents read the issue from this file instead of calling gh: the host
           # keeps its GitHub token in the OS keyring, so the mounted gh config
           # directory alone does not authenticate gh inside the container. The
-          # orchestrator writes the file; a manual run can either drop it in the
+          # actions/dev-item.yaml action writes the file; a manual run can either drop it in the
           # worktree by hand or export GH_TOKEN for the fallback below.
           if [ ! -f .bld_issue.md ]; then
             echo ".bld_issue.md not found, trying gh instead."
@@ -112,12 +123,12 @@ jobs:
           echo "Worktree  : $(pwd)"
           echo "Issue file: $(wc -l < .bld_issue.md) lines"
 
-      - id: implement
-        name: Implementation agent (Sonnet 5, medium effort)
+      - id: agent
+        name: Implementation agent (medium effort)
         uses: actions/claude-agent.yaml
         with:
           worktree_dir: ${{ inputs.worktree_dir }}
-          model: claude-sonnet-5
+          model: ${{ inputs.implement_model }}
           effort: medium
           session_key: implement
           prompt: >-
@@ -128,14 +139,44 @@ jobs:
             change uncommitted (do not run git commit), run the relevant tests and
             lints locally (cargo build, cargo test, and cargo fmt plus cargo clippy
             for the crates you touched), and stop once the implementation is
-            complete and ready for review.
+            complete and ready for review. Never add comments in code unless absolutely necessary.
+            In your implementation use the ponytail skill in order to better design your
+            implementation.
+    outputs:
+      session_id:
+        value: ${{ steps.agent.outputs.session_id }}
+        description: Claude Code session of the implementation agent
 
-      - id: review
-        name: Review agent (Opus 5, high effort)
+  review:
+    needs: implement
+    runs_on:
+      image: ${{ inputs.agent_image }}
+      pull: false
+      volumes:
+        - ${{ inputs.claude_dir }}:/root/.claude:z
+        - ${{ inputs.claude_config_file }}:/root/.bld_claude_config.json:z,ro
+        - ${{ inputs.gh_config_dir }}:/root/.config/gh:z
+        - ${{ inputs.repo_dir }}:${{ inputs.repo_dir }}:z
+        - ${{ inputs.worktree_dir }}:${{ inputs.worktree_dir }}:z
+    env:
+      CARGO_TERM_COLOR: never
+    steps:
+      - id: claude_config
+        name: Seed the Claude Code config in the container
+        run: |
+          set -euo pipefail
+
+          if [ -f /root/.bld_claude_config.json ]; then
+            cp /root/.bld_claude_config.json /root/.claude.json
+            chmod 600 /root/.claude.json
+          fi
+
+      - id: agent
+        name: Review agent (high effort)
         uses: actions/claude-agent.yaml
         with:
           worktree_dir: ${{ inputs.worktree_dir }}
-          model: claude-opus-5
+          model: ${{ inputs.review_model }}
           effort: high
           session_key: review
           prompt: >-
@@ -152,20 +193,25 @@ jobs:
             make that call yourself. Also write a file named .bld_commit_msg in the
             root of the worktree holding a conventional commit message for the whole
             change: a `<type>(<optional scope>): <subject>` first line using one of
-            feat, fix, chore, docs, refactor, test, build or ci, then a blank line,
-            then a short body explaining what changed and why. Finally write a file
-            named .bld_pr_body.md in the root of the worktree holding the pull
-            request description: the single line `### In this PR`, a blank line, then
-            a short bullet list with one brief remark per notable change. Nothing
-            else goes in that file - no title, no closing line, no other headings.
-            Write both files whether or not the verdict is OK, and do not mention
-            yourself or the pipeline in either.
+            feat, fix, chore, docs, refactor, test, build or ci. Add only a title in
+            commit, no body. Finally write a file named .bld_pr_body.md in the root of
+            the worktree holding the pull request description: the single line
+            `### In this PR`, a blank line, then a short bullet list with one brief
+            remark per notable change. Nothing else goes in that file - no title,
+            no closing line, no other headings. Write both files whether or not the
+            verdict is OK, and do not mention yourself or the pipeline in either.
+            In your implementation use the ponytail skill in order to better review the
+            implementation.
 
       - id: outcome
         name: Report the review outcome
-        working_dir: ${{ inputs.worktree_dir }}
         run: |
           set -euo pipefail
+          BLD_OUTPUTS="$(realpath -m "$BLD_OUTPUTS")"
+          cd "${{ inputs.worktree_dir }}"
+
+          echo "Implementation session: ${{ jobs.implement.outputs.session_id }}"
+          echo "Review session        : ${{ steps.agent.outputs.session_id }}"
 
           if [ ! -f .bld_review_status ]; then
             echo "Item ${{ inputs.item }}: the review agent left no .bld_review_status file."
@@ -176,4 +222,13 @@ jobs:
           cat .bld_review_status
 
           # A NEEDS_HUMAN verdict is not a pipeline failure. The message above is
-          # what the engineer picks up and the commit step leaves the item alone.
+          # what the engineer picks up and the verdict step of actions/dev-item.yaml
+          # leaves the item alone.
+          echo "status=$(head -n 1 .bld_review_status | cut -d: -f1)" >> $BLD_OUTPUTS
+    outputs:
+      session_id:
+        value: ${{ steps.agent.outputs.session_id }}
+        description: Claude Code session of the review agent
+      status:
+        value: ${{ steps.outcome.outputs.status }}
+        description: Review verdict, OK or NEEDS_HUMAN

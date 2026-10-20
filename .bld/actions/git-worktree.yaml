@@ -5,7 +5,7 @@ name: Create a branch and git worktree for a GitHub project item
 
 inputs:
   item:
-    type: text
+    type: number
     description: GitHub issue/project item number to work on
     required: true
   worktree_root:
@@ -14,10 +14,7 @@ inputs:
     required: true
   repo_dir:
     type: text
-    description: >-
-      The main repository clone the worktree is created from. Pass
-      ${{ bld_project_dir }} from the caller - it cannot be an input default here,
-      since defaults are used verbatim instead of being evaluated.
+    description: The main repository clone the worktree is created from
     required: true
   base_branch:
     type: text
@@ -26,34 +23,56 @@ inputs:
     required: false
 
 steps:
-  - id: create
-    name: Create branch and worktree for the item
-    # Machine steps default to bld's own tmp directory, so point git at the clone.
-    # The cd lives in the script because expressions in an action step's
-    # `working_dir` are not evaluated by the runner (see runner/v3/action.rs).
+  - id: fetch
+    name: Fetch the remote branches
+    working_dir: ${{ inputs.repo_dir }}
     run: |
       set -euo pipefail
-
-      cd "${{ inputs.repo_dir }}"
-
-      branch="item-${{ inputs.item }}"
-      worktree_dir="${{ inputs.worktree_root }}/item-${{ inputs.item }}"
-      base="${{ inputs.base_branch }}"
-
       mkdir -p "${{ inputs.worktree_root }}"
       git fetch origin
 
+  - id: create
+    name: Create branch and worktree for the item
+    working_dir: ${{ inputs.repo_dir }}
+    run: |
+      set -euo pipefail
+
+      branch="item-${{ inputs.item }}"
+      worktree_dir="${{ inputs.worktree_root }}/item-${{ inputs.item }}"
+      worktree_created=false
+      branch_created=false
+
       if [ -d "$worktree_dir" ]; then
         echo "Worktree for item ${{ inputs.item }} already exists at $worktree_dir"
-        exit 0
-      fi
-
-      if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
-        git worktree add "$worktree_dir" "$branch"
       elif git show-ref --verify --quiet "refs/heads/$branch"; then
         git worktree add "$worktree_dir" "$branch"
+        worktree_created=true
+      elif git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+        git worktree add "$worktree_dir" "$branch"
+        worktree_created=true
+        branch_created=true
       else
-        git worktree add "$worktree_dir" -b "$branch" "origin/$base"
+        git worktree add "$worktree_dir" -b "$branch" "origin/${{ inputs.base_branch }}"
+        worktree_created=true
+        branch_created=true
       fi
 
-      echo "Worktree for item ${{ inputs.item }} ready at $worktree_dir on $branch"
+      echo "worktree_dir=$worktree_dir" >> $BLD_OUTPUTS
+      echo "branch=$branch" >> $BLD_OUTPUTS
+      echo "worktree_created=$worktree_created" >> $BLD_OUTPUTS
+      echo "branch_created=$branch_created" >> $BLD_OUTPUTS
+      echo "Worktree for item ${{ inputs.item }} ready at $worktree_dir on $branch (worktree created: $worktree_created, branch created: $branch_created)"
+
+outputs:
+  worktree_dir:
+    value: ${{ steps.create.outputs.worktree_dir }}
+    description: Absolute path to the item worktree
+  branch:
+    value: ${{ steps.create.outputs.branch }}
+    description: Name of the item branch, item-<number>
+  worktree_created:
+    value: ${{ steps.create.outputs.worktree_created }}
+    description: true when this run added the worktree, false when it existed before
+  branch_created:
+    value: ${{ steps.create.outputs.branch_created }}
+    description: true when this run created the local branch, false when it existed before
