@@ -1,5 +1,6 @@
 use crate::pipeline::{v1, v2};
 use crate::traits::{IntoVariables, Variables};
+use bld_models::dtos::FileType;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
@@ -264,6 +265,13 @@ impl VersionedFile {
                 .flat_map(|x| x.get_local())
                 .map(|x| x.to_owned())
                 .collect(),
+        }
+    }
+
+    pub fn file_type(&self) -> FileType {
+        match self {
+            VersionedFile::Version3(files_v3::RunnerFile::ActionFileType(_)) => FileType::Action,
+            _ => FileType::Pipeline,
         }
     }
 }
