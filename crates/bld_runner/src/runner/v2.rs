@@ -435,7 +435,7 @@ impl Runner {
         if let Some(name) = &self.pipeline.name {
             writeln!(message, "{:<15}: {name}", "Name")?;
         }
-        writeln!(message, "{:<15}: {}", "Runs on", &self.pipeline.runs_on)?;
+        writeln!(message, "{:<15}: {}", "Runs on", self.pipeline.runs_on)?;
         writeln!(message, "{:<15}: 2", "Version")?;
 
         self.logger.write_line(message).await

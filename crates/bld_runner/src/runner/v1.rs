@@ -106,7 +106,7 @@ impl Runner {
         if let Some(name) = &self.pipeline.name {
             writeln!(message, "{:<10}: {name}", "Name")?;
         }
-        writeln!(message, "{:<10}: {}", "Runs on", &self.pipeline.runs_on)?;
+        writeln!(message, "{:<10}: {}", "Runs on", self.pipeline.runs_on)?;
         writeln!(message, "{:<10}: 1", "Version")?;
 
         self.logger.write_line(message).await
@@ -128,7 +128,7 @@ impl Runner {
         }
 
         for (key, value) in self.pipeline.environment.iter() {
-            let full_name = format!("{KEYWORD_ENV_V1}{}", &key);
+            let full_name = format!("{KEYWORD_ENV_V1}{}", key);
             txt_with_env = txt_with_env.replace(&full_name, value);
         }
 
@@ -143,7 +143,7 @@ impl Runner {
         }
 
         for (key, value) in self.pipeline.variables.iter() {
-            let full_name = format!("{KEYWORD_VAR_V1}{}", &key);
+            let full_name = format!("{KEYWORD_VAR_V1}{}", key);
             txt_with_vars = txt_with_vars.replace(&full_name, value);
         }
 
