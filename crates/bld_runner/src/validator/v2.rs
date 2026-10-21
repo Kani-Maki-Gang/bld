@@ -91,11 +91,11 @@ impl<'a> PipelineValidator<'a> {
         symbols.insert(KEYWORD_RUN_PROPS_ID_V2);
         symbols.insert(KEYWORD_RUN_PROPS_START_TIME_V2);
 
-        for (k, _) in pipeline.variables.iter() {
+        for k in pipeline.variables.keys() {
             symbols.insert(k);
         }
 
-        for (k, _) in pipeline.environment.iter() {
+        for k in pipeline.environment.keys() {
             symbols.insert(k);
         }
 

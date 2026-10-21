@@ -44,11 +44,11 @@ impl External {
 
         self.pipeline = context.transform(self.pipeline.to_owned()).await?;
 
-        for (_, v) in self.variables.iter_mut() {
+        for v in self.variables.values_mut() {
             *v = context.transform(v.to_owned()).await?;
         }
 
-        for (_, v) in self.environment.iter_mut() {
+        for v in self.environment.values_mut() {
             *v = context.transform(v.to_owned()).await?;
         }
 
