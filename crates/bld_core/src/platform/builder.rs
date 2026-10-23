@@ -31,6 +31,7 @@ pub struct PlatformBuilder<'a> {
     config: Option<Arc<BldConfig>>,
     pipeline_env: Option<&'a HashMap<String, String>>,
     env: Option<Arc<HashMap<String, String>>>,
+    shell: Option<String>,
     logger: Option<Arc<Logger>>,
     conn: Option<Arc<DatabaseConnection>>,
 }
@@ -58,6 +59,11 @@ impl<'a> PlatformBuilder<'a> {
 
     pub fn env(mut self, env: Arc<HashMap<String, String>>) -> Self {
         self.env = Some(env);
+        self
+    }
+
+    pub fn shell(mut self, shell: Option<String>) -> Self {
+        self.shell = shell;
         self
     }
 
@@ -124,6 +130,7 @@ impl<'a> PlatformBuilder<'a> {
                 Platform::machine(Box::new(machine))
             }
         }
+        .with_shell(self.shell)
         .into_arc();
 
         Ok(platform)

@@ -38,6 +38,7 @@ pub enum PlatformMessage {
     },
     Shell {
         logger: Arc<Logger>,
+        shell: Option<String>,
         working_dir: Option<String>,
         command: String,
         resp_tx: oneshot::Sender<Result<HashMap<String, String>>>,
@@ -84,11 +85,12 @@ impl PlatformBackend {
 
                 PlatformMessage::Shell {
                     logger,
+                    shell,
                     working_dir,
                     command,
                     resp_tx,
                 } => {
-                    let res = self.shell(logger, working_dir, command).await;
+                    let res = self.shell(logger, shell, working_dir, command).await;
                     resp_tx
                         .send(res)
                         .map_err(|_| anyhow!("oneshot channel closed"))?;
@@ -118,10 +120,13 @@ impl PlatformBackend {
     pub async fn shell(
         &self,
         logger: Arc<Logger>,
+        shell: Option<String>,
         working_dir: Option<String>,
         command: String,
     ) -> Result<HashMap<String, String>> {
-        self.ssh.sh(logger, &working_dir, &command).await
+        self.ssh
+            .sh(logger, shell.as_deref(), &working_dir, &command)
+            .await
     }
 
     pub async fn dispose(&mut self) -> Result<()> {
@@ -131,6 +136,7 @@ impl PlatformBackend {
 
 pub struct Platform {
     id: String,
+    shell: Option<String>,
     inner: PlatformType,
 }
 
@@ -139,6 +145,7 @@ impl Platform {
         let id = Uuid::new_v4().to_string();
         Self {
             id,
+            shell: None,
             inner: PlatformType::Machine(machine),
         }
     }
@@ -147,6 +154,7 @@ impl Platform {
         let id = Uuid::new_v4().to_string();
         Self {
             id,
+            shell: None,
             inner: PlatformType::Container(container),
         }
     }
@@ -164,6 +172,7 @@ impl Platform {
 
         Self {
             id,
+            shell: None,
             inner: PlatformType::Ssh(tx),
         }
     }
@@ -171,8 +180,14 @@ impl Platform {
     pub fn mock() -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
+            shell: None,
             inner: PlatformType::Mock,
         }
+    }
+
+    pub fn with_shell(mut self, shell: Option<String>) -> Self {
+        self.shell = shell;
+        self
     }
 
     pub fn id(&self) -> &str {
@@ -231,14 +246,18 @@ impl Platform {
         working_dir: &Option<String>,
         command: &str,
     ) -> Result<HashMap<String, String>> {
+        let shell = self.shell.as_deref();
         match &self.inner {
-            PlatformType::Machine(machine) => machine.sh(logger, working_dir, command).await,
-            PlatformType::Container(container) => container.sh(logger, working_dir, command).await,
+            PlatformType::Machine(machine) => machine.sh(logger, shell, working_dir, command).await,
+            PlatformType::Container(container) => {
+                container.sh(logger, shell, working_dir, command).await
+            }
             PlatformType::Ssh(ssh) => {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
                 ssh.send(PlatformMessage::Shell {
                     logger,
+                    shell: self.shell.clone(),
                     working_dir: working_dir.clone(),
                     command: command.to_string(),
                     resp_tx,

@@ -9,7 +9,10 @@ use std::{
     process::ExitStatus,
     sync::Arc,
 };
-use tokio::fs::{copy, create_dir_all, read_dir, read_to_string, remove_dir_all};
+use tokio::{
+    fs::{copy, create_dir_all, read_dir, read_to_string, remove_dir_all},
+    process::Command,
+};
 use tracing::debug;
 use uuid::Uuid;
 
@@ -121,6 +124,7 @@ impl Machine {
     pub async fn sh(
         &self,
         logger: Arc<Logger>,
+        shell: Option<&str>,
         working_dir: &Option<String>,
         input: &str,
     ) -> Result<HashMap<String, String>> {
@@ -130,7 +134,14 @@ impl Machine {
         let current_dir = self.resolve_path(working_dir.as_ref().unwrap_or(&self.tmp_dir));
         debug!("resolved working directory to {current_dir}");
 
-        let mut shell = get_shell(&mut vec![input])?;
+        let mut shell = match shell {
+            Some(shell) => {
+                let mut command = Command::new(shell);
+                command.args(["-c", input]);
+                command
+            }
+            None => get_shell(&mut vec![input])?,
+        };
         shell.envs(&self.env);
         shell.env(BLD_OUTPUTS_ENV_VAR_V3, &outputs_file);
         shell.current_dir(current_dir);
