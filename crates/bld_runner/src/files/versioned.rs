@@ -1,6 +1,5 @@
 use crate::pipeline::{v1, v2};
 use crate::traits::{IntoVariables, Variables};
-use bld_models::dtos::FileType;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
@@ -18,6 +17,7 @@ use {
     anyhow::{Result, anyhow},
     bld_config::BldConfig,
     bld_core::fs::FileSystem,
+    bld_models::dtos::FileType,
     bld_pkg::PackageManager,
     futures::Future,
     std::collections::HashMap,
@@ -268,6 +268,7 @@ impl VersionedFile {
         }
     }
 
+    #[cfg(feature = "all")]
     pub fn file_type(&self) -> FileType {
         match self {
             VersionedFile::Version3(files_v3::RunnerFile::ActionFileType(_)) => FileType::Action,
