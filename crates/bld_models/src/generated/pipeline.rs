@@ -9,6 +9,7 @@ pub struct Model {
     pub id: String,
     pub name: String,
     pub date_created: DateTime,
+    pub file_type: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

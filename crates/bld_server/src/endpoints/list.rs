@@ -28,6 +28,7 @@ pub async fn get(
             .map(|x| ListResponse {
                 id: x.id,
                 pipeline: x.name,
+                file_type: x.file_type.as_str().into(),
             })
             .collect();
         return HttpResponse::Ok().json(pips);

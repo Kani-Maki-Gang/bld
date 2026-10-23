@@ -8,6 +8,7 @@ use crate::{
     context::use_app_dialog,
     error::{DialogCard, ErrorBanner},
 };
+use bld_models::dtos::FileType;
 use leptos::*;
 use leptos_router::*;
 
@@ -30,6 +31,7 @@ fn CronJobsNewDialog() -> impl IntoView {
                     Some(Ok(list)) => {
                         let search = search.get();
                         list.into_iter()
+                            .filter(|p| p.file_type != FileType::Action)
                             .filter(|p| search.is_empty() || p.pipeline.contains(&search))
                             .map(|p| {
                                 let name = p.pipeline.clone();

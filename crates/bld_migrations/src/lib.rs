@@ -17,6 +17,7 @@ mod m20230907_190709_create_cron_job_environment_variables_table;
 mod m20240630_162930_login_attempts;
 mod m20260705_163911_add_artifacts;
 mod m20261015_120000_add_cron_jobs_is_enabled;
+mod m20261020_120000_add_pipeline_file_type;
 
 pub struct Migrator;
 
@@ -41,6 +42,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20240630_162930_login_attempts::Migration),
             Box::new(m20260705_163911_add_artifacts::Migration),
             Box::new(m20261015_120000_add_cron_jobs_is_enabled::Migration),
+            Box::new(m20261020_120000_add_pipeline_file_type::Migration),
         ]
     }
 }

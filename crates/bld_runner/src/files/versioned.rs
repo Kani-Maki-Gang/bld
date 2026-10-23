@@ -17,6 +17,7 @@ use {
     anyhow::{Result, anyhow},
     bld_config::BldConfig,
     bld_core::fs::FileSystem,
+    bld_models::dtos::FileType,
     bld_pkg::PackageManager,
     futures::Future,
     std::collections::HashMap,
@@ -264,6 +265,14 @@ impl VersionedFile {
                 .flat_map(|x| x.get_local())
                 .map(|x| x.to_owned())
                 .collect(),
+        }
+    }
+
+    #[cfg(feature = "all")]
+    pub fn file_type(&self) -> FileType {
+        match self {
+            VersionedFile::Version3(files_v3::RunnerFile::ActionFileType(_)) => FileType::Action,
+            _ => FileType::Pipeline,
         }
     }
 }

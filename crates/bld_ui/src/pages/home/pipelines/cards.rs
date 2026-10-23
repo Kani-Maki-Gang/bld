@@ -12,7 +12,7 @@ use crate::{
     error::ErrorBanner,
     pages::home::shared::{health_last, health_rate, health_state, health_ticks, pipeline_href},
 };
-use bld_models::dtos::{ListResponse, PipelineHealthKpi};
+use bld_models::dtos::{FileType, ListResponse, PipelineHealthKpi};
 use leptos::*;
 use leptos_router::A;
 use leptos_use::signal_debounced;
@@ -35,6 +35,7 @@ fn PipelineCard(
             "never run".to_string(),
         ),
     };
+    let is_action = pipeline.file_type == FileType::Action;
     let id = pipeline.id.clone();
     let name = pipeline.pipeline.clone();
     let info_href = pipeline_href(&pipeline.id, &pipeline.pipeline);
@@ -53,15 +54,30 @@ fn PipelineCard(
                         {pipeline.id}
                     </div>
                 </div>
-                <StateBadge state=state />
+                {if is_action {
+                    view! {
+                        <span class="inline-flex items-center h-[21px] px-2 rounded-md font-mono text-[11px] font-medium bg-accent/[.12] text-accent-ink">
+                            "action"
+                        </span>
+                    }
+                        .into_view()
+                } else {
+                    view! { <StateBadge state=state /> }.into_view()
+                }}
             </div>
             <TickStrip states=ticks tick_class="max-w-[9px] h-4" />
             <div class="flex items-center justify-between gap-3 pt-3 border-t border-line-soft">
                 <span class="text-xs text-ink-muted truncate">{summary}</span>
                 <div class="flex gap-1.5 shrink-0">
-                    <LinkButton href=run_href variant=ButtonVariant::Secondary size=ButtonSize::Sm>
-                        "Run"
-                    </LinkButton>
+                    <Show when=move || !is_action fallback=|| view! {}>
+                        <LinkButton
+                            href=run_href.clone()
+                            variant=ButtonVariant::Secondary
+                            size=ButtonSize::Sm
+                        >
+                            "Run"
+                        </LinkButton>
+                    </Show>
                     <PipelineMoveButton
                         id=Signal::derive(move || id.clone())
                         name=Signal::derive({
