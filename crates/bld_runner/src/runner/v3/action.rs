@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Write, sync::Arc};
+use std::{collections::HashMap, fmt::Write, path::Path, sync::Arc};
 
 use anyhow::{Result, anyhow, bail};
 use bld_config::BldConfig;
@@ -43,6 +43,7 @@ pub struct ActionRunner<S: RootState> {
     pub run_ctx: Arc<Context>,
     pub regex_cache: Arc<RegexCache>,
     pub package_manager: Arc<PackageManager>,
+    pub working_dir: Option<String>,
 }
 
 impl<S: RootState> ActionRunner<S> {
@@ -85,10 +86,10 @@ impl<S: RootState> ActionRunner<S> {
     }
 
     fn resolve_working_dir(&mut self, working_dir: &Option<String>) -> Result<Option<String>> {
-        working_dir
-            .as_deref()
-            .map(|wd| self.eval_all_expr(wd))
-            .transpose()
+        match working_dir {
+            Some(wd) => self.eval_all_expr(wd).map(Some),
+            None => Ok(self.working_dir.clone()),
+        }
     }
 
     async fn shell(
@@ -228,6 +229,7 @@ impl<S: RootState> ActionRunner<S> {
             .regex_cache(self.regex_cache.clone())
             .package_manager(self.package_manager.clone())
             .artifacts(self.artifacts.clone())
+            .working_dir(self.working_dir.clone())
             .is_child(true)
             .build()
             .await?;
@@ -283,15 +285,25 @@ impl<S: RootState> ActionRunner<S> {
         eval_all_expressions_map(&expr_exec, &self.expr_regex, &outputs)
     }
 
+    fn resolve_artifact_path(&mut self, path: &str) -> Result<String> {
+        let path = self.eval_all_expr(path)?;
+        match self.resolve_working_dir(&None)? {
+            Some(wd) if Path::new(&path).is_relative() => {
+                Ok(Path::new(&wd).join(&path).display().to_string())
+            }
+            _ => Ok(path),
+        }
+    }
+
     async fn download_artifact(&mut self, download: &DownloadArtifact) -> Result<()> {
-        let local_path = self.eval_all_expr(&download.to)?;
+        let local_path = self.resolve_artifact_path(&download.to)?;
         self.artifacts
             .download(self.platform.clone(), &download.download, &local_path)
             .await
     }
 
     async fn upload_artifact(&mut self, upload: &UploadArtifact) -> Result<()> {
-        let local_path = self.eval_all_expr(&upload.upload)?;
+        let local_path = self.resolve_artifact_path(&upload.upload)?;
         self.artifacts
             .upload(self.platform.clone(), &upload.name, &local_path)
             .await
@@ -333,6 +345,7 @@ impl ActionRunner<ActionState> {
         run_ctx: Arc<Context>,
         regex_cache: Arc<RegexCache>,
         package_manager: Arc<PackageManager>,
+        working_dir: Option<String>,
     ) -> Self {
         let mut state = ActionState::default();
         for step in &action.steps {
@@ -351,6 +364,7 @@ impl ActionRunner<ActionState> {
             run_ctx,
             regex_cache,
             package_manager,
+            working_dir,
         }
     }
 
@@ -417,6 +431,7 @@ mod tests {
             run_ctx,
             regex_cache,
             package_manager,
+            working_dir: None,
         };
 
         assert!(matches!(runner.condition(None), Ok(true)));
@@ -472,6 +487,7 @@ mod tests {
             run_ctx,
             regex_cache,
             package_manager,
+            working_dir: None,
         };
 
         assert_eq!(runner.resolve_working_dir(&None).unwrap(), None);
@@ -481,6 +497,28 @@ mod tests {
                 .resolve_working_dir(&Some("${{ inputs.worktree_dir }}".to_string()))
                 .unwrap(),
             Some("/tmp/some-worktree".to_string())
+        );
+
+        runner.working_dir = Some("/job/working/dir".to_string());
+        assert_eq!(
+            runner.resolve_working_dir(&None).unwrap(),
+            Some("/job/working/dir".to_string())
+        );
+        assert_eq!(
+            runner
+                .resolve_working_dir(&Some("/step/working/dir".to_string()))
+                .unwrap(),
+            Some("/step/working/dir".to_string())
+        );
+
+        // Relative artifact paths are joined to the job working directory.
+        assert_eq!(
+            runner.resolve_artifact_path("dist/out.txt").unwrap(),
+            "/job/working/dir/dist/out.txt"
+        );
+        assert_eq!(
+            runner.resolve_artifact_path("/abs/out.txt").unwrap(),
+            "/abs/out.txt"
         );
     }
 
@@ -555,6 +593,7 @@ mod tests {
             run_ctx,
             regex_cache,
             package_manager,
+            working_dir: None,
         };
 
         // Act
@@ -617,6 +656,7 @@ mod tests {
             run_ctx,
             regex_cache,
             package_manager,
+            working_dir: None,
         };
 
         let result = runner.execute().await;
@@ -675,6 +715,7 @@ mod tests {
             run_ctx,
             regex_cache,
             package_manager,
+            working_dir: None,
         };
 
         // Act
@@ -738,6 +779,7 @@ mod tests {
             run_ctx,
             regex_cache,
             package_manager,
+            working_dir: None,
         };
 
         // Act
@@ -805,6 +847,7 @@ mod tests {
             run_ctx,
             regex_cache,
             package_manager,
+            working_dir: None,
         };
 
         let result = runner.execute().await;
@@ -869,6 +912,7 @@ mod tests {
             run_ctx,
             regex_cache,
             package_manager,
+            working_dir: None,
         };
 
         let result = runner.execute().await;
@@ -933,6 +977,7 @@ mod tests {
             run_ctx,
             regex_cache,
             package_manager,
+            working_dir: None,
         };
 
         let result = runner.execute().await;
@@ -980,6 +1025,7 @@ mod tests {
             run_ctx,
             regex_cache,
             package_manager,
+            working_dir: None,
         };
 
         let result = runner.execute().await;
@@ -1044,6 +1090,7 @@ mod tests {
             run_ctx,
             regex_cache,
             package_manager,
+            working_dir: None,
         };
 
         let outputs = runner.resolve_outputs().unwrap();
@@ -1095,6 +1142,7 @@ mod tests {
             run_ctx,
             regex_cache,
             package_manager,
+            working_dir: None,
         };
 
         let outputs = runner.resolve_outputs().unwrap();
@@ -1181,6 +1229,7 @@ steps:
             run_ctx,
             regex_cache,
             package_manager,
+            working_dir: None,
         };
 
         let result = runner.execute().await;
@@ -1278,6 +1327,7 @@ steps:
             run_ctx,
             regex_cache,
             package_manager,
+            working_dir: None,
         };
 
         let result = runner.execute().await;
@@ -1337,6 +1387,7 @@ steps:
             run_ctx,
             regex_cache,
             package_manager,
+            working_dir: None,
         };
 
         let result = runner.execute().await;
@@ -1410,6 +1461,7 @@ steps:
             run_ctx,
             regex_cache,
             package_manager,
+            working_dir: None,
         };
 
         let result = runner.execute().await;
@@ -1443,6 +1495,7 @@ steps:
             Context::mock().into_arc(),
             RegexCache::mock().into_arc(),
             PackageManager::new(config).into_arc(),
+            None,
         )
     }
 

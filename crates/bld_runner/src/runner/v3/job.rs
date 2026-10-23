@@ -407,6 +407,7 @@ impl<S: RootState> JobRunner<S> {
             .regex_cache(self.options.regex_cache.clone())
             .package_manager(self.options.package_manager.clone())
             .artifacts(self.options.artifacts.clone())
+            .working_dir(self.resolve_working_dir(&None)?)
             .is_child(true)
             .build()
             .await?;

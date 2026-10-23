@@ -54,6 +54,7 @@ pub struct RunnerBuilder<'a> {
     package_manager: Option<Arc<PackageManager>>,
     artifacts_store: Option<ArtifactsStore>,
     artifacts: Option<Arc<Artifacts>>,
+    working_dir: Option<String>,
     is_child: bool,
 }
 
@@ -76,6 +77,7 @@ impl Default for RunnerBuilder<'_> {
             package_manager: None,
             artifacts_store: None,
             artifacts: None,
+            working_dir: None,
             is_child: false,
         }
     }
@@ -159,6 +161,11 @@ impl<'a> RunnerBuilder<'a> {
 
     pub fn artifacts(mut self, artifacts: Arc<Artifacts>) -> Self {
         self.artifacts = Some(artifacts);
+        self
+    }
+
+    pub fn working_dir(mut self, working_dir: Option<String>) -> Self {
+        self.working_dir = working_dir;
         self
     }
 
@@ -367,6 +374,7 @@ impl<'a> RunnerBuilder<'a> {
                     context,
                     self.regex_cache,
                     package_manager,
+                    self.working_dir,
                 ));
                 VersionedRunner::V3(FileRunner::Action(runner))
             }
