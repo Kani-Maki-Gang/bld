@@ -167,6 +167,7 @@ impl<S: RootState> JobRunner<S> {
             let platform = build_platform(
                 &self.runs_on,
                 &job.internal_id,
+                job.shell.clone(),
                 self.options.config.clone(),
                 self.options.logger.clone(),
                 self.options.run_ctx.clone(),
@@ -580,6 +581,7 @@ impl RunningJob {
 pub async fn build_platform(
     runs_on: &RunsOn,
     job_internal_id: &str,
+    shell: Option<String>,
     config: Arc<BldConfig>,
     logger: Arc<Logger>,
     run_ctx: Arc<Context>,
@@ -591,6 +593,7 @@ pub async fn build_platform(
         .config(config.clone())
         .pipeline_env(expr_rctx.env.as_ref())
         .env(expr_rctx.env.clone())
+        .shell(shell)
         .logger(logger.clone())
         .conn(conn);
 

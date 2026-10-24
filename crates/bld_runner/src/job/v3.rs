@@ -45,6 +45,7 @@ pub struct Job {
     pub dispose: bool,
     pub strategy: Option<Strategy>,
     pub working_dir: Option<String>,
+    pub shell: Option<String>,
     #[serde(default)]
     pub env: HashMap<String, String>,
     pub steps: Vec<Step>,
@@ -88,6 +89,7 @@ impl Default for Job {
             dispose: Self::default_dispose(),
             strategy: None,
             working_dir: None,
+            shell: None,
             env: HashMap::new(),
             steps: vec![],
             outputs: HashMap::new(),
@@ -209,6 +211,13 @@ impl<'a> Validate<'a> for Job {
             debug!("Validating job's {} working directory", self.id);
             ctx.push_section("working_dir");
             ctx.validate_expressions(wd, ExprScope::Runtime);
+            ctx.pop_section();
+        }
+
+        if self.shell.as_deref().is_some_and(|x| x.trim().is_empty()) {
+            debug!("Validating job's {} shell", self.id);
+            ctx.push_section("shell");
+            ctx.append_error("Shell must not be empty");
             ctx.pop_section();
         }
 
@@ -604,6 +613,31 @@ mod tests {
                 .contains("Environment variable name must not be empty"),
             "{e}"
         );
+    }
+
+    #[tokio::test]
+    pub async fn job_with_empty_shell_validation_failure() {
+        let job = Job {
+            shell: Some(" ".to_string()),
+            steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                id: "build".to_string(),
+                run: "echo hello".to_string(),
+                ..Default::default()
+            }))],
+            ..Default::default()
+        };
+
+        let Err(e) = validate_job(job).await else {
+            panic!("expected a validation error for an empty shell");
+        };
+        assert!(e.to_string().contains("Shell must not be empty"), "{e}");
+    }
+
+    #[test]
+    fn deserialized_job_reads_the_shell() {
+        let yaml = "runs_on: alpine\nshell: sh\nsteps: []";
+        let job: Job = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(job.shell.as_deref(), Some("sh"));
     }
 
     #[test]

@@ -28,6 +28,7 @@ fn sh_quote(value: &str) -> String {
 fn command_with_env(
     env: &HashMap<String, String>,
     outputs_file: &str,
+    shell: Option<&str>,
     working_dir: &Option<String>,
     input: &str,
 ) -> String {
@@ -44,7 +45,10 @@ fn command_with_env(
     if let Some(wd) = working_dir {
         command.push_str(&format!("cd {wd} && "));
     }
-    command.push_str(input);
+    match shell {
+        Some(shell) => command.push_str(&format!("{shell} -c {}", sh_quote(input))),
+        None => command.push_str(input),
+    }
     command
 }
 
@@ -384,6 +388,7 @@ impl Ssh {
     pub async fn sh(
         &self,
         logger: Arc<Logger>,
+        shell: Option<&str>,
         working_dir: &Option<String>,
         input: &str,
     ) -> Result<HashMap<String, String>> {
@@ -393,7 +398,7 @@ impl Ssh {
             .display()
             .to_string();
 
-        let command = command_with_env(&self.env, &outputs_file, working_dir, input);
+        let command = command_with_env(&self.env, &outputs_file, shell, working_dir, input);
         channel.exec(&command).await?;
 
         let mut output = String::new();
@@ -448,7 +453,7 @@ mod tests {
         .into_iter()
         .collect();
 
-        let command = command_with_env(&env, "tmp/bld_outputs/id", &None, "echo $A");
+        let command = command_with_env(&env, "tmp/bld_outputs/id", None, &None, "echo $A");
 
         assert_eq!(
             command,
@@ -461,6 +466,7 @@ mod tests {
         let command = command_with_env(
             &HashMap::new(),
             "tmp/bld_outputs/id",
+            None,
             &Some("/opt/app".to_string()),
             "make",
         );
@@ -468,6 +474,22 @@ mod tests {
         assert_eq!(
             command,
             "export BLD_OUTPUTS='tmp/bld_outputs/id' && cd /opt/app && make"
+        );
+    }
+
+    #[test]
+    fn command_with_env_runs_the_command_with_the_provided_shell() {
+        let command = command_with_env(
+            &HashMap::new(),
+            "tmp/bld_outputs/id",
+            Some("sh"),
+            &None,
+            "echo 'hi'",
+        );
+
+        assert_eq!(
+            command,
+            "export BLD_OUTPUTS='tmp/bld_outputs/id' && sh -c 'echo '\\''hi'\\'''"
         );
     }
 }

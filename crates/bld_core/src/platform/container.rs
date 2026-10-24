@@ -233,6 +233,7 @@ impl Container {
     pub async fn sh(
         &self,
         logger: Arc<Logger>,
+        shell: Option<&str>,
         working_dir: &Option<String>,
         input: &str,
     ) -> Result<HashMap<String, String>> {
@@ -253,7 +254,7 @@ impl Container {
         env.push(&outputs_env);
 
         let options = CreateExecOptions {
-            cmd: Some(vec!["bash", "-c", &input]),
+            cmd: Some(vec![shell.unwrap_or("bash"), "-c", &input]),
             env: Some(env),
             attach_stdout: Some(true),
             attach_stderr: Some(true),
