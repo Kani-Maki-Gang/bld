@@ -329,20 +329,22 @@ impl PipelineRunner {
                             signal: UnixSignal::SIGQUIT,
                             resp_tx,
                         } => {
-                            runner_handle.abort();
-
                             logger
                                 .write_line(
                                     "Runner interruped. Starting graceful shutdown...".to_owned(),
                                 )
                                 .await?;
 
+                            context.cancel();
+                            let result = runner_handle.await;
+
                             context.run_faulted().await?;
 
-                            break resp_tx
+                            resp_tx
                                 .send(())
-                                .map_err(|_| anyhow!("oneshot response sender dropped"))
-                                .map(|_| HashMap::new());
+                                .map_err(|_| anyhow!("oneshot response sender dropped"))?;
+
+                            break result?;
                         }
                     }
                 }
@@ -585,11 +587,13 @@ steps:
             ..Default::default()
         };
         let mut runner = create_runner(vec![("job", job)], logger.clone());
+
         runner.config = BldConfig {
             root_dir: dir.root_dir(),
             ..Default::default()
         }
         .into_arc();
+
         runner.fs = FileSystem::local(runner.config.clone()).into_arc();
         runner.package_manager = PackageManager::new(runner.config.clone()).into_arc();
 
@@ -600,6 +604,76 @@ steps:
         let output = logger.try_retrieve_output().await.unwrap();
         assert!(result.is_ok(), "error: {result:?}, output: {output}");
         assert!(output.contains(&working_dir), "{output}");
+    }
+
+    #[actix_web::test]
+    async fn cancelling_the_run_stops_the_running_jobs() {
+        let dir = TempDir::new("cancel_running_jobs");
+        let logger = Logger::in_memory().into_arc();
+        let mut runner = create_runner(
+            vec![
+                (
+                    "first",
+                    machine_job(vec![("s", "sleep 1 && echo x > marker")]),
+                ),
+                (
+                    "second",
+                    machine_job(vec![("s", "sleep 1 && echo x > marker")]),
+                ),
+            ],
+            logger.clone(),
+        );
+        runner.config = BldConfig {
+            root_dir: dir.root_dir(),
+            ..Default::default()
+        }
+        .into_arc();
+
+        let run_ctx = runner.run_ctx.clone();
+        actix_web::rt::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+            run_ctx.cancel();
+        });
+
+        let names = vec!["first".to_string(), "second".to_string()];
+        let result = runner
+            .run_layer(&names, &std::collections::HashMap::new())
+            .await;
+
+        let message = result
+            .expect_err("expected the cancelled jobs to error out")
+            .to_string();
+        assert!(
+            message.contains("[first] job was cancelled")
+                && message.contains("[second] job was cancelled"),
+            "{message}"
+        );
+
+        tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+        let markers = walk_files(std::path::Path::new(&dir.root_dir()), "marker");
+        assert!(
+            markers.is_empty(),
+            "expected no marker files, got: {markers:?}"
+        );
+    }
+
+    fn walk_files(dir: &std::path::Path, name: &str) -> Vec<std::path::PathBuf> {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return vec![];
+        };
+        entries
+            .flatten()
+            .flat_map(|entry| {
+                let path = entry.path();
+                if path.is_dir() {
+                    walk_files(&path, name)
+                } else if entry.file_name() == name {
+                    vec![path]
+                } else {
+                    vec![]
+                }
+            })
+            .collect()
     }
 
     fn job_with_outputs(needs: Option<Needs>, outputs: Vec<(&str, &str)>) -> Job {

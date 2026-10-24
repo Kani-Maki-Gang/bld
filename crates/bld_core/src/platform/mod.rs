@@ -6,7 +6,13 @@ mod image;
 mod machine;
 mod ssh;
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 pub use container::*;
 pub use context::*;
@@ -138,6 +144,7 @@ pub struct Platform {
     id: String,
     shell: Option<String>,
     inner: PlatformType,
+    disposed: AtomicBool,
 }
 
 impl Platform {
@@ -146,6 +153,7 @@ impl Platform {
         Self {
             id,
             shell: None,
+            disposed: AtomicBool::new(false),
             inner: PlatformType::Machine(machine),
         }
     }
@@ -155,6 +163,7 @@ impl Platform {
         Self {
             id,
             shell: None,
+            disposed: AtomicBool::new(false),
             inner: PlatformType::Container(container),
         }
     }
@@ -173,6 +182,7 @@ impl Platform {
         Self {
             id,
             shell: None,
+            disposed: AtomicBool::new(false),
             inner: PlatformType::Ssh(tx),
         }
     }
@@ -181,6 +191,7 @@ impl Platform {
         Self {
             id: Uuid::new_v4().to_string(),
             shell: None,
+            disposed: AtomicBool::new(false),
             inner: PlatformType::Mock,
         }
     }
@@ -278,10 +289,14 @@ impl Platform {
     }
 
     pub async fn dispose(&self, in_child_runner: bool) -> Result<()> {
+        // checking if the runner is a child in order to not cleanup the temp dir for the whole run
+        let is_child_machine = in_child_runner && matches!(self.inner, PlatformType::Machine(_));
+        if is_child_machine || self.disposed.swap(true, Ordering::SeqCst) {
+            return Ok(());
+        }
+
         match &self.inner {
-            // checking if the runner is a child in order to not cleanup the temp dir for the whole run
-            PlatformType::Machine(machine) if !in_child_runner => machine.dispose().await,
-            PlatformType::Machine(_) => Ok(()),
+            PlatformType::Machine(machine) => machine.dispose().await,
             PlatformType::Container(container) => container.dispose().await,
             PlatformType::Ssh(ssh) => {
                 let (resp_tx, resp_rx) = oneshot::channel();
@@ -290,5 +305,35 @@ impl Platform {
             }
             PlatformType::Mock => Ok(()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::HashMap, path::Path};
+
+    use bld_config::BldConfig;
+    use bld_utils::sync::IntoArc;
+    use uuid::Uuid;
+
+    use super::{Machine, Platform};
+
+    #[tokio::test]
+    async fn disposing_a_platform_twice_succeeds() {
+        let config = BldConfig {
+            root_dir: std::env::temp_dir().display().to_string(),
+            ..Default::default()
+        }
+        .into_arc();
+        let id = format!("platform-dispose-twice-test-{}", Uuid::new_v4());
+        let tmp_dir = config.tmp_full_path(&id);
+        let machine = Machine::new(&id, config, &HashMap::new(), HashMap::new().into_arc())
+            .await
+            .unwrap();
+        let platform = Platform::machine(Box::new(machine));
+
+        platform.dispose(false).await.unwrap();
+        assert!(!Path::new(&tmp_dir).exists());
+        platform.dispose(false).await.unwrap();
     }
 }
