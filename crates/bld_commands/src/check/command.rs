@@ -6,7 +6,7 @@ use bld_config::definitions::TOOL_DEFAULT_PIPELINE_FILE;
 use bld_core::fs::FileSystem;
 use bld_http::HttpClient;
 use bld_pkg::PackageManager;
-use bld_runner::VersionedFileLoader;
+use bld_runner::{VersionedFile, VersionedFileLoader};
 use bld_utils::sync::IntoArc;
 use clap::Args;
 
@@ -36,8 +36,9 @@ impl CheckCommand {
         let metadata = loader.load(&self.file).await?;
         metadata
             .file
-            .validate_with_verbose_errors(config, fs, package_manager)
-            .await
+            .validate_with_verbose_errors(config.clone(), fs.clone(), package_manager.clone())
+            .await?;
+        VersionedFile::check_dependency_cycles(&config, &fs, &package_manager, &self.file).await
     }
 
     async fn remote_check(&self, server: &str) -> Result<()> {
