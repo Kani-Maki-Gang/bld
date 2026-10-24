@@ -593,7 +593,7 @@ fn validate_global_ssh_config<'a, C: ValidatorContext<'a>>(ctx: &mut C, value: &
 
 #[cfg(test)]
 mod tests {
-    use bld_config::{BldConfig, SshConfig, SshUserAuth};
+    use bld_config::{BldConfig, RegistryConfig, SshConfig, SshUserAuth};
     use bld_core::fs::FileSystem;
     use bld_pkg::PackageManager;
     use bld_utils::sync::IntoArc;
@@ -829,6 +829,45 @@ volumes:
             actual.try_eq(&ExprValue::Text(ExprText::Ref("docker-url"))),
             Ok(ExprValue::Boolean(true))
         ));
+    }
+
+    #[test]
+    pub fn runs_on_pull_registry_missing_password_expr_eval_failure() {
+        let mut wctx = MockWritableRuntimeExprContext::new();
+        wctx.expect_get_exec_id().returning(|| Some("main"));
+
+        let rctx = CommonReadonlyRuntimeExprContext::default();
+        let mut pipeline = Pipeline::default();
+        pipeline.jobs.insert(
+            "main".to_string(),
+            Job {
+                runs_on: RunsOn::Pull {
+                    image: "ubuntu:latest".to_string(),
+                    registry: Some(Registry::Full(RegistryConfig {
+                        url: "registry-url".to_string(),
+                        username: Some("registry-user".to_string()),
+                        password: None,
+                    })),
+                    pull: Some(true),
+                    docker_url: None,
+                    volumes: vec![],
+                },
+                ..Default::default()
+            },
+        );
+        let exec = CommonExprExecutor::new(&pipeline, &rctx, &wctx);
+
+        let actual = exec.eval("${{ runs_on.registry.username }}").unwrap();
+        assert!(matches!(
+            actual.try_eq(&ExprValue::Text(ExprText::Ref("registry-user"))),
+            Ok(ExprValue::Boolean(true))
+        ));
+
+        let error = exec
+            .eval("${{ runs_on.registry.password }}")
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("no password value available for registry field"));
     }
 
     #[test]
