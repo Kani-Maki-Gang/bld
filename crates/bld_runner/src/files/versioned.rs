@@ -14,19 +14,15 @@ use {
         validator::v2 as validator_v2,
         validator::v3::{self as validator_v3, ConsumeValidator},
     },
-    anyhow::{Result, anyhow},
+    anyhow::{Result, anyhow, bail},
     bld_config::BldConfig,
     bld_core::fs::FileSystem,
     bld_models::dtos::FileType,
     bld_pkg::PackageManager,
-    futures::Future,
     std::collections::HashMap,
-    std::{fmt::Write, pin::Pin, sync::Arc},
+    std::{fmt::Write, sync::Arc},
     tracing::debug,
 };
-
-#[cfg(feature = "all")]
-type DependenciesRecursiveFuture = Pin<Box<dyn Future<Output = Result<HashMap<String, String>>>>>;
 
 #[cfg(feature = "all")]
 pub enum VersionedFileSource {
@@ -153,46 +149,65 @@ impl VersionedFile {
         package_manager: Arc<PackageManager>,
         name: String,
     ) -> Result<HashMap<String, String>> {
-        let mut hs = Self::dependencies_recursive(config, fs, package_manager, name.clone())
-            .await
-            .await?;
-        hs.remove(&name);
-        Ok(hs)
+        let loader = VersionedFileLoader::new(&package_manager, &fs, false);
+        let mut files = HashMap::new();
+        let mut pending = vec![name.clone()];
+
+        while let Some(current) = pending.pop() {
+            if files.contains_key(&current) {
+                continue;
+            }
+            debug!("Parsing pipeline {current}");
+            let metadata = loader
+                .load(&current)
+                .await
+                .map_err(|e| anyhow!("{e} ({current})"))?;
+            pending.extend(metadata.file.local_deps(&config, &fs).await);
+            files.insert(current, metadata.raw);
+        }
+
+        files.remove(&name);
+        Ok(files)
     }
 
     #[cfg(feature = "all")]
-    async fn dependencies_recursive(
-        config: Arc<BldConfig>,
-        fs: Arc<FileSystem>,
-        package_manager: Arc<PackageManager>,
-        name: String,
-    ) -> DependenciesRecursiveFuture {
-        Box::pin(async move {
-            debug!("Parsing pipeline {name}");
-            let loader = VersionedFileLoader::new(&package_manager, &fs, false);
-            let metadata = loader
-                .load(&name)
-                .await
-                .map_err(|e| anyhow!("{e} ({name})"))?;
-            let mut set = HashMap::new();
-            set.insert(name.to_string(), metadata.raw.clone());
-            let local_deps = metadata.file.local_deps(&config, &fs).await;
-            for pipeline in local_deps.into_iter() {
-                for (k, v) in Self::dependencies_recursive(
-                    config.clone(),
-                    fs.clone(),
-                    package_manager.clone(),
-                    pipeline,
-                )
-                .await
-                .await?
-                {
-                    set.insert(k, v);
-                }
+    pub async fn check_dependency_cycles(
+        config: &BldConfig,
+        fs: &FileSystem,
+        package_manager: &PackageManager,
+        name: &str,
+    ) -> Result<()> {
+        let loader = VersionedFileLoader::new(package_manager, fs, false);
+        let local_deps = async |name: &str| match loader.load(name).await {
+            Ok(metadata) => metadata.file.local_deps(config, fs).await.into_iter(),
+            Err(_) => Vec::new().into_iter(),
+        };
+
+        let mut visited = HashSet::from([name.to_owned()]);
+        let mut path = vec![(name.to_owned(), local_deps(name).await)];
+
+        while let Some((_, deps)) = path.last_mut() {
+            let Some(dep) = deps.next() else {
+                path.pop();
+                continue;
+            };
+
+            if let Some(start) = path.iter().position(|(file, _)| *file == dep) {
+                let cycle: Vec<&str> = path[start..]
+                    .iter()
+                    .map(|(file, _)| file.as_str())
+                    .chain([dep.as_str()])
+                    .collect();
+                bail!("Cyclic dependency detected: {}", cycle.join(" -> "));
             }
 
-            Ok(set)
-        })
+            if visited.insert(dep.clone()) {
+                let deps = local_deps(&dep).await;
+                path.push((dep, deps));
+            }
+        }
+
+        Ok(())
     }
 
     pub fn cron(&self) -> Option<&str> {
@@ -289,7 +304,7 @@ impl IntoVariables for VersionedFile {
 
 #[cfg(all(test, feature = "all"))]
 mod tests {
-    use super::VersionedFileLoader;
+    use super::{VersionedFile, VersionedFileLoader};
     use bld_config::{BldConfig, BldPackages};
     use bld_core::fs::FileSystem;
     use bld_pkg::PackageManager;
@@ -297,8 +312,9 @@ mod tests {
 
     struct TestEnv {
         dir: PathBuf,
-        fs: FileSystem,
-        package_manager: PackageManager,
+        config: Arc<BldConfig>,
+        fs: Arc<FileSystem>,
+        package_manager: Arc<PackageManager>,
     }
 
     impl TestEnv {
@@ -317,8 +333,9 @@ mod tests {
             let config = Arc::new(config);
             Self {
                 dir,
-                fs: FileSystem::local(config.clone()),
-                package_manager: PackageManager::new(config),
+                fs: Arc::new(FileSystem::local(config.clone())),
+                package_manager: Arc::new(PackageManager::new(config.clone())),
+                config,
             }
         }
 
@@ -367,5 +384,86 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(metadata.raw, raw);
+    }
+
+    fn write_uses(env: &TestEnv, name: &str, uses: &[&str]) {
+        let mut raw = format!("version: 3\ntype: action\nname: {name}\nsteps:\n");
+        for (i, file) in uses.iter().enumerate() {
+            raw.push_str(&format!("  - id: s{i}\n    uses: {file}\n"));
+        }
+        if uses.is_empty() {
+            raw.push_str("  - id: noop\n    run: echo noop\n");
+        }
+        std::fs::write(env.dir.join(name), raw).unwrap();
+    }
+
+    async fn dependencies(env: &TestEnv, name: &str) -> Vec<String> {
+        let mut deps: Vec<String> = VersionedFile::dependencies(
+            env.config.clone(),
+            env.fs.clone(),
+            env.package_manager.clone(),
+            name.to_owned(),
+        )
+        .await
+        .unwrap()
+        .into_keys()
+        .collect();
+        deps.sort();
+        deps
+    }
+
+    async fn cycle_error(env: &TestEnv, name: &str) -> Option<String> {
+        VersionedFile::check_dependency_cycles(&env.config, &env.fs, &env.package_manager, name)
+            .await
+            .err()
+            .map(|e| e.to_string())
+    }
+
+    #[tokio::test]
+    async fn dependencies_of_a_self_referencing_file_are_empty() {
+        let env = TestEnv::new("deps_self");
+        write_uses(&env, "a.yaml", &["a.yaml"]);
+        assert!(dependencies(&env, "a.yaml").await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn dependencies_of_a_cycle_contain_each_file_once() {
+        let env = TestEnv::new("deps_cycle");
+        write_uses(&env, "a.yaml", &["b.yaml"]);
+        write_uses(&env, "b.yaml", &["a.yaml", "c.yaml"]);
+        write_uses(&env, "c.yaml", &[]);
+        assert_eq!(dependencies(&env, "a.yaml").await, vec!["b.yaml", "c.yaml"]);
+    }
+
+    #[tokio::test]
+    async fn check_dependency_cycles_reports_a_self_reference() {
+        let env = TestEnv::new("cycle_self");
+        write_uses(&env, "a.yaml", &["a.yaml"]);
+        assert_eq!(
+            cycle_error(&env, "a.yaml").await.unwrap(),
+            "Cyclic dependency detected: a.yaml -> a.yaml"
+        );
+    }
+
+    #[tokio::test]
+    async fn check_dependency_cycles_reports_an_indirect_cycle() {
+        let env = TestEnv::new("cycle_indirect");
+        write_uses(&env, "a.yaml", &["b.yaml"]);
+        write_uses(&env, "b.yaml", &["c.yaml"]);
+        write_uses(&env, "c.yaml", &["b.yaml"]);
+        assert_eq!(
+            cycle_error(&env, "a.yaml").await.unwrap(),
+            "Cyclic dependency detected: b.yaml -> c.yaml -> b.yaml"
+        );
+    }
+
+    #[tokio::test]
+    async fn check_dependency_cycles_accepts_a_shared_dependency() {
+        let env = TestEnv::new("cycle_diamond");
+        write_uses(&env, "a.yaml", &["b.yaml", "c.yaml"]);
+        write_uses(&env, "b.yaml", &["d.yaml"]);
+        write_uses(&env, "c.yaml", &["d.yaml"]);
+        write_uses(&env, "d.yaml", &[]);
+        assert!(cycle_error(&env, "a.yaml").await.is_none());
     }
 }
