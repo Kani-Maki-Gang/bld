@@ -27,7 +27,7 @@ use crate::{
     pipeline::v3::Pipeline,
     runner::v3::{
         job::JobRunnerOptions,
-        state::{JobState, RootState},
+        state::{JobState, RootState, State},
     },
 };
 
@@ -192,7 +192,8 @@ impl PipelineRunner {
         &self,
         pending: &mut Vec<&DagNode>,
         running: &mut Vec<RunningJob>,
-        concluded: &mut HashMap<String, Option<HashMap<String, String>>>,
+        concluded: &mut HashMap<String, State>,
+        outputs: &HashMap<String, HashMap<String, String>>,
         errors: &mut Vec<String>,
     ) -> Result<()> {
         while let Some(idx) = pending
@@ -200,30 +201,30 @@ impl PipelineRunner {
             .position(|node| node.needs.iter().all(|x| concluded.contains_key(x)))
         {
             let node = pending.remove(idx);
-            let mut job_outputs = HashMap::new();
-            let mut failed_need = None;
-            for need in &node.needs {
-                match concluded.get(need) {
-                    Some(Some(outputs)) => {
-                        job_outputs.insert(need.clone(), outputs.clone());
-                    }
-                    _ => {
-                        failed_need = Some(need);
-                        break;
-                    }
-                }
-            }
+            let blocking_need = node
+                .needs
+                .iter()
+                .find(|x| !concluded.get(*x).is_some_and(State::unblocks_dependents));
 
-            if let Some(need) = failed_need {
+            if let Some(need) = blocking_need {
                 self.logger
                     .write_line(format!(
                         "{:<15}: {} (job '{need}' did not complete)",
                         "Skipped job", node.name
                     ))
                     .await?;
-                concluded.insert(node.name.clone(), None);
+                concluded.insert(
+                    node.name.clone(),
+                    State::SkippedByNeed { need: need.clone() },
+                );
                 continue;
             }
+
+            let job_outputs = node
+                .needs
+                .iter()
+                .filter_map(|x| outputs.get(x).map(|y| (x.clone(), y.clone())))
+                .collect();
 
             self.logger
                 .write_line(format!("{:<15}: {}", "Running job", node.name))
@@ -234,7 +235,12 @@ impl PipelineRunner {
             match self.start_job(&node.name, &job_outputs).await {
                 Ok(job) => running.push(job),
                 Err(e) => {
-                    concluded.insert(node.name.clone(), None);
+                    concluded.insert(
+                        node.name.clone(),
+                        State::Failed {
+                            error: e.to_string(),
+                        },
+                    );
                     errors.push(format!("[{}] {e}", node.name));
                     self.logger
                         .write_line(format!("{:<15}: {} ({e})", "Erroneous job", node.name))
@@ -248,7 +254,8 @@ impl PipelineRunner {
     async fn collect_finished_jobs(
         &self,
         running: &mut Vec<RunningJob>,
-        concluded: &mut HashMap<String, Option<HashMap<String, String>>>,
+        concluded: &mut HashMap<String, State>,
+        outputs: &mut HashMap<String, HashMap<String, String>>,
         errors: &mut Vec<String>,
     ) -> Result<()> {
         while let Some(idx) = running.iter().position(|x| x.handle.is_finished()) {
@@ -257,7 +264,11 @@ impl PipelineRunner {
 
             let message = match &handle_result {
                 Ok(runner) => {
-                    concluded.insert(running_job.name.clone(), Some(runner.outputs.clone()));
+                    let state = runner.options.state.get_state().clone();
+                    if state.unblocks_dependents() {
+                        outputs.insert(running_job.name.clone(), runner.outputs.clone());
+                    }
+                    concluded.insert(running_job.name.clone(), state);
                     if runner.is_skipped() {
                         format!("{:<15}: {}", "Skipped job", running_job.name)
                     } else {
@@ -265,7 +276,12 @@ impl PipelineRunner {
                     }
                 }
                 Err(e) => {
-                    concluded.insert(running_job.name.clone(), None);
+                    concluded.insert(
+                        running_job.name.clone(),
+                        State::Failed {
+                            error: e.to_string(),
+                        },
+                    );
                     errors.push(format!("[{}] {e}", running_job.name));
                     format!("{:<15}: {} ({e})", "Erroneous job", running_job.name)
                 }
@@ -283,12 +299,19 @@ impl PipelineRunner {
     async fn run_all_jobs(&self) -> Result<HashMap<String, HashMap<String, String>>> {
         let mut pending: Vec<&DagNode> = self.dag.nodes.iter().collect();
         let mut running: Vec<RunningJob> = Vec::new();
-        let mut concluded: HashMap<String, Option<HashMap<String, String>>> = HashMap::new();
+        let mut concluded: HashMap<String, State> = HashMap::new();
+        let mut outputs: HashMap<String, HashMap<String, String>> = HashMap::new();
         let mut errors: Vec<String> = Vec::new();
 
         loop {
-            self.start_ready_jobs(&mut pending, &mut running, &mut concluded, &mut errors)
-                .await?;
+            self.start_ready_jobs(
+                &mut pending,
+                &mut running,
+                &mut concluded,
+                &outputs,
+                &mut errors,
+            )
+            .await?;
 
             if running.is_empty() {
                 break;
@@ -296,7 +319,7 @@ impl PipelineRunner {
 
             sleep(Duration::from_millis(200)).await;
 
-            self.collect_finished_jobs(&mut running, &mut concluded, &mut errors)
+            self.collect_finished_jobs(&mut running, &mut concluded, &mut outputs, &mut errors)
                 .await?;
         }
 
@@ -309,10 +332,7 @@ impl PipelineRunner {
             bail!(errors.join("\n"));
         }
 
-        Ok(concluded
-            .into_iter()
-            .filter_map(|(name, outputs)| outputs.map(|x| (name, x)))
-            .collect())
+        Ok(outputs)
     }
 
     async fn jobs(&self) -> Result<()> {
@@ -898,11 +918,8 @@ steps:
         );
     }
 
-    /// A job that is skipped because its condition is false still gives its dependents an
-    /// empty outputs entry, so a dependent that reads one of its values gets a clear error
-    /// naming the job and the missing output.
     #[actix_web::test]
-    async fn job_skipped_by_condition_gives_empty_outputs_to_its_dependents() {
+    async fn job_skipped_by_condition_skips_its_dependents() {
         let logger = Logger::in_memory().into_arc();
         let runner = create_runner(
             vec![
@@ -914,19 +931,26 @@ steps:
                         vec![("got", "${{ jobs.build.outputs.version }}")],
                     ),
                 ),
+                ("deploy", job_needing(&["publish"])),
             ],
             logger.clone(),
         );
 
-        let error = runner
-            .run_all_jobs()
-            .await
-            .expect_err("expected an error reading the output of a skipped job")
-            .to_string();
+        let result = runner.run_all_jobs().await;
+
+        let output = logger.try_retrieve_output().await.unwrap();
+        assert!(result.is_ok(), "{result:?}, output: {output}");
+        assert!(output.contains("Skipped job    : build"), "{output}");
         assert!(
-            error.contains("[publish]") && error.contains("version") && error.contains("build"),
-            "{error}"
+            output.contains("Skipped job    : publish (job 'build' did not complete)"),
+            "{output}"
         );
+        assert!(
+            output.contains("Skipped job    : deploy (job 'publish' did not complete)"),
+            "{output}"
+        );
+        assert!(!output.contains("Running job    : publish"), "{output}");
+        assert!(!output.contains("Running job    : deploy"), "{output}");
     }
 
     fn runner_with_name(name: &str, inputs: Vec<(&str, &str)>) -> PipelineRunner {

@@ -37,6 +37,15 @@ pub enum State {
     Failed {
         error: String,
     },
+    SkippedByNeed {
+        need: String,
+    },
+}
+
+impl State {
+    pub fn unblocks_dependents(&self) -> bool {
+        matches!(self, Self::Completed)
+    }
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -362,6 +371,26 @@ mod tests {
         runner::v3::state::{ActionState, JobState, NodeState, RootState, State, StepState},
         scalar::ScalarValue,
     };
+
+    #[test]
+    pub fn only_a_completed_state_unblocks_dependents() {
+        assert!(State::Completed.unblocks_dependents());
+        assert!(!State::Default.unblocks_dependents());
+        assert!(!State::Running.unblocks_dependents());
+        assert!(!State::Skipped.unblocks_dependents());
+        assert!(
+            !State::Failed {
+                error: "error".to_string()
+            }
+            .unblocks_dependents()
+        );
+        assert!(
+            !State::SkippedByNeed {
+                need: "build".to_string()
+            }
+            .unblocks_dependents()
+        );
+    }
 
     #[test]
     pub fn step_state_update_state_success() {
