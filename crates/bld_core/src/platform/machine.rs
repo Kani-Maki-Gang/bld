@@ -142,6 +142,7 @@ impl Machine {
             }
             None => get_shell(&mut vec![input])?,
         };
+        shell.kill_on_drop(true);
         shell.envs(&self.env);
         shell.env(BLD_OUTPUTS_ENV_VAR_V3, &outputs_file);
         shell.current_dir(current_dir);
@@ -185,13 +186,16 @@ impl Machine {
 #[cfg(test)]
 mod tests {
     use super::{Machine, copy_path};
+    use crate::logger::Logger;
     use bld_config::BldConfig;
     use bld_utils::sync::IntoArc;
     use std::{
         collections::HashMap,
         fs::{create_dir_all, read_to_string, remove_dir_all, write},
         path::Path,
+        time::Duration,
     };
+    use tokio::time::{sleep, timeout};
     use uuid::Uuid;
 
     #[tokio::test]
@@ -313,5 +317,36 @@ mod tests {
         assert_eq!(read_to_string(&second_file).unwrap(), "data");
 
         let _ = remove_dir_all(&second.tmp_dir);
+    }
+
+    #[tokio::test]
+    async fn dropping_a_running_shell_kills_its_process() {
+        let config = BldConfig {
+            root_dir: std::env::temp_dir().display().to_string(),
+            ..Default::default()
+        }
+        .into_arc();
+        let id = format!("machine-kill-on-drop-test-{}", Uuid::new_v4());
+        let machine = Machine::new(&id, config, &HashMap::new(), HashMap::new().into_arc())
+            .await
+            .unwrap();
+        let marker = Path::new(&machine.tmp_dir).join("marker");
+
+        let result = timeout(
+            Duration::from_millis(300),
+            machine.sh(
+                Logger::mock().into_arc(),
+                None,
+                &None,
+                "sleep 1 && echo x > marker",
+            ),
+        )
+        .await;
+        assert!(result.is_err(), "expected the shell to still be running");
+
+        sleep(Duration::from_millis(1500)).await;
+        assert!(!marker.exists(), "expected the shell process to be killed");
+
+        machine.dispose().await.unwrap();
     }
 }

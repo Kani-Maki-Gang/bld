@@ -163,6 +163,15 @@ impl<S: RootState> JobRunner<S> {
 
         self.info().await?;
 
+        let run_ctx = self.options.run_ctx.clone();
+        if run_ctx.is_cancelled() {
+            let error = anyhow!("job was cancelled");
+            self.options.state.update_state(State::Failed {
+                error: error.to_string(),
+            });
+            return Err(error);
+        }
+
         if self.platform.is_none() {
             let platform = build_platform(
                 &self.runs_on,
@@ -181,10 +190,12 @@ impl<S: RootState> JobRunner<S> {
 
         debug!("starting execution of pipeline steps");
 
-        let result = self
-            .run_job_steps(job)
-            .await
-            .and_then(|_| self.resolve_outputs(job).map(|x| self.outputs = x));
+        let result = tokio::select! {
+            biased;
+            _ = run_ctx.cancelled() => Err(anyhow!("job was cancelled")),
+            result = self.run_job_steps(job) => result,
+        }
+        .and_then(|_| self.resolve_outputs(job).map(|x| self.outputs = x));
 
         if let Err(e) = self.dispose_platform(job).await {
             error!("unable to dispose the platform: {e}");
@@ -1931,7 +1942,11 @@ steps:
         let logger = Logger::mock().into_arc();
         let fs = FileSystem::local(config.clone()).into_arc();
         let (tx, mut rx) = tokio::sync::mpsc::channel(16);
-        let run_ctx = Context::Local(tx).into_arc();
+        let run_ctx = Context::Local {
+            tx,
+            token: Default::default(),
+        }
+        .into_arc();
         let platform = Platform::mock().into_arc();
         let platform_id = platform.id().to_string();
         let artifacts = Artifacts::mock().into_arc();
@@ -2000,7 +2015,11 @@ steps:
         let logger = Logger::mock().into_arc();
         let fs = FileSystem::local(config.clone()).into_arc();
         let (tx, mut rx) = tokio::sync::mpsc::channel(16);
-        let run_ctx = Context::Local(tx).into_arc();
+        let run_ctx = Context::Local {
+            tx,
+            token: Default::default(),
+        }
+        .into_arc();
         let artifacts = Artifacts::mock().into_arc();
         let regex_cache = RegexCache::mock().into_arc();
         let expr_regex = Regex::new(EXPR_REGEX).unwrap().into_arc();

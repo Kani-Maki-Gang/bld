@@ -821,6 +821,7 @@ dependencies = [
  "tar",
  "termcolor",
  "tokio",
+ "tokio-util",
  "tracing",
  "uuid",
  "walkdir",

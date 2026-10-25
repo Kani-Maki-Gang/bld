@@ -11,6 +11,7 @@ use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tokio::sync::mpsc::{Sender, channel};
 use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 
 use self::local::{LocalContextBackend, LocalContextMessage};
 use self::server::{ServerContextBackend, ServerContextMessage};
@@ -19,9 +20,15 @@ pub enum Context {
     Server {
         tx: Sender<ServerContextMessage>,
         conn: Arc<DatabaseConnection>,
+        token: CancellationToken,
     },
-    Local(Sender<LocalContextMessage>),
-    Mock,
+    Local {
+        tx: Sender<LocalContextMessage>,
+        token: CancellationToken,
+    },
+    Mock {
+        token: CancellationToken,
+    },
 }
 
 impl Context {
@@ -31,24 +38,48 @@ impl Context {
         Self::Server {
             tx,
             conn: pool.clone(),
+            token: CancellationToken::new(),
         }
     }
 
     pub fn local(config: Arc<BldConfig>) -> Self {
         let (tx, rx) = channel(4096);
         LocalContextBackend::new(config, rx).receive();
-        Self::Local(tx)
+        Self::Local {
+            tx,
+            token: CancellationToken::new(),
+        }
     }
 
     pub fn mock() -> Self {
-        Self::Mock
+        Self::Mock {
+            token: CancellationToken::new(),
+        }
+    }
+
+    fn token(&self) -> &CancellationToken {
+        match self {
+            Self::Server { token, .. } | Self::Local { token, .. } | Self::Mock { token } => token,
+        }
+    }
+
+    pub fn cancel(&self) {
+        self.token().cancel();
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.token().is_cancelled()
+    }
+
+    pub async fn cancelled(&self) {
+        self.token().cancelled().await
     }
 
     pub fn get_conn(&self) -> Option<Arc<DatabaseConnection>> {
         match self {
-            Self::Local(_) => None,
+            Self::Local { .. } => None,
             Self::Server { conn, .. } => Some(conn.clone()),
-            Self::Mock => None,
+            Self::Mock { .. } => None,
         }
     }
 
@@ -59,11 +90,11 @@ impl Context {
                 .send(ServerContextMessage::AddRemoteRun(remote_run))
                 .await
                 .map_err(|e| anyhow!(e)),
-            Self::Local(tx) => tx
+            Self::Local { tx, .. } => tx
                 .send(LocalContextMessage::AddRemoteRun(remote_run))
                 .await
                 .map_err(|e| anyhow!(e)),
-            Self::Mock => Ok(()),
+            Self::Mock { .. } => Ok(()),
         }
     }
 
@@ -73,11 +104,11 @@ impl Context {
                 .send(ServerContextMessage::RemoveRemoteRun(run_id.to_owned()))
                 .await
                 .map_err(|e| anyhow!(e)),
-            Self::Local(tx) => tx
+            Self::Local { tx, .. } => tx
                 .send(LocalContextMessage::RemoveRemoteRun(run_id.to_owned()))
                 .await
                 .map_err(|e| anyhow!(e)),
-            Self::Mock => Ok(()),
+            Self::Mock { .. } => Ok(()),
         }
     }
 
@@ -87,11 +118,11 @@ impl Context {
                 .send(ServerContextMessage::AddPlatform(platform))
                 .await
                 .map_err(|e| anyhow!(e)),
-            Self::Local(tx) => tx
+            Self::Local { tx, .. } => tx
                 .send(LocalContextMessage::AddPlatform(platform))
                 .await
                 .map_err(|e| anyhow!(e)),
-            Self::Mock => Ok(()),
+            Self::Mock { .. } => Ok(()),
         }
     }
 
@@ -103,11 +134,11 @@ impl Context {
                 ))
                 .await
                 .map_err(|e| anyhow!(e)),
-            Self::Local(tx) => tx
+            Self::Local { tx, .. } => tx
                 .send(LocalContextMessage::RemovePlatform(platform_id.to_string()))
                 .await
                 .map_err(|e| anyhow!(e)),
-            Self::Mock => Ok(()),
+            Self::Mock { .. } => Ok(()),
         }
     }
 
@@ -192,7 +223,7 @@ impl Context {
     }
 
     pub async fn run_faulted(&self) -> Result<()> {
-        if matches!(self, Self::Mock) {
+        if matches!(self, Self::Mock { .. }) {
             return Ok(());
         }
 
@@ -203,11 +234,11 @@ impl Context {
                 .send(ServerContextMessage::RunFaulted(resp_tx))
                 .await
                 .map_err(|e| anyhow!(e))?,
-            Self::Local(tx) => tx
+            Self::Local { tx, .. } => tx
                 .send(LocalContextMessage::RunFaulted(resp_tx))
                 .await
                 .map_err(|e| anyhow!(e))?,
-            Self::Mock => unreachable!(),
+            Self::Mock { .. } => unreachable!(),
         }
 
         resp_rx.await.map_err(|e| anyhow!(e))
