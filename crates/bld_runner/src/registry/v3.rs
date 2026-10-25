@@ -56,7 +56,7 @@ impl<'a> EvalObject<'a> for Registry {
                     "password" => config
                         .password
                         .as_ref()
-                        .ok_or_else(|| anyhow!("no username value available for registry field"))?
+                        .ok_or_else(|| anyhow!("no password value available for registry field"))?
                         .as_str(),
                     value => bail!("invalid registry field: {value}"),
                 };
