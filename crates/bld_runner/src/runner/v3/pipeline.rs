@@ -366,6 +366,7 @@ mod tests {
     use crate::{
         dag::Dag,
         expr::v3::{context::CommonReadonlyRuntimeExprContext, parser::EXPR_REGEX},
+        external::v3::External,
         job::v3::{Job, Needs},
         outputs::v3::Output,
         pipeline::v3::Pipeline,
@@ -553,6 +554,52 @@ mod tests {
             output.contains("data"),
             "expected the slow job to read its own file, got: {output}"
         );
+    }
+
+    #[actix_web::test]
+    async fn action_steps_fall_back_to_the_job_working_directory() {
+        let dir = TempDir::new("action_job_working_directory");
+        dir.write(
+            "pwd.yaml",
+            r#"
+version: 3
+type: action
+name: Pwd
+
+steps:
+  - id: pwd
+    run: pwd
+"#,
+        );
+        let working_dir = format!("{}/job_working_dir", dir.root_dir());
+        std::fs::create_dir_all(&working_dir).unwrap();
+
+        let logger = Logger::in_memory().into_arc();
+        let job = Job {
+            working_dir: Some(working_dir.clone()),
+            steps: vec![Step::ExternalFile(Box::new(External {
+                id: "pwd".to_string(),
+                uses: "pwd.yaml".to_string(),
+                ..Default::default()
+            }))],
+            ..Default::default()
+        };
+        let mut runner = create_runner(vec![("job", job)], logger.clone());
+        runner.config = BldConfig {
+            root_dir: dir.root_dir(),
+            ..Default::default()
+        }
+        .into_arc();
+        runner.fs = FileSystem::local(runner.config.clone()).into_arc();
+        runner.package_manager = PackageManager::new(runner.config.clone()).into_arc();
+
+        let result = runner
+            .run_layer(&["job".to_string()], &std::collections::HashMap::new())
+            .await;
+
+        let output = logger.try_retrieve_output().await.unwrap();
+        assert!(result.is_ok(), "error: {result:?}, output: {output}");
+        assert!(output.contains(&working_dir), "{output}");
     }
 
     fn job_with_outputs(needs: Option<Needs>, outputs: Vec<(&str, &str)>) -> Job {
