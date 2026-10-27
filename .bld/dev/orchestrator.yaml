@@ -144,7 +144,6 @@ jobs:
           count="$(jq length <<< "$items")"
           if [ "$count" = "0" ]; then
             echo "No items in '${{ inputs.ready_status_value }}' status assigned to ${{ steps.assignee.outputs.login }}. Nothing to implement."
-            exit 1
           fi
 
           echo "list=$items" >> $BLD_OUTPUTS
@@ -197,6 +196,7 @@ jobs:
   dispatch:
     runs_on: machine
     needs: discover
+    if: ${{ jobs.discover.outputs.count > 0 }}
     steps:
       - id: item
         name: Implement, review and open a pull request per item

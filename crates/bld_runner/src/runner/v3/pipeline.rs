@@ -269,8 +269,8 @@ impl PipelineRunner {
                         outputs.insert(running_job.name.clone(), runner.outputs.clone());
                     }
                     concluded.insert(running_job.name.clone(), state);
-                    if runner.is_skipped() {
-                        format!("{:<15}: {}", "Skipped job", running_job.name)
+                    if let Some(reason) = runner.is_skipped() {
+                        format!("{:<15}: {} ({})", "Skipped job", running_job.name, reason)
                     } else {
                         format!("{:<15}: {}", "Completed job", running_job.name)
                     }

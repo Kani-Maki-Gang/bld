@@ -33,9 +33,11 @@ pub enum State {
     Default,
     Running,
     Completed,
-    Skipped,
     Failed {
         error: String,
+    },
+    Skipped {
+        reason: String,
     },
     SkippedByNeed {
         need: String,

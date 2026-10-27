@@ -127,8 +127,11 @@ impl<S: RootState> JobRunner<S> {
             .ok_or_else(|| anyhow!("the job's platform hasn't been built yet"))
     }
 
-    pub fn is_skipped(&self) -> bool {
-        matches!(self.options.state.get_state(), State::Skipped)
+    pub fn is_skipped(&self) -> Option<&str> {
+        let State::Skipped { reason } = self.options.state.get_state() else {
+            return None;
+        };
+        Some(reason)
     }
 
     fn resolve_runs_on(job: &Job, options: &JobRunnerOptions<S>) -> Result<RunsOn> {
@@ -155,9 +158,14 @@ impl<S: RootState> JobRunner<S> {
                 })
             })?;
 
-        if !self.job_condition(job.condition.as_deref())? {
+        if !self.condition(job.condition.as_deref())? {
             debug!("condition failed, skiping job");
-            self.options.state.update_state(State::Skipped);
+            self.options.state.update_state(State::Skipped {
+                reason: format!(
+                    "conditional check {} is false",
+                    job.condition.as_deref().unwrap_or_default()
+                ),
+            });
             return Ok(self);
         }
 
@@ -502,17 +510,6 @@ impl<S: RootState> JobRunner<S> {
         self.options.state.set_outputs(step_id, outputs)?;
 
         Ok(())
-    }
-
-    /// A job's condition is evaluated before any of its steps have run, so it can only use
-    /// the start of run expressions.
-    fn job_condition(&self, condition: Option<&str>) -> Result<bool> {
-        let expr_exec = CommonExprExecutor::new(
-            self.options.pipeline.as_ref(),
-            self.options.expr_rctx.as_ref(),
-            &START_OF_RUN_WCTX,
-        );
-        self.eval_condition(&expr_exec, condition)
     }
 
     fn condition(&self, condition: Option<&str>) -> Result<bool> {
