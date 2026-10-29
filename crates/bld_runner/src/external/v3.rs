@@ -189,7 +189,7 @@ async fn validate_external_with<'a, C: ValidatorContext<'a>>(
 ) {
     use crate::VersionedFileLoader;
 
-    if server.is_none() {
+    if server.is_none() && !ctx.contains_expressions(uses) {
         let file_system = ctx.get_fs();
         let package_manager = ctx.get_package_manager();
         let loader = VersionedFileLoader::new(&package_manager, &file_system, true);
