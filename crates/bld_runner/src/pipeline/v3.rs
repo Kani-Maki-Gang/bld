@@ -11,7 +11,7 @@ use {
     crate::{
         deps::v3::{Dependencies, Dependency},
         expr::v3::{
-            context::out_of_scope,
+            context::{env_resolution_order, out_of_scope},
             parser::Rule,
             traits::{
                 EvalObject, ExprText, ExprValue, OutputScope, ReadonlyRuntimeExprContext,
@@ -303,6 +303,9 @@ impl<'a> Validate<'a> for Pipeline {
         debug!("Validating pipeline's env section");
         ctx.push_section("env");
         ctx.validate_env(&self.env, ExprScope::StartOfRun);
+        if let Err(e) = env_resolution_order(&self.env, &HashMap::new()) {
+            ctx.append_error(&e.to_string());
+        }
         ctx.pop_section();
 
         debug!("Validating pipeline's jobs section");
@@ -700,6 +703,40 @@ mod tests {
         };
         let error = e.to_string();
         assert!(error.contains("env variable 'LEVEL' not found"), "{error}");
+    }
+
+    #[tokio::test]
+    pub async fn env_value_reading_another_env_value_validation_success() {
+        let mut pipeline = Pipeline::default();
+        pipeline.env.insert("A".to_string(), "a".to_string());
+        pipeline
+            .env
+            .insert("B".to_string(), "${{ env.A }}/b".to_string());
+
+        let result = validate_pipeline(pipeline).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn env_values_reading_each_other_validation_failure() {
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .env
+            .insert("A".to_string(), "${{ env.B }}".to_string());
+        pipeline
+            .env
+            .insert("B".to_string(), "${{ env.A }}".to_string());
+
+        let Err(e) = validate_pipeline(pipeline).await else {
+            panic!("expected a validation error for env values that read each other");
+        };
+        let error = e.to_string();
+        assert!(
+            error.contains(
+                "[env] env variables reference each other in a cycle: env.A -> env.B -> env.A"
+            ),
+            "{error}"
+        );
     }
 
     /// The values of one job never reach another job, so an expression that reads the env

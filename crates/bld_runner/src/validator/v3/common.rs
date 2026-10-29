@@ -472,10 +472,11 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for Comm
     }
 
     fn validate_env(&mut self, env: &'a HashMap<String, String>, scope: ExprScope) {
-        // A declared env section is resolved before the values of that section exist, so
-        // its own values are not available to it. The env of a job is validated with the
-        // context of the file for that reason, while the env of a call to another file is
-        // resolved when the step runs and keeps the context of the job.
+        // The env of a job is resolved before the values of that section exist, so its own
+        // values are not available to it and it is validated with the context of the file.
+        // The env of a pipeline is resolved in dependency order and may read its own values,
+        // while the env of a call to another file is resolved when the step runs and keeps
+        // the context of the job.
         let current_job = match scope {
             ExprScope::StartOfRun => self.current_job.take(),
             ExprScope::Runtime => None,
