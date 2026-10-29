@@ -192,6 +192,7 @@ impl<'a> RunnerBuilder<'a> {
             .file
             .validate(config.clone(), self.fs.clone(), package_manager.clone())
             .await?;
+        VersionedFile::check_dependency_cycles(&config, &self.fs, &package_manager, file).await?;
 
         let env = self
             .env
