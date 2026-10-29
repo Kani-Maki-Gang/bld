@@ -1,7 +1,7 @@
 use crate::expr::v3::exec::{CommonExprExecutor, eval_all_expressions};
 use crate::expr::v3::parser;
 use crate::expr::v3::traits::{EvalObject, ExprText, ExprType};
-use crate::inputs::v3::{Input, InputValue};
+use crate::inputs::v3::{Input, InputValue, defaults_in_order};
 use crate::scalar::{ScalarType, ScalarValue};
 
 use super::traits::{
@@ -211,20 +211,24 @@ pub fn expr_rctx<'a, T: for<'x> EvalObject<'x>>(
         inputs.insert(name.to_string(), value);
     }
 
-    let rctx = CommonReadonlyRuntimeExprContext::new(
-        options.config.clone(),
-        inputs.clone().into_arc(),
-        options.env.clone(),
-        options.run_id.clone(),
-        options.run_start_time.clone(),
-    );
-    let exec = CommonExprExecutor::new(options.obj, &rctx, &START_OF_RUN_WCTX);
-    for (name, input) in options.declared_inputs {
-        if inputs.contains_key(name) {
-            continue;
-        }
+    let defaults = defaults_in_order(
+        options
+            .declared_inputs
+            .iter()
+            .filter(|(name, _)| !inputs.contains_key(*name)),
+    )
+    .context("unable to resolve inputs at the start of the run")?;
+    for (name, input) in defaults {
         let value = match input.default_value() {
             Some(default) => {
+                let rctx = CommonReadonlyRuntimeExprContext::new(
+                    options.config.clone(),
+                    inputs.clone().into_arc(),
+                    options.env.clone(),
+                    options.run_id.clone(),
+                    options.run_start_time.clone(),
+                );
+                let exec = CommonExprExecutor::new(options.obj, &rctx, &START_OF_RUN_WCTX);
                 input_from_default(&exec, &regex, name, input, default).with_context(|| {
                     format!("unable to resolve inputs.{name} at the start of the run")
                 })?
@@ -339,7 +343,31 @@ mod tests {
     }
 
     #[test]
-    pub fn input_default_referencing_another_default_resolve_failure() {
+    pub fn input_default_referencing_another_default_resolve_success() {
+        let mut pipeline = Pipeline::default();
+        pipeline.inputs.insert(
+            "third".to_string(),
+            complex_input("${{ inputs.second }}/leaf"),
+        );
+        pipeline
+            .inputs
+            .insert("first".to_string(), complex_input("/root"));
+        pipeline.inputs.insert(
+            "second".to_string(),
+            complex_input("${{ inputs.first }}/sub"),
+        );
+
+        let rctx = resolve(&pipeline, vec![]).unwrap();
+
+        assert_eq!(rctx.get_input("second").unwrap().to_string(), "/root/sub");
+        assert_eq!(
+            rctx.get_input("third").unwrap().to_string(),
+            "/root/sub/leaf"
+        );
+    }
+
+    #[test]
+    pub fn input_default_referencing_supplied_input_resolve_success() {
         let mut pipeline = Pipeline::default();
         pipeline
             .inputs
@@ -349,9 +377,67 @@ mod tests {
             complex_input("${{ inputs.first }}/sub"),
         );
 
+        let rctx = resolve(&pipeline, vec![("first", "/home")]).unwrap();
+
+        assert_eq!(rctx.get_input("second").unwrap().to_string(), "/home/sub");
+    }
+
+    #[test]
+    pub fn typed_input_default_referencing_another_default_resolve_success() {
+        let mut pipeline = Pipeline::default();
+        pipeline.inputs.insert(
+            "count".to_string(),
+            Input::typed(
+                ScalarType::Number,
+                Some(InputValue::Scalar(ScalarValue::Number(3.0))),
+            ),
+        );
+        pipeline.inputs.insert(
+            "more".to_string(),
+            Input::typed(
+                ScalarType::Boolean,
+                Some(InputValue::Scalar(ScalarValue::Text(
+                    "${{ inputs.count > 2 }}".to_string(),
+                ))),
+            ),
+        );
+
+        let rctx = resolve(&pipeline, vec![]).unwrap();
+
+        assert_eq!(rctx.get_input("more").unwrap(), ExprValue::Boolean(true));
+    }
+
+    #[test]
+    pub fn cyclic_input_defaults_resolve_failure() {
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .inputs
+            .insert("first".to_string(), complex_input("${{ inputs.second }}"));
+        pipeline
+            .inputs
+            .insert("second".to_string(), complex_input("${{ inputs.first }}"));
+
         let error = format!("{:#}", resolve(&pipeline, vec![]).unwrap_err());
 
-        assert!(error.contains("unable to resolve inputs.second"), "{error}");
+        assert!(
+            error.contains("input defaults contain a cyclic reference between: first, second"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    pub fn cyclic_input_defaults_with_supplied_input_resolve_success() {
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .inputs
+            .insert("first".to_string(), complex_input("${{ inputs.second }}"));
+        pipeline
+            .inputs
+            .insert("second".to_string(), complex_input("${{ inputs.first }}"));
+
+        let rctx = resolve(&pipeline, vec![("first", "value")]).unwrap();
+
+        assert_eq!(rctx.get_input("second").unwrap().to_string(), "value");
     }
 
     #[test]

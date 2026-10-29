@@ -19,6 +19,7 @@ use {
                 WritableRuntimeExprContext,
             },
         },
+        inputs::v3::validate_inputs,
         validator::v3::{ExprScope, Validate, ValidatorContext},
     },
     anyhow::{Result, bail},
@@ -199,14 +200,7 @@ impl<'a> Validate<'a> for Action {
         ctx.pop_section();
 
         debug!("Validating action's inputs section");
-        ctx.push_section("inputs");
-        for (name, input) in self.inputs.iter() {
-            debug!("Validating input: {}", name);
-            ctx.push_section(name);
-            input.validate(ctx).await;
-            ctx.pop_section();
-        }
-        ctx.pop_section();
+        validate_inputs(&self.inputs, ctx).await;
 
         debug!("Validating action's steps");
         ctx.push_section("steps");
