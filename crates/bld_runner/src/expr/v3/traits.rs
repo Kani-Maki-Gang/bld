@@ -14,12 +14,10 @@ use crate::scalar::{ScalarType, ScalarValue};
 use mockall::automock;
 
 fn unescape_string_literal(value: &str) -> String {
-    let quote = value.chars().next();
-    let inner = if matches!(quote, Some('"') | Some('\'')) && value.len() >= 2 {
-        &value[1..value.len() - 1]
-    } else {
-        value
-    };
+    let inner = ['"', '\'']
+        .into_iter()
+        .find_map(|quote| value.strip_prefix(quote)?.strip_suffix(quote))
+        .unwrap_or(value);
 
     let mut result = String::with_capacity(inner.len());
     let mut chars = inner.chars();
@@ -540,6 +538,22 @@ pub mod tests {
                 "expected {input} to stay text, got {value:?}"
             );
             assert_eq!(value.to_string(), input);
+        }
+    }
+
+    #[test]
+    fn text_conversion_unescapes_only_matching_quotes() {
+        for (input, expected) in [
+            ("\"é", "\"é"),
+            ("'é", "'é"),
+            ("\"é\"", "é"),
+            ("'é'", "é"),
+            ("\"a'", "\"a'"),
+            ("\"", "\""),
+            ("\"\"", ""),
+        ] {
+            let value: ExprValue = input.try_into().unwrap();
+            assert_eq!(value.to_string(), expected, "input {input}");
         }
     }
 
