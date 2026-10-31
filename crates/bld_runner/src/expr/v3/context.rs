@@ -195,11 +195,61 @@ fn input_from_default<'a, E: EvalExpr<'a>>(
     Ok(value)
 }
 
+fn visit_env<'a>(
+    regex: &regex::Regex,
+    name: &str,
+    declared: &'a HashMap<String, String>,
+    supplied: &HashMap<String, String>,
+    visiting: &mut Vec<&'a str>,
+    order: &mut Vec<&'a str>,
+) -> Result<()> {
+    if supplied.contains_key(name) || order.contains(&name) {
+        return Ok(());
+    }
+    let Some((name, value)) = declared.get_key_value(name) else {
+        return Ok(());
+    };
+    if let Some(pos) = visiting.iter().position(|x| x == name) {
+        let cycle = visiting[pos..]
+            .iter()
+            .copied()
+            .chain([name.as_str()])
+            .map(|x| format!("env.{x}"))
+            .collect::<Vec<_>>()
+            .join(" -> ");
+        bail!("env variables reference each other in a cycle: {cycle}");
+    }
+    visiting.push(name);
+    for dependency in parser::object_refs(regex, value, "env") {
+        visit_env(regex, &dependency, declared, supplied, visiting, order)?;
+    }
+    visiting.pop();
+    order.push(name);
+    Ok(())
+}
+
+/// The names of the declared env variables that need to be resolved, ordered so that a
+/// variable comes after every declared variable that it reads. Supplied variables take
+/// precedence over the declared ones, so they are neither resolved nor followed.
+pub fn env_resolution_order<'a>(
+    declared: &'a HashMap<String, String>,
+    supplied: &HashMap<String, String>,
+) -> Result<Vec<&'a str>> {
+    let regex = parser::new_regex()?;
+    let mut names: Vec<&String> = declared.keys().collect();
+    names.sort();
+    let mut visiting = Vec::new();
+    let mut order = Vec::new();
+    for name in names {
+        visit_env(&regex, name, declared, supplied, &mut visiting, &mut order)?;
+    }
+    Ok(order)
+}
+
 pub fn expr_rctx<'a, T: for<'x> EvalObject<'x>>(
     options: CommonReadonlyRuntimeExprContextOptions<'a, T>,
 ) -> Result<CommonReadonlyRuntimeExprContext> {
     let regex = parser::new_regex()?;
-    let mut env = (*options.env).clone();
 
     // Supplied values always take precedence over the ones declared in the file.
     let mut inputs = HashMap::new();
@@ -239,30 +289,22 @@ pub fn expr_rctx<'a, T: for<'x> EvalObject<'x>>(
         inputs.insert(name.to_string(), value);
     }
 
-    let rctx = CommonReadonlyRuntimeExprContext::new(
-        options.config.clone(),
-        inputs.clone().into_arc(),
-        env.clone().into_arc(),
-        options.run_id.clone(),
-        options.run_start_time.clone(),
-    );
-    let exec = CommonExprExecutor::new(options.obj, &rctx, &START_OF_RUN_WCTX);
-    for (name, raw) in options.declared_env {
-        if env.contains_key(name) {
-            continue;
-        }
-        let value = eval_all_expressions(&exec, &regex, raw)
-            .with_context(|| format!("unable to resolve env.{name} at the start of the run"))?;
-        env.insert(name.to_string(), value);
-    }
-
-    Ok(CommonReadonlyRuntimeExprContext::new(
+    let order = env_resolution_order(options.declared_env, &options.env)?;
+    let mut rctx = CommonReadonlyRuntimeExprContext::new(
         options.config,
         inputs.into_arc(),
-        env.into_arc(),
+        options.env,
         options.run_id,
         options.run_start_time,
-    ))
+    );
+    for name in order {
+        let exec = CommonExprExecutor::new(options.obj, &rctx, &START_OF_RUN_WCTX);
+        let value = eval_all_expressions(&exec, &regex, &options.declared_env[name])
+            .with_context(|| format!("unable to resolve env.{name} at the start of the run"))?;
+        Arc::make_mut(&mut rctx.env).insert(name.to_string(), value);
+    }
+
+    Ok(rctx)
 }
 
 #[cfg(test)]
@@ -364,6 +406,73 @@ mod tests {
             rctx.get_input("third").unwrap().to_string(),
             "/root/sub/leaf"
         );
+    }
+
+    #[test]
+    pub fn env_referencing_another_env_resolve_success() {
+        let mut pipeline = Pipeline::default();
+        for (name, value) in [
+            ("A", "a"),
+            ("B", "${{ env.A }}/b"),
+            ("C", "${{ env.B }}/c"),
+            ("D", "${{ env.C }}-${{ env.A }}"),
+        ] {
+            pipeline.env.insert(name.to_string(), value.to_string());
+        }
+
+        let rctx = resolve(&pipeline, vec![]).unwrap();
+
+        assert_eq!(rctx.get_env("B").unwrap().to_string(), "a/b");
+        assert_eq!(rctx.get_env("C").unwrap().to_string(), "a/b/c");
+        assert_eq!(rctx.get_env("D").unwrap().to_string(), "a/b/c-a");
+    }
+
+    #[test]
+    pub fn env_referencing_supplied_env_resolve_success() {
+        let mut pipeline = Pipeline::default();
+        pipeline.env.insert("A".to_string(), "a".to_string());
+        pipeline
+            .env
+            .insert("B".to_string(), "${{ env.A }}/b".to_string());
+        let config = BldConfig::default().into_arc();
+        let env: HashMap<String, String> = [("A".to_string(), "supplied".to_string())].into();
+
+        let rctx = expr_rctx(CommonReadonlyRuntimeExprContextOptions {
+            obj: &pipeline,
+            config,
+            inputs: HashMap::new().into_arc(),
+            declared_inputs: &pipeline.inputs,
+            env: env.into_arc(),
+            declared_env: &pipeline.env,
+            run_id: "run-id".to_string(),
+            run_start_time: "start-time".to_string(),
+        })
+        .unwrap();
+
+        assert_eq!(rctx.get_env("A").unwrap().to_string(), "supplied");
+        assert_eq!(rctx.get_env("B").unwrap().to_string(), "supplied/b");
+    }
+
+    #[test]
+    pub fn env_cycle_resolve_failure() {
+        let data = [
+            vec![("A", "${{ env.A }}")],
+            vec![("A", "${{ env.B }}"), ("B", "x-${{ env.A }}")],
+        ];
+
+        for values in data {
+            let mut pipeline = Pipeline::default();
+            for (name, value) in values {
+                pipeline.env.insert(name.to_string(), value.to_string());
+            }
+
+            let error = format!("{:#}", resolve(&pipeline, vec![]).unwrap_err());
+
+            assert!(
+                error.contains("env variables reference each other in a cycle"),
+                "{error}"
+            );
+        }
     }
 
     #[test]
