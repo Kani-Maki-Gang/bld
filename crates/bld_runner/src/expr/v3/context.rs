@@ -156,6 +156,15 @@ pub fn input_from_text(name: &str, ty: ScalarType, raw: &str) -> Result<ExprValu
     value.ok_or_else(|| anyhow!("input '{name}' must be a {}, found '{raw}'", ty.as_str()))
 }
 
+fn zero_value(ty: ScalarType) -> ExprValue<'static> {
+    match ty {
+        ScalarType::Text => ExprValue::Text(ExprText::Owned(String::new())),
+        ScalarType::Number => ExprValue::from(&ScalarValue::Number(0.0)),
+        ScalarType::Boolean => ExprValue::Boolean(false),
+        ScalarType::Array => ExprValue::Array(Vec::new()),
+    }
+}
+
 fn input_from_default<'a, E: EvalExpr<'a>>(
     exec: &E,
     regex: &regex::Regex,
@@ -211,11 +220,18 @@ pub fn expr_rctx<'a, T: for<'x> EvalObject<'x>>(
     );
     let exec = CommonExprExecutor::new(options.obj, &rctx, &START_OF_RUN_WCTX);
     for (name, input) in options.declared_inputs {
-        let Some(default) = input.default_value().filter(|_| !inputs.contains_key(name)) else {
+        if inputs.contains_key(name) {
             continue;
+        }
+        let value = match input.default_value() {
+            Some(default) => {
+                input_from_default(&exec, &regex, name, input, default).with_context(|| {
+                    format!("unable to resolve inputs.{name} at the start of the run")
+                })?
+            }
+            None if input.is_required() => continue,
+            None => zero_value(input.scalar_type),
         };
-        let value = input_from_default(&exec, &regex, name, input, default)
-            .with_context(|| format!("unable to resolve inputs.{name} at the start of the run"))?;
         inputs.insert(name.to_string(), value);
     }
 
@@ -366,6 +382,34 @@ mod tests {
         let rctx = resolve(&pipeline, vec![]).unwrap();
 
         assert!(rctx.get_input("image").is_err());
+    }
+
+    #[test]
+    pub fn optional_input_without_default_resolves_to_its_type_default() {
+        let mut pipeline = Pipeline::default();
+        for (name, ty) in [
+            ("tag", ScalarType::Text),
+            ("count", ScalarType::Number),
+            ("deploy", ScalarType::Boolean),
+            ("oses", ScalarType::Array),
+        ] {
+            pipeline
+                .inputs
+                .insert(name.to_string(), Input::typed(ty, None));
+        }
+
+        let rctx = resolve(&pipeline, vec![]).unwrap();
+
+        assert_eq!(
+            rctx.get_input("tag").unwrap(),
+            ExprValue::Text(ExprText::Owned(String::new()))
+        );
+        assert_eq!(rctx.get_input("count").unwrap().to_string(), "0");
+        assert_eq!(rctx.get_input("deploy").unwrap(), ExprValue::Boolean(false));
+        assert_eq!(
+            rctx.get_input("oses").unwrap(),
+            ExprValue::Array(Vec::new())
+        );
     }
 
     #[test]
