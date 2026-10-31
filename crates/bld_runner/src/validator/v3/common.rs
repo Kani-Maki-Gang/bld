@@ -16,36 +16,14 @@ use tracing::debug;
 use crate::expr::v3::{
     context::START_OF_RUN_WCTX,
     exec::CommonExprExecutor,
-    parser::{self, ExprParser, Rule},
+    parser,
     traits::{
         EvalExpr, EvalObject, ExprType, ExprValue, OutputScope, ReadonlyRuntimeExprContext,
         WritableRuntimeExprContext,
     },
 };
-use pest::{Parser, iterators::Pairs};
 
 use super::{ConsumeValidator, ExprScope, Validate, ValidatorContext};
-
-fn collect_matrix_refs(pairs: Pairs<Rule>, result: &mut Vec<String>) {
-    for pair in pairs {
-        if pair.as_rule() == Rule::Object {
-            let mut parts = pair.into_inner();
-            let Some(first) = parts.next() else {
-                continue;
-            };
-            if first.as_str() != "matrix" {
-                continue;
-            }
-            if let Some(second) = parts.next()
-                && second.as_rule() == Rule::ObjectPart
-            {
-                result.push(second.as_str().to_string());
-            }
-        } else {
-            collect_matrix_refs(pair.into_inner(), result);
-        }
-    }
-}
 
 enum Section<'a> {
     Job(&'a str),
@@ -457,14 +435,7 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for Comm
     }
 
     fn matrix_refs(&self, value: &str) -> Vec<String> {
-        let mut result = Vec::new();
-        for entry in self.expr_regex.find_iter(value) {
-            let Ok(pairs) = ExprParser::parse(Rule::Full, entry.as_str()) else {
-                continue;
-            };
-            collect_matrix_refs(pairs, &mut result);
-        }
-        result
+        parser::object_refs(&self.expr_regex, value, "matrix")
     }
 
     fn job_output_refs(&self, value: &str) -> Vec<String> {

@@ -18,6 +18,7 @@ use {
                 WritableRuntimeExprContext,
             },
         },
+        inputs::v3::validate_inputs,
         validator::v3::{ExprScope, Validate, ValidatorContext},
     },
     anyhow::{Result, bail},
@@ -297,14 +298,7 @@ impl<'a> Validate<'a> for Pipeline {
         self.validate_cron(ctx);
 
         debug!("Validating pipeline's inputs section");
-        ctx.push_section("inputs");
-        for (name, input) in self.inputs.iter() {
-            debug!("Validating input: {}", name);
-            ctx.push_section(name);
-            input.validate(ctx).await;
-            ctx.pop_section();
-        }
-        ctx.pop_section();
+        validate_inputs(&self.inputs, ctx).await;
 
         debug!("Validating pipeline's env section");
         ctx.push_section("env");
@@ -1345,5 +1339,43 @@ inputs:
 "#;
         let result = validate_yaml(yaml).await;
         assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn input_default_referencing_another_input_validation_success() {
+        let yaml = r#"
+inputs:
+  first:
+    type: text
+    default: /root
+  second:
+    type: text
+    default: ${{ inputs.first }}/sub
+"#;
+        let result = validate_yaml(yaml).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn cyclic_input_defaults_validation_failure() {
+        let yaml = r#"
+inputs:
+  first:
+    type: text
+    default: ${{ inputs.second }}
+  second:
+    type: text
+    default: ${{ inputs.first }}/sub
+  own:
+    type: text
+    default: ${{ inputs.own }}
+"#;
+        let error = validate_yaml(yaml).await.unwrap_err().to_string();
+        assert!(
+            error.contains(
+                "[inputs] input defaults contain a cyclic reference between: first, own, second"
+            ),
+            "{error}"
+        );
     }
 }

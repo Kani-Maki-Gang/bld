@@ -7,10 +7,12 @@ use crate::scalar::{ScalarType, ScalarValue};
 #[cfg(feature = "all")]
 use {
     crate::{
-        expr::v3::traits::ExprType,
+        expr::v3::{parser, traits::ExprType},
         scalar::single_scalar_type,
         validator::v3::{ExprScope, Validate, ValidatorContext},
     },
+    anyhow::{Result, bail},
+    std::collections::{BTreeMap, HashMap},
     tracing::debug,
 };
 
@@ -108,6 +110,70 @@ impl Input {
             (ty, _) => ExprType::from(ty),
         }
     }
+}
+
+/// Orders the inputs that have a default so that every input comes after the inputs
+/// that its default reads.
+#[cfg(feature = "all")]
+pub fn defaults_in_order<'a>(
+    inputs: impl IntoIterator<Item = (&'a String, &'a Input)>,
+) -> Result<Vec<(&'a str, &'a Input)>> {
+    let regex = parser::new_regex()?;
+    let mut pending: BTreeMap<&str, (&Input, Vec<String>)> = inputs
+        .into_iter()
+        .map(|(name, input)| {
+            let refs = input
+                .default_value()
+                .and_then(|x| x.as_text())
+                .map(|x| parser::object_refs(&regex, x, "inputs"))
+                .unwrap_or_default();
+            (name.as_str(), (input, refs))
+        })
+        .collect();
+
+    let mut order = Vec::with_capacity(pending.len());
+    loop {
+        let ready: Vec<&str> = pending
+            .iter()
+            .filter(|(_, (_, refs))| refs.iter().all(|x| !pending.contains_key(x.as_str())))
+            .map(|(name, _)| *name)
+            .collect();
+        if ready.is_empty() {
+            break;
+        }
+        for name in ready {
+            if let Some((input, _)) = pending.remove(name) {
+                order.push((name, input));
+            }
+        }
+    }
+
+    if !pending.is_empty() {
+        let names: Vec<&str> = pending.into_keys().collect();
+        bail!(
+            "input defaults contain a cyclic reference between: {}",
+            names.join(", ")
+        );
+    }
+    Ok(order)
+}
+
+#[cfg(feature = "all")]
+pub async fn validate_inputs<'a, C: ValidatorContext<'a>>(
+    inputs: &'a HashMap<String, Input>,
+    ctx: &mut C,
+) {
+    ctx.push_section("inputs");
+    for (name, input) in inputs.iter() {
+        debug!("Validating input: {}", name);
+        ctx.push_section(name);
+        input.validate(ctx).await;
+        ctx.pop_section();
+    }
+    if let Err(e) = defaults_in_order(inputs) {
+        ctx.append_error(&e.to_string());
+    }
+    ctx.pop_section();
 }
 
 #[cfg(feature = "all")]

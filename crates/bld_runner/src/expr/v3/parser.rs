@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use anyhow::Result;
+use pest::{Parser, iterators::Pairs};
 use pest_derive::Parser;
 use regex::Regex;
 
@@ -12,6 +13,40 @@ pub struct ExprParser;
 
 pub fn new_regex() -> Result<Regex> {
     Ok(Regex::new(EXPR_REGEX)?)
+}
+
+fn collect_object_refs(pairs: Pairs<Rule>, root: &str, result: &mut Vec<String>) {
+    for pair in pairs {
+        if pair.as_rule() == Rule::Object {
+            let mut parts = pair.into_inner();
+            let Some(first) = parts.next() else {
+                continue;
+            };
+            if first.as_str() != root {
+                continue;
+            }
+            if let Some(second) = parts.next()
+                && second.as_rule() == Rule::ObjectPart
+            {
+                result.push(second.as_str().to_string());
+            }
+        } else {
+            collect_object_refs(pair.into_inner(), root, result);
+        }
+    }
+}
+
+/// The names that the expressions of a value read from the object `root`, for example
+/// `first` for `${{ inputs.first }}` when `root` is `inputs`.
+pub fn object_refs(regex: &Regex, value: &str, root: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    for entry in regex.find_iter(value) {
+        let Ok(pairs) = ExprParser::parse(Rule::Full, entry.as_str()) else {
+            continue;
+        };
+        collect_object_refs(pairs, root, &mut result);
+    }
+    result
 }
 
 #[cfg(test)]
