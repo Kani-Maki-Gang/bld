@@ -199,17 +199,24 @@ impl<S: RootState> ActionRunner<S> {
     async fn external(&mut self, external: &External) -> Result<()> {
         self.step_name(external.name.as_ref()).await?;
 
-        debug!("calling external pipeline or action {}", external.uses);
+        let uses = self.eval_all_expr(&external.uses)?;
+        let server = external
+            .server
+            .as_deref()
+            .map(|server| self.eval_all_expr(server))
+            .transpose()?;
 
-        match external.server.as_ref() {
-            Some(server) => self.server_external(server, external).await?,
-            None => self.local_external(external).await?,
+        debug!("calling external pipeline or action {uses}");
+
+        match server {
+            Some(server) => self.server_external(&server, &uses, external).await?,
+            None => self.local_external(&uses, external).await?,
         };
 
         Ok(())
     }
 
-    async fn local_external(&mut self, details: &External) -> Result<()> {
+    async fn local_external(&mut self, uses: &str, details: &External) -> Result<()> {
         debug!("building runner for child file");
 
         let inputs = self.variables_external(&details.with)?;
@@ -220,7 +227,7 @@ impl<S: RootState> ActionRunner<S> {
             .run_start_time(&self.expr_rctx.run_start_time)
             .config(self.config.clone())
             .fs(self.fs.clone())
-            .file(&details.uses)
+            .file(uses)
             .logger(self.logger.clone())
             .env(env.into_arc())
             .inputs(inputs.into_arc())
@@ -246,7 +253,12 @@ impl<S: RootState> ActionRunner<S> {
         Ok(())
     }
 
-    async fn server_external(&mut self, server: &str, details: &External) -> Result<()> {
+    async fn server_external(
+        &mut self,
+        server: &str,
+        uses: &str,
+        details: &External,
+    ) -> Result<()> {
         let inputs = self.variables_external(&details.with)?;
         let env = self.variables_external(&details.env)?;
 
@@ -264,7 +276,7 @@ impl<S: RootState> ActionRunner<S> {
 
         client
             .run(ExecClientMessage::EnqueueRun {
-                name: details.uses.to_owned(),
+                name: uses.to_owned(),
                 env: Some(env),
                 inputs: Some(inputs),
             })

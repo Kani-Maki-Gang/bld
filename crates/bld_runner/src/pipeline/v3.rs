@@ -334,6 +334,7 @@ mod tests {
                 OutputScope,
             },
         },
+        external::v3::External,
         inputs::v3::{Input, InputValue},
         job::v3::{Job, Needs},
         scalar::{ScalarType, ScalarValue},
@@ -542,6 +543,39 @@ mod tests {
                     condition: Some("${{ inputs.flag }}".to_string()),
                     ..Default::default()
                 }))],
+                ..Default::default()
+            },
+        );
+
+        let result = validate_pipeline(pipeline).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    pub async fn external_uses_and_server_expressions_validation_success() {
+        let mut pipeline = Pipeline::default();
+        pipeline
+            .inputs
+            .insert("target".to_string(), complex_input("inner.yaml"));
+        pipeline
+            .inputs
+            .insert("server".to_string(), complex_input("remote"));
+        pipeline.jobs.insert(
+            "main".to_string(),
+            Job {
+                steps: vec![
+                    Step::ExternalFile(Box::new(External {
+                        id: "local".to_string(),
+                        uses: "${{ inputs.target }}".to_string(),
+                        ..Default::default()
+                    })),
+                    Step::ExternalFile(Box::new(External {
+                        id: "remote".to_string(),
+                        uses: "${{ inputs.target }}".to_string(),
+                        server: Some("${{ inputs.server }}".to_string()),
+                        ..Default::default()
+                    })),
+                ],
                 ..Default::default()
             },
         );
