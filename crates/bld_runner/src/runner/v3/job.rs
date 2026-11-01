@@ -553,7 +553,7 @@ impl<S: RootState> JobRunner<S> {
             bail!("more than one condition found for step");
         };
 
-        let value = expr_exec.eval(condition)?;
+        let value = expr_exec.eval(condition.trim())?;
         value.try_into()
     }
 
@@ -825,6 +825,12 @@ mod tests {
             job.condition(Some("hello world ${{ true == \"James\" }}"))
                 .is_err()
         );
+
+        assert!(job.condition(Some("${{ true }} == false")).is_err());
+
+        assert!(job.condition(Some("x ${{ true }}")).is_err());
+
+        assert!(matches!(job.condition(Some(" ${{ true }} ")), Ok(true)));
     }
 
     #[test]

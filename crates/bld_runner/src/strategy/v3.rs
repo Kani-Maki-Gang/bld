@@ -13,6 +13,7 @@ use {
                 WritableRuntimeExprContext,
             },
         },
+        inputs::v3::is_single_expression,
         scalar::single_scalar_type,
         validator::v3::{ExprScope, Validate, ValidatorContext},
     },
@@ -75,7 +76,7 @@ impl Strategy {
             let values: Vec<ScalarValue> = match value {
                 MatrixValue::Array(items) => items.clone(),
                 MatrixValue::Expr(expr) => {
-                    let result = exec.eval(expr)?;
+                    let result = exec.eval(expr.trim())?;
                     let ExprValue::Array(items) = result else {
                         bail!(
                             "matrix key '{key}' must evaluate to an array, found {}",
@@ -129,7 +130,7 @@ impl Strategy {
         match self.fail_fast.as_ref() {
             None => Ok(Self::default_fail_fast()),
             Some(FailFastValue::Bool(value)) => Ok(*value),
-            Some(FailFastValue::Expr(expr)) => match exec.eval(expr)? {
+            Some(FailFastValue::Expr(expr)) => match exec.eval(expr.trim())? {
                 ExprValue::Boolean(value) => Ok(value),
                 other => bail!(
                     "fail_fast must evaluate to a boolean, found {}",
@@ -178,6 +179,11 @@ impl Strategy {
                     if ctx.expression_count(expr) > 1 {
                         ctx.append_error("Matrix value must contain at most one expression");
                         None
+                    } else if !is_single_expression(ctx, expr) {
+                        ctx.append_error(
+                            "Matrix value must contain only an expression, without any text around it",
+                        );
+                        None
                     } else {
                         ctx.validate_array_expression(expr, scope)
                     }
@@ -193,6 +199,10 @@ impl Strategy {
             if let FailFastValue::Expr(expr) = fail_fast {
                 if ctx.expression_count(expr) > 1 {
                     ctx.append_error("fail_fast must contain at most one expression");
+                } else if !is_single_expression(ctx, expr) {
+                    ctx.append_error(
+                        "fail_fast must contain only an expression, without any text around it",
+                    );
                 } else {
                     ctx.validate_typed_expression(expr, scope, &ExprType::Boolean);
                 }

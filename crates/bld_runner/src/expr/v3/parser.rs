@@ -1119,6 +1119,22 @@ mod tests {
     }
 
     #[test]
+    fn parse_full_expression_with_text_around_it_failure() {
+        let data = [
+            "${{ inputs.flag }} == false",
+            "x ${{ true }}",
+            "${{ true }} x",
+            "${{ true }}}",
+        ];
+        for expr in data {
+            assert!(
+                ExprParser::parse(Rule::Full, expr).is_err(),
+                "expected a parse error for: {expr}"
+            );
+        }
+    }
+
+    #[test]
     fn parse_full_expression_with_dangling_logical_operator_failure() {
         let data = [
             "${{ true && }}",
