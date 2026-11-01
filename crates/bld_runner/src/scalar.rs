@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -6,6 +8,16 @@ pub enum ScalarValue {
     Number(f64),
     Boolean(bool),
     Text(String),
+}
+
+impl Display for ScalarValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Number(v) => write!(f, "{v}"),
+            Self::Boolean(v) => write!(f, "{v}"),
+            Self::Text(v) => f.write_str(v),
+        }
+    }
 }
 
 impl ScalarValue {

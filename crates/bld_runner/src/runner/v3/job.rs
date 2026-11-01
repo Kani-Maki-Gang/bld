@@ -409,7 +409,7 @@ impl<S: RootState> JobRunner<S> {
     async fn local_external(&mut self, uses: &str, details: &External) -> Result<()> {
         debug!("building runner for child file");
 
-        let inputs = self.variables_external(&details.with)?;
+        let inputs = self.variables_external(&details.with_as_text())?;
         let env = self.variables_external(&details.env)?;
 
         let runner = RunnerBuilder::default()
@@ -449,7 +449,7 @@ impl<S: RootState> JobRunner<S> {
         uses: &str,
         details: &External,
     ) -> Result<()> {
-        let inputs = self.variables_external(&details.with)?;
+        let inputs = self.variables_external(&details.with_as_text())?;
         let env = self.variables_external(&details.env)?;
 
         debug!("establishing web socket connection with server {}", server);
@@ -2089,7 +2089,10 @@ steps:
         dir.write("inner.yaml", ACTION_WITH_OUTPUT);
 
         let mut with = HashMap::new();
-        with.insert("tag".to_string(), "my-image:latest".to_string());
+        with.insert(
+            "tag".to_string(),
+            ScalarValue::Text("my-image:latest".to_string()),
+        );
 
         let runner = job_runner_calling_action(
             &dir,
@@ -2120,7 +2123,10 @@ steps:
         dir.write("inner.yaml", ACTION_WITH_OUTPUT);
 
         let mut with = HashMap::new();
-        with.insert("tag".to_string(), "${{ matrix.tag }}".to_string());
+        with.insert(
+            "tag".to_string(),
+            ScalarValue::Text("${{ matrix.tag }}".to_string()),
+        );
 
         let mut matrix = HashMap::new();
         matrix.insert("tag".to_string(), value);
@@ -2177,7 +2183,10 @@ steps:
         dir.write("inner.yaml", ACTION_WITH_OUTPUT);
 
         let mut with = HashMap::new();
-        with.insert("tag".to_string(), "${{ matrix.tag }}".to_string());
+        with.insert(
+            "tag".to_string(),
+            ScalarValue::Text("${{ matrix.tag }}".to_string()),
+        );
 
         let mut matrix = HashMap::new();
         matrix.insert(
@@ -2288,7 +2297,10 @@ steps:
         dir.write("inner.yaml", ACTION_WITH_OUTPUT);
 
         let mut with = HashMap::new();
-        with.insert("tag".to_string(), "my-image:latest".to_string());
+        with.insert(
+            "tag".to_string(),
+            ScalarValue::Text("my-image:latest".to_string()),
+        );
 
         let mut build_outputs = HashMap::new();
         build_outputs.insert(
@@ -2333,7 +2345,10 @@ steps:
                 uses: "inner.yaml".to_string(),
                 with: {
                     let mut with = HashMap::new();
-                    with.insert("tag".to_string(), "unrelated".to_string());
+                    with.insert(
+                        "tag".to_string(),
+                        ScalarValue::Text("unrelated".to_string()),
+                    );
                     with
                 },
                 ..Default::default()
@@ -2370,7 +2385,10 @@ steps:
         );
 
         let mut with = HashMap::new();
-        with.insert("tag".to_string(), "unrelated".to_string());
+        with.insert(
+            "tag".to_string(),
+            ScalarValue::Text("unrelated".to_string()),
+        );
 
         let publish = job_runner_with_outputs(
             &dir,
@@ -2498,7 +2516,10 @@ steps:
         dir.write("inner.yaml", ACTION_WITH_OUTPUT);
 
         let mut with = HashMap::new();
-        with.insert("tag".to_string(), "static-tag".to_string());
+        with.insert(
+            "tag".to_string(),
+            ScalarValue::Text("static-tag".to_string()),
+        );
 
         let mut runner = job_runner_calling_action(
             &dir,
@@ -2526,7 +2547,10 @@ steps:
         dir.write("inner.yaml", ACTION_WITH_OUTPUT);
 
         let mut with = HashMap::new();
-        with.insert("tag".to_string(), "static-tag".to_string());
+        with.insert(
+            "tag".to_string(),
+            ScalarValue::Text("static-tag".to_string()),
+        );
 
         let runner = job_runner_calling_action(
             &dir,

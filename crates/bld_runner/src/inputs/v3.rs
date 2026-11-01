@@ -36,10 +36,8 @@ impl Display for InputValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fn scalar(value: &ScalarValue, quote_text: bool) -> String {
             match value {
-                ScalarValue::Number(v) => v.to_string(),
-                ScalarValue::Boolean(v) => v.to_string(),
                 ScalarValue::Text(v) if quote_text => format!("\"{}\"", v.replace('"', "\\\"")),
-                ScalarValue::Text(v) => v.to_string(),
+                value => value.to_string(),
             }
         }
 

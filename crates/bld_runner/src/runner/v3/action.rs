@@ -219,7 +219,7 @@ impl<S: RootState> ActionRunner<S> {
     async fn local_external(&mut self, uses: &str, details: &External) -> Result<()> {
         debug!("building runner for child file");
 
-        let inputs = self.variables_external(&details.with)?;
+        let inputs = self.variables_external(&details.with_as_text())?;
         let env = self.variables_external(&details.env)?;
 
         let runner = RunnerBuilder::default()
@@ -259,7 +259,7 @@ impl<S: RootState> ActionRunner<S> {
         uses: &str,
         details: &External,
     ) -> Result<()> {
-        let inputs = self.variables_external(&details.with)?;
+        let inputs = self.variables_external(&details.with_as_text())?;
         let env = self.variables_external(&details.env)?;
 
         debug!("establishing web socket connection with server {}", server);
@@ -1211,7 +1211,10 @@ steps:
 
         let mut action = Action::default();
         let mut with = HashMap::new();
-        with.insert("tag".to_string(), "${{ inputs.tag }}".to_string());
+        with.insert(
+            "tag".to_string(),
+            ScalarValue::Text("${{ inputs.tag }}".to_string()),
+        );
         action.steps.push(Step::ExternalFile(Box::new(External {
             id: "call_inner".to_string(),
             uses: "inner.yaml".to_string(),
@@ -1291,7 +1294,10 @@ steps:
         let package_manager = PackageManager::new(config.clone()).into_arc();
 
         let mut with = HashMap::new();
-        with.insert("tag".to_string(), "static-tag".to_string());
+        with.insert(
+            "tag".to_string(),
+            ScalarValue::Text("static-tag".to_string()),
+        );
 
         let mut matrix = HashMap::new();
         matrix.insert(
