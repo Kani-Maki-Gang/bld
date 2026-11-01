@@ -3,7 +3,7 @@ use std::{
 };
 
 use anyhow::{Result, anyhow, bail};
-use async_ssh2_lite::{AsyncSession, AsyncSftp, TokioTcpStream};
+use async_ssh2_lite::{AsyncSession, AsyncSftp, TokioTcpStream, ssh2::ExtendedData};
 use bld_config::{BldConfig, definitions::BLD_OUTPUTS_ENV_VAR_V3, path};
 use bld_utils::{sync::IntoArc, variables::parse_variables};
 use futures_util::{
@@ -357,32 +357,29 @@ impl Ssh {
         Ok(())
     }
 
-    async fn run_internal_cmd(&self, cmd: Vec<&str>) -> Result<String> {
-        debug!("running internal ssh command");
+    async fn exec(&self, command: &str) -> Result<(String, i32)> {
         let mut channel = self.session.channel_session().await?;
-
-        channel.exec(&cmd.join(" ")).await?;
+        channel.handle_extended_data(ExtendedData::Merge).await?;
+        channel.exec(command).await?;
 
         let mut output = String::new();
-
-        let mut stdout = String::new();
-        FuturesUtilAsyncReadExt::read_to_string(&mut channel, &mut stdout).await?;
-        output.push_str(&stdout);
-
-        let mut stderr = String::new();
-        let mut channel_stderr = channel.stderr();
-        FuturesUtilAsyncReadExt::read_to_string(&mut channel_stderr, &mut stderr).await?;
-        output.push_str(&stderr);
-
-        let exit_status = channel.exit_status()?;
-        if exit_status != 0 {
-            debug!("failed to run internal ssh command due to {stderr}");
-            bail!("command finished with status {exit_status}");
-        }
+        FuturesUtilAsyncReadExt::read_to_string(&mut channel, &mut output).await?;
 
         channel.close().await?;
+        channel.wait_close().await?;
+        let exit_status = channel.exit_status()?;
 
-        Ok(stdout)
+        Ok((output, exit_status))
+    }
+
+    async fn run_internal_cmd(&self, cmd: Vec<&str>) -> Result<String> {
+        debug!("running internal ssh command");
+        let (output, exit_status) = self.exec(&cmd.join(" ")).await?;
+        if exit_status != 0 {
+            debug!("failed to run internal ssh command due to {output}");
+            bail!("command finished with status {exit_status}");
+        }
+        Ok(output)
     }
 
     pub async fn sh(
@@ -392,34 +389,18 @@ impl Ssh {
         working_dir: &Option<String>,
         input: &str,
     ) -> Result<HashMap<String, String>> {
-        let mut channel = self.session.channel_session().await?;
-
         let outputs_file = path![&self.outputs_dir, Uuid::new_v4().to_string()]
             .display()
             .to_string();
 
         let command = command_with_env(&self.env, &outputs_file, shell, working_dir, input);
-        channel.exec(&command).await?;
-
-        let mut output = String::new();
-
-        let mut stdout = String::new();
-        FuturesUtilAsyncReadExt::read_to_string(&mut channel, &mut stdout).await?;
-        output.push_str(&stdout);
-
-        let mut stderr = String::new();
-        let mut channel_stderr = channel.stderr();
-        FuturesUtilAsyncReadExt::read_to_string(&mut channel_stderr, &mut stderr).await?;
-        output.push_str(&stderr);
+        let (output, exit_status) = self.exec(&command).await?;
 
         logger.write(output).await?;
 
-        let exit_status = channel.exit_status()?;
         if exit_status != 0 {
             bail!("command finished with status {exit_status}");
         }
-
-        channel.close().await?;
 
         let outputs = self
             .run_internal_cmd(vec!["cat", &outputs_file])
