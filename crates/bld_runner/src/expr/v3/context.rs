@@ -762,4 +762,20 @@ mod tests {
             "{error}"
         );
     }
+
+    #[test]
+    pub fn typed_default_with_text_around_the_expression_resolve_failure() {
+        let mut pipeline = Pipeline::default();
+        pipeline.inputs.insert(
+            "flag".to_string(),
+            Input::typed(
+                ScalarType::Boolean,
+                Some(InputValue::Scalar(ScalarValue::Text(
+                    "${{ true }} == false".to_string(),
+                ))),
+            ),
+        );
+
+        assert!(resolve(&pipeline, vec![]).is_err());
+    }
 }

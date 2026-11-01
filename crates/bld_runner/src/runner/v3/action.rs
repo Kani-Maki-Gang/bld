@@ -81,7 +81,7 @@ impl<S: RootState> ActionRunner<S> {
         };
 
         let expr_exec = CommonExprExecutor::new(&self.action, &self.expr_rctx, &self.state);
-        let value = expr_exec.eval(condition)?;
+        let value = expr_exec.eval(condition.trim())?;
         value.try_into()
     }
 

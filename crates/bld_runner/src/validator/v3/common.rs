@@ -13,14 +13,17 @@ use bld_pkg::PackageManager;
 use regex::Regex;
 use tracing::debug;
 
-use crate::expr::v3::{
-    context::START_OF_RUN_WCTX,
-    exec::CommonExprExecutor,
-    parser,
-    traits::{
-        EvalExpr, EvalObject, ExprType, ExprValue, OutputScope, ReadonlyRuntimeExprContext,
-        WritableRuntimeExprContext,
+use crate::{
+    expr::v3::{
+        context::START_OF_RUN_WCTX,
+        exec::CommonExprExecutor,
+        parser,
+        traits::{
+            EvalExpr, EvalObject, ExprType, ExprValue, OutputScope, ReadonlyRuntimeExprContext,
+            WritableRuntimeExprContext,
+        },
     },
+    inputs::v3::is_single_expression,
 };
 
 use super::{ConsumeValidator, ExprScope, Validate, ValidatorContext};
@@ -314,20 +317,18 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> CommonValidator<'a, V> {
         wctx: &'a W,
     ) {
         let expr_exec = CommonExprExecutor::new(self.validatable, self.rctx(), wctx);
-        for entry in self.expr_regex.find_iter(value) {
-            match expr_exec.eval(entry.as_str()).map(|x| x.expr_type()) {
-                Ok(None | Some(ExprType::Boolean | ExprType::Text)) => {}
-                Ok(Some(ty)) => {
-                    let section = self.section_txt();
-                    let _ = writeln!(
-                        self.errors,
-                        "[{section}] a condition must give a boolean value, but it gives {ty}"
-                    );
-                }
-                Err(e) => {
-                    let section = self.section_txt();
-                    let _ = writeln!(self.errors, "[{section}] {}", e);
-                }
+        match expr_exec.eval(value).map(|x| x.expr_type()) {
+            Ok(None | Some(ExprType::Boolean | ExprType::Text)) => {}
+            Ok(Some(ty)) => {
+                let section = self.section_txt();
+                let _ = writeln!(
+                    self.errors,
+                    "[{section}] a condition must give a boolean value, but it gives {ty}"
+                );
+            }
+            Err(e) => {
+                let section = self.section_txt();
+                let _ = writeln!(self.errors, "[{section}] {}", e);
             }
         }
     }
@@ -504,7 +505,12 @@ impl<'a, V: Validate<'a> + for<'x> EvalObject<'x>> ValidatorContext<'a> for Comm
             self.append_error("Condition must contain exactly one expression");
         } else if expr_count > 1 {
             self.append_error("Condition must contain at most one expression");
+        } else if !is_single_expression(self, condition) {
+            self.append_error(
+                "Condition must contain only an expression, without any text around it",
+            );
         } else {
+            let condition = condition.trim();
             match scope {
                 ExprScope::StartOfRun => {
                     self.eval_condition_expression(condition, &START_OF_RUN_WCTX)

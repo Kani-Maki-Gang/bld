@@ -490,6 +490,47 @@ mod tests {
     }
 
     #[tokio::test]
+    pub async fn text_around_strategy_expression_failure() {
+        let mut matrix = HashMap::new();
+        matrix.insert(
+            "os".to_string(),
+            MatrixValue::Expr("x ${{ [\"linux\"] }}".to_string()),
+        );
+
+        let data = vec![
+            Strategy {
+                matrix,
+                fail_fast: None,
+            },
+            Strategy {
+                matrix: matrix_of(vec![("os", vec!["linux"])]),
+                fail_fast: Some(FailFastValue::Expr("${{ true }} == false".to_string())),
+            },
+        ];
+
+        for strategy in data {
+            let job = Job {
+                strategy: Some(strategy),
+                steps: vec![Step::ComplexSh(Box::new(ShellCommand {
+                    id: "build".to_string(),
+                    run: "echo ${{ matrix.os }}".to_string(),
+                    ..Default::default()
+                }))],
+                ..Default::default()
+            };
+
+            let Err(e) = validate_job(job).await else {
+                panic!("expected an error for text around a strategy expression");
+            };
+            assert!(
+                e.to_string()
+                    .contains("must contain only an expression, without any text around it"),
+                "{e}"
+            );
+        }
+    }
+
+    #[tokio::test]
     pub async fn runtime_value_in_working_dir_success() {
         let job = Job {
             working_dir: Some("${{ steps.build.outputs.dir }}".to_string()),

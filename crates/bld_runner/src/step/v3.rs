@@ -921,6 +921,40 @@ mod tests {
     }
 
     #[tokio::test]
+    pub async fn condition_with_text_after_expression_fails_validation() {
+        let mut action = Action::default();
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "first".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo hello".to_string(),
+            condition: Some("${{ true }} == false".to_string()),
+            strategy: None,
+        })));
+
+        let result = validate_action(&action).await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    pub async fn condition_with_text_before_expression_fails_validation() {
+        let mut action = Action::default();
+        action.steps.push(Step::ComplexSh(Box::new(ShellCommand {
+            id: "first".to_string(),
+            name: None,
+            working_dir: None,
+            run: "echo hello".to_string(),
+            condition: Some("x ${{ true }}".to_string()),
+            strategy: None,
+        })));
+
+        let result = validate_action(&action).await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
     pub async fn condition_with_single_expression_passes_validation() {
         let mut action = Action::default();
         action.steps.push(Step::ComplexSh(Box::new(ShellCommand {

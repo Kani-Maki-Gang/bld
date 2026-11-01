@@ -92,4 +92,4 @@ LogicalExpression = { AndTerm ~ (OrOperator ~ AndTerm)* }
 //
 // Define full grammar
 //
-Full = ${ "${{" ~ " "* ~ (LogicalExpression | Expression ) ~ " "* ~ "}}" }
+Full = ${ SOI ~ "${{" ~ " "* ~ (LogicalExpression | Expression ) ~ " "* ~ "}}" ~ !ANY }
