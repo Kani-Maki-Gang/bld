@@ -17,6 +17,7 @@ use {
                 WritableRuntimeExprContext,
             },
         },
+        scalar::ScalarValue,
         strategy::v3::validate_matrix_refs,
         validator::v3::{ExprScope, Validate, ValidatorContext},
     },
@@ -171,7 +172,10 @@ impl Step {
                 if let Some(server) = ext.server.as_deref() {
                     values.push(server);
                 }
-                values.extend(ext.with.values().map(|x| x.as_str()));
+                values.extend(ext.with.values().filter_map(|x| match x {
+                    ScalarValue::Text(x) => Some(x.as_str()),
+                    _ => None,
+                }));
                 values.extend(ext.env.values().map(|x| x.as_str()));
                 if let Some(cond) = ext.condition.as_deref() {
                     values.push(cond);
@@ -840,6 +844,33 @@ mod tests {
             external.condition.as_deref(),
             Some(r#"${{ inputs.environment == "production" }}"#)
         );
+    }
+
+    #[test]
+    pub fn external_step_deserializes_scalar_with_values() {
+        let step: Step = serde_yaml_ng::from_str(
+            "uses: actions/deploy.yaml\nwith: { count: 3, ratio: 2.5, verbose: true, name: '${{ inputs.name }}', port: '8080' }",
+        )
+        .unwrap();
+
+        let Step::ExternalFile(external) = step else {
+            panic!("expected an external step, got {step:?}");
+        };
+        assert_eq!(external.with["count"], ScalarValue::Number(3.0));
+        assert_eq!(external.with["ratio"], ScalarValue::Number(2.5));
+        assert_eq!(external.with["verbose"], ScalarValue::Boolean(true));
+        assert_eq!(
+            external.with["name"],
+            ScalarValue::Text("${{ inputs.name }}".to_string())
+        );
+        assert_eq!(external.with["port"], ScalarValue::Text("8080".to_string()));
+
+        let with = external.with_as_text();
+        assert_eq!(with["count"], "3");
+        assert_eq!(with["ratio"], "2.5");
+        assert_eq!(with["verbose"], "true");
+        assert_eq!(with["name"], "${{ inputs.name }}");
+        assert_eq!(with["port"], "8080");
     }
 
     #[test]

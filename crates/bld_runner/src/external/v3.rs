@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::strategy::v3::Strategy;
+use crate::{scalar::ScalarValue, strategy::v3::Strategy};
 
 #[cfg(feature = "all")]
 use {
@@ -31,7 +31,7 @@ pub struct External {
     pub uses: String,
 
     #[serde(default)]
-    pub with: HashMap<String, String>,
+    pub with: HashMap<String, ScalarValue>,
 
     #[serde(default)]
     pub env: HashMap<String, String>,
@@ -56,6 +56,13 @@ impl External {
             uses: uses.to_owned(),
             ..Default::default()
         }
+    }
+
+    pub fn with_as_text(&self) -> HashMap<String, String> {
+        self.with
+            .iter()
+            .map(|(name, value)| (name.to_owned(), value.to_string()))
+            .collect()
     }
 }
 
@@ -85,7 +92,14 @@ impl<'a> EvalObject<'a> for External {
                 let Some(value) = self.with.get(key) else {
                     bail!("object key '{}' not found in with field", key);
                 };
-                value
+                return Ok(match value {
+                    ScalarValue::Text(value) => ExprValue::Text(ExprText::Ref(value)),
+                    ScalarValue::Boolean(value) => ExprValue::Boolean(*value),
+                    ScalarValue::Number(value) => ExprValue::Number {
+                        value: *value,
+                        raw: ExprText::Owned(value.to_string()),
+                    },
+                });
             }
             "env" => {
                 let Some(key) = path.next() else {
@@ -185,7 +199,7 @@ async fn validate_external_with<'a, C: ValidatorContext<'a>>(
     ctx: &mut C,
     uses: &'a str,
     server: Option<&'a str>,
-    with: &'a HashMap<String, String>,
+    with: &'a HashMap<String, ScalarValue>,
 ) {
     use crate::VersionedFileLoader;
 
@@ -213,6 +227,9 @@ async fn validate_external_with<'a, C: ValidatorContext<'a>>(
     }
 
     for (name, input) in with.iter() {
+        let ScalarValue::Text(input) = input else {
+            continue;
+        };
         debug!("Validating input: {}", name);
         ctx.push_section(name);
         ctx.validate_expressions(input, ExprScope::Runtime);
